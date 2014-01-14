@@ -1,0 +1,37 @@
+Ubuntu Push Notifications
+--------------------------
+
+Protocol, client, and development code for Ubuntu Push Notifications.
+
+The code expects to be checked out as launchpad.net/ubuntu-push in a Go
+workspace, see go help gopath.
+
+To setup go dependencies one can use:
+
+   make bootstrap
+
+To run tests:
+
+   make check
+
+To produce coverage reports go 1.2 (default on trusty) is needed and
+the cover tool (the latter can be obtained atm with something like:
+sudo GOPATH=<go-workspace> go get code.google.com/p/go.tools/cmd/cover
+)
+
+then run:
+
+   make coverage-summary
+
+for a summary report, or:
+
+for per package html with annotated code in coverhtml/<package-name>.html
+
+  make coverage-html
+
+(it makes also textual coverhtml/<package-name>.txt reports).
+
+To run the acceptance tests, go into the acceptance subdir and run:
+
+   ./acceptance.sh
+

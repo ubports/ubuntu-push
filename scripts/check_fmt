@@ -1,0 +1,14 @@
+#!/bin/bash
+# check that all go files respect gofmt formatting
+# assumes GOPATH is properly set
+PROJECT=${1:?missing project}
+PROBLEMS=
+for pkg in $(go list ${PROJECT}/...) ; do
+    NONCOMPLIANT=$(gofmt -l ${GOPATH}/src/${pkg}/*.go)
+    if [ -n "${NONCOMPLIANT}" ]; then
+        echo pkg $pkg has some gofmt non-compliant files:
+        echo ${NONCOMPLIANT}|xargs -d ' ' -n1 basename
+        PROBLEMS="y"
+    fi
+done
+test -z "${PROBLEMS}"
