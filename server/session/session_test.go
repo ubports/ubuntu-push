@@ -423,42 +423,6 @@ func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
 	c.Check(err, Equals, io.EOF)
 }
 
-type testRemoteAddrable struct{}
-
-func (tra *testRemoteAddrable) RemoteAddr() net.Addr {
-	return &net.TCPAddr{net.IPv4(127, 0, 0, 1), 9999, ""}
-}
-
-func (s *sessionSuite) TestSessionTrackStart(c *C) {
-	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
-	track := sessionTracker{Logger: logger}
-	track.start(&testRemoteAddrable{})
-	c.Check(track.sessionId, Not(Equals), 0)
-	regExpected := fmt.Sprintf(`.* DEBUG session\(%x\) connected 127\.0\.0\.1:9999\n`, track.sessionId)
-	c.Check(buf.String(), Matches, regExpected)
-}
-
-func (s *sessionSuite) TestSessionTrackRegistered(c *C) {
-	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
-	track := sessionTracker{Logger: logger}
-	track.start(&testRemoteAddrable{})
-	track.registered(&testBrokerSession{deviceId: "DEV-ID"})
-	regExpected := fmt.Sprintf(`.*connected.*\n.* INFO session\(%x\) registered DEV-ID\n`, track.sessionId)
-	c.Check(buf.String(), Matches, regExpected)
-}
-
-func (s *sessionSuite) TestSessionTrackEnd(c *C) {
-	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
-	track := sessionTracker{Logger: logger}
-	track.start(&testRemoteAddrable{})
-	track.end(&broker.ErrAbort{})
-	regExpected := fmt.Sprintf(`.*connected.*\n.* DEBUG session\(%x\) ended with: session aborted \(\)\n`, track.sessionId)
-	c.Check(buf.String(), Matches, regExpected)
-}
-
 func serverClientWire() (srv net.Conn, cli net.Conn, lst net.Listener) {
 	lst, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -504,14 +468,14 @@ var nopLogger = logger.NewSimpleLogger(ioutil.Discard, "error")
 
 func (s *sessionSuite) TestSessionWire(c *C) {
 	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
+	track := NewTracker(logger.NewSimpleLogger(buf, "debug"))
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
 	remSrv := &rememberDeadlineConn{srv, make([]string, 0, 2)}
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(remSrv, brkr, cfg5msPingInterval, logger)
+		errCh <- Session(remSrv, brkr, cfg5msPingInterval, track)
 	}()
 	io.WriteString(cli, "\x00")
 	io.WriteString(cli, "\x00\x20{\"T\":\"connect\",\"DeviceId\":\"DEV\"}")
@@ -531,13 +495,14 @@ func (s *sessionSuite) TestSessionWire(c *C) {
 }
 
 func (s *sessionSuite) TestSessionWireTimeout(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
 	remSrv := &rememberDeadlineConn{srv, make([]string, 0, 2)}
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(remSrv, brkr, cfg5msPingInterval2msExchangeTout, nopLogger)
+		errCh <- Session(remSrv, brkr, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	err := <-errCh
 	c.Check(err, FitsTypeOf, &net.OpError{})
@@ -547,13 +512,13 @@ func (s *sessionSuite) TestSessionWireTimeout(c *C) {
 
 func (s *sessionSuite) TestSessionWireWrongVersion(c *C) {
 	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
+	track := NewTracker(logger.NewSimpleLogger(buf, "debug"))
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(srv, brkr, cfg5msPingInterval, logger)
+		errCh <- Session(srv, brkr, cfg5msPingInterval, track)
 	}()
 	io.WriteString(cli, "\x10")
 	err := <-errCh
@@ -566,13 +531,13 @@ func (s *sessionSuite) TestSessionWireWrongVersion(c *C) {
 
 func (s *sessionSuite) TestSessionWireEarlyClose(c *C) {
 	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
+	track := NewTracker(logger.NewSimpleLogger(buf, "debug"))
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(srv, brkr, cfg5msPingInterval, logger)
+		errCh <- Session(srv, brkr, cfg5msPingInterval, track)
 	}()
 	cli.Close()
 	err := <-errCh
@@ -584,13 +549,13 @@ func (s *sessionSuite) TestSessionWireEarlyClose(c *C) {
 
 func (s *sessionSuite) TestSessionWireEarlyClose2(c *C) {
 	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
+	track := NewTracker(logger.NewSimpleLogger(buf, "debug"))
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(srv, brkr, cfg5msPingInterval, logger)
+		errCh <- Session(srv, brkr, cfg5msPingInterval, track)
 	}()
 	io.WriteString(cli, "\x00")
 	io.WriteString(cli, "\x00")
@@ -602,13 +567,14 @@ func (s *sessionSuite) TestSessionWireEarlyClose2(c *C) {
 }
 
 func (s *sessionSuite) TestSessionWireTimeout2(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
 	remSrv := &rememberDeadlineConn{srv, make([]string, 0, 2)}
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(remSrv, brkr, cfg5msPingInterval2msExchangeTout, nopLogger)
+		errCh <- Session(remSrv, brkr, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	io.WriteString(cli, "\x00")
 	io.WriteString(cli, "\x00")
