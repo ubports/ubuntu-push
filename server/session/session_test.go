@@ -109,7 +109,8 @@ func (tsc *testSessionConfig) ExchangeTimeout() time.Duration {
 	return tsc.exchangeTimeout
 }
 
-var cfg5msExchangeTout = &testSessionConfig{
+var cfg10msPingInterval5msExchangeTout = &testSessionConfig{
+	pingInterval:    10 * time.Millisecond,
 	exchangeTimeout: 5 * time.Millisecond,
 }
 
@@ -153,11 +154,17 @@ func (s *sessionSuite) TestSessionStart(c *C) {
 	brkr := newTestBroker()
 	go func() {
 		var err error
-		sess, err = sessionStart(tp, brkr, cfg5msExchangeTout)
+		sess, err = sessionStart(tp, brkr, cfg10msPingInterval5msExchangeTout)
 		errCh <- err
 	}()
 	c.Check(takeNext(down), Equals, "deadline 5ms")
 	up <- protocol.ConnectMsg{Type: "connect", ClientVer: "1", DeviceId: "dev-1"}
+	c.Check(takeNext(down), Equals, "deadline 5ms")
+	c.Check(takeNext(down), Equals, protocol.ConnAckMsg{
+		Type:   "connack",
+		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
+	})
+	up <- nil // no write error
 	err := <-errCh
 	c.Check(err, IsNil)
 	c.Check(takeNext(brkr.registration), Equals, "register dev-1")
@@ -175,21 +182,37 @@ func (s *sessionSuite) TestSessionRegisterError(c *C) {
 	brkr.err = errRegister
 	go func() {
 		var err error
-		sess, err = sessionStart(tp, brkr, cfg5msExchangeTout)
+		sess, err = sessionStart(tp, brkr, cfg10msPingInterval5msExchangeTout)
 		errCh <- err
 	}()
 	up <- protocol.ConnectMsg{Type: "connect", ClientVer: "1", DeviceId: "dev-1"}
+	takeNext(down) // CONNACK
+	up <- nil      // no write error
 	err := <-errCh
 	c.Check(err, Equals, errRegister)
 }
 
-func (s *sessionSuite) TestSessionStartErrors(c *C) {
+func (s *sessionSuite) TestSessionStartReadError(c *C) {
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	up <- io.ErrUnexpectedEOF
-	_, err := sessionStart(tp, nil, cfg5msExchangeTout)
+	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout)
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
+}
+
+func (s *sessionSuite) TestSessionStartWriteError(c *C) {
+	up := make(chan interface{}, 5)
+	down := make(chan interface{}, 5)
+	tp := &testProtocol{up, down}
+	up <- protocol.ConnectMsg{Type: "connect"}
+	up <- io.ErrUnexpectedEOF
+	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout)
+	c.Check(err, Equals, io.ErrUnexpectedEOF)
+	// sanity
+	c.Check(takeNext(down), Matches, "deadline.*")
+	c.Check(takeNext(down), Matches, "deadline.*")
+	c.Check(takeNext(down), FitsTypeOf, protocol.ConnAckMsg{})
 }
 
 func (s *sessionSuite) TestSessionStartMismatch(c *C) {
@@ -197,7 +220,7 @@ func (s *sessionSuite) TestSessionStartMismatch(c *C) {
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	up <- protocol.ConnectMsg{Type: "what"}
-	_, err := sessionStart(tp, nil, cfg5msExchangeTout)
+	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout)
 	c.Check(err, DeepEquals, &broker.ErrAbort{"expected CONNECT message"})
 }
 
@@ -479,15 +502,24 @@ func (s *sessionSuite) TestSessionWire(c *C) {
 	}()
 	io.WriteString(cli, "\x00")
 	io.WriteString(cli, "\x00\x20{\"T\":\"connect\",\"DeviceId\":\"DEV\"}")
+	// connack
 	downStream := bufio.NewReader(cli)
 	msg, err := downStream.ReadBytes(byte('}'))
+	c.Check(err, IsNil)
+	c.Check(msg, DeepEquals, []byte("\x00\x2f{\"T\":\"connack\",\"Params\":{\"PingInterval\":\"5ms\"}"))
+	// eat the last }
+	rbr, err := downStream.ReadByte()
+	c.Check(err, IsNil)
+	c.Check(rbr, Equals, byte('}'))
+	// first ping
+	msg, err = downStream.ReadBytes(byte('}'))
 	c.Check(err, IsNil)
 	c.Check(msg, DeepEquals, []byte("\x00\x0c{\"T\":\"ping\"}"))
 	c.Check(takeNext(brkr.registration), Equals, "register DEV")
 	c.Check(len(brkr.registration), Equals, 0) // not yet unregistered
 	cli.Close()
 	err = <-errCh
-	c.Check(remSrv.deadlineKind, DeepEquals, []string{"read", "both", "both"})
+	c.Check(remSrv.deadlineKind, DeepEquals, []string{"read", "both", "both", "both"})
 	c.Check(err, Equals, io.EOF)
 	c.Check(takeNext(brkr.registration), Equals, "unregister DEV")
 	// tracking

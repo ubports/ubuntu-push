@@ -44,6 +44,14 @@ func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig
 	if connMsg.Type != "connect" {
 		return nil, &broker.ErrAbort{"expected CONNECT message"}
 	}
+	proto.SetDeadline(time.Now().Add(cfg.ExchangeTimeout()))
+	err = proto.WriteMessage(&protocol.ConnAckMsg{
+		Type:   "connack",
+		Params: protocol.ConnAckParams{PingInterval: cfg.PingInterval().String()},
+	})
+	if err != nil {
+		return nil, err
+	}
 	return brkr.Register(&connMsg)
 }
 

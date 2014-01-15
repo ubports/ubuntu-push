@@ -34,7 +34,6 @@ type ClientSession struct {
 	// configuration
 	DeviceId        string
 	ServerAddr      string
-	PingInterval    time.Duration
 	ExchangeTimeout time.Duration
 	CertPEMBlock    []byte
 	ReportPings     bool
@@ -89,10 +88,19 @@ func (sess *ClientSession) Run(events chan<- string) error {
 	if err != nil {
 		return err
 	}
+	var connAck protocol.ConnAckMsg
+	err = proto.ReadMessage(&connAck)
+	if err != nil {
+		return err
+	}
+	pingInterval, err := time.ParseDuration(connAck.Params.PingInterval)
+	if err != nil {
+		return err
+	}
 	events <- fmt.Sprintf("connected %v", conn.LocalAddr())
 	var recv serverMsg
 	for {
-		deadAfter := sess.PingInterval + sess.ExchangeTimeout
+		deadAfter := pingInterval + sess.ExchangeTimeout
 		conn.SetDeadline(time.Now().Add(deadAfter))
 		err = proto.ReadMessage(&recv)
 		if err != nil {
