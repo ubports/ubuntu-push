@@ -107,7 +107,6 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 			}
 		}
 	}
-	return nil
 }
 
 var sessionsEpoch = time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano()

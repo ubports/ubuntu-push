@@ -161,7 +161,7 @@ func checkRequestAsPost(request *http.Request) *APIError {
 	return nil
 }
 
-func readBody(writer http.ResponseWriter, request *http.Request) ([]byte, *APIError) {
+func readBody(request *http.Request) ([]byte, *APIError) {
 	if err := checkRequestAsPost(request); err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
 }
 
 func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	body, apiErr := readBody(writer, request)
+	body, apiErr := readBody(request)
 
 	if apiErr != nil {
 		respondError(writer, apiErr)

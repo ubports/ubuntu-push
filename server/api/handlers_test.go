@@ -53,6 +53,16 @@ func (s *handlersSuite) TestAPIError(c *C) {
 	c.Check(string(wire), Equals, `{"error":"invalid-request","message":"Message"}`)
 }
 
+func (s *handlersSuite) TestReadyBodyReadError(c *C) {
+	r := bytes.NewReader([]byte{}) // eof too early
+	req, err := http.NewRequest("POST", "", r)
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = 1000
+	c.Assert(err, IsNil)
+	_, err = readBody(req)
+	c.Check(err, Equals, ErrCouldNotReadBody)
+}
+
 type checkBrokerSending struct {
 	store    store.PendingStore
 	chanId   store.InternalChannelId
