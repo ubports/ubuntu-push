@@ -1,8 +1,9 @@
-package identifier
+package testing
 
 import (
 	. "launchpad.net/gocheck"
 	"testing"
+	identifier ".."
 )
 
 // hook up gocheck
@@ -11,15 +12,16 @@ func Test(t *testing.T) { TestingT(t) }
 type IdentifierSuite struct{}
 var _ = Suite(&IdentifierSuite{})
 
-// test the basics
-func (s *IdentifierSuite) TestGenerate(c *C) {
-	id := New()
+func (s *IdentifierSuite) TestTesting(c *C) {
+	id := Settable()
+	id.Set("hello")
+	c.Check(id.String(), Equals, "hello")
 
-	c.Check(id.Generate(), Equals, nil)
-	c.Check(id.String(), HasLen, 128)
+	fid := Failing()
+	c.Check(fid.Generate(), Not(Equals), nil)
 }
 
 //tests the interfaces of the different classes
 func (s *IdentifierSuite) TestIdentifierInterface(c *C) {
-	_ = []Id{New()}
+	_ = []identifier.Id{Failing(), Settable()}
 }
