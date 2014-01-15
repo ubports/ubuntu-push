@@ -17,15 +17,16 @@
 package testing
 
 import (
+	identifier ".."
 	. "launchpad.net/gocheck"
 	"testing"
-	identifier ".."
 )
 
 // hook up gocheck
 func Test(t *testing.T) { TestingT(t) }
 
 type IdentifierSuite struct{}
+
 var _ = Suite(&IdentifierSuite{})
 
 // TestSettableDefaultValueVisible tests SettableIdentifier's default

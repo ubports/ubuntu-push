@@ -28,7 +28,6 @@ import "C"
 import "unsafe"
 import "errors"
 
-
 // an Id knows how to generate itself, and how to stringify itself.
 type Id interface {
 	Generate() error
@@ -52,8 +51,8 @@ func (id *Identifier) Generate() error {
 	defer C.g_free((C.gpointer)(unsafe.Pointer(cs)))
 	C.whoopsie_identifier_generate(&cs, &gerr)
 
-	if (gerr != nil) {
-		return errors.New(C.GoString((*C.char)(gerr.message)));
+	if gerr != nil {
+		return errors.New(C.GoString((*C.char)(gerr.message)))
 	} else {
 		id.value = C.GoString(cs)
 		return nil

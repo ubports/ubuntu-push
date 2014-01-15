@@ -25,6 +25,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type IdentifierSuite struct{}
+
 var _ = Suite(&IdentifierSuite{})
 
 // TestGenerate checks that Generate() does not fail, and returns a

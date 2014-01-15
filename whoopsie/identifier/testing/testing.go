@@ -48,9 +48,8 @@ func (sid *SettableIdentifier) String() string {
 	return sid.value
 }
 
-
 // FailingIdentifier is an Id that always fails to generate.
-type FailingIdentifier struct {}
+type FailingIdentifier struct{}
 
 // Failing is the constructor for FailingIdentifier.
 func Failing() *FailingIdentifier {
