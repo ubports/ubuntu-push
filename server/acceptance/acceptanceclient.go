@@ -39,6 +39,7 @@ type ClientSession struct {
 	CertPEMBlock    []byte
 	ReportPings     bool
 	Levels          map[string]int64
+	Insecure        bool // don't verify certs
 	// connection
 	Connection net.Conn
 }
@@ -59,6 +60,7 @@ func (sess *ClientSession) Dial() error {
 		}
 		tlsConfig.RootCAs = cp
 	}
+	tlsConfig.InsecureSkipVerify = sess.Insecure
 	sess.Connection = tls.Client(conn, tlsConfig)
 	return nil
 }
