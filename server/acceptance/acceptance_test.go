@@ -86,7 +86,6 @@ func testClientSession(addr string, deviceId string, reportPings bool) *ClientSe
 	}
 	return &ClientSession{
 		ExchangeTimeout: 100 * time.Millisecond,
-		PingInterval:    500 * time.Millisecond,
 		ServerAddr:      addr,
 		CertPEMBlock:    certPEMBlock,
 		DeviceId:        deviceId,
@@ -245,7 +244,7 @@ func (s *acceptanceSuite) TestConnectPingPing(c *C) {
 	c.Assert(err, IsNil)
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
 		// would be 3rd ping read, based on logged traffic
-		if op == "read" && ic.totalRead >= 28 {
+		if op == "read" && ic.totalRead >= 79 {
 			// exit the sess.Run() goroutine, client will close
 			runtime.Goexit()
 		}
@@ -279,7 +278,7 @@ func (s *acceptanceSuite) TestConnectPingNeverPong(c *C) {
 	c.Assert(err, IsNil)
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
 		// would be pong to 2nd ping, based on logged traffic
-		if op == "write" && ic.totalRead >= 28 {
+		if op == "write" && ic.totalRead >= 67 {
 			time.Sleep(200 * time.Millisecond)
 			// exit the sess.Run() goroutine, client will close
 			runtime.Goexit()

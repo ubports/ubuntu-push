@@ -36,6 +36,19 @@ type ConnectMsg struct {
 	Levels map[string]int64
 }
 
+// CONNACK message
+type ConnAckMsg struct {
+	Type   string `json:"T"`
+	Params ConnAckParams
+}
+
+// ConnAckParams carries the connection parameters from the server on
+// connection acknowledment.
+type ConnAckParams struct {
+	// ping interval formatted time.Duration
+	PingInterval string
+}
+
 // PING/PONG messages
 type PingPongMsg struct {
 	Type string `json:"T"`

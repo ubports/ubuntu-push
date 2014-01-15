@@ -33,7 +33,6 @@ var (
 
 type configuration struct {
 	// session configuration
-	PingInterval    config.ConfigTimeDuration `json:"ping_interval"`
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// server connection config
 	Addr        config.ConfigHostPort
@@ -61,7 +60,6 @@ func main() {
 	}
 	session := &acceptance.ClientSession{
 		ExchangeTimeout: cfg.ExchangeTimeout.TimeDuration(),
-		PingInterval:    cfg.PingInterval.TimeDuration(),
 		ServerAddr:      cfg.Addr.HostPort(),
 		DeviceId:        flag.Arg(1),
 		// flags
