@@ -69,7 +69,8 @@ func main() {
 	}
 	logger.Infof("listening for devices on %v", lst.Addr())
 	err = lst.AcceptLoop(func(conn net.Conn) error {
-		return session.Session(conn, broker, cfg, logger)
+		track := session.NewTracker(logger)
+		return session.Session(conn, broker, cfg, track)
 	}, logger)
 	if err != nil {
 		logger.Fatalf("accepting device connections: %v", err)

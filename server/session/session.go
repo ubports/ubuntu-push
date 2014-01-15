@@ -18,7 +18,6 @@
 package session
 
 import (
-	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
 	"net"
@@ -107,51 +106,25 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 			}
 		}
 	}
-	return nil
-}
-
-var sessionsEpoch = time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano()
-
-// sessionTracker logs session events.
-type sessionTracker struct {
-	logger.Logger
-	sessionId int64 // xxx use timeuuid later
-}
-
-func (trk *sessionTracker) start(conn interface {
-	RemoteAddr() net.Addr
-}) {
-	trk.sessionId = time.Now().UnixNano() - sessionsEpoch
-	trk.Debugf("session(%x) connected %v", trk.sessionId, conn.RemoteAddr())
-}
-
-func (trk *sessionTracker) registered(sess broker.BrokerSession) {
-	trk.Infof("session(%x) registered %v", trk.sessionId, sess.DeviceId())
-}
-
-func (trk *sessionTracker) end(err error) error {
-	trk.Debugf("session(%x) ended with: %v", trk.sessionId, err)
-	return err
 }
 
 // Session manages the session with a client.
-func Session(conn net.Conn, brkr broker.Broker, cfg SessionConfig, logger logger.Logger) error {
+func Session(conn net.Conn, brkr broker.Broker, cfg SessionConfig, track SessionTracker) error {
 	defer conn.Close()
-	track := sessionTracker{Logger: logger}
-	track.start(conn)
+	track.Start(conn)
 	v, err := protocol.ReadWireFormatVersion(conn, cfg.ExchangeTimeout())
 	if err != nil {
-		return track.end(err)
+		return track.End(err)
 	}
 	if v != protocol.ProtocolWireVersion {
-		return track.end(&broker.ErrAbort{"unexpected wire format version"})
+		return track.End(&broker.ErrAbort{"unexpected wire format version"})
 	}
 	proto := protocol.NewProtocol0(conn)
 	sess, err := sessionStart(proto, brkr, cfg)
 	if err != nil {
-		return track.end(err)
+		return track.End(err)
 	}
-	track.registered(sess)
+	track.Registered(sess)
 	defer brkr.Unregister(sess)
-	return track.end(sessionLoop(proto, sess, cfg))
+	return track.End(sessionLoop(proto, sess, cfg))
 }

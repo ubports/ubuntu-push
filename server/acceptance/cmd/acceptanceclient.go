@@ -18,11 +18,17 @@
 package main
 
 import (
+	"flag"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/server/acceptance"
 	"log"
 	"os"
 	"path/filepath"
+)
+
+var (
+	insecureFlag    = flag.Bool("insecure", false, "disable checking of server certificate and hostname")
+	reportPingsFlag = flag.Bool("reportPings", true, "report each Ping from the server")
 )
 
 type configuration struct {
@@ -35,14 +41,15 @@ type configuration struct {
 }
 
 func main() {
-	// xxx configure logging
+	flag.Parse()
+	narg := flag.NArg()
 	switch {
-	case len(os.Args) < 2:
+	case narg < 1:
 		log.Fatal("missing config file")
-	case len(os.Args) < 3:
+	case narg < 2:
 		log.Fatal("missing device-id")
 	}
-	configFName := os.Args[1]
+	configFName := flag.Arg(0)
 	f, err := os.Open(configFName)
 	if err != nil {
 		log.Fatalf("reading config: %v", err)
@@ -56,7 +63,10 @@ func main() {
 		ExchangeTimeout: cfg.ExchangeTimeout.TimeDuration(),
 		PingInterval:    cfg.PingInterval.TimeDuration(),
 		ServerAddr:      cfg.Addr.HostPort(),
-		DeviceId:        os.Args[2],
+		DeviceId:        flag.Arg(1),
+		// flags
+		ReportPings: *reportPingsFlag,
+		Insecure:    *insecureFlag,
 	}
 	session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(configFName))
 	if err != nil {

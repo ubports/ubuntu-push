@@ -25,11 +25,8 @@ import (
 	"launchpad.net/ubuntu-push/server/store"
 	helpers "launchpad.net/ubuntu-push/testing"
 	// "log"
-	"testing"
 	"time"
 )
-
-func TestSimple(t *testing.T) { TestingT(t) }
 
 type simpleSuite struct{}
 
