@@ -79,7 +79,11 @@ func (dl *DeviceListener) AcceptLoop(session func(net.Conn) error, logger logger
 			return err
 		}
 		go func() {
-			defer logger.Recoverf("terminating device connection")
+			defer func() {
+				if err := recover(); err != nil {
+					logger.StackTracef("terminating device connection on: %v", err)
+				}
+			}()
 			session(conn)
 		}()
 	}

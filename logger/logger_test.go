@@ -18,8 +18,10 @@ package logger
 
 import (
 	"bytes"
+	"fmt"
 	. "launchpad.net/gocheck"
 	"os"
+	"runtime"
 	"testing"
 )
 
@@ -95,23 +97,33 @@ func (s *loggerSuite) TestLevel(c *C) {
 	c.Check(buf.String(), Matches, `.* ERROR e5\n.* DEBUG d5\n.* INFO i5\n`)
 }
 
-func panicAndRecover(logger Logger, n int, doPanic bool) {
-	defer logger.Recoverf("%v %d", "panic", n)
+func panicAndRecover(logger Logger, n int, doPanic bool, line *int, ok *bool) {
+	defer func() {
+		if err := recover(); err != nil {
+			logger.PanicStackf("%v %d", err, n)
+		}
+	}()
+	_, _, *line, *ok = runtime.Caller(0)
 	if doPanic {
-		panic("Troubles")
+		panic("Troubles") // @ line + 2
 	}
 }
 
-func (s *loggerSuite) TestRecoverf(c *C) {
+func (s *loggerSuite) TestPanicStackfPanicScenario(c *C) {
 	buf := &bytes.Buffer{}
 	logger := NewSimpleLogger(buf, "error")
-	panicAndRecover(logger, 6, true)
-	c.Check(buf.String(), Matches, "(?s).* ERROR panic Troubles!! panic 6:.*panicAndRecover.*")
+	var line int
+	var ok bool
+	panicAndRecover(logger, 6, true, &line, &ok)
+	c.Assert(ok, Equals, true)
+	c.Check(buf.String(), Matches, fmt.Sprintf("(?s).* ERROR\\(PANIC\\) Troubles 6:.*panicAndRecover.*logger_test.go:%d.*", line+2))
 }
 
-func (s *loggerSuite) TestRecoverfNop(c *C) {
+func (s *loggerSuite) TestPanicStackfNoPanicScenario(c *C) {
 	buf := &bytes.Buffer{}
 	logger := NewSimpleLogger(buf, "error")
-	panicAndRecover(logger, 6, false)
+	var line int
+	var ok bool
+	panicAndRecover(logger, 6, false, &line, &ok)
 	c.Check(buf.String(), Equals, "")
 }

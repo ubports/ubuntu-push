@@ -31,8 +31,9 @@ type Logger interface {
 	Errorf(format string, v ...interface{})
 	// Fatalf logs an error and exists the program with os.Exit(1).
 	Fatalf(format string, v ...interface{})
-	// Recoverf recover from a possible panic and logs it.
-	Recoverf(format string, v ...interface{})
+	// PanicStackf logs a error message and a stacktrace, for use
+	// in panic recovery.
+	PanicStackf(format string, v ...interface{})
 	// Infof logs a info message.
 	Infof(format string, v ...interface{})
 	// Debugf logs a debug message.
@@ -77,14 +78,12 @@ func (lg *simpleLogger) Fatalf(format string, v ...interface{}) {
 	osExit(1)
 }
 
-func (lg *simpleLogger) Recoverf(format string, v ...interface{}) {
-	if err := recover(); err != nil {
-		msg := fmt.Sprintf(format, v...)
-		stack := make([]byte, 8*1024) // Stack writes less but doesn't fail
-		stackWritten := runtime.Stack(stack, false)
-		stack = stack[:stackWritten]
-		lg.Printf("ERROR panic %v!! %s:\n%s", err, msg, stack)
-	}
+func (lg *simpleLogger) PanicStackf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	stack := make([]byte, 8*1024) // Stack writes less but doesn't fail
+	stackWritten := runtime.Stack(stack, false)
+	stack = stack[:stackWritten]
+	lg.Printf("ERROR(PANIC) %s:\n%s", msg, stack)
 }
 
 func (lg *simpleLogger) Infof(format string, v ...interface{}) {
