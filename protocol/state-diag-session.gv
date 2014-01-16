@@ -1,0 +1,20 @@
+digraph state_diagram_session {
+        label = "State diagram for session";
+        size="12,6";
+	rankdir=LR;
+	node [shape = circle];
+	start1 -> start2 [ label = "Read wire version" ];
+	start2 -> start3 [ label = "Read CONNECT" ];
+	start3 -> loop [ label = "Write CONNACK" ];
+        loop -> ping [ label = "Elapsed ping interval" ];
+        loop -> broadcast [label = "Receive broadcast request"];
+        ping -> pong_wait [label = "Write PING"];
+        broadcast -> ack_wait [label = "Write BROADCAST [fits one wire msg]"];
+        broadcast -> split_broadcast [label = "BROADCAST does not fit one wire msg"];
+        pong_wait -> loop [label = "Read PONG"];
+        ack_wait -> loop [label = "Read ACK"];
+        // split messages
+        split_broadcast -> split_ack_wait [label = "Write split BROADCAST"];
+        split_ack_wait -> split_broadcast [label = "Read ACK"];
+        split_broadcast -> loop [label = "All split msgs written"];
+}
