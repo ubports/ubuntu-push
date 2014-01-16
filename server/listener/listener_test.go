@@ -227,7 +227,7 @@ func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
 	go func() {
 		errCh <- lst.AcceptLoop(func(conn net.Conn) error {
 			defer conn.Close()
-			panic("session panic")
+			panic("session crash")
 		}, logger)
 	}()
 	listenerAddr := lst.Addr().String()
@@ -235,5 +235,5 @@ func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
 	c.Assert(err, Not(IsNil))
 	lst.Close()
 	c.Check(<-errCh, ErrorMatches, ".*use of closed.*")
-	c.Check(buf.String(), Matches, "(?s).*session panic!! terminating device connection:\n.*AcceptLoop.*")
+	c.Check(buf.String(), Matches, "(?s).* ERROR\\(PANIC\\) terminating device connection on: session crash:.*AcceptLoop.*")
 }
