@@ -1,0 +1,16 @@
+digraph state_diagram_client {
+        label = "State diagram for client";
+        size="12,6";
+        rankdir=LR;
+        node [shape = doublecircle]; pingTimeout;
+        node [shape = circle];
+        start1 -> start2 [ label = "Write wire version" ];
+        start2 -> start3 [ label = "Write CONNECT" ];
+        start3 -> loop [ label = "Read CONNACK" ];
+        loop -> pong [ label = "Read PING" ];
+        loop -> broadcast [label = "Read BROADCAST"];
+        pong -> loop [label = "Write PONG"];
+        broadcast -> loop [label = "Write ACK"];
+        loop -> pingTimeout [
+             label = "Elapsed ping interval + exchange interval"];
+}

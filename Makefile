@@ -44,5 +44,10 @@ format:
 check-format:
 	scripts/check_fmt $(PROJECT)
 
+protocol-diagrams: protocol/state-diag-client.svg protocol/state-diag-session.svg
+%.svg: %.gv
+	# requires graphviz installed
+	dot -Tsvg $< > $@
+
 .PHONY: bootstrap check check-race format check-format coverage-summary \
-	coverage-html
+	coverage-html protocol-diagrams
