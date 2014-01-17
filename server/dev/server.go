@@ -27,6 +27,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
 func main() {
@@ -64,6 +65,13 @@ func main() {
 		}
 	}()
 	// listen for device connections
+	logger.Debugf("PingInterval: %s, ExchangeTimeout %s", cfg.PingInterval(), cfg.ExchangeTimeout())
+	var rlim syscall.Rlimit
+	err = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlim)
+	if err != nil {
+		logger.Fatalf("getrlimit failed: %v", err)
+	}
+	logger.Debugf("nofile soft: %d hard: %d", rlim.Cur, rlim.Max)
 	lst, err := listener.DeviceListen(cfg)
 	if err != nil {
 		logger.Fatalf("start device listening: %v", err)
