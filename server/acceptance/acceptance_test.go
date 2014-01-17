@@ -96,6 +96,7 @@ func testClientSession(addr string, deviceId string, reportPings bool) *ClientSe
 const (
 	devListeningOnPat  = "INFO listening for devices on "
 	httpListeningOnPat = "INFO listening for http on "
+	debugPrefix = "DEBUG "
 )
 
 var rxLineInfo = regexp.MustCompile("^.*? ([[:alpha:]].*)\n")
@@ -132,24 +133,31 @@ func (s *acceptanceSuite) SetUpTest(c *C) {
 		c.Fatal(err)
 	}
 	bufErr := bufio.NewReaderSize(stderr, 5000)
-	getLineInfo := func() (string, error) {
-		line, err := bufErr.ReadString('\n')
-		if err != nil {
-			return "", err
+	getLineInfo := func(ignoreDebug bool) (string, error) {
+		for {
+			line, err := bufErr.ReadString('\n')
+			if err != nil {
+				return "", err
+			}
+			extracted := rxLineInfo.FindStringSubmatch(line)
+			if extracted == nil {
+				return "", fmt.Errorf("unexpected server line: %#v", line)
+			}
+			info := extracted[1]
+			if ignoreDebug && strings.HasPrefix(info, debugPrefix) {
+				// don't report DEBUG lines
+				continue
+			}
+			return info, nil
 		}
-		extracted := rxLineInfo.FindStringSubmatch(line)
-		if extracted == nil {
-			return "", fmt.Errorf("unexpected server line: %#v", line)
-		}
-		return extracted[1], nil
 	}
-	infoHTTP, err := getLineInfo()
+	infoHTTP, err := getLineInfo(true)
 	if err != nil {
 		c.Fatal(err)
 	}
 	serverHTTPAddr := extractListeningAddr(c, httpListeningOnPat, infoHTTP)
 	s.serverURL = fmt.Sprintf("http://%s", serverHTTPAddr)
-	info, err := getLineInfo()
+	info, err := getLineInfo(true)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -159,7 +167,7 @@ func (s *acceptanceSuite) SetUpTest(c *C) {
 	s.serverEvents = serverEvents
 	go func() {
 		for {
-			info, err := getLineInfo()
+			info, err := getLineInfo(false)
 			if err != nil {
 				serverEvents <- fmt.Sprintf("ERROR: %v", err)
 				close(serverEvents)
