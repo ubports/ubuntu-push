@@ -96,7 +96,7 @@ func testClientSession(addr string, deviceId string, reportPings bool) *ClientSe
 const (
 	devListeningOnPat  = "INFO listening for devices on "
 	httpListeningOnPat = "INFO listening for http on "
-	debugPrefix = "DEBUG "
+	debugPrefix        = "DEBUG "
 )
 
 var rxLineInfo = regexp.MustCompile("^.*? ([[:alpha:]].*)\n")
