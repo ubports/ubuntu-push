@@ -25,7 +25,6 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/store"
-	"log"
 	"net/http"
 )
 
@@ -125,10 +124,7 @@ type Broadcast struct {
 func respondError(writer http.ResponseWriter, apiErr *APIError) {
 	wireError, err := json.Marshal(apiErr)
 	if err != nil {
-		// xxx general 500 framework
-		log.Println("The provided string could not be marshaled into an error:", err)
-		http.Error(writer, "Internal Server Error", http.StatusInternalServerError)
-		return
+		panic(fmt.Errorf("couldn't marshal our own errors: %v", err))
 	}
 	writer.Header().Set("Content-type", JSONMediaType)
 	writer.WriteHeader(apiErr.StatusCode)

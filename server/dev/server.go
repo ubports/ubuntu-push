@@ -55,6 +55,7 @@ func main() {
 		logger.Fatalf("start http listening: %v", err)
 	}
 	handler := api.MakeHandlersMux(sto, broker, logger)
+	handler = api.PanicTo500Handler(handler, logger)
 	logger.Infof("listening for http on %v", httpLst.Addr())
 	go func() {
 		err := RunHTTPServe(httpLst, handler, cfg)
