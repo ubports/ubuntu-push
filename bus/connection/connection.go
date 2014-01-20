@@ -100,7 +100,7 @@ func (conn Connection) WatchSignal(member string, f func(interface{}), d func())
 
 // Call() invokes the provided member method (on the name, path and interface
 // provided when creating the bus). The return value is unpacked before being
-// set on.
+// returned.
 func (conn Connection) Call(member string, args ...interface{}) (interface{}, error) {
 	proxy := conn.bus.Object(conn.name, dbus.ObjectPath(conn.path))
 	if msg, err := proxy.Call(conn.iface, member, args...); err == nil {
