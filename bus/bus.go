@@ -46,8 +46,8 @@ var (
 )
 
 /*
-    public methods
- */
+   public methods
+*/
 
 func (bus concreteBus) String() string {
 	if bus == concreteBus(dbus.SystemBus) {
@@ -67,15 +67,13 @@ func (bus concreteBus) Connect(addr Address, log logger.Logger) (Endpoint, error
 	}
 }
 
-
 /*
-    private methods
- */
+   private methods
+*/
 
 func (bus concreteBus) dbusType() dbus.StandardBus {
 	return dbus.StandardBus(bus)
 }
-
 
 /*****************************************************************
  *    Address

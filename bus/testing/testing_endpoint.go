@@ -39,7 +39,6 @@ func NewTestingEndpoint(cond condition.Interface, retvals ...interface{}) *testi
 	return &testingEndpoint{cond, retvals}
 }
 
-
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values
 func (tc *testingEndpoint) WatchSignal(member string, f func(interface{}), d func()) error {

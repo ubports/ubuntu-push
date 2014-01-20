@@ -24,7 +24,7 @@ import (
 // hook up gocheck
 func EndpointTest(t *testing.T) { TestingT(t) }
 
-type EndpointSuite struct {}
+type EndpointSuite struct{}
 
 var _ = Suite(&EndpointSuite{})
 

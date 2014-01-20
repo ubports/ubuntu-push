@@ -46,10 +46,9 @@ func NewTestingBus(clientTC condition.Interface, busTC condition.Interface, retv
 // ensure testingBus implements bus.Interface
 var _ bus.Bus = &testingBus{}
 
-
 /*
-    public methods
- */
+   public methods
+*/
 
 func (tb *testingBus) Connect(info bus.Address, log logger.Logger) (bus.Endpoint, error) {
 	if tb.TestCond.OK() {
@@ -62,4 +61,3 @@ func (tb *testingBus) Connect(info bus.Address, log logger.Logger) (bus.Endpoint
 func (tb *testingBus) String() string {
 	return "<TestingBus>"
 }
-
