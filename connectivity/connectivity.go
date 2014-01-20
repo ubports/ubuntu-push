@@ -49,23 +49,23 @@ type Config struct {
 }
 
 type connectedState struct {
-	C            <-chan networkmanager.State
-	config       Config
-	log          logger.Logger
-	bus          bus.Bus
-	connAttempts uint32
-	webget       func(ch chan<- bool)
-	webgetC      chan bool
-	currentState networkmanager.State
-	lastSent     bool
-	timer        *time.Timer
+	networkStateCh <-chan networkmanager.State
+	config         Config
+	log            logger.Logger
+	bus            bus.Bus
+	connAttempts   uint32
+	webget         func(ch chan<- bool)
+	webgetC        chan bool
+	currentState   networkmanager.State
+	lastSent       bool
+	timer          *time.Timer
 }
 
 // implements the logic for connect timeouts backoff
 //
 // (walk the list of timeouts, and repeat the last one until done; cope with
 // the list being empty; keep track of connection attempts).
-func (cs *connectedState) ConnectTimeout() time.Duration {
+func (cs *connectedState) connectTimeout() time.Duration {
 	var timeout config.ConfigTimeDuration
 	timeouts := cs.config.ConnectTimeouts
 	if cs.connAttempts < uint32(len(timeouts)) {
@@ -77,12 +77,12 @@ func (cs *connectedState) ConnectTimeout() time.Duration {
 	return timeout.Duration
 }
 
-// Start connects to the bus, gets the initial NetworkManager state, and sets
+// start connects to the bus, gets the initial NetworkManager state, and sets
 // up the watch.
-func (cs *connectedState) Start() networkmanager.State {
+func (cs *connectedState) start() networkmanager.State {
 	var initial networkmanager.State
 	for {
-		time.Sleep(cs.ConnectTimeout())
+		time.Sleep(cs.connectTimeout())
 		cs.log.Debugf("Starting DBus connection attempt %d\n", cs.connAttempts)
 		conn, err := cs.bus.Connect(networkmanager.BusAddress, cs.log)
 		if err != nil {
@@ -107,7 +107,7 @@ func (cs *connectedState) Start() networkmanager.State {
 			continue
 		}
 
-		cs.C = ch
+		cs.networkStateCh = ch
 		cs.log.Debugf("worked at attempt %d. Resetting counter.\n", cs.connAttempts)
 		return initial
 	}
@@ -119,27 +119,25 @@ func (cs *connectedState) connectedStateStep() (bool, error) {
 	stabilizingTimeout := cs.config.StabilizingTimeout.Duration
 	recheckTimeout := cs.config.RecheckTimeout.Duration
 	log := cs.log
-	done := false
-	for !done {
+loop:
+	for {
 		select {
-		case v, ok := <-cs.C:
+		case v, ok := <-cs.networkStateCh:
 			if !ok {
 				// tear it all down and start over
 				return false, errors.New("Got not-OK from StateChanged watch")
 			}
+			cs.webgetC = nil
+			cs.currentState = v
+			cs.timer.Reset(stabilizingTimeout)
 			log.Debugf("State changed to %s. Assuming disconnect.", v)
 			if cs.lastSent == true {
 				log.Infof("Sending 'disconnected'.")
 				cs.lastSent = false
-				done = true
+				break loop
 			}
-			cs.timer.Stop()
-			cs.webgetC = nil
-			cs.timer.Reset(stabilizingTimeout)
-			cs.currentState = v
 
 		case <-cs.timer.C:
-			cs.timer.Stop()
 			if cs.currentState == networkmanager.ConnectedGlobal {
 				log.Debugf("May be connected; checking...")
 				cs.webgetC = make(chan bool)
@@ -150,17 +148,14 @@ func (cs *connectedState) connectedStateStep() (bool, error) {
 			cs.timer.Reset(recheckTimeout)
 			log.Debugf("Connection check says: %t", connected)
 			cs.webgetC = nil
-			if connected {
-				if cs.lastSent == false {
-					log.Infof("Sending 'connected'.")
-					cs.lastSent = true
-					done = true
-				}
+			if connected && cs.lastSent == false {
+				log.Infof("Sending 'connected'.")
+				cs.lastSent = true
+				break loop
 			}
 		}
 	}
 	return cs.lastSent, nil
-
 }
 
 // ConnectedState sends the initial NetworkManager state and changes to it
@@ -179,7 +174,7 @@ start:
 	log.Infof("Sending initial 'disconnected'.")
 	out <- false
 	cs.lastSent = false
-	cs.currentState = cs.Start()
+	cs.currentState = cs.start()
 	cs.timer = time.NewTimer(cs.config.StabilizingTimeout.Duration)
 
 	for {

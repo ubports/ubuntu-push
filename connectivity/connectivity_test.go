@@ -46,8 +46,8 @@ var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 // When given no timeouts, ConnectTimeout() returns 0 forever
 func (s *ConnSuite) TestConnectTimeoutWorksWithNoTimeouts(c *C) {
 	cs := connectedState{}
-	c.Check(cs.ConnectTimeout(), Equals, time.Duration(0))
-	c.Check(cs.ConnectTimeout(), Equals, time.Duration(0))
+	c.Check(cs.connectTimeout(), Equals, time.Duration(0))
+	c.Check(cs.connectTimeout(), Equals, time.Duration(0))
 }
 
 // when given a few timeouts, ConnectTimeout() returns them each in
@@ -59,12 +59,12 @@ func (s *ConnSuite) TestConnectTimeoutWorks(c *C) {
 		config.ConfigTimeDuration{time.Second},
 	}
 	cs := connectedState{config: Config{ConnectTimeouts: ts}}
-	c.Check(cs.ConnectTimeout(), Equals, time.Duration(0))
-	c.Check(cs.ConnectTimeout(), Equals, 2*time.Second)
-	c.Check(cs.ConnectTimeout(), Equals, time.Second)
-	c.Check(cs.ConnectTimeout(), Equals, time.Second)
-	c.Check(cs.ConnectTimeout(), Equals, time.Second)
-	c.Check(cs.ConnectTimeout(), Equals, time.Second)
+	c.Check(cs.connectTimeout(), Equals, time.Duration(0))
+	c.Check(cs.connectTimeout(), Equals, 2*time.Second)
+	c.Check(cs.connectTimeout(), Equals, time.Second)
+	c.Check(cs.connectTimeout(), Equals, time.Second)
+	c.Check(cs.connectTimeout(), Equals, time.Second)
+	c.Check(cs.connectTimeout(), Equals, time.Second)
 	// ... ad nauseam
 }
 
@@ -78,7 +78,7 @@ func (s *ConnSuite) TestStartWorks(c *C) {
 	tb := testingbus.NewTestingBus(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting))
 	cs := connectedState{config: cfg, log: nullog, bus: tb}
 
-	c.Check(cs.Start(), Equals, networkmanager.Connecting)
+	c.Check(cs.start(), Equals, networkmanager.Connecting)
 }
 
 // if the bus fails a couple of times, we're still OK
@@ -88,7 +88,7 @@ func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 	tb := testingbus.NewTestingBus(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting))
 	cs := connectedState{config: cfg, log: nullog, bus: tb}
 
-	c.Check(cs.Start(), Equals, networkmanager.Connecting)
+	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(3)) // 1 more than the Fail2Work
 }
 
@@ -98,7 +98,7 @@ func (s *ConnSuite) TestStartRetriesCall(c *C) {
 	tb := testingbus.NewTestingBus(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting))
 	cs := connectedState{config: cfg, log: nullog, bus: tb}
 
-	c.Check(cs.Start(), Equals, networkmanager.Connecting)
+	c.Check(cs.start(), Equals, networkmanager.Connecting)
 
 	c.Check(cs.connAttempts, Equals, uint32(6))
 }
@@ -117,10 +117,10 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 		uint32(networkmanager.ConnectedGlobal))
 	cs := connectedState{config: cfg, log: nullog, bus: tb}
 
-	c.Check(cs.Start(), Equals, networkmanager.Connecting)
+	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(2))
-	c.Check(<-cs.C, Equals, networkmanager.Connecting)
-	c.Check(<-cs.C, Equals, networkmanager.ConnectedGlobal)
+	c.Check(<-cs.networkStateCh, Equals, networkmanager.Connecting)
+	c.Check(<-cs.networkStateCh, Equals, networkmanager.ConnectedGlobal)
 }
 
 /*
@@ -136,12 +136,12 @@ func (s *ConnSuite) TestSteps(c *C) {
 	}
 	ch := make(chan networkmanager.State, 10)
 	cs := &connectedState{
-		config:   cfg,
-		C:        ch,
-		timer:    time.NewTimer(time.Second),
-		log:      nullog,
-		webget:   webget_works,
-		lastSent: false,
+		config:         cfg,
+		networkStateCh: ch,
+		timer:          time.NewTimer(time.Second),
+		log:            nullog,
+		webget:         webget_works,
+		lastSent:       false,
 	}
 	ch <- networkmanager.ConnectedGlobal
 	f, e := cs.connectedStateStep()
