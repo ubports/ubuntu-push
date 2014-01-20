@@ -14,42 +14,52 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package bus/testing provides an implementation of bus.Interface
-// that takes condition.Interface to determine whether to work, as
-// well using a bus connection from connection/testing.
+// Package bus/testing provides an implementation of bus.Bus and bus.Endpoint
+// suitable for testing.
+//
+// Here, the bus.Bus implementation.
 package testing
 
 import (
 	"errors"
 	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/bus/connection"
-	"launchpad.net/ubuntu-push/bus/connection/testing"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/testing/condition"
 )
 
-type TestingBus struct {
+/*****************************************************************
+ *    TestingBus
+ */
+
+type testingBus struct {
 	TestCond condition.Interface
-	TestConn *testing.TestingConnection
+	TestEndp *testingEndpoint
 }
 
-func (tb *TestingBus) Connect(info bus.Info, log logger.Logger) (connection.Interface, error) {
+// Build a bus.Bus that takes a condition to determine whether it should work,
+// as well as a condition and series of return values for the testing
+// bus.Endpoint it builds.
+func NewTestingBus(clientTC condition.Interface, busTC condition.Interface, retvals ...interface{}) *testingBus {
+	return &testingBus{clientTC, NewTestingEndpoint(busTC, retvals...)}
+}
+
+// ensure testingBus implements bus.Interface
+var _ bus.Bus = &testingBus{}
+
+
+/*
+    public methods
+ */
+
+func (tb *testingBus) Connect(info bus.Address, log logger.Logger) (bus.Endpoint, error) {
 	if tb.TestCond.OK() {
-		return tb.TestConn, nil
+		return tb.TestEndp, nil
 	} else {
 		return nil, errors.New(tb.TestCond.String())
 	}
 }
 
-func (tb *TestingBus) String() string {
+func (tb *testingBus) String() string {
 	return "<TestingBus>"
 }
 
-// New takes a condition to determine whether it should work, as well as a
-// condition and series of return values for the testing.TestingConnection it
-// builds.
-func New(clientTC condition.Interface, busTC condition.Interface, retvals ...interface{}) *TestingBus {
-	return &TestingBus{clientTC, testing.New(busTC, retvals...)}
-}
-
-var _ bus.Interface = &TestingBus{}

@@ -14,35 +14,37 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// bus/connection/testing provides an implementation of
-// connection.Interface that takes a condition.Interface to determine
-// whether to work.
+// Package bus/testing provides an implementation of bus.Bus and bus.Endpoint
+// suitable for testing.
+//
+// Here, the bus.Endpoint implementation.
 package testing
 
 import (
 	"errors"
-	"launchpad.net/ubuntu-push/bus/connection"
+	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"time"
 )
 
-type TestingConnection struct {
+type testingEndpoint struct {
 	cond    condition.Interface
 	retvals []interface{}
 }
 
-// Build a TestingConnection that calls OK() on its condition before returning
+// Build a bus.Endpoint that calls OK() on its condition before returning
 // the provided return values.
 //
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them intern, irrespective of whether Call has been called.
-func New(cond condition.Interface, retvals ...interface{}) *TestingConnection {
-	return &TestingConnection{cond, retvals}
+func NewTestingEndpoint(cond condition.Interface, retvals ...interface{}) *testingEndpoint {
+	return &testingEndpoint{cond, retvals}
 }
 
-// See connection.WatchSignal. This WatchSignal will check its condition to decide
-// whether to return an error, or provide each of the given return values
-func (tc *TestingConnection) WatchSignal(member string, f func(interface{}), d func()) error {
+
+// See Endpoint's WatchSignal. This WatchSignal will check its condition to
+// decide whether to return an error, or provide each of its return values
+func (tc *testingEndpoint) WatchSignal(member string, f func(interface{}), d func()) error {
 	if tc.cond.OK() {
 		go func() {
 			for _, v := range tc.retvals {
@@ -57,9 +59,9 @@ func (tc *TestingConnection) WatchSignal(member string, f func(interface{}), d f
 	}
 }
 
-// See connection.Call. This Call will check its condition to decide whether to
-// return an error, or the first return value provided to New()
-func (tc *TestingConnection) Call(member string, args ...interface{}) (interface{}, error) {
+// See Endpoint's Call. This Call will check its condition to decide whether
+// to return an error, or the first of its return values
+func (tc *testingEndpoint) Call(member string, args ...interface{}) (interface{}, error) {
 	if tc.cond.OK() {
 		if len(tc.retvals) == 0 {
 			panic("No return values provided!")
@@ -70,8 +72,8 @@ func (tc *TestingConnection) Call(member string, args ...interface{}) (interface
 	}
 }
 
-// see connection.Close
-func (tc *TestingConnection) Close() {}
+// see Endpoint's Close. This one does nothing.
+func (tc *testingEndpoint) Close() {}
 
-// ensure TestingConnection implements connection.Interface
-var _ connection.Interface = &TestingConnection{}
+// ensure testingEndpoint implements bus.Endpoint
+var _ bus.Endpoint = &testingEndpoint{}

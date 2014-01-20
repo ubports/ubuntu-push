@@ -8,6 +8,7 @@ $(error unexpected curdir and/or layout)
 endif
 
 GODEPS = launchpad.net/gocheck
+GODEPS += launchpad.net/go-dbus/v1
 
 bootstrap:
 	mkdir -p $(GOPATH)/bin
