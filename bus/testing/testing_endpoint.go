@@ -14,11 +14,9 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package bus/testing provides an implementation of bus.Bus and bus.Endpoint
-// suitable for testing.
-//
-// Here, the bus.Endpoint implementation.
 package testing
+
+// Here, the bus.Endpoint implementation.
 
 import (
 	"errors"

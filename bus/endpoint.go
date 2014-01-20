@@ -14,9 +14,9 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package bus provides a simplified (and more testable?) interface to DBus.
-// Here we define the Endpoint, which represents the DBus connection itself.
 package bus
+
+// Here we define the Endpoint, which represents the DBus connection itself.
 
 import (
 	"launchpad.net/go-dbus/v1"
@@ -27,6 +27,7 @@ import (
  *    Endpoint (and its implementation)
  */
 
+// bus.Endpoint represents the DBus connection itself.
 type Endpoint interface {
 	WatchSignal(member string, f func(interface{}), d func()) error
 	Call(member string, args ...interface{}) (interface{}, error)

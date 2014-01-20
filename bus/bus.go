@@ -15,8 +15,9 @@
 */
 
 // Package bus provides a simplified (and more testable?) interface to DBus.
-// Here we define the Bus itself.
 package bus
+
+// Here we define the Bus itself
 
 import (
 	"launchpad.net/go-dbus/v1"
@@ -27,6 +28,7 @@ import (
  *    Bus (and its implementation)
  */
 
+// This is the Bus itself.
 type Bus interface {
 	String() string
 	Connect(Address, logger.Logger) (Endpoint, error)
@@ -37,9 +39,11 @@ type concreteBus dbus.StandardBus
 // ensure concreteBus implements Bus
 var _ Bus = new(concreteBus)
 
-// no constructor, just two standard, constant, busses
-var SessionBus Bus = concreteBus(dbus.SessionBus)
-var SystemBus  Bus = concreteBus(dbus.SystemBus)
+// no bus.Bus constructor, just two standard, constant, busses
+var (
+	SessionBus Bus = concreteBus(dbus.SessionBus)
+	SystemBus  Bus = concreteBus(dbus.SystemBus)
+)
 
 /*
     public methods
@@ -77,7 +81,7 @@ func (bus concreteBus) dbusType() dbus.StandardBus {
  *    Address
  */
 
-// Address is just a back of configuration
+// bus.Address is just a bag of configuration
 type Address struct {
 	Name      string
 	Path      string

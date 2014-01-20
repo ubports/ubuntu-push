@@ -16,9 +16,9 @@
 
 // Package bus/testing provides an implementation of bus.Bus and bus.Endpoint
 // suitable for testing.
-//
-// Here, the bus.Bus implementation.
 package testing
+
+// Here, the bus.Bus implementation.
 
 import (
 	"errors"
