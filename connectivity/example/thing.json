@@ -1,0 +1,7 @@
+{
+    "connectTimeouts": ["0s", "2s", "3s", "5s", "11s", "19s", "37s", "67s"],
+    "stabilizingTimeout": "2s",
+    "recheckTimeout": "10m",
+    "connectivityCheckURL": "http://start.ubuntu.com/connectivity-check.html",
+    "connectivityCheckMD5": "4589f42e1546aa47ca181e5d949d310b"
+}
