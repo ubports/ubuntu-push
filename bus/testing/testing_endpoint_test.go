@@ -71,3 +71,12 @@ func (s *TestingEndpointSuite) TestWatchFails(c *C) {
 	e := endp.WatchSignal("what", func(u interface{}) {}, func() {})
 	c.Check(e, NotNil)
 }
+
+// Tests that GetProperty() works
+func (s *TestingEndpointSuite) TestGetProperty(c *C) {
+	var m uint32 = 42
+	endp := NewTestingEndpoint(condition.Work(true), m)
+	v, e := endp.GetProperty("what")
+	c.Check(e, IsNil)
+	c.Check(v, Equals, m)
+}

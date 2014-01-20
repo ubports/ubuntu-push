@@ -19,6 +19,7 @@ package bus
 // Here we define the Endpoint, which represents the DBus connection itself.
 
 import (
+	"errors"
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/logger"
 )
@@ -31,6 +32,7 @@ import (
 type Endpoint interface {
 	WatchSignal(member string, f func(interface{}), d func()) error
 	Call(member string, args ...interface{}) (interface{}, error)
+	GetProperty(property string) (interface{}, error)
 	Close()
 }
 
@@ -82,6 +84,27 @@ func (endp endpoint) Call(member string, args ...interface{}) (interface{}, erro
 	} else {
 		return 0, err
 	}
+}
+
+// GetProperty uses the org.freedesktop.DBus.Properties interface's Get method
+// to read a given property on the name, path and interface provided when
+// creating the endpoint. The return value is unpacked into a dbus.Variant,
+// and its value returned.
+func (endp endpoint) GetProperty(property string) (interface{}, error) {
+	proxy := endp.bus.Object(endp.name, dbus.ObjectPath(endp.path))
+	msg, err := proxy.Call("org.freedesktop.DBus.Properties", "Get", endp.iface, property)
+	if err != nil {
+		return nil, err
+	}
+	variantv, err := endp.unpackOneMsg(msg, property)
+	if err != nil {
+		return nil, err
+	}
+	variant, ok := variantv.(*dbus.Variant)
+	if !ok {
+		return nil, errors.New("Response from Properties.Get wasn't a *dbus.Variant")
+	}
+	return variant.Value, nil
 }
 
 // Close the connection to dbus.
