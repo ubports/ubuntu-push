@@ -18,20 +18,20 @@ bootstrap:
 	go install $(GODEPS)
 
 check:
-	go test $(PROJECT)/...
+	go test $(TESTFLAGS) $(PROJECT)/...
 
 check-race:
-	go test -race $(PROJECT)/...
+	go test $(TESTFLAGS) -race $(PROJECT)/...
 
 coverage-summary:
-	go test -a -cover $(PROJECT)/...
+	go test $(TESTFLAGS) -a -cover $(PROJECT)/...
 
 coverage-html:
 	mkdir -p coverhtml
 	for pkg in $$(go list $(PROJECT)/...|grep -v acceptance ); do \
 		relname="$${pkg#$(PROJECT)/}" ; \
 		mkdir -p coverhtml/$$(dirname $${relname}) ; \
-		go test -a -coverprofile=coverhtml/$${relname}.out $$pkg ; \
+		go test $(TESTFLAGS) -a -coverprofile=coverhtml/$${relname}.out $$pkg ; \
 		if [ -f coverhtml/$${relname}.out ] ; then \
 	           go tool cover -html=coverhtml/$${relname}.out -o coverhtml/$${relname}.html ; \
 	           go tool cover -func=coverhtml/$${relname}.out -o coverhtml/$${relname}.txt ; \
