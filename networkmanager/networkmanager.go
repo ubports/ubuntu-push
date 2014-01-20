@@ -14,34 +14,52 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package connectivity/networkmanager wraps a couple of networkmanager API
-// points: the org.freedesktop.NetworkManager.state call, and listening for
-// the StateChange signal.
+// Package networkmanager wraps a couple of NetworkManager's DBus API points:
+// the org.freedesktop.NetworkManager.state call, and listening for the
+// StateChange signal.
 package networkmanager
 
 import (
 	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/bus/connection"
 	"launchpad.net/ubuntu-push/logger"
 )
 
-var BusInfo bus.Info = bus.Info{
+// NetworkManager lives on a well-knwon bus.Address
+var BusAddress bus.Address = bus.Address{
 	Interface: "org.freedesktop.NetworkManager",
 	Path:      "/org/freedesktop/NetworkManager",
 	Name:      "org.freedesktop.NetworkManager",
 }
 
-type NetworkManager struct {
-	bus connection.Interface
+/*****************************************************************
+ *    NetworkManager (and its implementation)
+ */
+
+type NetworkManager interface {
+	// GetState fetches and returns NetworkManager's current state
+	GetState() State
+	// WatchState listens for changes to NetworkManager's state, and sends
+	// them out over the channel returned.
+	WatchState() (<-chan State, error)
+}
+
+type networkManager struct {
+	bus bus.Endpoint
 	log logger.Logger
 }
 
-func New(conn connection.Interface, log logger.Logger) NetworkManager {
-	return NetworkManager{conn, log}
+// New returns a new NetworkManager that'll use the provided bus.Endpoint
+func New(endp bus.Endpoint, log logger.Logger) NetworkManager {
+	return &networkManager{endp, log}
 }
 
-// GetState fetches and returns NetworkManager's current state
-func (nm NetworkManager) GetState() State {
+var _ NetworkManager = &networkManager{}
+
+/*
+   public methods
+*/
+
+func (nm *networkManager) GetState() State {
 	s, err := nm.bus.Call("state")
 
 	if err != nil {
@@ -53,9 +71,7 @@ func (nm NetworkManager) GetState() State {
 	return State(s.(uint32))
 }
 
-// WatchState listens for changes to NetworkManager's state, and sends
-// them out over the channel returned.
-func (nm NetworkManager) WatchState() (<-chan State, error) {
+func (nm *networkManager) WatchState() (<-chan State, error) {
 	ch := make(chan State)
 	err := nm.bus.WatchSignal("StateChanged",
 		func(n interface{}) { ch <- State(n.(uint32)) },

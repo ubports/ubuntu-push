@@ -35,10 +35,9 @@ type testingEndpoint struct {
 //
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them intern, irrespective of whether Call has been called.
-func NewTestingEndpoint(cond condition.Interface, retvals ...interface{}) *testingEndpoint {
+func NewTestingEndpoint(cond condition.Interface, retvals ...interface{}) bus.Endpoint {
 	return &testingEndpoint{cond, retvals}
 }
-
 
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values
