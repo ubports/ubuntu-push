@@ -38,14 +38,24 @@ type Endpoint interface {
 
 type endpoint struct {
 	bus   *dbus.Connection
-	name  string
-	path  string
+	proxy *dbus.ObjectProxy
 	iface string
 	log   logger.Logger
 }
 
+// constructor
+func NewEndpoint(bus *dbus.Connection, addr Address, log logger.Logger) Endpoint {
+	endp := new(endpoint)
+	endp.bus = bus
+	endp.proxy = bus.Object(addr.Name, dbus.ObjectPath(addr.Path))
+	endp.iface = addr.Interface
+	endp.log = log
+
+	return endp
+}
+
 // ensure endpoint implements Endpoint
-var _ Endpoint = endpoint{}
+var _ Endpoint = &endpoint{}
 
 /*
    public methods
@@ -56,14 +66,8 @@ var _ Endpoint = endpoint{}
 // with the unpacked value. If it's unable to set up the watch it'll return an
 // error. If the watch fails once established, d() is called. Typically f()
 // sends the values over a channel, and d() would close the channel.
-func (endp endpoint) WatchSignal(member string, f func(interface{}), d func()) error {
-	watch, err := endp.bus.WatchSignal(&dbus.MatchRule{
-		Type:      dbus.TypeSignal,
-		Sender:    endp.name,
-		Path:      dbus.ObjectPath(endp.path),
-		Interface: endp.iface,
-		Member:    member,
-	})
+func (endp *endpoint) WatchSignal(member string, f func(interface{}), d func()) error {
+	watch, err := endp.proxy.WatchSignal(endp.iface, member)
 	if err != nil {
 		endp.log.Debugf("Failed to set up the watch: %s", err)
 		return err
@@ -77,9 +81,8 @@ func (endp endpoint) WatchSignal(member string, f func(interface{}), d func()) e
 // Call() invokes the provided member method (on the name, path and interface
 // provided when creating the endpoint). The return value is unpacked before
 // being returned.
-func (endp endpoint) Call(member string, args ...interface{}) (interface{}, error) {
-	proxy := endp.bus.Object(endp.name, dbus.ObjectPath(endp.path))
-	if msg, err := proxy.Call(endp.iface, member, args...); err == nil {
+func (endp *endpoint) Call(member string, args ...interface{}) (interface{}, error) {
+	if msg, err := endp.proxy.Call(endp.iface, member, args...); err == nil {
 		return endp.unpackOneMsg(msg, member)
 	} else {
 		return 0, err
@@ -90,9 +93,8 @@ func (endp endpoint) Call(member string, args ...interface{}) (interface{}, erro
 // to read a given property on the name, path and interface provided when
 // creating the endpoint. The return value is unpacked into a dbus.Variant,
 // and its value returned.
-func (endp endpoint) GetProperty(property string) (interface{}, error) {
-	proxy := endp.bus.Object(endp.name, dbus.ObjectPath(endp.path))
-	msg, err := proxy.Call("org.freedesktop.DBus.Properties", "Get", endp.iface, property)
+func (endp *endpoint) GetProperty(property string) (interface{}, error) {
+	msg, err := endp.proxy.Call("org.freedesktop.DBus.Properties", "Get", endp.iface, property)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +110,7 @@ func (endp endpoint) GetProperty(property string) (interface{}, error) {
 }
 
 // Close the connection to dbus.
-func (endp endpoint) Close() {
+func (endp *endpoint) Close() {
 	endp.bus.Close()
 }
 
@@ -117,7 +119,7 @@ func (endp endpoint) Close() {
 */
 
 // unpackOneMsg unpacks the value from the response msg
-func (endp endpoint) unpackOneMsg(msg *dbus.Message, member string) (interface{}, error) {
+func (endp *endpoint) unpackOneMsg(msg *dbus.Message, member string) (interface{}, error) {
 	var v interface{}
 	if err := msg.Args(&v); err != nil {
 		endp.log.Errorf("Decoding %s: %s", member, err)
@@ -128,7 +130,7 @@ func (endp endpoint) unpackOneMsg(msg *dbus.Message, member string) (interface{}
 }
 
 // unpackMessages unpacks the value from the watch
-func (endp endpoint) unpackMessages(watch *dbus.SignalWatch, f func(interface{}), d func(), member string) {
+func (endp *endpoint) unpackMessages(watch *dbus.SignalWatch, f func(interface{}), d func(), member string) {
 	for {
 		msg, ok := <-watch.C
 		if !ok {
