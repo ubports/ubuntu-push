@@ -32,24 +32,28 @@ import (
 
 // how much web would a webchecker check
 
-type Interface interface {
+type Webchecker interface {
+	// Webcheck checks whether retrieving the URL works, and if its
+	// contents match the target. If so, then it sends true; if anything
+	// fails, it sends false.
 	Webcheck(chan<- bool)
 }
 
-type Webchecker struct {
+type webchecker struct {
 	log    logger.Logger
 	url    string
 	target string
 }
 
 // Build a webchecker for the given URL, that should match the target MD5.
-func New(url string, target string, log logger.Logger) *Webchecker {
-	return &Webchecker{log, url, target}
+func New(url string, target string, log logger.Logger) Webchecker {
+	return &webchecker{log, url, target}
 }
 
-// Webcheck checks whether retrieving the URL works, and if its contents match
-// the target. If so, then it sends true; if anything fails, it sends false.
-func (wb *Webchecker) Webcheck(ch chan<- bool) {
+// ensure webchecker implements Webchecker
+var _ Webchecker = &webchecker{}
+
+func (wb *webchecker) Webcheck(ch chan<- bool) {
 	response, err := http.Get(wb.url)
 	if err != nil {
 		wb.log.Errorf("While GETting %s: %s", wb.url, err)

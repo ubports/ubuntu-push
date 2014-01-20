@@ -21,8 +21,8 @@ import (
 	. "launchpad.net/gocheck"
 	testingbus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/networkmanager"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/networkmanager"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"net/http"
 	"net/http/httptest"
@@ -75,7 +75,7 @@ func (s *ConnSuite) TestConnectTimeoutWorks(c *C) {
 // when given a working config and bus, Start() will work
 func (s *ConnSuite) TestStartWorks(c *C) {
 	cfg := Config{}
-	tb := testingbus.New(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting))
+	tb := testingbus.NewTestingBus(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting))
 	cs := connectedState{config: cfg, log: nullog, bus: tb}
 
 	c.Check(cs.Start(), Equals, networkmanager.Connecting)
@@ -85,7 +85,7 @@ func (s *ConnSuite) TestStartWorks(c *C) {
 func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 	timeouts := []config.ConfigTimeDuration{config.ConfigTimeDuration{0}}
 	cfg := Config{ConnectTimeouts: timeouts}
-	tb := testingbus.New(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting))
+	tb := testingbus.NewTestingBus(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting))
 	cs := connectedState{config: cfg, log: nullog, bus: tb}
 
 	c.Check(cs.Start(), Equals, networkmanager.Connecting)
@@ -95,7 +95,7 @@ func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 // when the calls to NetworkManager fail for a bit, we're still OK
 func (s *ConnSuite) TestStartRetriesCall(c *C) {
 	cfg := Config{}
-	tb := testingbus.New(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting))
+	tb := testingbus.NewTestingBus(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting))
 	cs := connectedState{config: cfg, log: nullog, bus: tb}
 
 	c.Check(cs.Start(), Equals, networkmanager.Connecting)
@@ -112,7 +112,7 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 		1, condition.Work(false), // 1 call to nm fails
 		0, condition.Work(true)) // and everything works from there on
 	cfg := Config{}
-	tb := testingbus.New(condition.Work(true), nmcond,
+	tb := testingbus.NewTestingBus(condition.Work(true), nmcond,
 		uint32(networkmanager.Connecting),
 		uint32(networkmanager.ConnectedGlobal))
 	cs := connectedState{config: cfg, log: nullog, bus: tb}
@@ -232,7 +232,7 @@ func (s *ConnSuite) TestRun(c *C) {
 		RecheckTimeout:       config.ConfigTimeDuration{time.Second},
 	}
 
-	busType := testingbus.New(condition.Work(true), condition.Work(true),
+	busType := testingbus.NewTestingBus(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal),
 		uint32(networkmanager.ConnectedGlobal),
 		uint32(networkmanager.Disconnected),

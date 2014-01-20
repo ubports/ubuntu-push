@@ -26,17 +26,25 @@ import (
 	"errors"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/networkmanager"
 	"launchpad.net/ubuntu-push/connectivity/webchecker"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/networkmanager"
 	"time"
 )
 
+// the configuration for ConnectedState, with the idea that you'd populate it
+// from a config file.
 type Config struct {
-	ConnectTimeouts      []config.ConfigTimeDuration
-	StabilizingTimeout   config.ConfigTimeDuration
-	RecheckTimeout       config.ConfigTimeDuration
+	// a list of timeouts, for backoff. Should be roughly doubling.
+	ConnectTimeouts []config.ConfigTimeDuration
+	// how long to wait after a state change to make sure it's "stable"
+	// before acting on it
+	StabilizingTimeout config.ConfigTimeDuration
+	// How long to wait between online connectivity checks.
+	RecheckTimeout config.ConfigTimeDuration
+	// The URL against which to do the connectivity check.
 	ConnectivityCheckURL string
+	// The expected MD5 of the content at the ConnectivityCheckURL
 	ConnectivityCheckMD5 string
 }
 
@@ -44,7 +52,7 @@ type connectedState struct {
 	C            <-chan networkmanager.State
 	config       Config
 	log          logger.Logger
-	bus          bus.Interface
+	bus          bus.Bus
 	connAttempts uint32
 	webget       func(ch chan<- bool)
 	webgetC      chan bool
@@ -53,6 +61,10 @@ type connectedState struct {
 	timer        *time.Timer
 }
 
+// implements the logic for connect timeouts backoff
+//
+// (walk the list of timeouts, and repeat the last one until done; cope with
+// the list being empty; keep track of connection attempts).
 func (cs *connectedState) ConnectTimeout() time.Duration {
 	var timeout config.ConfigTimeDuration
 	timeouts := cs.config.ConnectTimeouts
@@ -65,12 +77,14 @@ func (cs *connectedState) ConnectTimeout() time.Duration {
 	return timeout.Duration
 }
 
+// Start connects to the bus, gets the initial NetworkManager state, and sets
+// up the watch.
 func (cs *connectedState) Start() networkmanager.State {
 	var initial networkmanager.State
 	for {
 		time.Sleep(cs.ConnectTimeout())
 		cs.log.Debugf("Starting DBus connection attempt %d\n", cs.connAttempts)
-		conn, err := cs.bus.Connect(networkmanager.BusInfo, cs.log)
+		conn, err := cs.bus.Connect(networkmanager.BusAddress, cs.log)
 		if err != nil {
 			cs.log.Debugf("DBus connection attempt %d failed.\n", cs.connAttempts)
 			continue
@@ -99,6 +113,8 @@ func (cs *connectedState) Start() networkmanager.State {
 	}
 }
 
+// connectedStateStep takes one step forwards in the “am I connected?”
+// answering state machine.
 func (cs *connectedState) connectedStateStep() (bool, error) {
 	stabilizingTimeout := cs.config.StabilizingTimeout.Duration
 	recheckTimeout := cs.config.RecheckTimeout.Duration
@@ -147,9 +163,10 @@ func (cs *connectedState) connectedStateStep() (bool, error) {
 
 }
 
-// notify initial state and changes to it. Sends "false" as soon as it detects
-// trouble, "true" after checking actual connectivity.
-func ConnectedState(busType bus.Interface, config Config, log logger.Logger, out chan<- bool) {
+// ConnectedState sends the initial NetworkManager state and changes to it
+// over the "out" channel. Sends "false" as soon as it detects trouble, "true"
+// after checking actual connectivity.
+func ConnectedState(busType bus.Bus, config Config, log logger.Logger, out chan<- bool) {
 	wg := webchecker.New(config.ConnectivityCheckURL, config.ConnectivityCheckMD5, log)
 	cs := &connectedState{
 		config: config,
