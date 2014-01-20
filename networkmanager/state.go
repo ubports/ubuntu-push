@@ -18,6 +18,8 @@ package networkmanager
 
 type State uint32
 
+// the NetworkManager states, as per
+// https://wiki.gnome.org/Projects/NetworkManager/DBusInterface/LatestDBusAPI
 const (
 	Unknown State = iota * 10
 	Asleep
@@ -41,8 +43,9 @@ var names = map[State]string{
 	ConnectedGlobal: "Connected Global",
 }
 
-func (nm State) String() string {
-	if s, ok := names[nm]; ok {
+// give its state a descriptive stringification
+func (state State) String() string {
+	if s, ok := names[state]; ok {
 		return s
 	}
 	return names[Unknown]

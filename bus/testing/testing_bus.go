@@ -33,23 +33,22 @@ import (
 
 type testingBus struct {
 	TestCond condition.Interface
-	TestEndp *testingEndpoint
+	TestEndp bus.Endpoint
 }
 
 // Build a bus.Bus that takes a condition to determine whether it should work,
 // as well as a condition and series of return values for the testing
 // bus.Endpoint it builds.
-func NewTestingBus(clientTC condition.Interface, busTC condition.Interface, retvals ...interface{}) *testingBus {
+func NewTestingBus(clientTC condition.Interface, busTC condition.Interface, retvals ...interface{}) bus.Bus {
 	return &testingBus{clientTC, NewTestingEndpoint(busTC, retvals...)}
 }
 
 // ensure testingBus implements bus.Interface
 var _ bus.Bus = &testingBus{}
 
-
 /*
-    public methods
- */
+   public methods
+*/
 
 func (tb *testingBus) Connect(info bus.Address, log logger.Logger) (bus.Endpoint, error) {
 	if tb.TestCond.OK() {
@@ -62,4 +61,3 @@ func (tb *testingBus) Connect(info bus.Address, log logger.Logger) (bus.Endpoint
 func (tb *testingBus) String() string {
 	return "<TestingBus>"
 }
-

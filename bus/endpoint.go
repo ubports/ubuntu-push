@@ -46,8 +46,8 @@ type endpoint struct {
 var _ Endpoint = endpoint{}
 
 /*
-    public methods
- */
+   public methods
+*/
 
 // WatchSignal() takes a member name and sets up a watch for it (on the name,
 // path and interface provided when creating the endpoint), and then calls f()
@@ -89,10 +89,9 @@ func (endp endpoint) Close() {
 	endp.bus.Close()
 }
 
-
 /*
-    private methods
- */
+   private methods
+*/
 
 // unpackOneMsg unpacks the value from the response msg
 func (endp endpoint) unpackOneMsg(msg *dbus.Message, member string) (interface{}, error) {
