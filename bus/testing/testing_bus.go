@@ -33,13 +33,13 @@ import (
 
 type testingBus struct {
 	TestCond condition.Interface
-	TestEndp *testingEndpoint
+	TestEndp bus.Endpoint
 }
 
 // Build a bus.Bus that takes a condition to determine whether it should work,
 // as well as a condition and series of return values for the testing
 // bus.Endpoint it builds.
-func NewTestingBus(clientTC condition.Interface, busTC condition.Interface, retvals ...interface{}) *testingBus {
+func NewTestingBus(clientTC condition.Interface, busTC condition.Interface, retvals ...interface{}) bus.Bus {
 	return &testingBus{clientTC, NewTestingEndpoint(busTC, retvals...)}
 }
 
