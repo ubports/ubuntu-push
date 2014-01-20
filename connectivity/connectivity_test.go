@@ -163,17 +163,17 @@ func (s *ConnSuite) TestSteps(c *C) {
 	c.Check(f, Equals, false) // first false is from assuming a Connected signals trouble
 
 	// the next call to Step will time out
-	_c := make(chan bool, 1)
+	_ch := make(chan bool, 1)
 	_t := time.NewTimer(10 * time.Millisecond)
 
 	go func() {
 		f, e := cs.connectedStateStep()
 		c.Check(e, IsNil)
-		_c <- f
+		_ch <- f
 	}()
 
 	select {
-	case <-_c:
+	case <-_ch:
 		c.Fatal("test failed to timeout")
 	case <-_t.C:
 	}
@@ -181,7 +181,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 	// put it back together again
 	cs.webget = webget_works
 	// now an recheckTimeout later, we'll get true
-	c.Check(<-_c, Equals, true)
+	c.Check(<-_ch, Equals, true)
 
 	ch <- networkmanager.Disconnected    // this should trigger a 'false'
 	ch <- networkmanager.Disconnected    // this should not

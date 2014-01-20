@@ -55,7 +55,7 @@ type connectedState struct {
 	bus            bus.Bus
 	connAttempts   uint32
 	webget         func(ch chan<- bool)
-	webgetC        chan bool
+	webgetCh       chan bool
 	currentState   networkmanager.State
 	lastSent       bool
 	timer          *time.Timer
@@ -119,7 +119,8 @@ func (cs *connectedState) connectedStateStep() (bool, error) {
 	stabilizingTimeout := cs.config.StabilizingTimeout.Duration
 	recheckTimeout := cs.config.RecheckTimeout.Duration
 	log := cs.log
-loop:
+
+Loop:
 	for {
 		select {
 		case v, ok := <-cs.networkStateCh:
@@ -127,31 +128,31 @@ loop:
 				// tear it all down and start over
 				return false, errors.New("Got not-OK from StateChanged watch")
 			}
-			cs.webgetC = nil
+			cs.webgetCh = nil
 			cs.currentState = v
 			cs.timer.Reset(stabilizingTimeout)
 			log.Debugf("State changed to %s. Assuming disconnect.", v)
 			if cs.lastSent == true {
 				log.Infof("Sending 'disconnected'.")
 				cs.lastSent = false
-				break loop
+				break Loop
 			}
 
 		case <-cs.timer.C:
 			if cs.currentState == networkmanager.ConnectedGlobal {
 				log.Debugf("May be connected; checking...")
-				cs.webgetC = make(chan bool)
-				go cs.webget(cs.webgetC)
+				cs.webgetCh = make(chan bool)
+				go cs.webget(cs.webgetCh)
 			}
 
-		case connected := <-cs.webgetC:
+		case connected := <-cs.webgetCh:
 			cs.timer.Reset(recheckTimeout)
 			log.Debugf("Connection check says: %t", connected)
-			cs.webgetC = nil
+			cs.webgetCh = nil
 			if connected && cs.lastSent == false {
 				log.Infof("Sending 'connected'.")
 				cs.lastSent = true
-				break loop
+				break Loop
 			}
 		}
 	}
