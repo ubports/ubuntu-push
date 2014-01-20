@@ -63,7 +63,7 @@ func (bus concreteBus) Connect(addr Address, log logger.Logger) (Endpoint, error
 	if err != nil {
 		return nil, err
 	} else {
-		return NewEndpoint(conn, addr, log), nil
+		return newEndpoint(conn, addr, log), nil
 	}
 }
 
