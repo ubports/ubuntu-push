@@ -53,6 +53,7 @@ func New(endp bus.Endpoint, log logger.Logger) NetworkManager {
 	return &networkManager{endp, log}
 }
 
+// ensure networkManager implements NetworkManager
 var _ NetworkManager = &networkManager{}
 
 /*
