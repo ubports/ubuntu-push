@@ -69,6 +69,11 @@ func (tc *testingEndpoint) Call(member string, args ...interface{}) (interface{}
 	}
 }
 
+// See Endpoint's GetProperty. This one is just another name for Call.
+func (tc *testingEndpoint) GetProperty(property string) (interface{}, error) {
+	return tc.Call(property)
+}
+
 // see Endpoint's Close. This one does nothing.
 func (tc *testingEndpoint) Close() {}
 
