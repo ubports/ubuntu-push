@@ -44,7 +44,7 @@ type endpoint struct {
 }
 
 // constructor
-func newEndpoint(bus *dbus.Connection, addr Address, log logger.Logger) Endpoint {
+func newEndpoint(bus *dbus.Connection, addr Address, log logger.Logger) *endpoint {
 	endp := new(endpoint)
 	endp.bus = bus
 	endp.proxy = bus.Object(addr.Name, dbus.ObjectPath(addr.Path))
