@@ -171,7 +171,7 @@ func ConnectedState(busType bus.Bus, config Config, log logger.Logger, out chan<
 		webget: wg.Webcheck,
 	}
 
-start:
+Start:
 	log.Infof("Sending initial 'disconnected'.")
 	out <- false
 	cs.lastSent = false
@@ -183,7 +183,7 @@ start:
 		if err != nil {
 			// tear it all down and start over
 			log.Errorf("%s", err)
-			goto start
+			goto Start
 		}
 		out <- v
 	}
