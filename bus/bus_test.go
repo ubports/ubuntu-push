@@ -42,15 +42,16 @@ func (s *BusSuite) TestBusType(c *C) {
 
 // Test we get the right DBus bus
 func (s *BusSuite) TestDBusType(c *C) {
-	c.Check(SystemBus.dbusType(), DeepEquals, dbus.SystemBus)
-	c.Check(SessionBus.dbusType(), DeepEquals, dbus.SessionBus)
+	c.Check(SystemBus.(concreteBus).dbusType(), DeepEquals, dbus.SystemBus)
+	c.Check(SessionBus.(concreteBus).dbusType(), DeepEquals, dbus.SessionBus)
 }
 
 // Tests that we can connect to the *actual* system bus.
 // XXX maybe connect to a mock/fake/etc bus?
 func (s *BusSuite) TestConnect(c *C) {
-	_, err := SystemBus.Connect(Info{"", "", ""}, nullog)
-	c.Check(err, IsNil)
+	b, err := SystemBus.Connect(Address{"", "", ""}, nullog)
+	c.Assert(err, IsNil)
+	defer b.Close()
 }
 
 // Test that if we try to connect to the session bus when no session
@@ -61,6 +62,6 @@ func (s *BusSuite) TestConnectCanFail(c *C) {
 	defer os.Setenv(db, odb)
 	os.Setenv(db, "")
 
-	_, err := SessionBus.Connect(Info{"", "", ""}, nullog)
+	_, err := SessionBus.Connect(Address{"", "", ""}, nullog)
 	c.Check(err, NotNil)
 }

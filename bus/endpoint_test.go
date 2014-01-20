@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package connection
+package bus
 
 import (
 	. "launchpad.net/gocheck"
@@ -22,23 +22,11 @@ import (
 )
 
 // hook up gocheck
-func Test(t *testing.T) { TestingT(t) }
+func EndpointTest(t *testing.T) { TestingT(t) }
 
-type BusSuite struct {
-	con Connection
-}
+type EndpointSuite struct {}
 
-var _ = Suite(&BusSuite{})
-
-func (s *BusSuite) SetUpTest(c *C) {
-	s.con = Connection{
-		bus:   nil, // actually should be a mock dbus
-		name:  "name",
-		path:  "path",
-		iface: "iface",
-		log:   nil,
-	}
-}
+var _ = Suite(&EndpointSuite{})
 
 // TODO: this is going to remain empty until go-dbus grows some
 // testing amenities (already talked about it with jamesh)

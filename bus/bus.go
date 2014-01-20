@@ -17,54 +17,73 @@
 // Package bus provides a simplified (and more testable?) interface to DBus.
 package bus
 
+// Here we define the Bus itself
+
 import (
 	"launchpad.net/go-dbus/v1"
-	"launchpad.net/ubuntu-push/bus/connection"
 	"launchpad.net/ubuntu-push/logger"
 )
 
-type Interface interface {
+/*****************************************************************
+ *    Bus (and its implementation)
+ */
+
+// This is the Bus itself.
+type Bus interface {
 	String() string
-	Connect(info Info, log logger.Logger) (connection.Interface, error)
+	Connect(Address, logger.Logger) (Endpoint, error)
 }
 
-type Info struct {
-	Name      string
-	Path      string
-	Interface string
-}
+type concreteBus dbus.StandardBus
 
-type Bus bool
+// ensure concreteBus implements Bus
+var _ Bus = new(concreteBus)
 
-const (
-	SessionBus Bus = false
-	SystemBus  Bus = true
+// no bus.Bus constructor, just two standard, constant, busses
+var (
+	SessionBus Bus = concreteBus(dbus.SessionBus)
+	SystemBus  Bus = concreteBus(dbus.SystemBus)
 )
 
-func (bt Bus) String() string {
-	if bt {
+/*
+    public methods
+ */
+
+func (bus concreteBus) String() string {
+	if bus == concreteBus(dbus.SystemBus) {
 		return "SystemBus"
 	} else {
 		return "SessionBus"
 	}
 }
 
-func (bt Bus) dbusType() dbus.StandardBus {
-	if bt {
-		return dbus.SystemBus
-	} else {
-		return dbus.SessionBus
-	}
-}
-
-// Connect() connects to the bus, and returns the bus.connection (and/or error).
-func (bt Bus) Connect(info Info, log logger.Logger) (connection.Interface, error) {
-	conn, err := dbus.Connect(bt.dbusType())
+// Connect() connects to the bus, and returns the bus endpoint (and/or error).
+func (bus concreteBus) Connect(addr Address, log logger.Logger) (Endpoint, error) {
+	conn, err := dbus.Connect(bus.dbusType())
 	if err != nil {
 		return nil, err
 	} else {
-		return connection.New(conn, info.Name, info.Path, info.Interface, log), nil
+		return &endpoint{conn, addr.Name, addr.Path, addr.Interface, log}, nil
 	}
 }
 
-var _ Interface = Bus(true)
+
+/*
+    private methods
+ */
+
+func (bus concreteBus) dbusType() dbus.StandardBus {
+	return dbus.StandardBus(bus)
+}
+
+
+/*****************************************************************
+ *    Address
+ */
+
+// bus.Address is just a bag of configuration
+type Address struct {
+	Name      string
+	Path      string
+	Interface string
+}
