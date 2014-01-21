@@ -41,12 +41,11 @@ func NewMultiValuedTestingEndpoint(cond condition.Interface, retvalses ...[]inte
 
 func NewTestingEndpoint(cond condition.Interface, retvals ...interface{}) bus.Endpoint {
 	retvalses := make([][]interface{}, len(retvals))
-	for i, x := range(retvals) {
+	for i, x := range retvals {
 		retvalses[i] = []interface{}{x}
 	}
 	return &testingEndpoint{cond, retvalses}
 }
-
 
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values

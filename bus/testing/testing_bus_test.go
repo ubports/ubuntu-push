@@ -18,8 +18,8 @@ package testing
 
 import (
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/testing/condition"
 	"testing"
 )
 
@@ -32,7 +32,7 @@ var _ = Suite(&TestingBusSuite{})
 
 // Test Connect() on a working bus returns an endpoint that looks right
 func (s *TestingBusSuite) TestConnectWorks(c *C) {
-	addr := bus.Address{"","",""}
+	addr := bus.Address{"", "", ""}
 	tb := NewTestingBus(condition.Work(true), condition.Work(false), 42, 42, 42)
 	endp, err := tb.Connect(addr, nil)
 	c.Check(err, IsNil)
@@ -41,15 +41,14 @@ func (s *TestingBusSuite) TestConnectWorks(c *C) {
 	c.Check(endp.(*testingEndpoint).retvals, HasLen, 3)
 }
 
-
 // Test Connect() on a working "multi-valued" bus returns an endpoint that looks right
 func (s *TestingBusSuite) TestConnectMultiValued(c *C) {
-	addr := bus.Address{"","",""}
+	addr := bus.Address{"", "", ""}
 	tb := NewMultiValuedTestingBus(condition.Work(true), condition.Work(true),
 		[]interface{}{42, 17},
 		[]interface{}{42, 17, 13},
 		[]interface{}{42},
- 	)
+	)
 	endpp, err := tb.Connect(addr, nil)
 	c.Check(err, IsNil)
 	endp, ok := endpp.(*testingEndpoint)
@@ -63,7 +62,7 @@ func (s *TestingBusSuite) TestConnectMultiValued(c *C) {
 
 // Test Connect() with a non-working bus fails
 func (s *TestingBusSuite) TestConnectNoWork(c *C) {
-	addr := bus.Address{"","",""}
+	addr := bus.Address{"", "", ""}
 	tb := NewTestingBus(condition.Work(false), condition.Work(true))
 	_, err := tb.Connect(addr, nil)
 	c.Check(err, NotNil)

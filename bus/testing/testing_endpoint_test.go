@@ -93,7 +93,7 @@ func (s *TestingEndpointSuite) TestWatch(c *C) {
 func (s *TestingEndpointSuite) TestWatchDestructor(c *C) {
 	endp := NewTestingEndpoint(condition.Work(true))
 	ch := make(chan uint32)
-	e := endp.WatchSignal("what", func(us ...interface{}) { }, func() { close(ch) })
+	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
 	c.Check(e, IsNil)
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
@@ -105,7 +105,6 @@ func (s *TestingEndpointSuite) TestCloser(c *C) {
 	endp.Close()
 	// ... yay?
 }
-
 
 // Test that WatchSignal() with a negative condition returns an error.
 func (s *TestingEndpointSuite) TestWatchFails(c *C) {
