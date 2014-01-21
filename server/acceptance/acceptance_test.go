@@ -26,6 +26,7 @@ import (
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/api"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"net/http"
 	"os"
@@ -52,17 +53,6 @@ var _ = Suite(&acceptanceSuite{})
 
 var serverCmd = flag.String("server", "", "server to test")
 
-// SourceRelative produces a path relative to the source code, makes
-// sense only for tests when the code is available on disk.
-// xxx later move it to a testing helpers package
-func SourceRelative(relativePath string) string {
-	_, file, _, ok := runtime.Caller(1)
-	if !ok {
-		panic("failed to get source filename using Caller()")
-	}
-	return filepath.Join(filepath.Dir(file), relativePath)
-}
-
 func testServerConfig(addr, httpAddr string) map[string]interface{} {
 	cfg := map[string]interface{}{
 		"exchange_timeout":   "0.1s",
@@ -70,8 +60,8 @@ func testServerConfig(addr, httpAddr string) map[string]interface{} {
 		"session_queue_size": 10,
 		"broker_queue_size":  100,
 		"addr":               addr,
-		"key_pem_file":       SourceRelative("config/testing.key"),
-		"cert_pem_file":      SourceRelative("config/testing.cert"),
+		"key_pem_file":       helpers.SourceRelative("config/testing.key"),
+		"cert_pem_file":      helpers.SourceRelative("config/testing.cert"),
 		"http_addr":          httpAddr,
 		"http_read_timeout":  "1s",
 		"http_write_timeout": "1s",
@@ -80,7 +70,7 @@ func testServerConfig(addr, httpAddr string) map[string]interface{} {
 }
 
 func testClientSession(addr string, deviceId string, reportPings bool) *ClientSession {
-	certPEMBlock, err := ioutil.ReadFile(SourceRelative("config/testing.cert"))
+	certPEMBlock, err := ioutil.ReadFile(helpers.SourceRelative("config/testing.cert"))
 	if err != nil {
 		panic(fmt.Sprintf("could not read config/testing.cert: %v", err))
 	}
