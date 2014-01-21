@@ -19,7 +19,7 @@ package bus
 // Here we define the Endpoint, which represents the DBus connection itself.
 
 import (
-	"errors"
+	"fmt"
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/logger"
 )
@@ -30,7 +30,7 @@ import (
 
 // bus.Endpoint represents the DBus connection itself.
 type Endpoint interface {
-	WatchSignal(member string, f func(interface{}), d func()) error
+	WatchSignal(member string, f func(...interface{}), d func()) error
 	Call(member string, args ...interface{}) (interface{}, error)
 	GetProperty(property string) (interface{}, error)
 	Close()
@@ -66,7 +66,7 @@ var _ Endpoint = &endpoint{}
 // with the unpacked value. If it's unable to set up the watch it'll return an
 // error. If the watch fails once established, d() is called. Typically f()
 // sends the values over a channel, and d() would close the channel.
-func (endp *endpoint) WatchSignal(member string, f func(interface{}), d func()) error {
+func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
 	watch, err := endp.proxy.WatchSignal(endp.iface, member)
 	if err != nil {
 		endp.log.Debugf("Failed to set up the watch: %s", err)
@@ -82,11 +82,16 @@ func (endp *endpoint) WatchSignal(member string, f func(interface{}), d func()) 
 // provided when creating the endpoint). The return value is unpacked before
 // being returned.
 func (endp *endpoint) Call(member string, args ...interface{}) (interface{}, error) {
-	if msg, err := endp.proxy.Call(endp.iface, member, args...); err == nil {
-		return endp.unpackOneMsg(msg, member)
-	} else {
-		return 0, err
+	var err error
+	var msg *dbus.Message
+	if msg, err = endp.proxy.Call(endp.iface, member, args...); err == nil {
+		rvs := endp.unpackOneMsg(msg, member)
+		if len(rvs) == 1 {
+			return rvs[0], nil
+		}
+		err = fmt.Errorf("Got wrong number of arguments in Call: %d", len(rvs))
 	}
+	return 0, err
 }
 
 // GetProperty uses the org.freedesktop.DBus.Properties interface's Get method
@@ -98,13 +103,13 @@ func (endp *endpoint) GetProperty(property string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	variantv, err := endp.unpackOneMsg(msg, property)
-	if err != nil {
-		return nil, err
+	variantvs := endp.unpackOneMsg(msg, property)
+	if len(variantvs) != 1 {
+		return nil, fmt.Errorf("Got wrong number of arguments in GetProperty: %d", len(variantvs))
 	}
-	variant, ok := variantv.(*dbus.Variant)
+	variant, ok := variantvs[0].(*dbus.Variant)
 	if !ok {
-		return nil, errors.New("Response from Properties.Get wasn't a *dbus.Variant")
+		return nil, fmt.Errorf("Response from Properties.Get wasn't a *dbus.Variant")
 	}
 	return variant.Value, nil
 }
@@ -119,27 +124,18 @@ func (endp *endpoint) Close() {
 */
 
 // unpackOneMsg unpacks the value from the response msg
-func (endp *endpoint) unpackOneMsg(msg *dbus.Message, member string) (interface{}, error) {
-	var v interface{}
-	if err := msg.Args(&v); err != nil {
-		endp.log.Errorf("Decoding %s: %s", member, err)
-		return 0, err
-	} else {
-		return v, nil
-	}
+func (endp *endpoint) unpackOneMsg(msg *dbus.Message, member string) []interface{} {
+	return msg.AllArgs()
 }
 
 // unpackMessages unpacks the value from the watch
-func (endp *endpoint) unpackMessages(watch *dbus.SignalWatch, f func(interface{}), d func(), member string) {
+func (endp *endpoint) unpackMessages(watch *dbus.SignalWatch, f func(...interface{}), d func(), member string) {
 	for {
 		msg, ok := <-watch.C
 		if !ok {
 			break
 		}
-		if val, err := endp.unpackOneMsg(msg, member); err == nil {
-			// errors are ignored at this level
-			f(val)
-		}
+		f(endp.unpackOneMsg(msg, member)...)
 	}
 	endp.log.Errorf("Got not-OK from %s watch", member)
 	d()

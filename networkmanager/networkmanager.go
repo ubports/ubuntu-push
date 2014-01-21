@@ -74,7 +74,7 @@ func (nm *networkManager) GetState() State {
 func (nm *networkManager) WatchState() (<-chan State, error) {
 	ch := make(chan State)
 	err := nm.bus.WatchSignal("StateChanged",
-		func(n interface{}) { ch <- State(n.(uint32)) },
+		func(ns ...interface{}) { ch <- State(ns[0].(uint32)) },
 		func() { close(ch) })
 	if err != nil {
 		nm.log.Debugf("Failed to set up the watch: %s", err)

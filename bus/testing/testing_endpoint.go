@@ -27,7 +27,7 @@ import (
 
 type testingEndpoint struct {
 	cond    condition.Interface
-	retvals []interface{}
+	retvals [][]interface{}
 }
 
 // Build a bus.Endpoint that calls OK() on its condition before returning
@@ -35,17 +35,26 @@ type testingEndpoint struct {
 //
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them intern, irrespective of whether Call has been called.
-func NewTestingEndpoint(cond condition.Interface, retvals ...interface{}) bus.Endpoint {
-	return &testingEndpoint{cond, retvals}
+func NewMultiValuedTestingEndpoint(cond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
+	return &testingEndpoint{cond, retvalses}
 }
+
+func NewTestingEndpoint(cond condition.Interface, retvals ...interface{}) bus.Endpoint {
+	retvalses := make([][]interface{}, len(retvals))
+	for i, x := range(retvals) {
+		retvalses[i] = []interface{}{x}
+	}
+	return &testingEndpoint{cond, retvalses}
+}
+
 
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values
-func (tc *testingEndpoint) WatchSignal(member string, f func(interface{}), d func()) error {
+func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
 	if tc.cond.OK() {
 		go func() {
 			for _, v := range tc.retvals {
-				f(v)
+				f(v...)
 				time.Sleep(10 * time.Millisecond)
 			}
 			d()
@@ -63,7 +72,10 @@ func (tc *testingEndpoint) Call(member string, args ...interface{}) (interface{}
 		if len(tc.retvals) == 0 {
 			panic("No return values provided!")
 		}
-		return tc.retvals[0], nil
+		if len(tc.retvals[0]) != 1 {
+			panic("Wrong number of values provided -- Call only returns a single value for now!")
+		}
+		return tc.retvals[0][0], nil
 	} else {
 		return 0, errors.New("no way")
 	}
