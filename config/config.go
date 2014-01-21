@@ -24,11 +24,75 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
 )
+
+func checkDestConfig(destConfig interface{}) (reflect.Value, error) {
+	destValue := reflect.ValueOf(destConfig)
+	if destValue.Kind() != reflect.Ptr || destValue.Elem().Kind() != reflect.Struct {
+		return reflect.Value{}, errors.New("destConfig not *struct")
+	}
+	return destValue, nil
+}
+
+type destField struct {
+	fld  reflect.StructField
+	dest interface{}
+}
+
+func traverseStruct(destStruct reflect.Value) <-chan destField {
+	ch := make(chan destField)
+	var traverse func(reflect.Value, chan<- destField)
+	traverse = func(destStruct reflect.Value, ch chan<- destField) {
+		structType := destStruct.Type()
+		n := structType.NumField()
+		for i := 0; i < n; i++ {
+			fld := structType.Field(i)
+			val := destStruct.Field(i)
+			if fld.PkgPath != "" { // unexported
+				continue
+			}
+			if fld.Anonymous {
+				traverse(val, ch)
+				continue
+			}
+			ch <- destField{
+				fld:  fld,
+				dest: val.Addr().Interface(),
+			}
+		}
+	}
+	go func() {
+		traverse(destStruct, ch)
+		close(ch)
+	}()
+	return ch
+}
+
+func fillDestConfig(destValue reflect.Value, p map[string]json.RawMessage) error {
+	destStruct := destValue.Elem()
+	for destField := range traverseStruct(destStruct) {
+		fld := destField.fld
+		configName := strings.Split(fld.Tag.Get("json"), ",")[0]
+		if configName == "" {
+			configName = strings.ToLower(fld.Name[:1]) + fld.Name[1:]
+		}
+		raw, found := p[configName]
+		if !found { // assume all fields are mandatory for now
+			return fmt.Errorf("missing %s", configName)
+		}
+		dest := destField.dest
+		err := json.Unmarshal([]byte(raw), dest)
+		if err != nil {
+			return fmt.Errorf("%s: %v", configName, err)
+		}
+	}
+	return nil
+}
 
 // ReadConfig reads a JSON configuration into destConfig which should
 // be a pointer to a structure, it does some more configuration
@@ -36,36 +100,17 @@ import (
 // fields in errors . Configuration fields are expected to start with
 // lower case in the JSON object.
 func ReadConfig(r io.Reader, destConfig interface{}) error {
-	destValue := reflect.ValueOf(destConfig)
-	if destValue.Kind() != reflect.Ptr || destValue.Elem().Kind() != reflect.Struct {
-		return errors.New("destConfig not *struct")
-	}
-	// do the parsing in two phases for better error handling
-	var p1 map[string]json.RawMessage
-	err := json.NewDecoder(r).Decode(&p1)
+	destValue, err := checkDestConfig(destConfig)
 	if err != nil {
 		return err
 	}
-	destStruct := destValue.Elem()
-	structType := destStruct.Type()
-	n := structType.NumField()
-	for i := 0; i < n; i++ {
-		fld := structType.Field(i)
-		configName := strings.Split(fld.Tag.Get("json"), ",")[0]
-		if configName == "" {
-			configName = strings.ToLower(fld.Name[:1]) + fld.Name[1:]
-		}
-		raw, found := p1[configName]
-		if !found { // assume all fields are mandatory for now
-			return fmt.Errorf("missing %s", configName)
-		}
-		dest := destStruct.Field(i).Addr().Interface()
-		err = json.Unmarshal([]byte(raw), dest)
-		if err != nil {
-			return fmt.Errorf("%s: %v", configName, err)
-		}
+	// do the parsing in two phases for better error handling
+	var p1 map[string]json.RawMessage
+	err = json.NewDecoder(r).Decode(&p1)
+	if err != nil {
+		return err
 	}
-	return nil
+	return fillDestConfig(destValue, p1)
 }
 
 // ConfigTimeDuration can hold a time.Duration in a configuration struct,
@@ -146,4 +191,33 @@ func LoadFile(p, baseDir string) ([]byte, error) {
 		p = filepath.Join(baseDir, p)
 	}
 	return ioutil.ReadFile(p)
+}
+
+// ReadFiles reads configuration from a set of files. Uses ReadConfig internally.
+func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
+	destValue, err := checkDestConfig(destConfig)
+	if err != nil {
+		return err
+	}
+	// do the parsing in two phases for better error handling
+	var p1 map[string]json.RawMessage
+	readOne := false
+	for _, cfgPath := range cfgFpaths {
+		if _, err := os.Stat(cfgPath); err == nil {
+			r, err := os.Open(cfgPath)
+			if err != nil {
+				return err
+			}
+			defer r.Close()
+			err = json.NewDecoder(r).Decode(&p1)
+			if err != nil {
+				return err
+			}
+			readOne = true
+		}
+	}
+	if !readOne {
+		return fmt.Errorf("no config to read")
+	}
+	return fillDestConfig(destValue, p1)
 }

@@ -22,6 +22,7 @@ import (
 	. "launchpad.net/gocheck"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -132,4 +133,58 @@ func (s *configSuite) TestLoadFile(c *C) {
 	d, err = LoadFile(fullPath, tmpDir)
 	c.Check(err, IsNil)
 	c.Check(string(d), Equals, "Example")
+}
+
+func (s *configSuite) TestReadFiles(c *C) {
+	tmpDir := c.MkDir()
+	cfg1Path := filepath.Join(tmpDir, "cfg1.json")
+	err := ioutil.WriteFile(cfg1Path, []byte(`{"a": 42}`), os.ModePerm)
+	c.Assert(err, IsNil)
+	cfg2Path := filepath.Join(tmpDir, "cfg2.json")
+	err = ioutil.WriteFile(cfg2Path, []byte(`{"b": "x", "c_list": ["y", "z"]}`), os.ModePerm)
+	c.Assert(err, IsNil)
+	var cfg testConfig1
+	err = ReadFiles(&cfg, cfg1Path, cfg2Path)
+	c.Assert(err, IsNil)
+	c.Check(cfg.A, Equals, 42)
+	c.Check(cfg.B, Equals, "x")
+	c.Check(cfg.C, DeepEquals, []string{"y", "z"})
+}
+
+func (s *configSuite) TestReadFilesErrors(c *C) {
+	var cfg testConfig1
+	err := ReadFiles(1)
+	c.Check(err, ErrorMatches, `destConfig not \*struct`)
+	err = ReadFiles(&cfg, "non-existent")
+	c.Check(err, ErrorMatches, "no config to read")
+	err = ReadFiles(&cfg, "/root")
+	c.Check(err, ErrorMatches, ".*permission denied")
+	tmpDir := c.MkDir()
+	err = ReadFiles(&cfg, tmpDir)
+	c.Check(err, ErrorMatches, ".*is a directory")
+	brokenCfgPath := filepath.Join(tmpDir, "b.json")
+	err = ioutil.WriteFile(brokenCfgPath, []byte(`{"a"-`), os.ModePerm)
+	c.Assert(err, IsNil)
+	err = ReadFiles(&cfg, brokenCfgPath)
+	c.Check(err, NotNil)
+}
+
+type B struct {
+	BFld int
+}
+
+type A struct {
+	AFld int
+	B
+	private int
+}
+
+func (s *configSuite) TestTraverseStruct(c *C) {
+	var a A
+	var i = 1
+	for destField := range traverseStruct(reflect.ValueOf(&a).Elem()) {
+		*(destField.dest.(*int)) = i
+		i++
+	}
+	c.Check(a, DeepEquals, A{1, B{2}, 0})
 }
