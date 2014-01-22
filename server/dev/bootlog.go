@@ -17,24 +17,19 @@
 package main
 
 import (
+	"launchpad.net/ubuntu-push/logger"
 	"net"
-	"net/http"
-	"time"
+	"os"
 )
 
-// A HTTPServeConfig holds the HTTP server config.
-type HTTPServeConfig interface {
-	HTTPAddr() string
-	HTTPReadTimeout() time.Duration
-	HTTPWriteTimeout() time.Duration
+// boot logging and hooks
+
+func bootLogListener(kind string, lst net.Listener) {
+	BootLogger.Infof("listening for %s on %v", kind, lst.Addr())
 }
 
-// RunHTTPServe serves HTTP requests.
-func RunHTTPServe(lst net.Listener, h http.Handler, cfg HTTPServeConfig) error {
-	srv := &http.Server{
-		Handler:      h,
-		ReadTimeout:  cfg.HTTPReadTimeout(),
-		WriteTimeout: cfg.HTTPReadTimeout(),
-	}
-	return srv.Serve(lst)
-}
+var (
+	BootLogger      = logger.NewSimpleLogger(os.Stderr, "debug")
+	BootLogListener = bootLogListener
+	BootLogFatalf   = BootLogger.Fatalf
+)
