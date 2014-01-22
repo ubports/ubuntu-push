@@ -38,17 +38,20 @@ var BusAddress bus.Address = bus.Address{
  *    RawNotifications
  */
 
+// convenience type for the (uint32, string) ActionInvoked signal data
 type RawActionReply struct {
 	NotificationId uint32
 	ActionId       string
 }
 
+// a raw notification provides a low-level interface to the f.d.o. dbus
+// notifications api
 type RawNotifications struct {
 	bus bus.Endpoint
 	log logger.Logger
 }
 
-// New returns a new Notifications that'll use the provided bus.Endpoint
+// Raw returns a new RawNotifications connected to the provided bus.Bus
 func Raw(bt bus.Bus, log logger.Logger) (*RawNotifications, error) {
 	endp, err := bt.Connect(BusAddress, log)
 	if err != nil {
