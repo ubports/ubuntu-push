@@ -19,6 +19,8 @@ package testing
 
 import (
 	"bytes"
+	"path/filepath"
+	"runtime"
 	"sync"
 )
 
@@ -44,4 +46,14 @@ func (buf *SyncedLogBuffer) String() string {
 	buf.lock.Lock()
 	defer buf.lock.Unlock()
 	return buf.Buffer.String()
+}
+
+// SourceRelative produces a path relative to the source code, makes
+// sense only for tests when the code is available on disk.
+func SourceRelative(relativePath string) string {
+	_, file, _, ok := runtime.Caller(1)
+	if !ok {
+		panic("failed to get source filename using Caller()")
+	}
+	return filepath.Join(filepath.Dir(file), relativePath)
 }

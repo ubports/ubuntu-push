@@ -50,6 +50,9 @@ func DeviceListen(cfg DeviceListenerConfig) (*DeviceListener, error) {
 		SessionTicketsDisabled: true,
 	}
 	lst, err := tls.Listen("tcp", cfg.Addr(), tlsCfg)
+	if err != nil {
+		return nil, err
+	}
 	return &DeviceListener{lst}, err
 }
 

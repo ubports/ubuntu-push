@@ -34,7 +34,7 @@ type testingEndpoint struct {
 // the provided return values.
 //
 // NOTE: Call() always returns the first return value; Watch() will provide
-// each of them intern, irrespective of whether Call has been called.
+// each of them in turn, irrespective of whether Call has been called.
 func NewMultiValuedTestingEndpoint(cond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
 	return &testingEndpoint{cond, retvalses}
 }

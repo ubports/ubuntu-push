@@ -58,31 +58,12 @@ func (cfg *testDevListenerCfg) Addr() string {
 	return cfg.addr
 }
 
-// key&cert generated with go run /usr/lib/go/src/pkg/crypto/tls/generate_cert.go -ca -host localhost -rsa-bits 512 -duration 87600h
-
 func (cfg *testDevListenerCfg) KeyPEMBlock() []byte {
-	return []byte(`-----BEGIN RSA PRIVATE KEY-----
-MIIBPAIBAAJBAPw+niki17X2qALE2A2AzE1q5dvK9CI4OduRtT9IgbFLC6psqAT2
-1NA+QbY17nWSSpyP65zkMkwKXrbDzstwLPkCAwEAAQJAKwXbIBULScP6QA6m8xam
-wgWbkvN41GVWqPafPV32kPBvKwSc+M1e+JR7g3/xPZE7TCELcfYi4yXEHZZI3Pbh
-oQIhAP/UsgJbsfH1GFv8Y8qGl5l/kmwwkwHhuKvEC87Yur9FAiEA/GlQv3ZfaXnT
-lcCFT0aL02O0RDiRYyMUG/JAZQJs6CUCIQCHO5SZYIUwxIGK5mCNxxXOAzyQSiD7
-hqkKywf+4FvfDQIhALa0TLyqJFom0t7c4iIGAIRc8UlIYQSPiajI64+x9775AiEA
-0v4fgSK/Rq059zW1753JjuB6aR0Uh+3RqJII4dUR1Wg=
------END RSA PRIVATE KEY-----`)
+	return helpers.TestKeyPEMBlock
 }
 
 func (cfg *testDevListenerCfg) CertPEMBlock() []byte {
-	return []byte(`-----BEGIN CERTIFICATE-----
-MIIBYzCCAQ+gAwIBAgIBADALBgkqhkiG9w0BAQUwEjEQMA4GA1UEChMHQWNtZSBD
-bzAeFw0xMzEyMTkyMDU1NDNaFw0yMzEyMTcyMDU1NDNaMBIxEDAOBgNVBAoTB0Fj
-bWUgQ28wWjALBgkqhkiG9w0BAQEDSwAwSAJBAPw+niki17X2qALE2A2AzE1q5dvK
-9CI4OduRtT9IgbFLC6psqAT21NA+QbY17nWSSpyP65zkMkwKXrbDzstwLPkCAwEA
-AaNUMFIwDgYDVR0PAQH/BAQDAgCkMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8GA1Ud
-EwEB/wQFMAMBAf8wGgYDVR0RBBMwEYIJbG9jYWxob3N0hwR/AAABMAsGCSqGSIb3
-DQEBBQNBAFqiVI+Km2XPSO+pxITaPvhmuzg+XG3l1+2di3gL+HlDobocjBqRctRU
-YySO32W07acjGJmCHUKpCJuq9X8hpmk=
------END CERTIFICATE-----`)
+	return helpers.TestCertPEMBlock
 }
 
 func (s *listenerSuite) TestDeviceListen(c *C) {
