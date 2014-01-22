@@ -39,6 +39,15 @@ func (s *TestingEndpointSuite) TestCallReturnsFirstRetval(c *C) {
 	c.Check(v, Equals, m)
 }
 
+// Test the same Call() but with multi-valued endpoint
+func (s *TestingEndpointSuite) TestMultiValuedCall(c *C) {
+	var m, n uint32 = 42, 17
+	endp := NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{m}, []interface{}{n})
+	v, e := endp.Call("what")
+	c.Check(e, IsNil)
+	c.Check(v, Equals, m)
+}
+
 // Test that Call() with a negative condition returns an error.
 func (s *TestingEndpointSuite) TestCallFails(c *C) {
 	endp := NewTestingEndpoint(condition.Work(false))
@@ -50,7 +59,22 @@ func (s *TestingEndpointSuite) TestCallFails(c *C) {
 // a helpful message.
 func (s *TestingEndpointSuite) TestCallPanicsWithNiceMessage(c *C) {
 	endp := NewTestingEndpoint(condition.Work(true))
-	c.Check(func() { endp.Call("") }, PanicMatches, "No return values provided!")
+	c.Check(func() { endp.Call("") }, PanicMatches, "No return values provided.*")
+}
+
+// Test that Call() with a positive condition and an empty return value panics
+// with a helpful message.
+func (s *TestingEndpointSuite) TestCallPanicsWithNiceMessage2(c *C) {
+	endp := NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{})
+	c.Check(func() { endp.Call("") }, PanicMatches, "Wrong number of values provided.*")
+}
+
+// Test Call() with positive condition and the wrong number of arguments also
+// fails with a helpful message
+func (s *TestingEndpointSuite) TestMultiValuedCallPanicsWhenWrongNumberOfValues(c *C) {
+	var m, n uint32 = 42, 17
+	endp := NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{m, n})
+	c.Check(func() { endp.Call("") }, PanicMatches, "Wrong number of values provided.*")
 }
 
 // Test that WatchSignal() with a positive condition sends the provided return
@@ -59,16 +83,33 @@ func (s *TestingEndpointSuite) TestWatch(c *C) {
 	var m, n uint32 = 42, 17
 	endp := NewTestingEndpoint(condition.Work(true), m, n)
 	ch := make(chan uint32)
-	e := endp.WatchSignal("what", func(u interface{}) { ch <- u.(uint32) }, func() { close(ch) })
+	e := endp.WatchSignal("what", func(us ...interface{}) { ch <- us[0].(uint32) }, func() { close(ch) })
 	c.Check(e, IsNil)
 	c.Check(<-ch, Equals, m)
 	c.Check(<-ch, Equals, n)
 }
 
+// Test that WatchSignal() calls the destructor callback when it runs out values
+func (s *TestingEndpointSuite) TestWatchDestructor(c *C) {
+	endp := NewTestingEndpoint(condition.Work(true))
+	ch := make(chan uint32)
+	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
+	c.Check(e, IsNil)
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
+
+// Test the endpoint can be closed
+func (s *TestingEndpointSuite) TestCloser(c *C) {
+	endp := NewTestingEndpoint(condition.Work(true))
+	endp.Close()
+	// ... yay?
+}
+
 // Test that WatchSignal() with a negative condition returns an error.
 func (s *TestingEndpointSuite) TestWatchFails(c *C) {
 	endp := NewTestingEndpoint(condition.Work(false))
-	e := endp.WatchSignal("what", func(u interface{}) {}, func() {})
+	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() {})
 	c.Check(e, NotNil)
 }
 

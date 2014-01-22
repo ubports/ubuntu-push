@@ -43,6 +43,13 @@ func NewTestingBus(clientTC condition.Interface, busTC condition.Interface, retv
 	return &testingBus{clientTC, NewTestingEndpoint(busTC, retvals...)}
 }
 
+// Build a bus.Bus that takes a condition to determine whether it should work,
+// as well as a condition and a series of lists of return values for the
+// testing bus.Endpoint it builds.
+func NewMultiValuedTestingBus(clientTC condition.Interface, busTC condition.Interface, retvalses ...[]interface{}) bus.Bus {
+	return &testingBus{clientTC, NewMultiValuedTestingEndpoint(busTC, retvalses...)}
+}
+
 // ensure testingBus implements bus.Interface
 var _ bus.Bus = &testingBus{}
 
