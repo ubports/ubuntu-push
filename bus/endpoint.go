@@ -82,16 +82,19 @@ func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func(
 // provided when creating the endpoint). The return value is unpacked before
 // being returned.
 func (endp *endpoint) Call(member string, args ...interface{}) (interface{}, error) {
-	var err error
-	var msg *dbus.Message
-	if msg, err = endp.proxy.Call(endp.iface, member, args...); err == nil {
-		rvs := endp.unpackOneMsg(msg, member)
-		if len(rvs) == 1 {
-			return rvs[0], nil
-		}
-		err = fmt.Errorf("Got wrong number of arguments in Call: %d", len(rvs))
+	msg, err := endp.proxy.Call(endp.iface, member, args...)
+	if err != nil {
+		return 0, err
 	}
-	return 0, err
+	rvs := endp.unpackOneMsg(msg, member)
+	switch len(rvs) {
+	default:
+		return 0, fmt.Errorf("Too many values in %s response: %d", member, len(rvs))
+	case 0:
+		return 0, fmt.Errorf("Not enough values in %s response: %d", member, len(rvs))
+	case 1:
+		return rvs[0], nil
+	}
 }
 
 // GetProperty uses the org.freedesktop.DBus.Properties interface's Get method
@@ -104,8 +107,13 @@ func (endp *endpoint) GetProperty(property string) (interface{}, error) {
 		return nil, err
 	}
 	variantvs := endp.unpackOneMsg(msg, property)
-	if len(variantvs) != 1 {
-		return nil, fmt.Errorf("Got wrong number of arguments in GetProperty: %d", len(variantvs))
+	switch len(variantvs) {
+	default:
+		return nil, fmt.Errorf("Too many values in Properties.Get response: %d", len(variantvs))
+	case 0:
+		return nil, fmt.Errorf("Not enough values in Properties.Get response: %d", len(variantvs))
+	case 1:
+		// carry on
 	}
 	variant, ok := variantvs[0].(*dbus.Variant)
 	if !ok {
