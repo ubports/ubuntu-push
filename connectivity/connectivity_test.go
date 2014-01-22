@@ -128,11 +128,11 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 */
 
 func (s *ConnSuite) TestSteps(c *C) {
-	webget_works := func(ch chan<- bool) { ch <- true }
-	webget_fails := func(ch chan<- bool) { ch <- false }
+	var webget_p condition.Interface = condition.Work(true)
+	recheck_timeout := 50 * time.Millisecond
 
 	cfg := Config{
-		RecheckTimeout: config.ConfigTimeDuration{10 * time.Millisecond},
+		RecheckTimeout: config.ConfigTimeDuration{recheck_timeout},
 	}
 	ch := make(chan networkmanager.State, 10)
 	cs := &connectedState{
@@ -140,7 +140,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 		networkStateCh: ch,
 		timer:          time.NewTimer(time.Second),
 		log:            nullog,
-		webget:         webget_works,
+		webget:         func(ch chan<- bool) { ch <- webget_p.OK() },
 		lastSent:       false,
 	}
 	ch <- networkmanager.ConnectedGlobal
@@ -156,7 +156,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 	c.Check(f, Equals, true) // and if the web check works, go back to connected
 
 	// same scenario, but with failing web check
-	cs.webget = webget_fails
+	webget_p = condition.Fail2Work(1)
 	ch <- networkmanager.ConnectedGlobal
 	f, e = cs.connectedStateStep()
 	c.Check(e, IsNil)
@@ -164,7 +164,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 
 	// the next call to Step will time out
 	_ch := make(chan bool, 1)
-	_t := time.NewTimer(10 * time.Millisecond)
+	_t := time.NewTimer(recheck_timeout / 2)
 
 	go func() {
 		f, e := cs.connectedStateStep()
@@ -178,8 +178,6 @@ func (s *ConnSuite) TestSteps(c *C) {
 	case <-_t.C:
 	}
 
-	// put it back together again
-	cs.webget = webget_works
 	// now an recheckTimeout later, we'll get true
 	c.Check(<-_ch, Equals, true)
 
