@@ -164,7 +164,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 
 	// the next call to Step will time out
 	_ch := make(chan bool, 1)
-	_t := time.NewTimer(recheck_timeout/2)
+	_t := time.NewTimer(recheck_timeout / 2)
 
 	go func() {
 		f, e := cs.connectedStateStep()
