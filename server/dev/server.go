@@ -18,70 +18,48 @@
 package main
 
 import (
+	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/api"
 	"launchpad.net/ubuntu-push/server/broker"
-	"launchpad.net/ubuntu-push/server/listener"
 	"launchpad.net/ubuntu-push/server/session"
 	"launchpad.net/ubuntu-push/server/store"
 	"net"
 	"os"
 	"path/filepath"
-	"syscall"
 )
 
+type configuration struct {
+	// device server configuration
+	DevicesParsedConfig
+	// api http server configuration
+	HTTPServeParsedConfig
+}
+
 func main() {
-	logger := logger.NewSimpleLogger(os.Stderr, "debug")
-	if len(os.Args) < 2 { // xxx use flag
-		logger.Fatalf("missing config file")
-	}
-	configFName := os.Args[1]
-	f, err := os.Open(configFName)
-	if err != nil {
-		logger.Fatalf("reading config: %v", err)
-	}
+	cfgFpaths := os.Args[1:]
 	cfg := &configuration{}
-	err = cfg.read(f, filepath.Dir(configFName))
+	err := config.ReadFiles(cfg, cfgFpaths...)
 	if err != nil {
-		logger.Fatalf("reading config: %v", err)
+		BootLogFatalf("reading config: %v", err)
 	}
+	err = cfg.DevicesParsedConfig.FinishLoad(filepath.Dir(cfgFpaths[len(cfgFpaths)-1]))
+	if err != nil {
+		BootLogFatalf("reading config: %v", err)
+	}
+	logger := logger.NewSimpleLogger(os.Stderr, "debug")
 	// setup a pending store and start the broker
 	sto := store.NewInMemoryPendingStore()
 	broker := broker.NewSimpleBroker(sto, cfg, logger)
 	broker.Start()
 	defer broker.Stop()
 	// serve the http api
-	httpLst, err := net.Listen("tcp", cfg.HTTPAddr())
-	if err != nil {
-		logger.Fatalf("start http listening: %v", err)
-	}
 	handler := api.MakeHandlersMux(sto, broker, logger)
 	handler = api.PanicTo500Handler(handler, logger)
-	logger.Infof("listening for http on %v", httpLst.Addr())
-	go func() {
-		err := RunHTTPServe(httpLst, handler, cfg)
-		if err != nil {
-			logger.Fatalf("accepting http connections: %v", err)
-		}
-	}()
+	go HTTPServeRunner(handler, &cfg.HTTPServeParsedConfig)()
 	// listen for device connections
-	logger.Debugf("PingInterval: %s, ExchangeTimeout %s", cfg.PingInterval(), cfg.ExchangeTimeout())
-	var rlim syscall.Rlimit
-	err = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlim)
-	if err != nil {
-		logger.Fatalf("getrlimit failed: %v", err)
-	}
-	logger.Debugf("nofile soft: %d hard: %d", rlim.Cur, rlim.Max)
-	lst, err := listener.DeviceListen(cfg)
-	if err != nil {
-		logger.Fatalf("start device listening: %v", err)
-	}
-	logger.Infof("listening for devices on %v", lst.Addr())
-	err = lst.AcceptLoop(func(conn net.Conn) error {
+	DevicesRunner(func(conn net.Conn) error {
 		track := session.NewTracker(logger)
 		return session.Session(conn, broker, cfg, track)
-	}, logger)
-	if err != nil {
-		logger.Fatalf("accepting device connections: %v", err)
-	}
+	}, logger, &cfg.DevicesParsedConfig)()
 }
