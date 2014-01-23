@@ -5,4 +5,5 @@ set -ex
 SERVER_PKG=${SERVER_PKG:-launchpad.net/ubuntu-push/server/dev}
 go test $BUILD_FLAGS -i launchpad.net/ubuntu-push/server/acceptance
 go build $BUILD_FLAGS -o testserver ${SERVER_PKG}
-go test $BUILD_FLAGS launchpad.net/ubuntu-push/server/acceptance -server ${PWD}/testserver $*
+cd ${GOPATH}/src/launchpad.net/ubuntu-push/server/acceptance
+go test $BUILD_FLAGS -server ${PWD}/testserver $*
