@@ -33,25 +33,22 @@ type Endpoint interface {
 	WatchSignal(member string, f func(...interface{}), d func()) error
 	Call(member string, args ...interface{}) ([]interface{}, error)
 	GetProperty(property string) (interface{}, error)
+	Dial() error
 	Close()
+	String() string
 }
 
 type endpoint struct {
+	busT  Bus
 	bus   *dbus.Connection
 	proxy *dbus.ObjectProxy
-	iface string
+	addr  Address
 	log   logger.Logger
 }
 
 // constructor
-func newEndpoint(bus *dbus.Connection, addr Address, log logger.Logger) *endpoint {
-	endp := new(endpoint)
-	endp.bus = bus
-	endp.proxy = bus.Object(addr.Name, dbus.ObjectPath(addr.Path))
-	endp.iface = addr.Interface
-	endp.log = log
-
-	return endp
+func newEndpoint(bus Bus, addr Address, log logger.Logger) *endpoint {
+	return &endpoint{busT: bus, addr: addr, log: log}
 }
 
 // ensure endpoint implements Endpoint
@@ -61,13 +58,24 @@ var _ Endpoint = &endpoint{}
    public methods
 */
 
+// Dial() (re)establishes the connection with dbus
+func (endp *endpoint) Dial() error {
+	bus, err := dbus.Connect(endp.busT.(concreteBus).dbusType())
+	if err != nil {
+		return err
+	}
+	endp.bus = bus
+	endp.proxy = bus.Object(endp.addr.Name, dbus.ObjectPath(endp.addr.Path))
+	return nil
+}
+
 // WatchSignal() takes a member name and sets up a watch for it (on the name,
 // path and interface provided when creating the endpoint), and then calls f()
 // with the unpacked value. If it's unable to set up the watch it'll return an
 // error. If the watch fails once established, d() is called. Typically f()
 // sends the values over a channel, and d() would close the channel.
 func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
-	watch, err := endp.proxy.WatchSignal(endp.iface, member)
+	watch, err := endp.proxy.WatchSignal(endp.addr.Interface, member)
 	if err != nil {
 		endp.log.Debugf("Failed to set up the watch: %s", err)
 		return err
@@ -82,7 +90,7 @@ func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func(
 // provided when creating the endpoint). The return value is unpacked before
 // being returned.
 func (endp *endpoint) Call(member string, args ...interface{}) ([]interface{}, error) {
-	msg, err := endp.proxy.Call(endp.iface, member, args...)
+	msg, err := endp.proxy.Call(endp.addr.Interface, member, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +103,7 @@ func (endp *endpoint) Call(member string, args ...interface{}) ([]interface{}, e
 // creating the endpoint. The return value is unpacked into a dbus.Variant,
 // and its value returned.
 func (endp *endpoint) GetProperty(property string) (interface{}, error) {
-	msg, err := endp.proxy.Call("org.freedesktop.DBus.Properties", "Get", endp.iface, property)
+	msg, err := endp.proxy.Call("org.freedesktop.DBus.Properties", "Get", endp.addr.Interface, property)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +126,13 @@ func (endp *endpoint) GetProperty(property string) (interface{}, error) {
 // Close the connection to dbus.
 func (endp *endpoint) Close() {
 	endp.bus.Close()
+	endp.bus = nil
+	endp.proxy = nil
+}
+
+// String() performs advanced endpoint stringification
+func (endp *endpoint) String() string {
+	return fmt.Sprintf("<Connection to %s %#v>", endp.bus, endp.addr)
 }
 
 /*

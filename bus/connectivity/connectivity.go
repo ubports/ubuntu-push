@@ -28,14 +28,13 @@ import (
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/util"
 	"time"
 )
 
 // the configuration for ConnectedState, with the idea that you'd populate it
 // from a config file.
 type Config struct {
-	// a list of timeouts, for backoff. Should be roughly doubling.
-	ConnectTimeouts []config.ConfigTimeDuration
 	// how long to wait after a state change to make sure it's "stable"
 	// before acting on it
 	StabilizingTimeout config.ConfigTimeDuration
@@ -51,7 +50,7 @@ type connectedState struct {
 	networkStateCh <-chan networkmanager.State
 	config         Config
 	log            logger.Logger
-	bus            bus.Bus
+	endp           bus.Endpoint
 	connAttempts   uint32
 	webget         func(ch chan<- bool)
 	webgetCh       chan bool
@@ -60,41 +59,19 @@ type connectedState struct {
 	timer          *time.Timer
 }
 
-// implements the logic for connect timeouts backoff
-//
-// (walk the list of timeouts, and repeat the last one until done; cope with
-// the list being empty; keep track of connection attempts).
-func (cs *connectedState) connectTimeout() time.Duration {
-	var timeout config.ConfigTimeDuration
-	timeouts := cs.config.ConnectTimeouts
-	if cs.connAttempts < uint32(len(timeouts)) {
-		timeout = timeouts[cs.connAttempts]
-	} else if len(timeouts) > 0 {
-		timeout = cs.config.ConnectTimeouts[len(timeouts)-1]
-	}
-	cs.connAttempts++
-	return timeout.Duration
-}
-
 // start connects to the bus, gets the initial NetworkManager state, and sets
 // up the watch.
 func (cs *connectedState) start() networkmanager.State {
 	var initial networkmanager.State
 	for {
-		time.Sleep(cs.connectTimeout())
-		cs.log.Debugf("Starting DBus connection attempt %d\n", cs.connAttempts)
-		conn, err := cs.bus.Connect(networkmanager.BusAddress, cs.log)
-		if err != nil {
-			cs.log.Debugf("DBus connection attempt %d failed.\n", cs.connAttempts)
-			continue
-		}
-		nm := networkmanager.New(conn, cs.log)
+		cs.connAttempts += util.AutoRedial(cs.endp)
+		nm := networkmanager.New(cs.endp, cs.log)
 
 		// Get the current state.
 		initial = nm.GetState()
 		if initial == networkmanager.Unknown {
-			cs.log.Debugf("Failed to get state at attempt.")
-			conn.Close()
+			cs.log.Debugf("Failed to get state.")
+			cs.endp.Close()
 			continue
 		}
 
@@ -102,12 +79,11 @@ func (cs *connectedState) start() networkmanager.State {
 		ch, err := nm.WatchState()
 		if err != nil {
 			cs.log.Debugf("Failed to set up the watch: %s", err)
-			conn.Close()
+			cs.endp.Close()
 			continue
 		}
 
 		cs.networkStateCh = ch
-		cs.log.Debugf("worked at attempt %d. Resetting counter.\n", cs.connAttempts)
 		return initial
 	}
 }
@@ -161,12 +137,15 @@ Loop:
 // ConnectedState sends the initial NetworkManager state and changes to it
 // over the "out" channel. Sends "false" as soon as it detects trouble, "true"
 // after checking actual connectivity.
-func ConnectedState(busType bus.Bus, config Config, log logger.Logger, out chan<- bool) {
+//
+// The endpoint need not be dialed; connectivity will Dial() and Close()
+// it as it sees fit.
+func ConnectedState(endp bus.Endpoint, config Config, log logger.Logger, out chan<- bool) {
 	wg := NewWebchecker(config.ConnectivityCheckURL, config.ConnectivityCheckMD5, log)
 	cs := &connectedState{
 		config: config,
 		log:    log,
-		bus:    busType,
+		endp:   endp,
 		webget: wg.Webcheck,
 	}
 

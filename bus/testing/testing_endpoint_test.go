@@ -33,7 +33,7 @@ var _ = Suite(&TestingEndpointSuite{})
 // provided, as advertised.
 func (s *TestingEndpointSuite) TestCallReturnsFirstRetval(c *C) {
 	var m, n uint32 = 42, 17
-	endp := NewTestingEndpoint(condition.Work(true), m, n)
+	endp := NewTestingEndpoint(nil, condition.Work(true), m, n)
 	vs, e := endp.Call("what")
 	c.Check(e, IsNil)
 	c.Check(vs, HasLen, 1)
@@ -43,7 +43,7 @@ func (s *TestingEndpointSuite) TestCallReturnsFirstRetval(c *C) {
 // Test the same Call() but with multi-valued endpoint
 func (s *TestingEndpointSuite) TestMultiValuedCall(c *C) {
 	var m, n uint32 = 42, 17
-	endp := NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{m}, []interface{}{n})
+	endp := NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{m}, []interface{}{n})
 	vs, e := endp.Call("what")
 	c.Check(e, IsNil)
 	c.Check(vs, HasLen, 1)
@@ -52,7 +52,7 @@ func (s *TestingEndpointSuite) TestMultiValuedCall(c *C) {
 
 // Test that Call() with a negative condition returns an error.
 func (s *TestingEndpointSuite) TestCallFails(c *C) {
-	endp := NewTestingEndpoint(condition.Work(false))
+	endp := NewTestingEndpoint(nil, condition.Work(false))
 	_, e := endp.Call("what")
 	c.Check(e, NotNil)
 }
@@ -60,7 +60,7 @@ func (s *TestingEndpointSuite) TestCallFails(c *C) {
 // Test that Call() with a positive condition and no return values panics with
 // a helpful message.
 func (s *TestingEndpointSuite) TestCallPanicsWithNiceMessage(c *C) {
-	endp := NewTestingEndpoint(condition.Work(true))
+	endp := NewTestingEndpoint(nil, condition.Work(true))
 	c.Check(func() { endp.Call("") }, PanicMatches, "No return values provided.*")
 }
 
@@ -68,7 +68,7 @@ func (s *TestingEndpointSuite) TestCallPanicsWithNiceMessage(c *C) {
 // values over the channel.
 func (s *TestingEndpointSuite) TestWatch(c *C) {
 	var m, n uint32 = 42, 17
-	endp := NewTestingEndpoint(condition.Work(true), m, n)
+	endp := NewTestingEndpoint(nil, condition.Work(true), m, n)
 	ch := make(chan uint32)
 	e := endp.WatchSignal("what", func(us ...interface{}) { ch <- us[0].(uint32) }, func() { close(ch) })
 	c.Check(e, IsNil)
@@ -78,7 +78,7 @@ func (s *TestingEndpointSuite) TestWatch(c *C) {
 
 // Test that WatchSignal() calls the destructor callback when it runs out values
 func (s *TestingEndpointSuite) TestWatchDestructor(c *C) {
-	endp := NewTestingEndpoint(condition.Work(true))
+	endp := NewTestingEndpoint(nil, condition.Work(true))
 	ch := make(chan uint32)
 	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
 	c.Check(e, IsNil)
@@ -88,14 +88,14 @@ func (s *TestingEndpointSuite) TestWatchDestructor(c *C) {
 
 // Test the endpoint can be closed
 func (s *TestingEndpointSuite) TestCloser(c *C) {
-	endp := NewTestingEndpoint(condition.Work(true))
+	endp := NewTestingEndpoint(nil, condition.Work(true))
 	endp.Close()
 	// ... yay?
 }
 
 // Test that WatchSignal() with a negative condition returns an error.
 func (s *TestingEndpointSuite) TestWatchFails(c *C) {
-	endp := NewTestingEndpoint(condition.Work(false))
+	endp := NewTestingEndpoint(nil, condition.Work(false))
 	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() {})
 	c.Check(e, NotNil)
 }
@@ -103,8 +103,35 @@ func (s *TestingEndpointSuite) TestWatchFails(c *C) {
 // Tests that GetProperty() works
 func (s *TestingEndpointSuite) TestGetProperty(c *C) {
 	var m uint32 = 42
-	endp := NewTestingEndpoint(condition.Work(true), m)
+	endp := NewTestingEndpoint(nil, condition.Work(true), m)
 	v, e := endp.GetProperty("what")
 	c.Check(e, IsNil)
 	c.Check(v, Equals, m)
+}
+
+// Tests that GetProperty() fails, too
+func (s *TestingEndpointSuite) TestGetPropertyFails(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(false))
+	_, e := endp.GetProperty("what")
+	c.Check(e, NotNil)
+}
+
+// Tests that GetProperty() also fails if it's fed garbage
+func (s *TestingEndpointSuite) TestGetPropertyFailsGargling(c *C) {
+	endp := NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{})
+	_, e := endp.GetProperty("what")
+	c.Check(e, NotNil)
+}
+
+// Test Dial() with a non-working bus fails
+func (s *TestingBusSuite) TestDialNoWork(c *C) {
+	endp := NewTestingEndpoint(condition.Work(false), nil)
+	err := endp.Dial()
+	c.Check(err, NotNil)
+}
+
+// Test testingEndpoints serialize, more or less
+func (s *TestingBusSuite) TestEndpointString(c *C) {
+	endp := NewTestingEndpoint(condition.Fail2Work(2), nil, "hello there")
+	c.Check(endp.String(), Matches, ".*Still Broken.*hello there.*")
 }

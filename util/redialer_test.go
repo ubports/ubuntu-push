@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package urldispatcher
+package util
 
 import (
 	"io/ioutil"
@@ -23,27 +23,29 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"testing"
+	"time"
 )
 
 // hook up gocheck
-func TestUrldispatcher(t *testing.T) { TestingT(t) }
+func TestRedialer(t *testing.T) { TestingT(t) }
 
-type UDSuite struct{}
-
-var _ = Suite(&UDSuite{})
-
-var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
-
-func (s *UDSuite) TestWorks(c *C) {
-	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{})
-	ud := New(endp, nullog)
-	err := ud.DispatchURL("this")
-	c.Check(err, IsNil)
+type RedialerSuite struct {
+	timeouts []time.Duration
 }
 
-func (s *UDSuite) TestFailsIfCallFails(c *C) {
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
-	ud := New(endp, nullog)
-	err := ud.DispatchURL("this")
-	c.Check(err, NotNil)
+var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
+var _ = Suite(&RedialerSuite{})
+
+func (s *RedialerSuite) SetUpSuite(c *C) {
+	skipTimeout = true
+}
+
+func (s *RedialerSuite) TearDownSuite(c *C) {
+	skipTimeout = false
+}
+
+func (s *RedialerSuite) TestWorks(c *C) {
+	endp := testibus.NewTestingEndpoint(condition.Fail2Work(3), nil)
+	// instead of bus.Dial(), we do AutoRedial(bus)
+	c.Check(AutoRedial(endp), Equals, uint32(4))
 }
