@@ -37,15 +37,23 @@ var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 var _ = Suite(&RedialerSuite{})
 
 func (s *RedialerSuite) SetUpSuite(c *C) {
-	skipTimeout = true
+	s.timeouts = timeouts
+	timeouts = []time.Duration{0}
 }
 
 func (s *RedialerSuite) TearDownSuite(c *C) {
-	skipTimeout = false
+	timeouts = s.timeouts
+	s.timeouts = nil
 }
 
 func (s *RedialerSuite) TestWorks(c *C) {
 	endp := testibus.NewTestingEndpoint(condition.Fail2Work(3), nil)
 	// instead of bus.Dial(), we do AutoRedial(bus)
 	c.Check(AutoRedial(endp), Equals, uint32(4))
+}
+
+func (s *RedialerSuite) TestCanBeStopped(c *C) {
+	endp := testibus.NewTestingEndpoint(condition.Work(false), nil)
+	go func() { c.Check(AutoRedial(endp), Equals, uint32(1)) }()
+	quitRedialing <- true
 }

@@ -33,7 +33,6 @@ var timeouts []time.Duration
 
 var ( //  for use in testing
 	quitRedialing chan bool = make(chan bool)
-	skipTimeout   bool      = false
 )
 
 func AutoRedial(dialer Dialer) uint32 {
@@ -44,12 +43,10 @@ func AutoRedial(dialer Dialer) uint32 {
 		if dialer.Dial() == nil {
 			return dialAttempts + 1
 		}
-		if !skipTimeout {
-			if dialAttempts < numTimeouts {
-				timeout = timeouts[dialAttempts]
-			} else {
-				timeout += time.Duration(rand.Intn(60)-30) * time.Second
-			}
+		if dialAttempts < numTimeouts {
+			timeout = timeouts[dialAttempts]
+		} else {
+			timeout += timeouts[numTimeouts-1] + time.Duration(rand.Intn(60)-30)*time.Second
 		}
 		dialAttempts++
 		select {
