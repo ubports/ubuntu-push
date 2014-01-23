@@ -35,23 +35,15 @@ var _ = Suite(&UDSuite{})
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 
 func (s *UDSuite) TestWorks(c *C) {
-	tb := testibus.NewMultiValuedTestingBus(condition.Work(true), condition.Work(true), []interface{}{})
-	ud, err := New(tb, nullog)
-	c.Assert(err, IsNil)
-	err = ud.DispatchURL("this")
+	endp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{})
+	ud := New(endp, nullog)
+	err := ud.DispatchURL("this")
 	c.Check(err, IsNil)
 }
 
-func (s *UDSuite) TestFailsIfConnectFails(c *C) {
-	tb := testibus.NewTestingBus(condition.Work(false), condition.Work(true))
-	_, err := New(tb, nullog)
-	c.Check(err, NotNil)
-}
-
 func (s *UDSuite) TestFailsIfCallFails(c *C) {
-	tb := testibus.NewTestingBus(condition.Work(true), condition.Work(false))
-	ud, err := New(tb, nullog)
-	c.Assert(err, IsNil)
-	err = ud.DispatchURL("this")
+	endp := testibus.NewTestingEndpoint(condition.Work(false))
+	ud := New(endp, nullog)
+	err := ud.DispatchURL("this")
 	c.Check(err, NotNil)
 }

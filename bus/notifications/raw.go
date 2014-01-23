@@ -52,14 +52,9 @@ type RawNotifications struct {
 	log logger.Logger
 }
 
-// Raw returns a new RawNotifications connected to the provided bus.Bus
-func Raw(bt bus.Bus, log logger.Logger) (*RawNotifications, error) {
-	endp, err := bt.Connect(BusAddress, log)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RawNotifications{endp, log}, nil
+// Raw returns a new RawNotifications that'll use the provided bus.Endpoint
+func Raw(endp bus.Endpoint, log logger.Logger) *RawNotifications {
+	return &RawNotifications{endp, log}
 }
 
 /*

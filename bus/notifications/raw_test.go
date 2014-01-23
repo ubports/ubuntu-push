@@ -38,47 +38,32 @@ var _ = Suite(&RawSuite{})
 
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 
-func (s *RawSuite) TestConnects(c *C) {
-	bus := testibus.NewTestingBus(condition.Work(false), condition.Work(false))
-	_, err := Raw(bus, nullog)
-	c.Check(err, NotNil)
-	bus = testibus.NewTestingBus(condition.Work(true), condition.Work(false))
-	_, err = Raw(bus, nullog)
-	c.Check(err, IsNil)
-}
-
 func (s *RawSuite) TestNotifies(c *C) {
-	bus := testibus.NewTestingBus(condition.Work(true), condition.Work(true),
-		uint32(1))
-	raw, err := Raw(bus, nullog)
-	c.Assert(err, IsNil)
+	endp := testibus.NewTestingEndpoint(condition.Work(true), uint32(1))
+	raw := Raw(endp, nullog)
 	nid, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(1))
 }
 
 func (s *RawSuite) TestNotifiesFails(c *C) {
-	bus := testibus.NewTestingBus(condition.Work(true), condition.Work(false))
-	raw, err := Raw(bus, nullog)
-	c.Assert(err, IsNil)
-	_, err = raw.Notify("", 0, "", "", "", nil, nil, 0)
+	endp := testibus.NewTestingEndpoint(condition.Work(false))
+	raw := Raw(endp, nullog)
+	_, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
 	c.Check(err, NotNil)
 }
 
 func (s *RawSuite) TestNotifiesFailsWeirdly(c *C) {
-	bus := testibus.NewMultiValuedTestingBus(condition.Work(true), condition.Work(true),
-		[]interface{}{1, 2})
-	raw, err := Raw(bus, nullog)
-	c.Assert(err, IsNil)
-	_, err = raw.Notify("", 0, "", "", "", nil, nil, 0)
+	endp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{1, 2})
+	raw := Raw(endp, nullog)
+	_, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
 	c.Check(err, NotNil)
 }
 
 func (s *RawSuite) TestWatchActions(c *C) {
-	bus := testibus.NewMultiValuedTestingBus(condition.Work(true), condition.Work(true),
+	endp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
 		[]interface{}{uint32(1), "hello"})
-	raw, err := Raw(bus, nullog)
-	c.Assert(err, IsNil)
+	raw := Raw(endp, nullog)
 	ch, err := raw.WatchActions()
 	c.Assert(err, IsNil)
 	// check we get the right action reply
@@ -95,9 +80,8 @@ func (s *RawSuite) TestWatchActions(c *C) {
 }
 
 func (s *RawSuite) TestWatchActionsFails(c *C) {
-	bus := testibus.NewTestingBus(condition.Work(true), condition.Work(false))
-	raw, err := Raw(bus, nullog)
-	c.Assert(err, IsNil)
-	_, err = raw.WatchActions()
+	endp := testibus.NewTestingEndpoint(condition.Work(false))
+	raw := Raw(endp, nullog)
+	_, err := raw.WatchActions()
 	c.Check(err, NotNil)
 }
