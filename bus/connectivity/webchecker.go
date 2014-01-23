@@ -14,13 +14,13 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package webchecker checks whether we're actually connected by doing an http
+// webchecker checks whether we're actually connected by doing an http
 // GET to the Ubuntu connectivity check URL,
 // http://start.ubuntu.com/connectivity-check.html
 //
 // We could make it be https to make extra doubly sure, but it's expensive
 // overkill for the majority of cases.
-package webchecker
+package connectivity
 
 import (
 	"crypto/md5"
@@ -46,7 +46,7 @@ type webchecker struct {
 }
 
 // Build a webchecker for the given URL, that should match the target MD5.
-func New(url string, target string, log logger.Logger) Webchecker {
+func NewWebchecker(url string, target string, log logger.Logger) Webchecker {
 	return &webchecker{log, url, target}
 }
 
