@@ -75,6 +75,7 @@ func (s *CommonBrokerSuite) TestRegistration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.RevealSession(b, "dev-1"), Equals, sess)
 	c.Assert(sess.DeviceIdentifier(), Equals, "dev-1")
+	c.Assert(sess.ExchangeScratchArea(), Not(IsNil))
 	c.Check(sess.Levels(), DeepEquals, broker.LevelsMap(map[store.InternalChannelId]int64{
 		store.SystemInternalChannelId: 5,
 	}))
