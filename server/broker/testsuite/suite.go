@@ -140,7 +140,6 @@ func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
-	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
 	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
@@ -148,6 +147,8 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	c.Assert(err, IsNil)
 	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-2"})
 	c.Assert(err, IsNil)
+	// add notification to channel *after* the registrations
+	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
 	b.Broadcast(store.SystemInternalChannelId)
 	select {
 	case <-time.After(5 * time.Second):
