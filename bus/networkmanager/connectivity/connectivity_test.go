@@ -19,10 +19,10 @@ package connectivity
 import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/bus/networkmanager"
 	testingbus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/networkmanager"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"net/http"
 	"net/http/httptest"

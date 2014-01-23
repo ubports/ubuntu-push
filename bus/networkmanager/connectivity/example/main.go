@@ -20,8 +20,8 @@ package main
 import (
 	"fmt"
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/networkmanager/connectivity"
 	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/connectivity"
 	"launchpad.net/ubuntu-push/logger"
 	"os"
 	"strings"
@@ -30,7 +30,7 @@ import (
 func main() {
 	log := logger.NewSimpleLogger(os.Stderr, "error")
 
-	paths := []string{"thing.json", "connectivity/example/thing.json"}
+	paths := []string{"thing.json", "bus/networkmanager/connectivity/example/thing.json"}
 	for _, path := range paths {
 		cff, err := os.Open(path)
 		if err == nil {

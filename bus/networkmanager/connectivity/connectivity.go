@@ -25,10 +25,10 @@ package connectivity
 import (
 	"errors"
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/networkmanager"
+	"launchpad.net/ubuntu-push/bus/networkmanager/connectivity/webchecker"
 	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/connectivity/webchecker"
 	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/networkmanager"
 	"time"
 )
 
