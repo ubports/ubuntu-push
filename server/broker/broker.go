@@ -52,8 +52,8 @@ type BrokerSession interface {
 	// SessionChannel returns the session control channel
 	// on which the session gets exchanges to perform.
 	SessionChannel() <-chan Exchange
-	// DeviceId returns the device id string.
-	DeviceId() string
+	// DeviceIdentifier returns the device id string.
+	DeviceIdentifier() string
 	// Levels returns the current channel levels for the session
 	Levels() LevelsMap
 	// ExchangeScratchArea returns the scratch area for exchanges.

@@ -20,30 +20,23 @@ import (
 	"encoding/json"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/server/broker"
+	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
 	// "log"
-	"testing"
+	gotesting "testing"
 )
 
-func TestSimple(t *testing.T) { TestingT(t) }
+func TestSimple(t *gotesting.T) { TestingT(t) }
 
 type simpleSuite struct{}
 
 var _ = Suite(&simpleSuite{})
 
-type testBrokerConfig struct{}
-
-func (tbc *testBrokerConfig) SessionQueueSize() uint {
-	return 10
-}
-
-func (tbc *testBrokerConfig) BrokerQueueSize() uint {
-	return 5
-}
+var testBrokerConfig = &testing.TestBrokerConfig{10, 5}
 
 func (s *simpleSuite) TestNew(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
+	b := NewSimpleBroker(sto, testBrokerConfig, nil)
 	c.Check(cap(b.sessionCh), Equals, 5)
 	c.Check(len(b.registry), Equals, 0)
 	c.Check(b.sto, Equals, sto)
@@ -53,7 +46,7 @@ func (s *simpleSuite) TestFeedPending(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
 	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
+	b := NewSimpleBroker(sto, testBrokerConfig, nil)
 	sess := &simpleBrokerSession{
 		exchanges: make(chan broker.Exchange, 1),
 	}
@@ -71,7 +64,7 @@ func (s *simpleSuite) TestFeedPendingNop(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
 	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
+	b := NewSimpleBroker(sto, testBrokerConfig, nil)
 	sess := &simpleBrokerSession{
 		exchanges: make(chan broker.Exchange, 1),
 		levels: map[store.InternalChannelId]int64{

@@ -19,10 +19,7 @@ package broker
 import (
 	"fmt"
 	. "launchpad.net/gocheck"
-	"testing"
 )
-
-func TestBroker(t *testing.T) { TestingT(t) }
 
 type brokerSuite struct{}
 
