@@ -44,6 +44,9 @@ type Exchange interface {
 	Acked(BrokerSession) error
 }
 
+// LevelsMap is the type for holding levels for session.
+type LevelsMap map[store.InternalChannelId]int64
+
 // BrokerSession holds broker session state.
 type BrokerSession interface {
 	// SessionChannel returns the session control channel
@@ -51,6 +54,10 @@ type BrokerSession interface {
 	SessionChannel() <-chan Exchange
 	// DeviceId returns the device id string.
 	DeviceId() string
+	// Levels returns the current channel levels for the session
+	Levels() LevelsMap
+	// ExchangeScratchArea returns the scratch area for exchanges.
+	ExchangeScratchArea() *ExchangesScratchArea
 }
 
 // Session aborted error.

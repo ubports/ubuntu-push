@@ -69,9 +69,9 @@ func (s *simpleSuite) TestRegistration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(b.registry["dev-1"], Equals, sess)
 	c.Assert(sess.DeviceId(), Equals, "dev-1")
-	c.Check(sess.(*simpleBrokerSession).levels, DeepEquals, map[store.InternalChannelId]int64{
+	c.Check(sess.Levels(), DeepEquals, LevelsMap(map[store.InternalChannelId]int64{
 		store.SystemInternalChannelId: 5,
-	})
+	}))
 	b.Unregister(sess)
 	// just to make sure the unregister was processed
 	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: ""})
@@ -99,10 +99,10 @@ func (s *simpleSuite) TestFeedPending(c *C) {
 	b.feedPending(sess)
 	c.Assert(len(sess.exchanges), Equals, 1)
 	exchg1 := <-sess.exchanges
-	c.Check(exchg1, DeepEquals, &simpleBroadcastExchange{
-		chanId:               store.SystemInternalChannelId,
-		topLevel:             1,
-		notificationPayloads: []json.RawMessage{notification1},
+	c.Check(exchg1, DeepEquals, &BroadcastExchange{
+		ChanId:               store.SystemInternalChannelId,
+		TopLevel:             1,
+		NotificationPayloads: []json.RawMessage{notification1},
 	})
 }
 
@@ -163,101 +163,6 @@ func (s *simpleSuite) TestRegistrationLastWins(c *C) {
 	c.Check(b.registry["dev-1"], Equals, sess2)
 }
 
-func (s *simpleSuite) TestBroadcastExchange(c *C) {
-	sess := &simpleBrokerSession{
-		levels: map[store.InternalChannelId]int64{},
-	}
-	exchg := &simpleBroadcastExchange{
-		chanId:   store.SystemInternalChannelId,
-		topLevel: 3,
-		notificationPayloads: []json.RawMessage{
-			json.RawMessage(`{"a":"x"}`),
-			json.RawMessage(`{"a":"y"}`),
-		},
-	}
-	inMsg, outMsg, err := exchg.Prepare(sess)
-	c.Assert(err, IsNil)
-	// check
-	marshalled, err := json.Marshal(inMsg)
-	c.Assert(err, IsNil)
-	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"x"},{"a":"y"}]}`)
-	err = json.Unmarshal([]byte(`{"T":"ack"}`), outMsg)
-	c.Assert(err, IsNil)
-	err = exchg.Acked(sess)
-	c.Assert(err, IsNil)
-	c.Check(sess.levels[store.SystemInternalChannelId], Equals, int64(3))
-}
-
-func (s *simpleSuite) TestBroadcastExchangeAckMismatch(c *C) {
-	sess := &simpleBrokerSession{
-		levels: map[store.InternalChannelId]int64{},
-	}
-	exchg := &simpleBroadcastExchange{
-		chanId:   store.SystemInternalChannelId,
-		topLevel: 3,
-		notificationPayloads: []json.RawMessage{
-			json.RawMessage(`{"a":"y"}`),
-		},
-	}
-	inMsg, outMsg, err := exchg.Prepare(sess)
-	c.Assert(err, IsNil)
-	// check
-	marshalled, err := json.Marshal(inMsg)
-	c.Assert(err, IsNil)
-	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"y"}]}`)
-	err = json.Unmarshal([]byte(`{}`), outMsg)
-	c.Assert(err, IsNil)
-	err = exchg.Acked(sess)
-	c.Assert(err, Not(IsNil))
-	c.Check(sess.levels[store.SystemInternalChannelId], Equals, int64(0))
-}
-
-func (s *simpleSuite) TestFilterByLevel(c *C) {
-	payloads := []json.RawMessage{
-		json.RawMessage(`{"a": 3}`),
-		json.RawMessage(`{"a": 4}`),
-		json.RawMessage(`{"a": 5}`),
-	}
-	res := filterByLevel(5, 5, payloads)
-	c.Check(len(res), Equals, 0)
-	res = filterByLevel(4, 5, payloads)
-	c.Check(len(res), Equals, 1)
-	c.Check(res[0], DeepEquals, json.RawMessage(`{"a": 5}`))
-	res = filterByLevel(3, 5, payloads)
-	c.Check(len(res), Equals, 2)
-	c.Check(res[0], DeepEquals, json.RawMessage(`{"a": 4}`))
-	res = filterByLevel(2, 5, payloads)
-	c.Check(len(res), Equals, 3)
-	res = filterByLevel(1, 5, payloads)
-	c.Check(len(res), Equals, 3)
-}
-
-func (s *simpleSuite) TestBroadcastExchangeFilterByLevel(c *C) {
-	sess := &simpleBrokerSession{
-		levels: map[store.InternalChannelId]int64{
-			store.SystemInternalChannelId: 2,
-		},
-	}
-	exchg := &simpleBroadcastExchange{
-		chanId:   store.SystemInternalChannelId,
-		topLevel: 3,
-		notificationPayloads: []json.RawMessage{
-			json.RawMessage(`{"a":"x"}`),
-			json.RawMessage(`{"a":"y"}`),
-		},
-	}
-	inMsg, outMsg, err := exchg.Prepare(sess)
-	c.Assert(err, IsNil)
-	// check
-	marshalled, err := json.Marshal(inMsg)
-	c.Assert(err, IsNil)
-	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"y"}]}`)
-	err = json.Unmarshal([]byte(`{"T":"ack"}`), outMsg)
-	c.Assert(err, IsNil)
-	err = exchg.Acked(sess)
-	c.Assert(err, IsNil)
-}
-
 func (s *simpleSuite) TestBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
@@ -274,20 +179,20 @@ func (s *simpleSuite) TestBroadcast(c *C) {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg1 := <-sess1.SessionChannel():
-		c.Check(exchg1, DeepEquals, &simpleBroadcastExchange{
-			chanId:               store.SystemInternalChannelId,
-			topLevel:             1,
-			notificationPayloads: []json.RawMessage{notification1},
+		c.Check(exchg1, DeepEquals, &BroadcastExchange{
+			ChanId:               store.SystemInternalChannelId,
+			TopLevel:             1,
+			NotificationPayloads: []json.RawMessage{notification1},
 		})
 	}
 	select {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg2 := <-sess2.SessionChannel():
-		c.Check(exchg2, DeepEquals, &simpleBroadcastExchange{
-			chanId:               store.SystemInternalChannelId,
-			topLevel:             1,
-			notificationPayloads: []json.RawMessage{notification1},
+		c.Check(exchg2, DeepEquals, &BroadcastExchange{
+			ChanId:               store.SystemInternalChannelId,
+			TopLevel:             1,
+			NotificationPayloads: []json.RawMessage{notification1},
 		})
 	}
 }
