@@ -26,7 +26,6 @@ import (
 	"errors"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
-	"launchpad.net/ubuntu-push/bus/networkmanager/connectivity/webchecker"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"time"
@@ -163,7 +162,7 @@ Loop:
 // over the "out" channel. Sends "false" as soon as it detects trouble, "true"
 // after checking actual connectivity.
 func ConnectedState(busType bus.Bus, config Config, log logger.Logger, out chan<- bool) {
-	wg := webchecker.New(config.ConnectivityCheckURL, config.ConnectivityCheckMD5, log)
+	wg := NewWebchecker(config.ConnectivityCheckURL, config.ConnectivityCheckMD5, log)
 	cs := &connectedState{
 		config: config,
 		log:    log,
