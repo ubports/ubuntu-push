@@ -27,8 +27,31 @@ type exchangesSuite struct{}
 
 var _ = Suite(&exchangesSuite{})
 
+type testBrokerSession struct {
+	deviceId     string
+	exchanges    chan Exchange
+	levels       LevelsMap
+	exchgScratch ExchangesScratchArea
+}
+
+func (tbs *testBrokerSession) SessionChannel() <-chan Exchange {
+	return nil
+}
+
+func (tbs *testBrokerSession) DeviceId() string {
+	return ""
+}
+
+func (tbs *testBrokerSession) Levels() LevelsMap {
+	return tbs.levels
+}
+
+func (tbs *testBrokerSession) ExchangeScratchArea() *ExchangesScratchArea {
+	return &tbs.exchgScratch
+}
+
 func (s *exchangesSuite) TestBroadcastExchange(c *C) {
-	sess := &simpleBrokerSession{
+	sess := &testBrokerSession{
 		levels: map[store.InternalChannelId]int64{},
 	}
 	exchg := &BroadcastExchange{
@@ -53,7 +76,7 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 }
 
 func (s *exchangesSuite) TestBroadcastExchangeAckMismatch(c *C) {
-	sess := &simpleBrokerSession{
+	sess := &testBrokerSession{
 		levels: map[store.InternalChannelId]int64{},
 	}
 	exchg := &BroadcastExchange{
@@ -97,7 +120,7 @@ func (s *exchangesSuite) TestFilterByLevel(c *C) {
 }
 
 func (s *exchangesSuite) TestBroadcastExchangeFilterByLevel(c *C) {
-	sess := &simpleBrokerSession{
+	sess := &testBrokerSession{
 		levels: map[store.InternalChannelId]int64{
 			store.SystemInternalChannelId: 2,
 		},

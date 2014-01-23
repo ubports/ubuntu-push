@@ -38,13 +38,13 @@ type BrokerSending interface {
 	Broadcast(chanId store.InternalChannelId)
 }
 
-// Exchange guides the session through performing an exchange, typically delivery.
+// Exchange leads the session through performing an exchange, typically delivery.
 type Exchange interface {
 	Prepare(BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error)
 	Acked(BrokerSession) error
 }
 
-// LevelsMap is the type for holding levels for session.
+// LevelsMap is the type for holding channel levels for session.
 type LevelsMap map[store.InternalChannelId]int64
 
 // BrokerSession holds broker session state.

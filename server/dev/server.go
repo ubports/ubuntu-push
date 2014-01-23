@@ -22,7 +22,7 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server"
 	"launchpad.net/ubuntu-push/server/api"
-	"launchpad.net/ubuntu-push/server/broker"
+	"launchpad.net/ubuntu-push/server/broker/simple"
 	"launchpad.net/ubuntu-push/server/session"
 	"launchpad.net/ubuntu-push/server/store"
 	"net"
@@ -51,7 +51,7 @@ func main() {
 	logger := logger.NewSimpleLogger(os.Stderr, "debug")
 	// setup a pending store and start the broker
 	sto := store.NewInMemoryPendingStore()
-	broker := broker.NewSimpleBroker(sto, cfg, logger)
+	broker := simple.NewSimpleBroker(sto, cfg, logger)
 	broker.Start()
 	defer broker.Stop()
 	// serve the http api
