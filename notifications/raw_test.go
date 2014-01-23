@@ -65,6 +65,15 @@ func (s *RawSuite) TestNotifiesFails(c *C) {
 	c.Check(err, NotNil)
 }
 
+func (s *RawSuite) TestNotifiesFailsWeirdly(c *C) {
+	bus := testibus.NewMultiValuedTestingBus(condition.Work(true), condition.Work(true),
+		[]interface{}{1, 2})
+	raw, err := Raw(bus, nullog)
+	c.Assert(err, IsNil)
+	_, err = raw.Notify("", 0, "", "", "", nil, nil, 0)
+	c.Check(err, NotNil)
+}
+
 func (s *RawSuite) TestWatchActions(c *C) {
 	bus := testibus.NewMultiValuedTestingBus(condition.Work(true), condition.Work(true),
 		[]interface{}{uint32(1), "hello"})

@@ -66,23 +66,27 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 
 // See Endpoint's Call. This Call will check its condition to decide whether
 // to return an error, or the first of its return values
-func (tc *testingEndpoint) Call(member string, args ...interface{}) (interface{}, error) {
+func (tc *testingEndpoint) Call(member string, args ...interface{}) ([]interface{}, error) {
 	if tc.cond.OK() {
 		if len(tc.retvals) == 0 {
 			panic("No return values provided!")
 		}
-		if len(tc.retvals[0]) != 1 {
-			panic("Wrong number of values provided -- Call only returns a single value for now!")
-		}
-		return tc.retvals[0][0], nil
+		return tc.retvals[0], nil
 	} else {
-		return 0, errors.New("no way")
+		return nil, errors.New("no way")
 	}
 }
 
 // See Endpoint's GetProperty. This one is just another name for Call.
 func (tc *testingEndpoint) GetProperty(property string) (interface{}, error) {
-	return tc.Call(property)
+	rvs, err := tc.Call(property)
+	if err != nil {
+		return nil, err
+	}
+	if len(rvs) != 1 {
+		return nil, errors.New("Wrong number of arguments in reply to GetProperty")
+	}
+	return rvs[0], err
 }
 
 // see Endpoint's Close. This one does nothing.
