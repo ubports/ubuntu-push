@@ -14,25 +14,21 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package webchecker
+package connectivity
 
 import (
-	"io/ioutil"
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/util"
 	"net/http"
 	"net/http/httptest"
-	"testing"
+	"time"
 )
 
-// hook up gocheck
-func Test(t *testing.T) { TestingT(t) }
-
-type WebcheckerSuite struct{}
+type WebcheckerSuite struct {
+	timeouts []time.Duration
+}
 
 var _ = Suite(&WebcheckerSuite{})
-
-var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 
 const (
 	staticText = "something ipsum dolor something"
@@ -64,12 +60,22 @@ func mkHandler(text string) http.HandlerFunc {
 	}
 }
 
+func (s *WebcheckerSuite) SetUpSuite(c *C) {
+	s.timeouts = util.Timeouts
+	util.Timeouts = []time.Duration{0}
+}
+
+func (s *WebcheckerSuite) TearDownSuite(c *C) {
+	util.Timeouts = s.timeouts
+	s.timeouts = nil
+}
+
 // Webchecker sends true when everything works
 func (s *WebcheckerSuite) TestWorks(c *C) {
 	ts := httptest.NewServer(mkHandler(staticText))
 	defer ts.Close()
 
-	ck := New(ts.URL, staticHash, nullog)
+	ck := NewWebchecker(ts.URL, staticHash, nullog)
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, true)
@@ -77,7 +83,7 @@ func (s *WebcheckerSuite) TestWorks(c *C) {
 
 // Webchecker sends false if the download fails.
 func (s *WebcheckerSuite) TestActualFails(c *C) {
-	ck := New("garbage://", "", nullog)
+	ck := NewWebchecker("garbage://", "", nullog)
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
@@ -88,7 +94,7 @@ func (s *WebcheckerSuite) TestHashFails(c *C) {
 	ts := httptest.NewServer(mkHandler(""))
 	defer ts.Close()
 
-	ck := New(ts.URL, staticHash, nullog)
+	ck := NewWebchecker(ts.URL, staticHash, nullog)
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
@@ -99,7 +105,7 @@ func (s *WebcheckerSuite) TestTooBigFails(c *C) {
 	ts := httptest.NewServer(mkHandler(bigText))
 	defer ts.Close()
 
-	ck := New(ts.URL, bigHash, nullog)
+	ck := NewWebchecker(ts.URL, bigHash, nullog)
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)

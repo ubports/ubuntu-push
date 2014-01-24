@@ -22,12 +22,11 @@ import (
 	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/logger"
-	"os"
 	"testing"
 )
 
 // hook up gocheck
-func Test(t *testing.T) { TestingT(t) }
+func BusTest(t *testing.T) { TestingT(t) }
 
 type BusSuite struct{}
 
@@ -46,22 +45,8 @@ func (s *BusSuite) TestDBusType(c *C) {
 	c.Check(SessionBus.(concreteBus).dbusType(), DeepEquals, dbus.SessionBus)
 }
 
-// Tests that we can connect to the *actual* system bus.
-// XXX maybe connect to a mock/fake/etc bus?
-func (s *BusSuite) TestConnect(c *C) {
-	b, err := SystemBus.Connect(Address{"", "", ""}, nullog)
-	c.Assert(err, IsNil)
-	defer b.Close()
-}
-
-// Test that if we try to connect to the session bus when no session
-// bus is available, we get a reasonable result (i.e., an error).
-func (s *BusSuite) TestConnectCanFail(c *C) {
-	db := "DBUS_SESSION_BUS_ADDRESS"
-	odb := os.Getenv(db)
-	defer os.Setenv(db, odb)
-	os.Setenv(db, "")
-
-	_, err := SessionBus.Connect(Address{"", "", ""}, nullog)
-	c.Check(err, NotNil)
+// Tests that we can get an endpoint back
+func (s *BusSuite) TestEndpoint(c *C) {
+	endp := SystemBus.Endpoint(Address{"", "", ""}, nullog)
+	c.Assert(endp, NotNil)
 }

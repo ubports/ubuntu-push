@@ -18,6 +18,7 @@ package bus
 
 import (
 	. "launchpad.net/gocheck"
+	"os"
 	"testing"
 )
 
@@ -30,3 +31,28 @@ var _ = Suite(&EndpointSuite{})
 
 // TODO: this is going to remain empty until go-dbus grows some
 // testing amenities (already talked about it with jamesh)
+
+// Tests that we can connect to the *actual* system bus.
+// XXX maybe connect to a mock/fake/etc bus?
+func (s *BusSuite) TestDial(c *C) {
+	endp := newEndpoint(SystemBus, Address{"", "", ""}, nullog)
+	c.Assert(endp.bus, IsNil)
+	err := endp.Dial()
+	c.Check(err, IsNil)
+	c.Assert(endp.bus, NotNil)
+	endp.Close()
+	c.Assert(endp.bus, IsNil) // Close cleans up
+}
+
+// Test that if we try to connect to the session bus when no session
+// bus is available, we get a reasonable result (i.e., an error).
+func (s *BusSuite) TestDialCanFail(c *C) {
+	db := "DBUS_SESSION_BUS_ADDRESS"
+	odb := os.Getenv(db)
+	defer os.Setenv(db, odb)
+	os.Setenv(db, "")
+
+	endp := newEndpoint(SessionBus, Address{"", "", ""}, nullog)
+	err := endp.Dial()
+	c.Check(err, NotNil)
+}
