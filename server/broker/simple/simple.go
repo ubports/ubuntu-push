@@ -14,18 +14,19 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package broker
+// Package simple implements a simple broker for just one process.
+package simple
 
 import (
-	"encoding/json"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
+	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/store"
 	// "log"
 	"sync"
 )
 
-// simpleBroker implements broker.Broker for everything in just one process.
+// SimpleBroker implements broker.Broker/BrokerSending for everything in just one process.
 type SimpleBroker struct {
 	sto    store.PendingStore
 	logger logger.Logger
@@ -47,11 +48,10 @@ type simpleBrokerSession struct {
 	registered bool
 	deviceId   string
 	done       chan bool
-	exchanges  chan Exchange
-	levels     map[store.InternalChannelId]int64
+	exchanges  chan broker.Exchange
+	levels     broker.LevelsMap
 	// for exchanges
-	broadcastMsg protocol.BroadcastMsg
-	ackMsg       protocol.AckMsg
+	exchgScratch broker.ExchangesScratchArea
 }
 
 type deliveryKind int
@@ -66,16 +66,24 @@ type delivery struct {
 	chanId store.InternalChannelId
 }
 
-func (sess *simpleBrokerSession) SessionChannel() <-chan Exchange {
+func (sess *simpleBrokerSession) SessionChannel() <-chan broker.Exchange {
 	return sess.exchanges
 }
 
-func (sess *simpleBrokerSession) DeviceId() string {
+func (sess *simpleBrokerSession) DeviceIdentifier() string {
 	return sess.deviceId
 }
 
+func (sess *simpleBrokerSession) Levels() broker.LevelsMap {
+	return sess.levels
+}
+
+func (sess *simpleBrokerSession) ExchangeScratchArea() *broker.ExchangesScratchArea {
+	return &sess.exchgScratch
+}
+
 // NewSimpleBroker makes a new SimpleBroker.
-func NewSimpleBroker(sto store.PendingStore, cfg BrokerConfig, logger logger.Logger) *SimpleBroker {
+func NewSimpleBroker(sto store.PendingStore, cfg broker.BrokerConfig, logger logger.Logger) *SimpleBroker {
 	sessionCh := make(chan *simpleBrokerSession, cfg.BrokerQueueSize())
 	deliveryCh := make(chan *delivery, cfg.BrokerQueueSize())
 	registry := make(map[string]*simpleBrokerSession)
@@ -114,6 +122,13 @@ func (b *SimpleBroker) Stop() {
 	b.running = false
 }
 
+// Running returns whether ther broker is running.
+func (b *SimpleBroker) Running() bool {
+	b.runMutex.Lock()
+	defer b.runMutex.Unlock()
+	return b.running
+}
+
 func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 	// find relevant channels, for now only system
 	channels := []store.InternalChannelId{store.SystemInternalChannelId}
@@ -126,10 +141,10 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 		}
 		clientLevel := sess.levels[chanId]
 		if clientLevel != topLevel {
-			broadcastExchg := &simpleBroadcastExchange{
-				chanId:               chanId,
-				topLevel:             topLevel,
-				notificationPayloads: payloads,
+			broadcastExchg := &broker.BroadcastExchange{
+				ChanId:               chanId,
+				TopLevel:             topLevel,
+				NotificationPayloads: payloads,
 			}
 			sess.exchanges <- broadcastExchg
 		}
@@ -139,20 +154,20 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 
 // Register registers a session with the broker. It feeds the session
 // pending notifications as well.
-func (b *SimpleBroker) Register(connect *protocol.ConnectMsg) (BrokerSession, error) {
+func (b *SimpleBroker) Register(connect *protocol.ConnectMsg) (broker.BrokerSession, error) {
 	// xxx sanity check DeviceId
 	levels := map[store.InternalChannelId]int64{}
 	for hexId, v := range connect.Levels {
 		id, err := store.HexToInternalChannelId(hexId)
 		if err != nil {
-			return nil, &ErrAbort{err.Error()}
+			return nil, &broker.ErrAbort{err.Error()}
 		}
 		levels[id] = v
 	}
 	sess := &simpleBrokerSession{
 		deviceId:  connect.DeviceId,
 		done:      make(chan bool),
-		exchanges: make(chan Exchange, b.sessionQueueSize),
+		exchanges: make(chan broker.Exchange, b.sessionQueueSize),
 		levels:    levels,
 	}
 	b.sessionCh <- sess
@@ -165,7 +180,7 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg) (BrokerSession, er
 }
 
 // Unregister unregisters a session with the broker. Doesn't wait.
-func (b *SimpleBroker) Unregister(s BrokerSession) {
+func (b *SimpleBroker) Unregister(s broker.BrokerSession) {
 	sess := s.(*simpleBrokerSession)
 	b.sessionCh <- sess
 }
@@ -198,10 +213,10 @@ Loop:
 					b.logger.Errorf("unsuccessful broadcast, get channel snapshot for %v: %v", delivery.chanId, err)
 					continue Loop
 				}
-				broadcastExchg := &simpleBroadcastExchange{
-					chanId:               delivery.chanId,
-					topLevel:             topLevel,
-					notificationPayloads: payloads,
+				broadcastExchg := &broker.BroadcastExchange{
+					ChanId:               delivery.chanId,
+					TopLevel:             topLevel,
+					NotificationPayloads: payloads,
 				}
 				for _, sess := range b.registry {
 					sess.exchanges <- broadcastExchg
@@ -217,44 +232,4 @@ func (b *SimpleBroker) Broadcast(chanId store.InternalChannelId) {
 		kind:   broadcastDelivery,
 		chanId: chanId,
 	}
-}
-
-// Exchanges
-
-type simpleBroadcastExchange struct {
-	chanId               store.InternalChannelId
-	topLevel             int64
-	notificationPayloads []json.RawMessage
-}
-
-func filterByLevel(clientLevel, topLevel int64, payloads []json.RawMessage) []json.RawMessage {
-	c := int64(len(payloads))
-	delta := topLevel - clientLevel
-	if delta < c {
-		return payloads[c-delta:]
-	} else {
-		return payloads
-	}
-}
-
-func (sbe *simpleBroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
-	simpleSess := sess.(*simpleBrokerSession)
-	simpleSess.broadcastMsg.Type = "broadcast"
-	clientLevel := simpleSess.levels[sbe.chanId]
-	payloads := filterByLevel(clientLevel, sbe.topLevel, sbe.notificationPayloads)
-	// xxx need an AppId as well, later
-	simpleSess.broadcastMsg.ChanId = store.InternalChannelIdToHex(sbe.chanId)
-	simpleSess.broadcastMsg.TopLevel = sbe.topLevel
-	simpleSess.broadcastMsg.Payloads = payloads
-	return &simpleSess.broadcastMsg, &simpleSess.ackMsg, nil
-}
-
-func (sbe *simpleBroadcastExchange) Acked(sess BrokerSession) error {
-	simpleSess := sess.(*simpleBrokerSession)
-	if simpleSess.ackMsg.Type != "ack" {
-		return &ErrAbort{"expected ACK message"}
-	}
-	// update levels
-	simpleSess.levels[sbe.chanId] = sbe.topLevel
-	return nil
 }

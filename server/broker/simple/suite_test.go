@@ -14,32 +14,28 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package main
+package simple
 
 import (
-	"bytes"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/logger"
-	"net"
-	"testing"
+	"launchpad.net/ubuntu-push/server/broker"
+	"launchpad.net/ubuntu-push/server/broker/testsuite"
+	"launchpad.net/ubuntu-push/server/store"
 )
 
-func TestRunners(t *testing.T) { TestingT(t) }
+// run the common broker test suite against SimpleBroker
 
-type bootlogSuite struct{}
-
-var _ = Suite(&bootlogSuite{})
-
-func (s *bootlogSuite) TestBootLogListener(c *C) {
-	buf := &bytes.Buffer{}
-	prevBootLogger := BootLogger
-	BootLogger = logger.NewSimpleLogger(buf, "info")
-	defer func() {
-		BootLogger = prevBootLogger
-	}()
-	lst, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, IsNil)
-	defer lst.Close()
-	BootLogListener("client", lst)
-	c.Check(buf.String(), Matches, ".* INFO listening for client on "+lst.Addr().String()+"\n")
+// aliasing through embedding to get saner report names by gocheck
+type commonBrokerSuite struct {
+	testsuite.CommonBrokerSuite
 }
+
+var _ = Suite(&commonBrokerSuite{testsuite.CommonBrokerSuite{
+	func(sto store.PendingStore, cfg broker.BrokerConfig, log logger.Logger) testsuite.FullBroker {
+		return NewSimpleBroker(sto, cfg, log)
+	},
+	func(b broker.Broker, deviceId string) broker.BrokerSession {
+		return b.(*SimpleBroker).registry[deviceId]
+	},
+}})

@@ -38,19 +38,26 @@ type BrokerSending interface {
 	Broadcast(chanId store.InternalChannelId)
 }
 
-// Exchange guides the session through performing an exchange, typically delivery.
+// Exchange leads the session through performing an exchange, typically delivery.
 type Exchange interface {
 	Prepare(BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error)
 	Acked(BrokerSession) error
 }
+
+// LevelsMap is the type for holding channel levels for session.
+type LevelsMap map[store.InternalChannelId]int64
 
 // BrokerSession holds broker session state.
 type BrokerSession interface {
 	// SessionChannel returns the session control channel
 	// on which the session gets exchanges to perform.
 	SessionChannel() <-chan Exchange
-	// DeviceId returns the device id string.
-	DeviceId() string
+	// DeviceIdentifier returns the device id string.
+	DeviceIdentifier() string
+	// Levels returns the current channel levels for the session
+	Levels() LevelsMap
+	// ExchangeScratchArea returns the scratch area for exchanges.
+	ExchangeScratchArea() *ExchangesScratchArea
 }
 
 // Session aborted error.

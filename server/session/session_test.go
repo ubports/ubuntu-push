@@ -28,13 +28,14 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
+	"launchpad.net/ubuntu-push/server/broker/testing"
 	"net"
 	"reflect"
-	"testing"
+	gotesting "testing"
 	"time"
 )
 
-func TestSession(t *testing.T) { TestingT(t) }
+func TestSession(t *gotesting.T) { TestingT(t) }
 
 type sessionSuite struct{}
 
@@ -123,26 +124,13 @@ func newTestBroker() *testBroker {
 	return &testBroker{registration: make(chan interface{}, 2)}
 }
 
-type testBrokerSession struct {
-	deviceId  string
-	exchanges chan broker.Exchange
-}
-
-func (tbs *testBrokerSession) SessionChannel() <-chan broker.Exchange {
-	return tbs.exchanges
-}
-
-func (tbs *testBrokerSession) DeviceId() string {
-	return tbs.deviceId
-}
-
 func (tb *testBroker) Register(connect *protocol.ConnectMsg) (broker.BrokerSession, error) {
 	tb.registration <- "register " + connect.DeviceId
-	return &testBrokerSession{connect.DeviceId, nil}, tb.err
+	return &testing.TestBrokerSession{DeviceId: connect.DeviceId}, tb.err
 }
 
 func (tb *testBroker) Unregister(sess broker.BrokerSession) {
-	tb.registration <- "unregister " + sess.(*testBrokerSession).deviceId
+	tb.registration <- "unregister " + sess.DeviceIdentifier()
 }
 
 func (s *sessionSuite) TestSessionStart(c *C) {
@@ -168,7 +156,7 @@ func (s *sessionSuite) TestSessionStart(c *C) {
 	err := <-errCh
 	c.Check(err, IsNil)
 	c.Check(takeNext(brkr.registration), Equals, "register dev-1")
-	c.Check(sess.(*testBrokerSession).deviceId, Equals, "dev-1")
+	c.Check(sess.DeviceIdentifier(), Equals, "dev-1")
 }
 
 func (s *sessionSuite) TestSessionRegisterError(c *C) {
@@ -234,7 +222,7 @@ func (s *sessionSuite) TestSessionLoop(c *C) {
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
-	sess := &testBrokerSession{}
+	sess := &testing.TestBrokerSession{}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
 	}()
@@ -255,7 +243,7 @@ func (s *sessionSuite) TestSessionLoopWriteError(c *C) {
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
-	sess := &testBrokerSession{}
+	sess := &testing.TestBrokerSession{}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
 	}()
@@ -271,7 +259,7 @@ func (s *sessionSuite) TestSessionLoopMismatch(c *C) {
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
-	sess := &testBrokerSession{}
+	sess := &testing.TestBrokerSession{}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
 	}()
@@ -324,7 +312,7 @@ func (s *sessionSuite) TestSessionLoopExchange(c *C) {
 	tp := &testProtocol{up, down}
 	exchanges := make(chan broker.Exchange, 1)
 	exchanges <- &testExchange{}
-	sess := &testBrokerSession{exchanges: exchanges}
+	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
 	}()
@@ -347,7 +335,7 @@ func (s *sessionSuite) TestSessionLoopExchangeSplit(c *C) {
 	tp := &testProtocol{up, down}
 	exchanges := make(chan broker.Exchange, 1)
 	exchanges <- &testExchange{nParts: 2}
-	sess := &testBrokerSession{exchanges: exchanges}
+	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
 	}()
@@ -375,7 +363,7 @@ func (s *sessionSuite) TestSessionLoopExchangePrepareError(c *C) {
 	exchanges := make(chan broker.Exchange, 1)
 	prepErr := errors.New("prepare failure")
 	exchanges <- &testExchange{prepErr: prepErr}
-	sess := &testBrokerSession{exchanges: exchanges}
+	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
 	}()
@@ -391,7 +379,7 @@ func (s *sessionSuite) TestSessionLoopExchangeAckedError(c *C) {
 	exchanges := make(chan broker.Exchange, 1)
 	finErr := errors.New("finish error")
 	exchanges <- &testExchange{finErr: finErr}
-	sess := &testBrokerSession{exchanges: exchanges}
+	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
 	}()
@@ -410,7 +398,7 @@ func (s *sessionSuite) TestSessionLoopExchangeWriteError(c *C) {
 	tp := &testProtocol{up, down}
 	exchanges := make(chan broker.Exchange, 1)
 	exchanges <- &testExchange{}
-	sess := &testBrokerSession{exchanges: exchanges}
+	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
 	}()
@@ -428,7 +416,7 @@ func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
 	tp := &testProtocol{up, down}
 	exchanges := make(chan broker.Exchange, 1)
 	exchanges <- &testExchange{finSleep: 3 * time.Millisecond}
-	sess := &testBrokerSession{exchanges: exchanges}
+	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
 	}()

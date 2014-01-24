@@ -14,18 +14,23 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package broker
+package server
 
 import (
-	"fmt"
-	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/logger"
+	"net"
+	"os"
 )
 
-type brokerSuite struct{}
+// boot logging and hooks
 
-var _ = Suite(&brokerSuite{})
-
-func (s *brokerSuite) TestErrAbort(c *C) {
-	err := &ErrAbort{"expected FOO"}
-	c.Check(fmt.Sprintf("%s", err), Equals, "session aborted (expected FOO)")
+func bootLogListener(kind string, lst net.Listener) {
+	BootLogger.Infof("listening for %s on %v", kind, lst.Addr())
 }
+
+var (
+	BootLogger = logger.NewSimpleLogger(os.Stderr, "debug")
+	// Boot logging helpers through BootLogger.
+	BootLogListener func(kind string, lst net.Listener) = bootLogListener
+	BootLogFatalf                                       = BootLogger.Fatalf
+)

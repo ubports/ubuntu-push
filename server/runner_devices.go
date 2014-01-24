@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package main
+package server
 
 import (
 	"fmt"
@@ -85,7 +85,7 @@ func (cfg *DevicesParsedConfig) CertPEMBlock() []byte {
 	return cfg.certPEMBlock
 }
 
-// RunDevices listens for device connections.
+// DevicesRunner returns a function to accept device connections.
 func DevicesRunner(session func(net.Conn) error, logger logger.Logger, parsedCfg *DevicesParsedConfig) func() {
 	BootLogger.Debugf("PingInterval: %s, ExchangeTimeout %s", parsedCfg.PingInterval(), parsedCfg.ExchangeTimeout())
 	var rlim syscall.Rlimit

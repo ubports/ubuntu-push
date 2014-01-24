@@ -57,7 +57,7 @@ func (trk *tracker) Start(conn WithRemoteAddr) {
 }
 
 func (trk *tracker) Registered(sess broker.BrokerSession) {
-	trk.Infof("session(%x) registered %v", trk.sessionId, sess.DeviceId())
+	trk.Infof("session(%x) registered %v", trk.sessionId, sess.DeviceIdentifier())
 }
 
 func (trk *tracker) End(err error) error {

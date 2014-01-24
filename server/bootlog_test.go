@@ -14,18 +14,32 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package broker
+package server
 
 import (
-	"fmt"
+	"bytes"
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/logger"
+	"net"
+	"testing"
 )
 
-type brokerSuite struct{}
+func TestRunners(t *testing.T) { TestingT(t) }
 
-var _ = Suite(&brokerSuite{})
+type bootlogSuite struct{}
 
-func (s *brokerSuite) TestErrAbort(c *C) {
-	err := &ErrAbort{"expected FOO"}
-	c.Check(fmt.Sprintf("%s", err), Equals, "session aborted (expected FOO)")
+var _ = Suite(&bootlogSuite{})
+
+func (s *bootlogSuite) TestBootLogListener(c *C) {
+	buf := &bytes.Buffer{}
+	prevBootLogger := BootLogger
+	BootLogger = logger.NewSimpleLogger(buf, "info")
+	defer func() {
+		BootLogger = prevBootLogger
+	}()
+	lst, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, IsNil)
+	defer lst.Close()
+	BootLogListener("client", lst)
+	c.Check(buf.String(), Matches, ".* INFO listening for client on "+lst.Addr().String()+"\n")
 }

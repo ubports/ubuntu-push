@@ -1,6 +1,10 @@
 # run acceptance tests, expects properly setup GOPATH and deps
 # can set extra build params like -race with BUILD_FLAGS envvar
+# can set server pkg name with SERVER_PKG
 set -ex
-go test $BUILD_FLAGS -i
-go build $BUILD_FLAGS -o testserver launchpad.net/ubuntu-push/server/dev
-go test $BUILD_FLAGS -server ./testserver $*
+SERVER_PKG=${SERVER_PKG:-launchpad.net/ubuntu-push/server/dev}
+go test $BUILD_FLAGS -i launchpad.net/ubuntu-push/server/acceptance
+go build $BUILD_FLAGS -o testserver ${SERVER_PKG}
+TESTSERVER=${PWD}/testserver
+cd ${GOPATH}/src/launchpad.net/ubuntu-push/server/acceptance
+go test $BUILD_FLAGS -server ${TESTSERVER} $*
