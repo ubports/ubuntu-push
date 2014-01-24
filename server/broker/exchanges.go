@@ -25,14 +25,14 @@ import (
 
 // Exchanges
 
-// Scratch area for exchanges, sessions should one of these.
+// Scratch area for exchanges, sessions should hold one of these.
 type ExchangesScratchArea struct {
 	broadcastMsg protocol.BroadcastMsg
 	ackMsg       protocol.AckMsg
 }
 
 // BroadcastExchange leads a session through delivering a BROADCAST.
-// For simplicity its fully public.
+// For simplicity it is fully public.
 type BroadcastExchange struct {
 	ChanId               store.InternalChannelId
 	TopLevel             int64

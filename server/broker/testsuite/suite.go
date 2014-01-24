@@ -14,7 +14,8 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package broker
+// Package testsuite contains a common test suite for brokers.
+package testsuite
 
 import (
 	"encoding/json"
@@ -22,15 +23,29 @@ import (
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
+	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/store"
 	helpers "launchpad.net/ubuntu-push/testing"
 	// "log"
 	"time"
 )
 
-type simpleSuite struct{}
+// The expected interface for tested brokers.
+type FullBroker interface {
+	broker.Broker
+	broker.BrokerSending
+	Start()
+	Stop()
+	Running() bool
+}
 
-var _ = Suite(&simpleSuite{})
+// The common brokers' test suite.
+type CommonBrokerSuite struct {
+	// Build the broker for testing.
+	MakeBroker func(store.PendingStore, broker.BrokerConfig, logger.Logger) FullBroker
+	// Let has get to a session under the broker.
+	RevealSession func(broker.Broker, string) broker.BrokerSession
+}
 
 type testBrokerConfig struct{}
 
@@ -42,102 +57,67 @@ func (tbc *testBrokerConfig) BrokerQueueSize() uint {
 	return 5
 }
 
-func (s *simpleSuite) TestNew(c *C) {
+func (s *CommonBrokerSuite) TestSanity(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
-	c.Check(cap(b.sessionCh), Equals, 5)
-	c.Check(len(b.registry), Equals, 0)
-	c.Check(b.sto, Equals, sto)
+	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
+	c.Check(s.RevealSession(b, "FOO"), IsNil)
 }
 
-func (s *simpleSuite) TestStartStop(c *C) {
-	b := NewSimpleBroker(nil, &testBrokerConfig{}, nil)
+func (s *CommonBrokerSuite) TestStartStop(c *C) {
+	b := s.MakeBroker(nil, &testBrokerConfig{}, nil)
 	b.Start()
-	c.Check(b.running, Equals, true)
+	c.Check(b.Running(), Equals, true)
 	b.Start()
 	b.Stop()
-	c.Check(b.running, Equals, false)
+	c.Check(b.Running(), Equals, false)
 	b.Stop()
 }
 
-func (s *simpleSuite) TestRegistration(c *C) {
+func (s *CommonBrokerSuite) TestRegistration(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
 	b.Start()
 	defer b.Stop()
 	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1", Levels: map[string]int64{"0": 5}})
 	c.Assert(err, IsNil)
-	c.Assert(b.registry["dev-1"], Equals, sess)
+	c.Assert(s.RevealSession(b, "dev-1"), Equals, sess)
 	c.Assert(sess.DeviceId(), Equals, "dev-1")
-	c.Check(sess.Levels(), DeepEquals, LevelsMap(map[store.InternalChannelId]int64{
+	c.Check(sess.Levels(), DeepEquals, broker.LevelsMap(map[store.InternalChannelId]int64{
 		store.SystemInternalChannelId: 5,
 	}))
 	b.Unregister(sess)
 	// just to make sure the unregister was processed
 	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: ""})
 	c.Assert(err, IsNil)
-	c.Check(b.registry["dev-1"], IsNil)
+	c.Check(s.RevealSession(b, "dev-1"), IsNil)
 }
 
-func (s *simpleSuite) TestRegistrationBrokenLevels(c *C) {
+func (s *CommonBrokerSuite) TestRegistrationBrokenLevels(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
 	b.Start()
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1", Levels: map[string]int64{"z": 5}})
-	c.Check(err, FitsTypeOf, &ErrAbort{})
+	c.Check(err, FitsTypeOf, &broker.ErrAbort{})
 }
 
-func (s *simpleSuite) TestFeedPending(c *C) {
+func (s *CommonBrokerSuite) TestRegistrationFeedPending(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
 	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
-	sess := &simpleBrokerSession{
-		exchanges: make(chan Exchange, 1),
-	}
-	b.feedPending(sess)
-	c.Assert(len(sess.exchanges), Equals, 1)
-	exchg1 := <-sess.exchanges
-	c.Check(exchg1, DeepEquals, &BroadcastExchange{
-		ChanId:               store.SystemInternalChannelId,
-		TopLevel:             1,
-		NotificationPayloads: []json.RawMessage{notification1},
-	})
-}
-
-func (s *simpleSuite) TestFeedPendingNop(c *C) {
-	sto := store.NewInMemoryPendingStore()
-	notification1 := json.RawMessage(`{"m": "M"}`)
-	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
-	sess := &simpleBrokerSession{
-		exchanges: make(chan Exchange, 1),
-		levels: map[store.InternalChannelId]int64{
-			store.SystemInternalChannelId: 1,
-		},
-	}
-	b.feedPending(sess)
-	c.Assert(len(sess.exchanges), Equals, 0)
-}
-
-func (s *simpleSuite) TestRegistrationFeedPending(c *C) {
-	sto := store.NewInMemoryPendingStore()
-	notification1 := json.RawMessage(`{"m": "M"}`)
-	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
 	b.Start()
 	defer b.Stop()
 	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
 	c.Assert(err, IsNil)
-	c.Check(len(sess.(*simpleBrokerSession).exchanges), Equals, 1)
+	c.Check(len(sess.SessionChannel()), Equals, 1)
 }
 
-func (s *simpleSuite) TestRegistrationFeedPendingError(c *C) {
+func (s *CommonBrokerSuite) TestRegistrationFeedPendingError(c *C) {
 	buf := &helpers.SyncedLogBuffer{}
 	logger := logger.NewSimpleLogger(buf, "error")
 	sto := &testFailingStore{}
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, logger)
+	b := s.MakeBroker(sto, &testBrokerConfig{}, logger)
 	b.Start()
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
@@ -146,40 +126,41 @@ func (s *simpleSuite) TestRegistrationFeedPendingError(c *C) {
 	c.Check(buf.String(), Matches, ".*ERROR unsuccessful feed pending, get channel snapshot for 0: get channel snapshot fail\n")
 }
 
-func (s *simpleSuite) TestRegistrationLastWins(c *C) {
+func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
 	b.Start()
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
 	c.Assert(err, IsNil)
 	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
 	c.Assert(err, IsNil)
-	c.Assert(b.registry["dev-1"], Equals, sess2)
+	c.Assert(s.RevealSession(b, "dev-1"), Equals, sess2)
 	b.Unregister(sess1)
 	// just to make sure the unregister was processed
 	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: ""})
 	c.Assert(err, IsNil)
-	c.Check(b.registry["dev-1"], Equals, sess2)
+	c.Check(s.RevealSession(b, "dev-1"), Equals, sess2)
 }
 
-func (s *simpleSuite) TestBroadcast(c *C) {
+func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
-	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
 	b.Start()
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
 	c.Assert(err, IsNil)
 	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-2"})
 	c.Assert(err, IsNil)
+	// add notification to channel *after* the registrations
+	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
 	b.Broadcast(store.SystemInternalChannelId)
 	select {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg1 := <-sess1.SessionChannel():
-		c.Check(exchg1, DeepEquals, &BroadcastExchange{
+		c.Check(exchg1, DeepEquals, &broker.BroadcastExchange{
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
@@ -189,7 +170,7 @@ func (s *simpleSuite) TestBroadcast(c *C) {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg2 := <-sess2.SessionChannel():
-		c.Check(exchg2, DeepEquals, &BroadcastExchange{
+		c.Check(exchg2, DeepEquals, &broker.BroadcastExchange{
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
@@ -210,11 +191,11 @@ func (sto *testFailingStore) GetChannelSnapshot(chanId store.InternalChannelId) 
 	return 0, nil, nil
 }
 
-func (s *simpleSuite) TestBroadcastFail(c *C) {
+func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
 	buf := &helpers.SyncedLogBuffer{Written: make(chan bool, 1)}
 	logger := logger.NewSimpleLogger(buf, "error")
 	sto := &testFailingStore{countdownToFail: 1}
-	b := NewSimpleBroker(sto, &testBrokerConfig{}, logger)
+	b := s.MakeBroker(sto, &testBrokerConfig{}, logger)
 	b.Start()
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
