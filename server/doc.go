@@ -14,22 +14,5 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package main
-
-import (
-	"launchpad.net/ubuntu-push/logger"
-	"net"
-	"os"
-)
-
-// boot logging and hooks
-
-func bootLogListener(kind string, lst net.Listener) {
-	BootLogger.Infof("listening for %s on %v", kind, lst.Addr())
-}
-
-var (
-	BootLogger      = logger.NewSimpleLogger(os.Stderr, "debug")
-	BootLogListener = bootLogListener
-	BootLogFatalf   = BootLogger.Fatalf
-)
+// Package server contains code to start server components hosted by the subpackages.
+package server

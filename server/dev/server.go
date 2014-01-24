@@ -20,6 +20,7 @@ package main
 import (
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/server"
 	"launchpad.net/ubuntu-push/server/api"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/session"
@@ -31,9 +32,9 @@ import (
 
 type configuration struct {
 	// device server configuration
-	DevicesParsedConfig
+	server.DevicesParsedConfig
 	// api http server configuration
-	HTTPServeParsedConfig
+	server.HTTPServeParsedConfig
 }
 
 func main() {
@@ -41,11 +42,11 @@ func main() {
 	cfg := &configuration{}
 	err := config.ReadFiles(cfg, cfgFpaths...)
 	if err != nil {
-		BootLogFatalf("reading config: %v", err)
+		server.BootLogFatalf("reading config: %v", err)
 	}
 	err = cfg.DevicesParsedConfig.FinishLoad(filepath.Dir(cfgFpaths[len(cfgFpaths)-1]))
 	if err != nil {
-		BootLogFatalf("reading config: %v", err)
+		server.BootLogFatalf("reading config: %v", err)
 	}
 	logger := logger.NewSimpleLogger(os.Stderr, "debug")
 	// setup a pending store and start the broker
@@ -56,9 +57,9 @@ func main() {
 	// serve the http api
 	handler := api.MakeHandlersMux(sto, broker, logger)
 	handler = api.PanicTo500Handler(handler, logger)
-	go HTTPServeRunner(handler, &cfg.HTTPServeParsedConfig)()
+	go server.HTTPServeRunner(handler, &cfg.HTTPServeParsedConfig)()
 	// listen for device connections
-	DevicesRunner(func(conn net.Conn) error {
+	server.DevicesRunner(func(conn net.Conn) error {
 		track := session.NewTracker(logger)
 		return session.Session(conn, broker, cfg, track)
 	}, logger, &cfg.DevicesParsedConfig)()

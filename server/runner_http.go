@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package main
+package server
 
 import (
 	"launchpad.net/ubuntu-push/config"
