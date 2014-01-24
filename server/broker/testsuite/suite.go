@@ -24,6 +24,7 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
+	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
 	helpers "launchpad.net/ubuntu-push/testing"
 	// "log"
@@ -47,24 +48,16 @@ type CommonBrokerSuite struct {
 	RevealSession func(broker.Broker, string) broker.BrokerSession
 }
 
-type testBrokerConfig struct{}
-
-func (tbc *testBrokerConfig) SessionQueueSize() uint {
-	return 10
-}
-
-func (tbc *testBrokerConfig) BrokerQueueSize() uint {
-	return 5
-}
+var testBrokerConfig = &testing.TestBrokerConfig{10, 5}
 
 func (s *CommonBrokerSuite) TestSanity(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	c.Check(s.RevealSession(b, "FOO"), IsNil)
 }
 
 func (s *CommonBrokerSuite) TestStartStop(c *C) {
-	b := s.MakeBroker(nil, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(nil, testBrokerConfig, nil)
 	b.Start()
 	c.Check(b.Running(), Equals, true)
 	b.Start()
@@ -75,13 +68,14 @@ func (s *CommonBrokerSuite) TestStartStop(c *C) {
 
 func (s *CommonBrokerSuite) TestRegistration(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
 	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1", Levels: map[string]int64{"0": 5}})
 	c.Assert(err, IsNil)
 	c.Assert(s.RevealSession(b, "dev-1"), Equals, sess)
-	c.Assert(sess.DeviceId(), Equals, "dev-1")
+	c.Assert(sess.DeviceIdentifier(), Equals, "dev-1")
+	c.Assert(sess.ExchangeScratchArea(), Not(IsNil))
 	c.Check(sess.Levels(), DeepEquals, broker.LevelsMap(map[store.InternalChannelId]int64{
 		store.SystemInternalChannelId: 5,
 	}))
@@ -94,7 +88,7 @@ func (s *CommonBrokerSuite) TestRegistration(c *C) {
 
 func (s *CommonBrokerSuite) TestRegistrationBrokenLevels(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1", Levels: map[string]int64{"z": 5}})
@@ -105,7 +99,7 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPending(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
 	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
-	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
 	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
@@ -117,7 +111,7 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPendingError(c *C) {
 	buf := &helpers.SyncedLogBuffer{}
 	logger := logger.NewSimpleLogger(buf, "error")
 	sto := &testFailingStore{}
-	b := s.MakeBroker(sto, &testBrokerConfig{}, logger)
+	b := s.MakeBroker(sto, testBrokerConfig, logger)
 	b.Start()
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
@@ -128,7 +122,7 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPendingError(c *C) {
 
 func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
@@ -146,7 +140,7 @@ func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
-	b := s.MakeBroker(sto, &testBrokerConfig{}, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
@@ -195,7 +189,7 @@ func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
 	buf := &helpers.SyncedLogBuffer{Written: make(chan bool, 1)}
 	logger := logger.NewSimpleLogger(buf, "error")
 	sto := &testFailingStore{countdownToFail: 1}
-	b := s.MakeBroker(sto, &testBrokerConfig{}, logger)
+	b := s.MakeBroker(sto, testBrokerConfig, logger)
 	b.Start()
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})

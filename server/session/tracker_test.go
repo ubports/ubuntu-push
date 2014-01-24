@@ -22,6 +22,7 @@ import (
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/broker"
+	"launchpad.net/ubuntu-push/server/broker/testing"
 	"net"
 )
 
@@ -50,7 +51,7 @@ func (s *sessionSuite) TestSessionTrackRegistered(c *C) {
 	logger := logger.NewSimpleLogger(buf, "debug")
 	track := NewTracker(logger)
 	track.Start(&testRemoteAddrable{})
-	track.Registered(&testBrokerSession{deviceId: "DEV-ID"})
+	track.Registered(&testing.TestBrokerSession{DeviceId: "DEV-ID"})
 	regExpected := fmt.Sprintf(`.*connected.*\n.* INFO session\(%x\) registered DEV-ID\n`, track.(*tracker).sessionId)
 	c.Check(buf.String(), Matches, regExpected)
 }

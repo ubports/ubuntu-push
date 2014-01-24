@@ -14,47 +14,29 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package broker
+package broker_test // use a package test to avoid cyclic imports
 
 import (
 	"encoding/json"
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/server/broker"
+	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
 	// "log"
+	gotesting "testing"
 )
+
+func TestBroker(t *gotesting.T) { TestingT(t) }
 
 type exchangesSuite struct{}
 
 var _ = Suite(&exchangesSuite{})
 
-type testBrokerSession struct {
-	deviceId     string
-	exchanges    chan Exchange
-	levels       LevelsMap
-	exchgScratch ExchangesScratchArea
-}
-
-func (tbs *testBrokerSession) SessionChannel() <-chan Exchange {
-	return nil
-}
-
-func (tbs *testBrokerSession) DeviceId() string {
-	return ""
-}
-
-func (tbs *testBrokerSession) Levels() LevelsMap {
-	return tbs.levels
-}
-
-func (tbs *testBrokerSession) ExchangeScratchArea() *ExchangesScratchArea {
-	return &tbs.exchgScratch
-}
-
 func (s *exchangesSuite) TestBroadcastExchange(c *C) {
-	sess := &testBrokerSession{
-		levels: map[store.InternalChannelId]int64{},
+	sess := &testing.TestBrokerSession{
+		LevelsMap: broker.LevelsMap(map[store.InternalChannelId]int64{}),
 	}
-	exchg := &BroadcastExchange{
+	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
 		NotificationPayloads: []json.RawMessage{
@@ -72,14 +54,14 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 	c.Assert(err, IsNil)
 	err = exchg.Acked(sess)
 	c.Assert(err, IsNil)
-	c.Check(sess.levels[store.SystemInternalChannelId], Equals, int64(3))
+	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(3))
 }
 
 func (s *exchangesSuite) TestBroadcastExchangeAckMismatch(c *C) {
-	sess := &testBrokerSession{
-		levels: map[store.InternalChannelId]int64{},
+	sess := &testing.TestBrokerSession{
+		LevelsMap: broker.LevelsMap(map[store.InternalChannelId]int64{}),
 	}
-	exchg := &BroadcastExchange{
+	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
 		NotificationPayloads: []json.RawMessage{
@@ -96,36 +78,16 @@ func (s *exchangesSuite) TestBroadcastExchangeAckMismatch(c *C) {
 	c.Assert(err, IsNil)
 	err = exchg.Acked(sess)
 	c.Assert(err, Not(IsNil))
-	c.Check(sess.levels[store.SystemInternalChannelId], Equals, int64(0))
-}
-
-func (s *exchangesSuite) TestFilterByLevel(c *C) {
-	payloads := []json.RawMessage{
-		json.RawMessage(`{"a": 3}`),
-		json.RawMessage(`{"a": 4}`),
-		json.RawMessage(`{"a": 5}`),
-	}
-	res := filterByLevel(5, 5, payloads)
-	c.Check(len(res), Equals, 0)
-	res = filterByLevel(4, 5, payloads)
-	c.Check(len(res), Equals, 1)
-	c.Check(res[0], DeepEquals, json.RawMessage(`{"a": 5}`))
-	res = filterByLevel(3, 5, payloads)
-	c.Check(len(res), Equals, 2)
-	c.Check(res[0], DeepEquals, json.RawMessage(`{"a": 4}`))
-	res = filterByLevel(2, 5, payloads)
-	c.Check(len(res), Equals, 3)
-	res = filterByLevel(1, 5, payloads)
-	c.Check(len(res), Equals, 3)
+	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(0))
 }
 
 func (s *exchangesSuite) TestBroadcastExchangeFilterByLevel(c *C) {
-	sess := &testBrokerSession{
-		levels: map[store.InternalChannelId]int64{
+	sess := &testing.TestBrokerSession{
+		LevelsMap: broker.LevelsMap(map[store.InternalChannelId]int64{
 			store.SystemInternalChannelId: 2,
-		},
+		}),
 	}
-	exchg := &BroadcastExchange{
+	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
 		NotificationPayloads: []json.RawMessage{

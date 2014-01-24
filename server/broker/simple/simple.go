@@ -70,7 +70,7 @@ func (sess *simpleBrokerSession) SessionChannel() <-chan broker.Exchange {
 	return sess.exchanges
 }
 
-func (sess *simpleBrokerSession) DeviceId() string {
+func (sess *simpleBrokerSession) DeviceIdentifier() string {
 	return sess.deviceId
 }
 
