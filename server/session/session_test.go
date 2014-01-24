@@ -136,6 +136,14 @@ func (tbs *testBrokerSession) DeviceId() string {
 	return tbs.deviceId
 }
 
+func (tbs *testBrokerSession) Levels() broker.LevelsMap {
+	return nil
+}
+
+func (tbs *testBrokerSession) ExchangeScratchArea() *broker.ExchangesScratchArea {
+	return nil
+}
+
 func (tb *testBroker) Register(connect *protocol.ConnectMsg) (broker.BrokerSession, error) {
 	tb.registration <- "register " + connect.DeviceId
 	return &testBrokerSession{connect.DeviceId, nil}, tb.err

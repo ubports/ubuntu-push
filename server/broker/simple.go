@@ -17,7 +17,6 @@
 package broker
 
 import (
-	"encoding/json"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/store"
@@ -48,10 +47,9 @@ type simpleBrokerSession struct {
 	deviceId   string
 	done       chan bool
 	exchanges  chan Exchange
-	levels     map[store.InternalChannelId]int64
+	levels     LevelsMap
 	// for exchanges
-	broadcastMsg protocol.BroadcastMsg
-	ackMsg       protocol.AckMsg
+	exchgScratch ExchangesScratchArea
 }
 
 type deliveryKind int
@@ -72,6 +70,14 @@ func (sess *simpleBrokerSession) SessionChannel() <-chan Exchange {
 
 func (sess *simpleBrokerSession) DeviceId() string {
 	return sess.deviceId
+}
+
+func (sess *simpleBrokerSession) Levels() LevelsMap {
+	return sess.levels
+}
+
+func (sess *simpleBrokerSession) ExchangeScratchArea() *ExchangesScratchArea {
+	return &sess.exchgScratch
 }
 
 // NewSimpleBroker makes a new SimpleBroker.
@@ -126,10 +132,10 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 		}
 		clientLevel := sess.levels[chanId]
 		if clientLevel != topLevel {
-			broadcastExchg := &simpleBroadcastExchange{
-				chanId:               chanId,
-				topLevel:             topLevel,
-				notificationPayloads: payloads,
+			broadcastExchg := &BroadcastExchange{
+				ChanId:               chanId,
+				TopLevel:             topLevel,
+				NotificationPayloads: payloads,
 			}
 			sess.exchanges <- broadcastExchg
 		}
@@ -198,10 +204,10 @@ Loop:
 					b.logger.Errorf("unsuccessful broadcast, get channel snapshot for %v: %v", delivery.chanId, err)
 					continue Loop
 				}
-				broadcastExchg := &simpleBroadcastExchange{
-					chanId:               delivery.chanId,
-					topLevel:             topLevel,
-					notificationPayloads: payloads,
+				broadcastExchg := &BroadcastExchange{
+					ChanId:               delivery.chanId,
+					TopLevel:             topLevel,
+					NotificationPayloads: payloads,
 				}
 				for _, sess := range b.registry {
 					sess.exchanges <- broadcastExchg
@@ -217,44 +223,4 @@ func (b *SimpleBroker) Broadcast(chanId store.InternalChannelId) {
 		kind:   broadcastDelivery,
 		chanId: chanId,
 	}
-}
-
-// Exchanges
-
-type simpleBroadcastExchange struct {
-	chanId               store.InternalChannelId
-	topLevel             int64
-	notificationPayloads []json.RawMessage
-}
-
-func filterByLevel(clientLevel, topLevel int64, payloads []json.RawMessage) []json.RawMessage {
-	c := int64(len(payloads))
-	delta := topLevel - clientLevel
-	if delta < c {
-		return payloads[c-delta:]
-	} else {
-		return payloads
-	}
-}
-
-func (sbe *simpleBroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
-	simpleSess := sess.(*simpleBrokerSession)
-	simpleSess.broadcastMsg.Type = "broadcast"
-	clientLevel := simpleSess.levels[sbe.chanId]
-	payloads := filterByLevel(clientLevel, sbe.topLevel, sbe.notificationPayloads)
-	// xxx need an AppId as well, later
-	simpleSess.broadcastMsg.ChanId = store.InternalChannelIdToHex(sbe.chanId)
-	simpleSess.broadcastMsg.TopLevel = sbe.topLevel
-	simpleSess.broadcastMsg.Payloads = payloads
-	return &simpleSess.broadcastMsg, &simpleSess.ackMsg, nil
-}
-
-func (sbe *simpleBroadcastExchange) Acked(sess BrokerSession) error {
-	simpleSess := sess.(*simpleBrokerSession)
-	if simpleSess.ackMsg.Type != "ack" {
-		return &ErrAbort{"expected ACK message"}
-	}
-	// update levels
-	simpleSess.levels[sbe.chanId] = sbe.topLevel
-	return nil
 }
