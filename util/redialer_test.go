@@ -37,12 +37,12 @@ var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 var _ = Suite(&RedialerSuite{})
 
 func (s *RedialerSuite) SetUpSuite(c *C) {
-	s.timeouts = timeouts
-	timeouts = []time.Duration{0}
+	s.timeouts = Timeouts
+	Timeouts = []time.Duration{0, 0}
 }
 
 func (s *RedialerSuite) TearDownSuite(c *C) {
-	timeouts = s.timeouts
+	Timeouts = s.timeouts
 	s.timeouts = nil
 }
 

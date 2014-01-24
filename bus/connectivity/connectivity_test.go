@@ -24,6 +24,7 @@ import (
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/testing/condition"
+	"launchpad.net/ubuntu-push/util"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -32,11 +33,23 @@ import (
 // hook up gocheck
 func Test(t *testing.T) { TestingT(t) }
 
-type ConnSuite struct{}
+type ConnSuite struct {
+	timeouts []time.Duration
+}
 
 var _ = Suite(&ConnSuite{})
 
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
+
+func (s *ConnSuite) SetUpSuite(c *C) {
+	s.timeouts = util.Timeouts
+	util.Timeouts = []time.Duration{0, 0, 0, 0}
+}
+
+func (s *ConnSuite) TearDownSuite(c *C) {
+	util.Timeouts = s.timeouts
+	s.timeouts = nil
+}
 
 /*
    tests for connectedState's Start() method

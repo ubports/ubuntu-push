@@ -29,7 +29,7 @@ type Dialer interface {
 	String() string
 }
 
-var timeouts []time.Duration
+var Timeouts []time.Duration
 
 var ( //  for use in testing
 	quitRedialing chan bool = make(chan bool)
@@ -38,15 +38,15 @@ var ( //  for use in testing
 func AutoRedial(dialer Dialer) uint32 {
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
-	var numTimeouts uint32 = uint32(len(timeouts))
+	var numTimeouts uint32 = uint32(len(Timeouts))
 	for {
 		if dialer.Dial() == nil {
 			return dialAttempts + 1
 		}
 		if dialAttempts < numTimeouts {
-			timeout = timeouts[dialAttempts]
+			timeout = Timeouts[dialAttempts]
 		} else {
-			timeout += timeouts[numTimeouts-1] + time.Duration(rand.Intn(60)-30)*time.Second
+			timeout += Timeouts[numTimeouts-1] + time.Duration(rand.Intn(60)-30)*time.Second
 		}
 		dialAttempts++
 		select {
@@ -59,9 +59,9 @@ func AutoRedial(dialer Dialer) uint32 {
 
 func init() {
 	ps := []int{1, 2, 5, 11, 19, 37, 67, 113, 191} // 3 pₙ₊₁ ≥ 5 pₙ
-	timeouts = make([]time.Duration, len(ps))
+	Timeouts = make([]time.Duration, len(ps))
 	for i, n := range ps {
-		timeouts[i] = time.Duration(n) * time.Second
+		Timeouts[i] = time.Duration(n) * time.Second
 	}
 
 	rand.Seed(time.Now().Unix()) // good enough for us (not crypto, yadda)
