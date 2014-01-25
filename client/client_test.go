@@ -45,7 +45,7 @@ var debuglog = logger.NewSimpleLogger(os.Stderr, "debug")
 var _ = Suite(&clientSuite{})
 
 /****************************************************************
-  NewSession tests
+  NewSession() tests
 ****************************************************************/
 
 func (cs *clientSuite) TestNewSessionPlainWorks(c *C) {
@@ -80,7 +80,7 @@ func (cs *clientSuite) TestNewSessionBadPEMFileContentFails(c *C) {
 }
 
 /****************************************************************
-  Run tests
+  Run() tests
 ****************************************************************/
 
 func testname() string {
@@ -105,6 +105,8 @@ type xAddr string
 
 func (x xAddr) Network() string { return "<:>" }
 func (x xAddr) String() string  { return string(x) }
+
+// testConn (roughly based on the one in protocol_test)
 
 type testConn struct {
 	Name              string
@@ -536,12 +538,11 @@ func (cs *clientSuite) TestDialFailsWithNoAddress(c *C) {
 func (cs *clientSuite) TestDialConnects(c *C) {
 	lp, err := net.Listen("tcp", ":0")
 	c.Assert(err, IsNil)
+	defer lp.Close()
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.ServerAddr = lp.Addr().String()
 	err = sess.Dial()
-	c.Check(err, IsNil)
-	err = lp.Close()
 	c.Check(err, IsNil)
 	c.Check(sess.Connection, NotNil)
 }
@@ -568,6 +569,7 @@ func (cs *clientSuite) TestResets(c *C) {
 	proto := &testProtocol{up: upCh, down: downCh}
 	lp, err := net.Listen("tcp", ":0")
 	c.Assert(err, IsNil)
+	defer lp.Close()
 
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
