@@ -55,7 +55,7 @@ type protocol0 struct {
 }
 
 // NewProtocol0 creates and initialises a protocol with wire format version 0.
-func NewProtocol0(conn net.Conn) *protocol0 {
+func NewProtocol0(conn net.Conn) Protocol {
 	buf := bytes.NewBuffer(make([]byte, 5000))
 	return &protocol0{
 		buffer: buf,
