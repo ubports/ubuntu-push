@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package client
+package session
 
 import (
 	"encoding/json"
@@ -36,28 +36,28 @@ import (
 	"time"
 )
 
-func TestClient(t *testing.T) { TestingT(t) }
+func TestSession(t *testing.T) { TestingT(t) }
 
-type clientSuite struct{}
+type clientSessionSuite struct{}
 
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 var debuglog = logger.NewSimpleLogger(os.Stderr, "debug")
-var _ = Suite(&clientSuite{})
+var _ = Suite(&clientSessionSuite{})
 
 /****************************************************************
   NewSession() tests
 ****************************************************************/
 
-func (cs *clientSuite) TestNewSessionPlainWorks(c *C) {
+func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
 	cfg := Config{}
 	sess, err := NewSession(cfg, nullog, "wah")
 	c.Check(sess, NotNil)
 	c.Check(err, IsNil)
 }
 
-var certfile string = helpers.SourceRelative("../server/acceptance/config/testing.cert")
+var certfile string = helpers.SourceRelative("../../server/acceptance/config/testing.cert")
 
-func (cs *clientSuite) TestNewSessionPEMWorks(c *C) {
+func (cs *clientSessionSuite) TestNewSessionPEMWorks(c *C) {
 	cfg := Config{CertPEMFile: certfile}
 	sess, err := NewSession(cfg, nullog, "wah")
 	c.Check(sess, NotNil)
@@ -65,14 +65,14 @@ func (cs *clientSuite) TestNewSessionPEMWorks(c *C) {
 	c.Check(sess.TLS.RootCAs, NotNil)
 }
 
-func (cs *clientSuite) TestNewSessionBadPEMFilePathFails(c *C) {
+func (cs *clientSessionSuite) TestNewSessionBadPEMFilePathFails(c *C) {
 	cfg := Config{CertPEMFile: "/no/such/path"}
 	sess, err := NewSession(cfg, nullog, "wah")
 	c.Check(sess, IsNil)
 	c.Check(err, NotNil)
 }
 
-func (cs *clientSuite) TestNewSessionBadPEMFileContentFails(c *C) {
+func (cs *clientSessionSuite) TestNewSessionBadPEMFileContentFails(c *C) {
 	cfg := Config{CertPEMFile: "/etc/passwd"}
 	sess, err := NewSession(cfg, nullog, "wah")
 	c.Check(sess, IsNil)
@@ -213,7 +213,7 @@ func (c *testProtocol) WriteMessage(src interface{}) error {
  *
  ****************************************************************/
 
-func (cs *clientSuite) TestRunFailsIfNilConnection(c *C) {
+func (cs *clientSessionSuite) TestRunFailsIfNilConnection(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	// not connected!
@@ -222,7 +222,7 @@ func (cs *clientSuite) TestRunFailsIfNilConnection(c *C) {
 	c.Check(err.Error(), Matches, ".*disconnected.*")
 }
 
-func (cs *clientSuite) TestRunFailsIfNilProtocolator(c *C) {
+func (cs *clientSessionSuite) TestRunFailsIfNilProtocolator(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()} // ok, have a constructor
@@ -232,7 +232,7 @@ func (cs *clientSuite) TestRunFailsIfNilProtocolator(c *C) {
 	c.Check(err.Error(), Matches, ".*protocol constructor.*")
 }
 
-func (cs *clientSuite) TestRunFailsIfSetDeadlineFails(c *C) {
+func (cs *clientSessionSuite) TestRunFailsIfSetDeadlineFails(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname(),
@@ -242,7 +242,7 @@ func (cs *clientSuite) TestRunFailsIfSetDeadlineFails(c *C) {
 	c.Check(err.Error(), Matches, ".*deadline.*")
 }
 
-func (cs *clientSuite) TestRunFailsIfWriteFails(c *C) {
+func (cs *clientSessionSuite) TestRunFailsIfWriteFails(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname(),
@@ -252,7 +252,7 @@ func (cs *clientSuite) TestRunFailsIfWriteFails(c *C) {
 	c.Check(err.Error(), Matches, ".*write.*")
 }
 
-func (cs *clientSuite) TestRunConnectMessageFails(c *C) {
+func (cs *clientSessionSuite) TestRunConnectMessageFails(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()}
@@ -277,7 +277,7 @@ func (cs *clientSuite) TestRunConnectMessageFails(c *C) {
 	c.Check(err.Error(), Matches, "Overflow.*null")
 }
 
-func (cs *clientSuite) TestRunConnackReadError(c *C) {
+func (cs *clientSessionSuite) TestRunConnackReadError(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()}
@@ -299,7 +299,7 @@ func (cs *clientSuite) TestRunConnackReadError(c *C) {
 	c.Check(err.Error(), Matches, ".*EOF.*")
 }
 
-func (cs *clientSuite) TestRunBadConnack(c *C) {
+func (cs *clientSessionSuite) TestRunBadConnack(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()}
@@ -321,7 +321,7 @@ func (cs *clientSuite) TestRunBadConnack(c *C) {
 	c.Check(err.Error(), Matches, ".*invalid.*")
 }
 
-func (cs *clientSuite) TestRunMainloopReadError(c *C) {
+func (cs *clientSessionSuite) TestRunMainloopReadError(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()}
@@ -348,7 +348,7 @@ func (cs *clientSuite) TestRunMainloopReadError(c *C) {
 	c.Check(err.Error(), Equals, "Read")
 }
 
-func (cs *clientSuite) TestRunPongWriteError(c *C) {
+func (cs *clientSessionSuite) TestRunPongWriteError(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()}
@@ -377,7 +377,7 @@ func (cs *clientSuite) TestRunPongWriteError(c *C) {
 	c.Check(err.Error(), Equals, "Pong")
 }
 
-func (cs *clientSuite) TestRunPingPong(c *C) {
+func (cs *clientSessionSuite) TestRunPingPong(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()}
@@ -405,7 +405,7 @@ func (cs *clientSuite) TestRunPingPong(c *C) {
 	err = <-errCh
 }
 
-func (cs *clientSuite) TestRunBadAckWrite(c *C) {
+func (cs *clientSessionSuite) TestRunBadAckWrite(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()}
@@ -443,7 +443,7 @@ func (cs *clientSuite) TestRunBadAckWrite(c *C) {
 	c.Check(err.Error(), Equals, "ACK ACK ACK")
 }
 
-func (cs *clientSuite) TestRunBroadcastWrongChannel(c *C) {
+func (cs *clientSessionSuite) TestRunBroadcastWrongChannel(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()}
@@ -481,7 +481,7 @@ func (cs *clientSuite) TestRunBroadcastWrongChannel(c *C) {
 	c.Check(len(sess.MsgCh), Equals, 0)
 }
 
-func (cs *clientSuite) TestRunBroadcastRightChannel(c *C) {
+func (cs *clientSessionSuite) TestRunBroadcastRightChannel(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: testname()}
@@ -527,7 +527,7 @@ func (cs *clientSuite) TestRunBroadcastRightChannel(c *C) {
  * breathe in...
  */
 
-func (cs *clientSuite) TestDialFailsWithNoAddress(c *C) {
+func (cs *clientSessionSuite) TestDialFailsWithNoAddress(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	err = sess.Dial()
@@ -535,7 +535,7 @@ func (cs *clientSuite) TestDialFailsWithNoAddress(c *C) {
 	c.Check(err.Error(), Matches, ".*dial.*address.*")
 }
 
-func (cs *clientSuite) TestDialConnects(c *C) {
+func (cs *clientSessionSuite) TestDialConnects(c *C) {
 	lp, err := net.Listen("tcp", ":0")
 	c.Assert(err, IsNil)
 	defer lp.Close()
@@ -547,7 +547,7 @@ func (cs *clientSuite) TestDialConnects(c *C) {
 	c.Check(sess.Connection, NotNil)
 }
 
-func (cs *clientSuite) TestResetFailsWithoutProtocolator(c *C) {
+func (cs *clientSessionSuite) TestResetFailsWithoutProtocolator(c *C) {
 	sess, _ := NewSession(Config{}, debuglog, "wah")
 	sess.Protocolator = nil
 	err := sess.Reset()
@@ -555,7 +555,7 @@ func (cs *clientSuite) TestResetFailsWithoutProtocolator(c *C) {
 	c.Check(err.Error(), Matches, ".*protocol constructor\\.")
 }
 
-func (cs *clientSuite) TestResetFailsWithNoAddress(c *C) {
+func (cs *clientSessionSuite) TestResetFailsWithNoAddress(c *C) {
 	sess, err := NewSession(Config{}, debuglog, "wah")
 	c.Assert(err, IsNil)
 	err = sess.Reset()
@@ -563,7 +563,7 @@ func (cs *clientSuite) TestResetFailsWithNoAddress(c *C) {
 	c.Check(err.Error(), Matches, ".*dial.*address.*")
 }
 
-func (cs *clientSuite) TestResets(c *C) {
+func (cs *clientSessionSuite) TestResets(c *C) {
 	upCh := make(chan interface{}, 5)
 	downCh := make(chan interface{}, 5)
 	proto := &testProtocol{up: upCh, down: downCh}
