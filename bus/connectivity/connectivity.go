@@ -34,21 +34,21 @@ import (
 
 // the configuration for ConnectedState, with the idea that you'd populate it
 // from a config file.
-type Config struct {
+type ConnectivityConfig struct {
 	// how long to wait after a state change to make sure it's "stable"
 	// before acting on it
-	StabilizingTimeout config.ConfigTimeDuration
+	StabilizingTimeout config.ConfigTimeDuration `json:"stabilizing_timeout"`
 	// How long to wait between online connectivity checks.
-	RecheckTimeout config.ConfigTimeDuration
+	RecheckTimeout config.ConfigTimeDuration `json:"recheck_timeout"`
 	// The URL against which to do the connectivity check.
-	ConnectivityCheckURL string
+	ConnectivityCheckURL string `json:"connectivity_check_url"`
 	// The expected MD5 of the content at the ConnectivityCheckURL
-	ConnectivityCheckMD5 string
+	ConnectivityCheckMD5 string `json:"connectivity_check_md5"`
 }
 
 type connectedState struct {
 	networkStateCh <-chan networkmanager.State
-	config         Config
+	config         ConnectivityConfig
 	log            logger.Logger
 	endp           bus.Endpoint
 	connAttempts   uint32
@@ -140,7 +140,7 @@ Loop:
 //
 // The endpoint need not be dialed; connectivity will Dial() and Close()
 // it as it sees fit.
-func ConnectedState(endp bus.Endpoint, config Config, log logger.Logger, out chan<- bool) {
+func ConnectedState(endp bus.Endpoint, config ConnectivityConfig, log logger.Logger, out chan<- bool) {
 	wg := NewWebchecker(config.ConnectivityCheckURL, config.ConnectivityCheckMD5, log)
 	cs := &connectedState{
 		config: config,

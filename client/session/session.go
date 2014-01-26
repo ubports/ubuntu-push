@@ -50,7 +50,7 @@ func (m *mapLevelMap) GetAll() map[string]int64 {
 
 var _ LevelMap = &mapLevelMap{}
 
-type Config struct {
+type ClientConfig struct {
 	// session configuration
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// server connection config
@@ -75,7 +75,7 @@ type ClientSession struct {
 	MsgCh chan *Notification
 }
 
-func NewSession(config Config, log logger.Logger, deviceId string) (*ClientSession, error) {
+func NewSession(config ClientConfig, log logger.Logger, deviceId string) (*ClientSession, error) {
 	sess := &ClientSession{
 		ExchangeTimeout: config.ExchangeTimeout.TimeDuration(),
 		ServerAddr:      config.Addr.HostPort(),

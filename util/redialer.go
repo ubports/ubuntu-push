@@ -35,12 +35,12 @@ var ( //  for use in testing
 	quitRedialing chan bool = make(chan bool)
 )
 
-func AutoRedial(dialer Dialer) uint32 {
+func AutoRetry(f func() error) uint32 {
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
 	var numTimeouts uint32 = uint32(len(Timeouts))
 	for {
-		if dialer.Dial() == nil {
+		if f() == nil {
 			return dialAttempts + 1
 		}
 		if dialAttempts < numTimeouts {
@@ -55,6 +55,10 @@ func AutoRedial(dialer Dialer) uint32 {
 		case <-time.NewTimer(timeout).C:
 		}
 	}
+}
+
+func AutoRedial(dialer Dialer) uint32 {
+	return AutoRetry(dialer.Dial)
 }
 
 func init() {
