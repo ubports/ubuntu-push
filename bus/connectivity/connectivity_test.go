@@ -19,12 +19,11 @@ package connectivity
 import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/bus/networkmanager"
 	testingbus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/networkmanager"
 	"launchpad.net/ubuntu-push/testing/condition"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -200,24 +199,6 @@ func (s *ConnSuite) TestSteps(c *C) {
 /*
    tests for ConnectedState()
 */
-
-// Todo: get rid of duplication between this and webchecker_test
-const (
-	staticText = "something ipsum dolor something"
-	staticHash = "6155f83b471583f47c99998a472a178f"
-)
-
-// mkHandler makes an http.HandlerFunc that returns the provided text
-// for whatever request it's given.
-func mkHandler(text string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.(http.Flusher).Flush()
-		w.Write([]byte(text))
-		w.(http.Flusher).Flush()
-	}
-}
-
-// :oboT
 
 // yes, this is an integration test
 func (s *ConnSuite) TestRun(c *C) {
