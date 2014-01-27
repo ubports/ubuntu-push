@@ -140,5 +140,5 @@ func (s *TestingBusSuite) TestEndpointString(c *C) {
 // Test testingEndpoints have no jitters
 func (s *TestingBusSuite) TestEndpointJitter(c *C) {
 	endp := NewTestingEndpoint(nil, nil)
-	c.Check(endp.Jitter(), Equals, time.Duration(0))
+	c.Check(endp.Jitter(time.Duration(42)), Equals, time.Duration(0))
 }

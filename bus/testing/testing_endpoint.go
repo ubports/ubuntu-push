@@ -112,7 +112,7 @@ func (endp *testingEndpoint) String() string {
 func (tc *testingEndpoint) Close() {}
 
 // see Endpoint's Jitter.
-func (tc *testingEndpoint) Jitter() time.Duration { return 0 }
+func (tc *testingEndpoint) Jitter(_ time.Duration) time.Duration { return 0 }
 
 // ensure testingEndpoint implements bus.Endpoint
 var _ bus.Endpoint = &testingEndpoint{}

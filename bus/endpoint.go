@@ -37,7 +37,7 @@ type Endpoint interface {
 	Dial() error
 	Close()
 	String() string
-	Jitter() time.Duration
+	Jitter(time.Duration) time.Duration
 }
 
 type endpoint struct {
@@ -138,7 +138,7 @@ func (endp *endpoint) String() string {
 }
 
 // Jitter() returns 0: no need to jitter D-Bus connections.
-func (endp *endpoint) Jitter() time.Duration {
+func (endp *endpoint) Jitter(_ time.Duration) time.Duration {
 	return 0
 }
 

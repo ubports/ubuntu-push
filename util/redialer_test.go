@@ -59,8 +59,8 @@ func (s *RedialerSuite) TestCanBeStopped(c *C) {
 }
 
 func (s *RedialerSuite) TestJitter(c *C) {
-	num_tries := 20 // should do the math
-	spread := 1     //
+	num_tries := 20       // should do the math
+	spread := time.Second //
 	has_neg := false
 	has_pos := false
 	has_zero := true
@@ -77,4 +77,8 @@ func (s *RedialerSuite) TestJitter(c *C) {
 	c.Check(has_neg, Equals, true)
 	c.Check(has_pos, Equals, true)
 	c.Check(has_zero, Equals, true)
+
+	// a negative spread is caught in the reasonable place
+	c.Check(func() { Jitter(time.Duration(-1)) }, PanicMatches,
+		"spread must be non-negative")
 }
