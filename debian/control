@@ -1,0 +1,19 @@
+Source: ubuntu-push-client
+Section: net
+Priority: optional
+Maintainer: John Lenton <john.lenton@canonical.com>
+Build-Depends: debhelper (>= 8.0.0),
+               golang-go,
+               libwhoopsie-dev,
+               gocheck-dev,
+               go-dbus-dev,
+Standards-Version: 3.9.5
+Homepage: http://launchpad.net/usensord
+Vcs-Bzr: lp:ubuntu-push
+Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-push-hackers/ubuntu-push/trunk/files
+
+Package: ubuntu-push-client
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Ubuntu Push Notifications client-side daemon
+ The Ubuntu Push Notifications client-side daemon.

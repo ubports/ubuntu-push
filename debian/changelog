@@ -1,0 +1,5 @@
+ubuntu-push-client (0.1-0.1) trusty; urgency=low
+
+  * Initial release
+
+ -- John Lenton <john.lenton@canonical.com>  Sun, 26 Jan 2014 22:53:09 +0000

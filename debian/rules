@@ -1,0 +1,16 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+export DH_VERBOSE=1
+export DH_GOPKG := launchpad.net/ubuntu-push
+
+# Tests are currently broken
+override_dh_auto_test:
+
+override_dh_install:
+	mv -v debian/ubuntu-push-client debian/tmp
+	mkdir -vp debian/ubuntu-push-client/usr/bin
+	mv -v debian/tmp/usr/bin/client debian/ubuntu-push-client/usr/bin/ubuntu-push-client
+
+%:
+	dh $@ --buildsystem=golang --with=golang --fail-missing
