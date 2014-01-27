@@ -57,3 +57,24 @@ func (s *RedialerSuite) TestCanBeStopped(c *C) {
 	go func() { c.Check(AutoRedial(endp), Equals, uint32(1)) }()
 	quitRedialing <- true
 }
+
+func (s *RedialerSuite) TestJitter(c *C) {
+	num_tries := 20 // should do the math
+	spread := 1     //
+	has_neg := false
+	has_pos := false
+	has_zero := true
+	for i := 0; i < num_tries; i++ {
+		n := Jitter(spread)
+		if n > 0 {
+			has_pos = true
+		} else if n < 0 {
+			has_neg = true
+		} else {
+			has_zero = true
+		}
+	}
+	c.Check(has_neg, Equals, true)
+	c.Check(has_pos, Equals, true)
+	c.Check(has_zero, Equals, true)
+}

@@ -27,6 +27,7 @@ import (
 type Dialer interface {
 	Dial() error
 	String() string
+	Jitter() time.Duration
 }
 
 var Timeouts []time.Duration
@@ -35,6 +36,15 @@ var ( //  for use in testing
 	quitRedialing chan bool = make(chan bool)
 )
 
+// Jitter returns a random time.Duration somewhere in [-spread, spread].
+//
+// This is meant as a default implementation for Dialers to use if wanted.
+func Jitter(spread int) time.Duration {
+	return time.Duration(rand.Intn(2*spread+1)-spread) * time.Second
+}
+
+// AutoRedial keeps on calling Dial() on the given Dialer until it stops
+// returning an error.
 func AutoRedial(dialer Dialer) uint32 {
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
@@ -46,7 +56,7 @@ func AutoRedial(dialer Dialer) uint32 {
 		if dialAttempts < numTimeouts {
 			timeout = Timeouts[dialAttempts]
 		} else {
-			timeout += Timeouts[numTimeouts-1] + time.Duration(rand.Intn(60)-30)*time.Second
+			timeout = Timeouts[numTimeouts-1] + dialer.Jitter()
 		}
 		dialAttempts++
 		select {
