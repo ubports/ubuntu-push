@@ -7,6 +7,7 @@ Build-Depends: debhelper (>= 9),
                golang-go,
                libwhoopsie-dev,
                libglib2.0-dev (>= 2.31.6),
+               libgcrypt11-dev,
                gocheck-dev,
                go-dbus-dev,
 Standards-Version: 3.9.5
