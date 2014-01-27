@@ -65,9 +65,16 @@ func (s *NMSuite) TestGetStateFail(c *C) {
 	c.Check(state, Equals, Unknown)
 }
 
-// GetState returns the right state when dbus works but delivers rubbish
-func (s *NMSuite) TestGetStateRubbish(c *C) {
+// GetState returns the right state when dbus works but delivers rubbish values
+func (s *NMSuite) TestGetStateRubbishValues(c *C) {
 	nm := New(testingbus.NewTestingEndpoint(condition.Work(false), 42), nullog)
+	state := nm.GetState()
+	c.Check(state, Equals, Unknown)
+}
+
+// GetState returns the right state when dbus works but delivers a rubbish structure
+func (s *NMSuite) TestGetStateRubbishStructure(c *C) {
+	nm := New(testingbus.NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{}), nullog)
 	state := nm.GetState()
 	c.Check(state, Equals, Unknown)
 }

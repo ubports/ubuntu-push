@@ -22,6 +22,7 @@ package notifications
 // this is the lower-level api
 
 import (
+	"fmt"
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/logger"
@@ -73,12 +74,16 @@ func (raw *RawNotifications) Notify(
 	timeout int32) (uint32, error) {
 	// that's a long argument list! Take a breather.
 	//
-	rv, err := raw.bus.Call("Notify", app_name, reuse_id, icon,
+	rvs, err := raw.bus.Call("Notify", app_name, reuse_id, icon,
 		summary, body, actions, hints, timeout)
 	if err != nil {
 		return 0, err
 	}
-	return rv.(uint32), nil
+	if len(rvs) != 1 {
+		return 0, fmt.Errorf("Wrong number of values in Notify response: %d",
+			len(rvs))
+	}
+	return rvs[0].(uint32), nil
 }
 
 // WatchActions listens for ActionInvoked signals from the notification daemon

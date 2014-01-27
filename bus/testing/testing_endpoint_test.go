@@ -34,18 +34,20 @@ var _ = Suite(&TestingEndpointSuite{})
 func (s *TestingEndpointSuite) TestCallReturnsFirstRetval(c *C) {
 	var m, n uint32 = 42, 17
 	endp := NewTestingEndpoint(condition.Work(true), m, n)
-	v, e := endp.Call("what")
+	vs, e := endp.Call("what")
 	c.Check(e, IsNil)
-	c.Check(v, Equals, m)
+	c.Check(vs, HasLen, 1)
+	c.Check(vs[0], Equals, m)
 }
 
 // Test the same Call() but with multi-valued endpoint
 func (s *TestingEndpointSuite) TestMultiValuedCall(c *C) {
 	var m, n uint32 = 42, 17
 	endp := NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{m}, []interface{}{n})
-	v, e := endp.Call("what")
+	vs, e := endp.Call("what")
 	c.Check(e, IsNil)
-	c.Check(v, Equals, m)
+	c.Check(vs, HasLen, 1)
+	c.Check(vs[0], Equals, m)
 }
 
 // Test that Call() with a negative condition returns an error.
@@ -60,21 +62,6 @@ func (s *TestingEndpointSuite) TestCallFails(c *C) {
 func (s *TestingEndpointSuite) TestCallPanicsWithNiceMessage(c *C) {
 	endp := NewTestingEndpoint(condition.Work(true))
 	c.Check(func() { endp.Call("") }, PanicMatches, "No return values provided.*")
-}
-
-// Test that Call() with a positive condition and an empty return value panics
-// with a helpful message.
-func (s *TestingEndpointSuite) TestCallPanicsWithNiceMessage2(c *C) {
-	endp := NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{})
-	c.Check(func() { endp.Call("") }, PanicMatches, "Wrong number of values provided.*")
-}
-
-// Test Call() with positive condition and the wrong number of arguments also
-// fails with a helpful message
-func (s *TestingEndpointSuite) TestMultiValuedCallPanicsWhenWrongNumberOfValues(c *C) {
-	var m, n uint32 = 42, 17
-	endp := NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{m, n})
-	c.Check(func() { endp.Call("") }, PanicMatches, "Wrong number of values provided.*")
 }
 
 // Test that WatchSignal() with a positive condition sends the provided return
