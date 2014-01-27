@@ -21,15 +21,17 @@ import (
 	"time"
 )
 
-// here we implement Retrier, which is a thing that takes a Dialer
-// and retries its Dial method until it stops returning an error
-
+// A Dialer is an object that knows how to establish a connection, and
+// where you'd usually want some kind of back off if that connection
+// fails.
 type Dialer interface {
 	Dial() error
 	String() string
 	Jitter(time.Duration) time.Duration
 }
 
+// The timeouts used during backoff. While this is public, you'd
+// usually not need to meddle with it.
 var Timeouts []time.Duration
 
 var ( //  for use in testing
@@ -47,8 +49,9 @@ func Jitter(spread time.Duration) time.Duration {
 	return time.Duration(rand.Int63n(2*n+1) - n)
 }
 
-// AutoRedial keeps on calling Dial() on the given Dialer until it stops
-// returning an error.
+// AutoRedialer takes a Dialer and retries its Dial() method until it
+// stops returning an error. It does exponential (optionally
+// jitter'ed) backoff.
 func AutoRedial(dialer Dialer) uint32 {
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
