@@ -40,13 +40,9 @@ type urlDispatcher struct {
 	log  logger.Logger
 }
 
-// New builds a new URL dispatcher by connecting to the provided bus.
-func New(bus bus.Bus, log logger.Logger) (URLDispatcher, error) {
-	endp, err := bus.Connect(BusAddress, log)
-	if err != nil {
-		return nil, err
-	}
-	return &urlDispatcher{endp, log}, nil
+// New builds a new URL dispatcher that uses the provided bus.Endpoint
+func New(endp bus.Endpoint, log logger.Logger) URLDispatcher {
+	return &urlDispatcher{endp, log}
 }
 
 var _ URLDispatcher = &urlDispatcher{} // ensures it conforms
