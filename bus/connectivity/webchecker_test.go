@@ -18,15 +18,15 @@ package connectivity
 
 import (
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/util"
 	"net/http"
 	"net/http/httptest"
-	"testing"
+	"time"
 )
 
-// hook up gocheck
-func TestWebcheck(t *testing.T) { TestingT(t) }
-
-type WebcheckerSuite struct{}
+type WebcheckerSuite struct {
+	timeouts []time.Duration
+}
 
 var _ = Suite(&WebcheckerSuite{})
 
@@ -58,6 +58,16 @@ func mkHandler(text string) http.HandlerFunc {
 		w.Write([]byte(text))
 		w.(http.Flusher).Flush()
 	}
+}
+
+func (s *WebcheckerSuite) SetUpSuite(c *C) {
+	s.timeouts = util.Timeouts
+	util.Timeouts = []time.Duration{0}
+}
+
+func (s *WebcheckerSuite) TearDownSuite(c *C) {
+	util.Timeouts = s.timeouts
+	s.timeouts = nil
 }
 
 // Webchecker sends true when everything works

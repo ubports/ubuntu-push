@@ -31,7 +31,7 @@ import (
 // This is the Bus itself.
 type Bus interface {
 	String() string
-	Connect(Address, logger.Logger) (Endpoint, error)
+	Endpoint(Address, logger.Logger) Endpoint
 }
 
 type concreteBus dbus.StandardBus
@@ -58,13 +58,8 @@ func (bus concreteBus) String() string {
 }
 
 // Connect() connects to the bus, and returns the bus endpoint (and/or error).
-func (bus concreteBus) Connect(addr Address, log logger.Logger) (Endpoint, error) {
-	conn, err := dbus.Connect(bus.dbusType())
-	if err != nil {
-		return nil, err
-	} else {
-		return newEndpoint(conn, addr, log), nil
-	}
+func (bus concreteBus) Endpoint(addr Address, log logger.Logger) Endpoint {
+	return newEndpoint(bus, addr, log)
 }
 
 /*

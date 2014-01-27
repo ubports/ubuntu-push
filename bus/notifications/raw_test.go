@@ -39,7 +39,7 @@ var _ = Suite(&RawSuite{})
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 
 func (s *RawSuite) TestNotifies(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(true), uint32(1))
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, nullog)
 	nid, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
 	c.Check(err, IsNil)
@@ -47,21 +47,21 @@ func (s *RawSuite) TestNotifies(c *C) {
 }
 
 func (s *RawSuite) TestNotifiesFails(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(false))
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	raw := Raw(endp, nullog)
 	_, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
 	c.Check(err, NotNil)
 }
 
 func (s *RawSuite) TestNotifiesFailsWeirdly(c *C) {
-	endp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{1, 2})
+	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{1, 2})
 	raw := Raw(endp, nullog)
 	_, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
 	c.Check(err, NotNil)
 }
 
 func (s *RawSuite) TestWatchActions(c *C) {
-	endp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
+	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true),
 		[]interface{}{uint32(1), "hello"})
 	raw := Raw(endp, nullog)
 	ch, err := raw.WatchActions()
@@ -80,7 +80,7 @@ func (s *RawSuite) TestWatchActions(c *C) {
 }
 
 func (s *RawSuite) TestWatchActionsFails(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(false))
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	raw := Raw(endp, nullog)
 	_, err := raw.WatchActions()
 	c.Check(err, NotNil)

@@ -35,14 +35,14 @@ var _ = Suite(&UDSuite{})
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 
 func (s *UDSuite) TestWorks(c *C) {
-	endp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), []interface{}{})
+	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{})
 	ud := New(endp, nullog)
 	err := ud.DispatchURL("this")
 	c.Check(err, IsNil)
 }
 
 func (s *UDSuite) TestFailsIfCallFails(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(false))
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	ud := New(endp, nullog)
 	err := ud.DispatchURL("this")
 	c.Check(err, NotNil)

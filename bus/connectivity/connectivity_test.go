@@ -24,6 +24,7 @@ import (
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/testing/condition"
+	"launchpad.net/ubuntu-push/util"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -32,39 +33,22 @@ import (
 // hook up gocheck
 func Test(t *testing.T) { TestingT(t) }
 
-type ConnSuite struct{}
+type ConnSuite struct {
+	timeouts []time.Duration
+}
 
 var _ = Suite(&ConnSuite{})
 
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 
-/*
-   tests for connectedState's ConnectTimeout() method
-*/
-
-// When given no timeouts, ConnectTimeout() returns 0 forever
-func (s *ConnSuite) TestConnectTimeoutWorksWithNoTimeouts(c *C) {
-	cs := connectedState{}
-	c.Check(cs.connectTimeout(), Equals, time.Duration(0))
-	c.Check(cs.connectTimeout(), Equals, time.Duration(0))
+func (s *ConnSuite) SetUpSuite(c *C) {
+	s.timeouts = util.Timeouts
+	util.Timeouts = []time.Duration{0, 0, 0, 0}
 }
 
-// when given a few timeouts, ConnectTimeout() returns them each in
-// turn, and then repeats the last one
-func (s *ConnSuite) TestConnectTimeoutWorks(c *C) {
-	ts := []config.ConfigTimeDuration{
-		config.ConfigTimeDuration{0},
-		config.ConfigTimeDuration{2 * time.Second},
-		config.ConfigTimeDuration{time.Second},
-	}
-	cs := connectedState{config: Config{ConnectTimeouts: ts}}
-	c.Check(cs.connectTimeout(), Equals, time.Duration(0))
-	c.Check(cs.connectTimeout(), Equals, 2*time.Second)
-	c.Check(cs.connectTimeout(), Equals, time.Second)
-	c.Check(cs.connectTimeout(), Equals, time.Second)
-	c.Check(cs.connectTimeout(), Equals, time.Second)
-	c.Check(cs.connectTimeout(), Equals, time.Second)
-	// ... ad nauseam
+func (s *ConnSuite) TearDownSuite(c *C) {
+	util.Timeouts = s.timeouts
+	s.timeouts = nil
 }
 
 /*
@@ -73,19 +57,16 @@ func (s *ConnSuite) TestConnectTimeoutWorks(c *C) {
 
 // when given a working config and bus, Start() will work
 func (s *ConnSuite) TestStartWorks(c *C) {
-	cfg := Config{}
-	tb := testingbus.NewTestingBus(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting))
-	cs := connectedState{config: cfg, log: nullog, bus: tb}
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting))
+	cs := connectedState{config: Config{}, log: nullog, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 }
 
 // if the bus fails a couple of times, we're still OK
 func (s *ConnSuite) TestStartRetriesConnect(c *C) {
-	timeouts := []config.ConfigTimeDuration{config.ConfigTimeDuration{0}}
-	cfg := Config{ConnectTimeouts: timeouts}
-	tb := testingbus.NewTestingBus(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting))
-	cs := connectedState{config: cfg, log: nullog, bus: tb}
+	endp := testingbus.NewTestingEndpoint(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting))
+	cs := connectedState{config: Config{}, log: nullog, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(3)) // 1 more than the Fail2Work
@@ -93,9 +74,8 @@ func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 
 // when the calls to NetworkManager fail for a bit, we're still OK
 func (s *ConnSuite) TestStartRetriesCall(c *C) {
-	cfg := Config{}
-	tb := testingbus.NewTestingBus(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting))
-	cs := connectedState{config: cfg, log: nullog, bus: tb}
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting))
+	cs := connectedState{config: Config{}, log: nullog, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 
@@ -110,11 +90,10 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 		1, condition.Work(true), // 1 call to nm works
 		1, condition.Work(false), // 1 call to nm fails
 		0, condition.Work(true)) // and everything works from there on
-	cfg := Config{}
-	tb := testingbus.NewTestingBus(condition.Work(true), nmcond,
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), nmcond,
 		uint32(networkmanager.Connecting),
 		uint32(networkmanager.ConnectedGlobal))
-	cs := connectedState{config: cfg, log: nullog, bus: tb}
+	cs := connectedState{config: Config{}, log: nullog, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(2))
@@ -211,7 +190,7 @@ func (s *ConnSuite) TestRun(c *C) {
 		RecheckTimeout:       config.ConfigTimeDuration{time.Second},
 	}
 
-	busType := testingbus.NewTestingBus(condition.Work(true), condition.Work(true),
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal),
 		uint32(networkmanager.ConnectedGlobal),
 		uint32(networkmanager.Disconnected),
@@ -220,7 +199,7 @@ func (s *ConnSuite) TestRun(c *C) {
 	out := make(chan bool)
 	dt := time.Second / 10
 	timer := time.NewTimer(dt)
-	go ConnectedState(busType, cfg, nullog, out)
+	go ConnectedState(endp, cfg, nullog, out)
 	var v bool
 	expecteds := []bool{
 		false, // first state is always false

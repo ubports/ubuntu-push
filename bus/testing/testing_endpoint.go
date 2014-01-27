@@ -20,14 +20,16 @@ package testing
 
 import (
 	"errors"
+	"fmt"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"time"
 )
 
 type testingEndpoint struct {
-	cond    condition.Interface
-	retvals [][]interface{}
+	dialCond condition.Interface
+	callCond condition.Interface
+	retvals  [][]interface{}
 }
 
 // Build a bus.Endpoint that calls OK() on its condition before returning
@@ -35,22 +37,22 @@ type testingEndpoint struct {
 //
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them in turn, irrespective of whether Call has been called.
-func NewMultiValuedTestingEndpoint(cond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
-	return &testingEndpoint{cond, retvalses}
+func NewMultiValuedTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
+	return &testingEndpoint{dialCond, callCond, retvalses}
 }
 
-func NewTestingEndpoint(cond condition.Interface, retvals ...interface{}) bus.Endpoint {
+func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvals ...interface{}) bus.Endpoint {
 	retvalses := make([][]interface{}, len(retvals))
 	for i, x := range retvals {
 		retvalses[i] = []interface{}{x}
 	}
-	return &testingEndpoint{cond, retvalses}
+	return &testingEndpoint{dialCond, callCond, retvalses}
 }
 
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values
 func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
-	if tc.cond.OK() {
+	if tc.callCond.OK() {
 		go func() {
 			for _, v := range tc.retvals {
 				f(v...)
@@ -67,7 +69,7 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 // See Endpoint's Call. This Call will check its condition to decide whether
 // to return an error, or the first of its return values
 func (tc *testingEndpoint) Call(member string, args ...interface{}) ([]interface{}, error) {
-	if tc.cond.OK() {
+	if tc.callCond.OK() {
 		if len(tc.retvals) == 0 {
 			panic("No return values provided!")
 		}
@@ -90,8 +92,27 @@ func (tc *testingEndpoint) GetProperty(property string) (interface{}, error) {
 	return rvs[0], err
 }
 
+// See Endpoint's Dial. This one will check its dialCondition to
+// decide whether to return an error or not.
+func (endp *testingEndpoint) Dial() error {
+	if endp.dialCond.OK() {
+		return nil
+	} else {
+		return errors.New("dialCond said No.")
+	}
+}
+
+// Advanced stringifobabulation
+func (endp *testingEndpoint) String() string {
+	return fmt.Sprintf("&testingEndpoint{dialCond:(%s) callCond:(%s) retvals:(%#v)",
+		endp.dialCond, endp.callCond, endp.retvals)
+}
+
 // see Endpoint's Close. This one does nothing.
 func (tc *testingEndpoint) Close() {}
+
+// see Endpoint's Jitter.
+func (tc *testingEndpoint) Jitter(_ time.Duration) time.Duration { return 0 }
 
 // ensure testingEndpoint implements bus.Endpoint
 var _ bus.Endpoint = &testingEndpoint{}

@@ -30,46 +30,40 @@ type TestingBusSuite struct{}
 
 var _ = Suite(&TestingBusSuite{})
 
-// Test Connect() on a working bus returns an endpoint that looks right
-func (s *TestingBusSuite) TestConnectWorks(c *C) {
+// Test Endpoint() on a working bus returns an endpoint that looks right
+func (s *TestingBusSuite) TestEndpointWorks(c *C) {
 	addr := bus.Address{"", "", ""}
 	tb := NewTestingBus(condition.Work(true), condition.Work(false), 42, 42, 42)
-	endp, err := tb.Connect(addr, nil)
+	endp := tb.Endpoint(addr, nil)
+	err := endp.Dial()
 	c.Check(err, IsNil)
-	c.Check(endp, FitsTypeOf, &testingEndpoint{})
-	c.Check(endp.(*testingEndpoint).cond.OK(), Equals, false)
+	c.Assert(endp, FitsTypeOf, &testingEndpoint{})
+	c.Check(endp.(*testingEndpoint).callCond.OK(), Equals, false)
 	c.Check(endp.(*testingEndpoint).retvals, HasLen, 3)
 }
 
-// Test Connect() on a working "multi-valued" bus returns an endpoint that looks right
-func (s *TestingBusSuite) TestConnectMultiValued(c *C) {
+// Test Endpoint() on a working "multi-valued" bus returns an endpoint that looks right
+func (s *TestingBusSuite) TestEndpointMultiValued(c *C) {
 	addr := bus.Address{"", "", ""}
 	tb := NewMultiValuedTestingBus(condition.Work(true), condition.Work(true),
 		[]interface{}{42, 17},
 		[]interface{}{42, 17, 13},
 		[]interface{}{42},
 	)
-	endpp, err := tb.Connect(addr, nil)
+	endpp := tb.Endpoint(addr, nil)
+	err := endpp.Dial()
 	c.Check(err, IsNil)
 	endp, ok := endpp.(*testingEndpoint)
-	c.Check(ok, Equals, true)
-	c.Check(endp.cond.OK(), Equals, true)
+	c.Assert(ok, Equals, true)
+	c.Check(endp.callCond.OK(), Equals, true)
 	c.Assert(endp.retvals, HasLen, 3)
 	c.Check(endp.retvals[0], HasLen, 2)
 	c.Check(endp.retvals[1], HasLen, 3)
 	c.Check(endp.retvals[2], HasLen, 1)
 }
 
-// Test Connect() with a non-working bus fails
-func (s *TestingBusSuite) TestConnectNoWork(c *C) {
-	addr := bus.Address{"", "", ""}
-	tb := NewTestingBus(condition.Work(false), condition.Work(true))
-	_, err := tb.Connect(addr, nil)
-	c.Check(err, NotNil)
-}
-
 // Test TestingBus stringifies sanely
 func (s *TestingBusSuite) TestStringifyBus(c *C) {
-	tb := NewTestingBus(condition.Work(false), condition.Work(true))
+	tb := NewTestingBus(nil, nil)
 	c.Check(tb.String(), Matches, ".*TestingBus.*")
 }
