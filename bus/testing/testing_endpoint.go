@@ -86,7 +86,8 @@ func (tc *testingEndpoint) GetProperty(property string) (interface{}, error) {
 		return nil, err
 	}
 	if len(rvs) != 1 {
-		return nil, errors.New("Wrong number of arguments in reply to GetProperty")
+		return nil, errors.New("Wrong number of values given to testingEndpoint" +
+			" -- GetProperty only returns a single value for now!")
 	}
 	return rvs[0], err
 }
