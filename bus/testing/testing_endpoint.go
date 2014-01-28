@@ -51,10 +51,7 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 
 // if WatchTickeris not nil, it is used instead of the default timeout
 // to wait while sending values over WatchSignal
-//
-// It's chan rune merely for convenience to testers; the value is
-// discarded.
-var WatchTicker chan rune
+var WatchTicker chan bool
 
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values

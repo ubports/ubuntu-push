@@ -104,11 +104,11 @@ func (s *TestingEndpointSuite) TestWatchFails(c *C) {
 // Test WatchSignal can use the WatchTicker instead of a timeout (if
 // the former is not nil)
 func (s *TestingEndpointSuite) TestWatchTicker(c *C) {
-	WatchTicker = make(chan rune, 3)
+	WatchTicker = make(chan bool, 3)
 	defer func() { WatchTicker = nil }()
-	WatchTicker <- 'x'
-	WatchTicker <- 'x'
-	WatchTicker <- 'x'
+	WatchTicker <- true
+	WatchTicker <- true
+	WatchTicker <- true
 	c.Assert(len(WatchTicker), Equals, 3)
 
 	endp := NewTestingEndpoint(nil, condition.Work(true), 0, 0)

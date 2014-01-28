@@ -196,7 +196,7 @@ func (s *ConnSuite) TestRun(c *C) {
 		uint32(networkmanager.Disconnected),
 	)
 
-	testingbus.WatchTicker = make(chan rune)
+	testingbus.WatchTicker = make(chan bool)
 	defer func() { testingbus.WatchTicker = nil }()
 
 	out := make(chan bool)
@@ -205,21 +205,21 @@ func (s *ConnSuite) TestRun(c *C) {
 	go ConnectedState(endp, cfg, nullog, out)
 	var v bool
 	expecteds := []struct {
-		p     bool
-		s     string
-		ticks string
+		p bool
+		s string
+		n int
 	}{
-		{false, "first state is always false", ""},
-		{true, "then it should be true as per ConnectedGlobal above", ""},
-		{false, "then, false (upon receiving the next ConnectedGlobal)", "x"},
-		{true, "then it should be true (webcheck passed)", ""},
-		{false, "then it should be false (Disconnected)", "x"},
-		{false, "then it should be false again because it's restarted", "x"},
+		{false, "first state is always false", 0},
+		{true, "then it should be true as per ConnectedGlobal above", 0},
+		{false, "then, false (upon receiving the next ConnectedGlobal)", 1},
+		{true, "then it should be true (webcheck passed)", 0},
+		{false, "then it should be false (Disconnected)", 1},
+		{false, "then it should be false again because it's restarted", 1},
 	}
 
 	for i, expected := range expecteds {
-		for _, b := range expected.ticks {
-			testingbus.WatchTicker <- b
+		for j := 0; j < expected.n; j++ {
+			testingbus.WatchTicker <- true
 		}
 		timer.Reset(dt)
 		select {
