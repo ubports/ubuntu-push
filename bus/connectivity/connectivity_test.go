@@ -58,7 +58,7 @@ func (s *ConnSuite) TearDownSuite(c *C) {
 // when given a working config and bus, Start() will work
 func (s *ConnSuite) TestStartWorks(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting))
-	cs := connectedState{config: Config{}, log: nullog, endp: endp}
+	cs := connectedState{config: ConnectivityConfig{}, log: nullog, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 }
@@ -66,7 +66,7 @@ func (s *ConnSuite) TestStartWorks(c *C) {
 // if the bus fails a couple of times, we're still OK
 func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting))
-	cs := connectedState{config: Config{}, log: nullog, endp: endp}
+	cs := connectedState{config: ConnectivityConfig{}, log: nullog, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(3)) // 1 more than the Fail2Work
@@ -75,7 +75,7 @@ func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 // when the calls to NetworkManager fail for a bit, we're still OK
 func (s *ConnSuite) TestStartRetriesCall(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting))
-	cs := connectedState{config: Config{}, log: nullog, endp: endp}
+	cs := connectedState{config: ConnectivityConfig{}, log: nullog, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 
@@ -93,7 +93,7 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), nmcond,
 		uint32(networkmanager.Connecting),
 		uint32(networkmanager.ConnectedGlobal))
-	cs := connectedState{config: Config{}, log: nullog, endp: endp}
+	cs := connectedState{config: ConnectivityConfig{}, log: nullog, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(2))
@@ -109,7 +109,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 	var webget_p condition.Interface = condition.Work(true)
 	recheck_timeout := 50 * time.Millisecond
 
-	cfg := Config{
+	cfg := ConnectivityConfig{
 		RecheckTimeout: config.ConfigTimeDuration{recheck_timeout},
 	}
 	ch := make(chan networkmanager.State, 10)
@@ -184,7 +184,7 @@ func (s *ConnSuite) TestRun(c *C) {
 	ts := httptest.NewServer(mkHandler(staticText))
 	defer ts.Close()
 
-	cfg := Config{
+	cfg := ConnectivityConfig{
 		ConnectivityCheckURL: ts.URL,
 		ConnectivityCheckMD5: staticHash,
 		RecheckTimeout:       config.ConfigTimeDuration{time.Second},
