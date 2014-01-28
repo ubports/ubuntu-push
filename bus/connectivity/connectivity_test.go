@@ -196,29 +196,39 @@ func (s *ConnSuite) TestRun(c *C) {
 		uint32(networkmanager.Disconnected),
 	)
 
+	testingbus.WatchTicker = make(chan rune)
+	defer func() { testingbus.WatchTicker = nil }()
+
 	out := make(chan bool)
 	dt := time.Second / 10
 	timer := time.NewTimer(dt)
 	go ConnectedState(endp, cfg, nullog, out)
 	var v bool
-	expecteds := []bool{
-		false, // first state is always false
-		true,  // then it should be true as per ConnectedGlobal above
-		false, // then, false (upon receiving the next ConnectedGlobal)
-		true,  // then it should be true (webcheck passed)
-		false, // then it should be false (Disconnected)
-		false, // then it should be false again because it's restarted
+	expecteds := []struct {
+		p     bool
+		s     string
+		ticks string
+	}{
+		{false, "first state is always false", ""},
+		{true, "then it should be true as per ConnectedGlobal above", ""},
+		{false, "then, false (upon receiving the next ConnectedGlobal)", "x"},
+		{true, "then it should be true (webcheck passed)", ""},
+		{false, "then it should be false (Disconnected)", "x"},
+		{false, "then it should be false again because it's restarted", "x"},
 	}
 
 	for i, expected := range expecteds {
+		for _, b := range expected.ticks {
+			testingbus.WatchTicker <- b
+		}
 		timer.Reset(dt)
 		select {
 		case v = <-out:
 			break
 		case <-timer.C:
-			c.Fatalf("Timed out before getting value (#%d)", i+1)
+			c.Fatalf("Timed out before getting value (#%d: %s)", i+1, expected.s)
 		}
 
-		c.Check(v, Equals, expected)
+		c.Check(v, Equals, expected.p, Commentf(expected.s))
 	}
 }
