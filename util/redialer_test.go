@@ -55,8 +55,15 @@ func (s *RedialerSuite) TestWorks(c *C) {
 
 func (s *RedialerSuite) TestCanBeStopped(c *C) {
 	endp := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	go func() { c.Check(AutoRedial(endp), Equals, uint32(1)) }()
+	ch := make(chan uint32)
+	go func() { ch <- AutoRedial(endp) }()
 	quitRedialing <- true
+	select {
+	case n := <-ch:
+		c.Check(n, Equals, uint32(1))
+	case <-time.Tick(20 * time.Millisecond):
+		c.Fatal("timed out waiting for redial")
+	}
 }
 
 func (s *RedialerSuite) TestAutoRetry(c *C) {
