@@ -94,7 +94,7 @@ var (
 	ErrMissingData = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
-		"Empty or missing data field",
+		"Missing data field",
 	}
 	ErrUnknownChannel = &APIError{
 		http.StatusBadRequest,
