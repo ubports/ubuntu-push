@@ -63,7 +63,7 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 				if WatchTicker != nil {
 					<-WatchTicker
 				} else {
-					<-time.Tick(10 * time.Millisecond)
+					time.Sleep(10 * time.Millisecond)
 				}
 			}
 			d()

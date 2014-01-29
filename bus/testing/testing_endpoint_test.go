@@ -117,13 +117,10 @@ func (s *TestingEndpointSuite) TestWatchTicker(c *C) {
 	c.Check(e, IsNil)
 
 	// wait for the destructor to be called
-Out:
-	for {
-		select {
-		case <-ch:
-			break Out
-		case <-time.Tick(time.Millisecond):
-		}
+	select {
+	case <-time.Tick(10 * time.Millisecond):
+		c.Fatal("timed out waiting for close on channel")
+	case <-ch:
 	}
 
 	// now if all went well, the ticker will have been tuck twice.
