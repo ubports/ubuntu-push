@@ -91,6 +91,11 @@ var (
 		ioError,
 		"Could not read request body",
 	}
+	ErrMissingData = &APIError{
+		http.StatusBadRequest,
+		invalidRequest,
+		"Empty or missing data field",
+	}
 	ErrUnknownChannel = &APIError{
 		http.StatusBadRequest,
 		unknownChannel,
@@ -172,6 +177,13 @@ func readBody(request *http.Request) ([]byte, *APIError) {
 	return body, nil
 }
 
+func checkBroadcast(bcast *Broadcast) *APIError {
+	if len(bcast.Data) == 0 {
+		return ErrMissingData
+	}
+	return nil
+}
+
 // state holds the interfaces to delegate to serving requests
 type state struct {
 	store  store.PendingStore
@@ -182,6 +194,10 @@ type state struct {
 type BroadcastHandler state
 
 func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
+	apiErr := checkBroadcast(bcast)
+	if apiErr != nil {
+		return apiErr
+	}
 	chanId, err := h.store.GetInternalChannelId(bcast.Channel)
 	if err != nil {
 		switch err {
