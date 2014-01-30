@@ -168,3 +168,40 @@ func (sess *ClientSession) run() error {
 		}
 	}
 }
+
+// Call this when you've connected and are ready to start running.
+func (sess *ClientSession) start() error {
+	conn := sess.Connection
+	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	if err != nil {
+		return err
+	}
+	_, err = conn.Write(wireVersionBytes)
+	// The Writer docs: Write must return a non-nil error if it returns
+	// n < len(p). So, no need to check number of bytes written, hooray.
+	if err != nil {
+		return err
+	}
+	proto := sess.Protocolator(conn)
+	err = proto.WriteMessage(protocol.ConnectMsg{
+		Type:     "connect",
+		DeviceId: sess.DeviceId,
+		Levels:   sess.Levels.GetAll(),
+	})
+	if err != nil {
+		return err
+	}
+	var connAck protocol.ConnAckMsg
+	err = proto.ReadMessage(&connAck)
+	if err != nil {
+		return err
+	}
+	pingInterval, err := time.ParseDuration(connAck.Params.PingInterval)
+	if err != nil {
+		return err
+	}
+	sess.proto = proto
+	sess.pingInterval = pingInterval
+	sess.Log.Debugf("Connected %v.", conn.LocalAddr())
+	return nil
+}

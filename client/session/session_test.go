@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/logger"
@@ -84,7 +85,17 @@ func (tc *testConn) SetDeadline(t time.Time) error {
 func (tc *testConn) SetReadDeadline(t time.Time) error  { panic("SetReadDeadline not implemented.") }
 func (tc *testConn) SetWriteDeadline(t time.Time) error { panic("SetWriteDeadline not implemented.") }
 func (tc *testConn) Read(buf []byte) (n int, err error) { panic("Read not implemented.") }
-func (tc *testConn) Write(buf []byte) (int, error)      { panic("Write not implemented.") }
+
+func (tc *testConn) Write(buf []byte) (int, error) {
+	store := make([]byte, len(buf))
+	copy(store, buf)
+	tc.Writes = append(tc.Writes, store)
+	if tc.WriteCondition == nil || tc.WriteCondition.OK() {
+		return len(store), nil
+	} else {
+		return -1, errors.New("writer on fire")
+	}
+}
 
 // test protocol (from session_test)
 
@@ -446,4 +457,121 @@ func (s *runSuite) TestRunBroadcast(c *C) {
 	failure := errors.New("ack")
 	s.upCh <- failure
 	c.Check(<-s.errCh, Equals, failure)
+}
+
+/****************************************************************
+  start() tests
+****************************************************************/
+func (cs *clientSessionSuite) TestStartFailsIfSetDeadlineFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartFailsIfSetDeadlineFails",
+		DeadlineCondition: condition.Work(false)} // setdeadline will fail
+	err = sess.start()
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Matches, ".*deadline.*")
+}
+
+func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartFailsIfWriteFails",
+		WriteCondition: condition.Work(false)} // write will fail
+	err = sess.start()
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Matches, ".*write.*")
+}
+
+func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartConnectMessageFails"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	c.Check(takeNext(downCh), DeepEquals, protocol.ConnectMsg{
+		Type:     "connect",
+		DeviceId: sess.DeviceId,
+		Levels:   map[string]int64{},
+	})
+	upCh <- errors.New("Overflow error in /dev/null")
+	err = <-errCh
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Matches, "Overflow.*null")
+}
+
+func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartConnackReadError"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	takeNext(downCh) // connectMsg
+	upCh <- nil      // no error
+	upCh <- io.EOF
+	err = <-errCh
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Matches, ".*EOF.*")
+}
+
+func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartBadConnack"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	takeNext(downCh) // connectMsg
+	upCh <- nil      // no error
+	upCh <- protocol.ConnAckMsg{}
+	err = <-errCh
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Matches, ".*invalid.*")
+}
+
+func (cs *clientSessionSuite) TestStartWorks(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartWorks"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	takeNext(downCh) // connectMsg
+	upCh <- nil      // no error
+	upCh <- protocol.ConnAckMsg{
+		Type:   "connack",
+		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
+	}
+	// start is now done.
+	err = <-errCh
+	c.Assert(err, IsNil)
 }
