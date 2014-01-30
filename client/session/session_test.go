@@ -19,6 +19,7 @@ package session
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/logger"
@@ -108,7 +109,19 @@ func (c *testProtocol) SetDeadline(t time.Time) {
 }
 
 func (c *testProtocol) ReadMessage(dest interface{}) error {
-	panic("ReadMessage not implemented.")
+	switch v := takeNext(c.up).(type) {
+	case error:
+		return v
+	default:
+		// make sure JSON.Unmarshal works with dest
+		var marshalledMsg []byte
+		marshalledMsg, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("can't jsonify test value %v: %s", v, err)
+		}
+		return json.Unmarshal(marshalledMsg, dest)
+	}
+	return nil
 }
 
 func (c *testProtocol) WriteMessage(src interface{}) error {
@@ -376,4 +389,61 @@ func (s *msgSuite) TestHandleBroadcastAbortsOnDeadlineError(c *C) {
 		}, protocol.NotificationsMsg{}}
 	s.sess.Connection.(*testConn).DeadlineCondition = condition.Work(false)
 	c.Check(s.sess.handleBroadcast(&msg), NotNil)
+}
+
+/****************************************************************
+  run() tests
+****************************************************************/
+
+type runSuite msgSuite
+
+var _ = Suite(&runSuite{})
+
+func (s *runSuite) SetUpTest(c *C) {
+	(*msgSuite)(s).SetUpTest(c)
+	s.sess.Connection.(*testConn).Name = "TestRun* (small r)"
+	go func() {
+		s.errCh <- s.sess.run()
+	}()
+}
+
+func (s *runSuite) TestRunReadError(c *C) {
+	s.upCh <- errors.New("Read")
+	err := <-s.errCh
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "Read")
+}
+
+func (s *runSuite) TestRunPing(c *C) {
+	s.upCh <- protocol.PingPongMsg{Type: "ping"}
+	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
+	failure := errors.New("pong")
+	s.upCh <- failure
+	c.Check(<-s.errCh, Equals, failure)
+}
+
+func (s *runSuite) TestRunLoopsDaLoop(c *C) {
+	for i := 1; i < 10; i++ {
+		s.upCh <- protocol.PingPongMsg{Type: "ping"}
+		c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
+		s.upCh <- nil
+	}
+	failure := errors.New("pong")
+	s.upCh <- failure
+	c.Check(<-s.errCh, Equals, failure)
+}
+
+func (s *runSuite) TestRunBroadcast(c *C) {
+	b := &protocol.BroadcastMsg{
+		Type:     "broadcast",
+		AppId:    "--ignored--",
+		ChanId:   "0",
+		TopLevel: 2,
+		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+	}
+	s.upCh <- b
+	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
+	failure := errors.New("ack")
+	s.upCh <- failure
+	c.Check(<-s.errCh, Equals, failure)
 }

@@ -144,3 +144,27 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	}
 	return nil
 }
+
+// Run the session with the server, emits a stream of events.
+func (sess *ClientSession) run() error {
+	var err error
+	var recv serverMsg
+	conn := sess.Connection
+	for {
+		deadAfter := sess.pingInterval + sess.ExchangeTimeout
+		conn.SetDeadline(time.Now().Add(deadAfter))
+		err = sess.proto.ReadMessage(&recv)
+		if err != nil {
+			return err
+		}
+		switch recv.Type {
+		case "ping":
+			err = sess.handlePing()
+		case "broadcast":
+			err = sess.handleBroadcast(&recv)
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
