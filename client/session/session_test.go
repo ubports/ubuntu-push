@@ -319,11 +319,10 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 			TopLevel: 2,
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
-	errCh := make(chan error)
-	go func() { errCh <- s.sess.handleBroadcast(&msg) }()
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	s.upCh <- nil // ack ok
-	c.Check(<-errCh, Equals, nil)
+	c.Check(<-s.errCh, Equals, nil)
 	c.Assert(len(s.sess.MsgCh), Equals, 1)
 	c.Check(<-s.sess.MsgCh, Equals, &Notification{})
 	// check the deadline was set
@@ -343,12 +342,11 @@ func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
 			TopLevel: 2,
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
-	errCh := make(chan error)
-	go func() { errCh <- s.sess.handleBroadcast(&msg) }()
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	failure := errors.New("ACK ACK ACK")
 	s.upCh <- failure
-	c.Assert(<-errCh, Equals, failure)
+	c.Assert(<-s.errCh, Equals, failure)
 }
 
 func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
@@ -360,11 +358,10 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 			TopLevel: 2,
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
-	errCh := make(chan error)
-	go func() { errCh <- s.sess.handleBroadcast(&msg) }()
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	s.upCh <- nil // ack ok
-	c.Check(<-errCh, IsNil)
+	c.Check(<-s.errCh, IsNil)
 	c.Check(len(s.sess.MsgCh), Equals, 0)
 }
 
