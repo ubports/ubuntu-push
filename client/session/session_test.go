@@ -273,7 +273,7 @@ func (s *msgSuite) SetUpTest(c *C) {
 	var err error
 	s.sess, err = NewSession("", nil, time.Millisecond, "wah", debuglog)
 	c.Assert(err, IsNil)
-	s.sess.Connection = &testConn{Name: "TestRun* (small r)"}
+	s.sess.Connection = &testConn{Name: "TestHandle*"}
 	s.errCh = make(chan error, 1)
 	s.upCh = make(chan interface{}, 5)
 	s.downCh = make(chan interface{}, 5)
