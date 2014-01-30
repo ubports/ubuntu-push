@@ -52,6 +52,7 @@ type acceptanceSuite struct {
 var _ = Suite(&acceptanceSuite{})
 
 var serverCmd = flag.String("server", "", "server to test")
+var serverAuxCfg = flag.String("auxcfg", "", "auxiliary config for the server")
 
 func testServerConfig(addr, httpAddr string) map[string]interface{} {
 	cfg := map[string]interface{}{
@@ -113,7 +114,8 @@ func (s *acceptanceSuite) SetUpTest(c *C) {
 	if err != nil {
 		c.Fatal(err)
 	}
-	server := exec.Command(*serverCmd, cfgFilename)
+	cfgs := append(strings.Fields(*serverAuxCfg), cfgFilename)
+	server := exec.Command(*serverCmd, cfgs...)
 	stderr, err := server.StderrPipe()
 	if err != nil {
 		c.Fatal(err)
