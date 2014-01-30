@@ -17,14 +17,17 @@
 package session
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"net"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -69,11 +72,62 @@ func (tc *testConn) Close() error {
 	}
 }
 
-func (tc *testConn) SetDeadline(t time.Time) error      { panic("SetDeadline not implemented.") }
+func (tc *testConn) SetDeadline(t time.Time) error {
+	tc.Deadlines = append(tc.Deadlines, t.Sub(time.Now()))
+	if tc.DeadlineCondition == nil || tc.DeadlineCondition.OK() {
+		return nil
+	} else {
+		return errors.New("deadliner on fire")
+	}
+}
 func (tc *testConn) SetReadDeadline(t time.Time) error  { panic("SetReadDeadline not implemented.") }
 func (tc *testConn) SetWriteDeadline(t time.Time) error { panic("SetWriteDeadline not implemented.") }
 func (tc *testConn) Read(buf []byte) (n int, err error) { panic("Read not implemented.") }
 func (tc *testConn) Write(buf []byte) (int, error)      { panic("Write not implemented.") }
+
+// test protocol (from session_test)
+
+type testProtocol struct {
+	up   chan interface{}
+	down chan interface{}
+}
+
+// takeNext takes a value from given channel with a 5s timeout
+func takeNext(ch <-chan interface{}) interface{} {
+	select {
+	case <-time.After(5 * time.Second):
+		panic("test protocol exchange stuck: too long waiting")
+	case v := <-ch:
+		return v
+	}
+	return nil
+}
+
+func (c *testProtocol) SetDeadline(t time.Time) {
+	panic("SetDeadline not implemented.")
+}
+
+func (c *testProtocol) ReadMessage(dest interface{}) error {
+	panic("ReadMessage not implemented.")
+}
+
+func (c *testProtocol) WriteMessage(src interface{}) error {
+	// make sure JSON.Marshal works with src
+	_, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	val := reflect.ValueOf(src)
+	if val.Kind() == reflect.Ptr {
+		src = val.Elem().Interface()
+	}
+	c.down <- src
+	switch v := takeNext(c.up).(type) {
+	case error:
+		return v
+	}
+	return nil
+}
 
 /****************************************************************
   NewSession() tests
@@ -200,4 +254,53 @@ func (cs *clientSessionSuite) TestCheckRunnable(c *C) {
 	// set up the connection
 	sess.Connection = &testConn{}
 	c.Check(sess.checkRunnable(), IsNil)
+}
+
+/****************************************************************
+  handlePing() tests
+****************************************************************/
+
+type msgSuite struct {
+	sess   *ClientSession
+	upCh   chan interface{}
+	downCh chan interface{}
+	errCh  chan error
+}
+
+var _ = Suite(&msgSuite{})
+
+func (s *msgSuite) SetUpTest(c *C) {
+	var err error
+	s.sess, err = NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	s.sess.Connection = &testConn{Name: "TestRun* (small r)"}
+	s.errCh = make(chan error, 1)
+	s.upCh = make(chan interface{}, 5)
+	s.downCh = make(chan interface{}, 5)
+	s.sess.proto = &testProtocol{up: s.upCh, down: s.downCh}
+}
+
+func (s *msgSuite) TestHandlePingWorks(c *C) {
+	s.upCh <- nil // no error
+	s.sess.ExchangeTimeout = time.Millisecond
+	c.Check(s.sess.handlePing(), IsNil)
+	c.Check(len(s.downCh), Equals, 1)
+	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
+	ds := s.sess.Connection.(*testConn).Deadlines
+	c.Check(ds, HasLen, 1)
+	c.Check(int((ds[0]-time.Millisecond))/10000, Equals, 0)
+}
+
+func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
+	failure := errors.New("Pong")
+	s.upCh <- failure
+
+	c.Check(s.sess.handlePing(), Equals, failure)
+	c.Check(len(s.downCh), Equals, 1)
+	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
+}
+
+func (s *msgSuite) TestHandlePingAbortsOnDeadlineError(c *C) {
+	s.sess.Connection.(*testConn).DeadlineCondition = condition.Work(false)
+	c.Check(s.sess.handlePing(), NotNil)
 }
