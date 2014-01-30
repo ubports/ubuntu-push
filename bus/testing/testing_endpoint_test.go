@@ -101,6 +101,32 @@ func (s *TestingEndpointSuite) TestWatchFails(c *C) {
 	c.Check(e, NotNil)
 }
 
+// Test WatchSignal can use the WatchTicker instead of a timeout (if
+// the former is not nil)
+func (s *TestingEndpointSuite) TestWatchTicker(c *C) {
+	WatchTicker = make(chan bool, 3)
+	defer func() { WatchTicker = nil }()
+	WatchTicker <- true
+	WatchTicker <- true
+	WatchTicker <- true
+	c.Assert(len(WatchTicker), Equals, 3)
+
+	endp := NewTestingEndpoint(nil, condition.Work(true), 0, 0)
+	ch := make(chan int)
+	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
+	c.Check(e, IsNil)
+
+	// wait for the destructor to be called
+	select {
+	case <-time.Tick(10 * time.Millisecond):
+		c.Fatal("timed out waiting for close on channel")
+	case <-ch:
+	}
+
+	// now if all went well, the ticker will have been tuck twice.
+	c.Assert(len(WatchTicker), Equals, 1)
+}
+
 // Tests that GetProperty() works
 func (s *TestingEndpointSuite) TestGetProperty(c *C) {
 	var m uint32 = 42
