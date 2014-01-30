@@ -36,7 +36,7 @@ func (tra *testRemoteAddrable) RemoteAddr() net.Addr {
 	return &net.TCPAddr{net.IPv4(127, 0, 0, 1), 9999, ""}
 }
 
-func (s *sessionSuite) TestSessionTrackStart(c *C) {
+func (s *trackerSuite) TestSessionTrackStart(c *C) {
 	buf := &bytes.Buffer{}
 	logger := logger.NewSimpleLogger(buf, "debug")
 	track := NewTracker(logger)
@@ -46,7 +46,7 @@ func (s *sessionSuite) TestSessionTrackStart(c *C) {
 	c.Check(buf.String(), Matches, regExpected)
 }
 
-func (s *sessionSuite) TestSessionTrackRegistered(c *C) {
+func (s *trackerSuite) TestSessionTrackRegistered(c *C) {
 	buf := &bytes.Buffer{}
 	logger := logger.NewSimpleLogger(buf, "debug")
 	track := NewTracker(logger)
@@ -56,7 +56,7 @@ func (s *sessionSuite) TestSessionTrackRegistered(c *C) {
 	c.Check(buf.String(), Matches, regExpected)
 }
 
-func (s *sessionSuite) TestSessionTrackEnd(c *C) {
+func (s *trackerSuite) TestSessionTrackEnd(c *C) {
 	buf := &bytes.Buffer{}
 	logger := logger.NewSimpleLogger(buf, "debug")
 	track := NewTracker(logger)
