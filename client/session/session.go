@@ -33,6 +33,12 @@ type Notification struct {
 	// something something something
 }
 
+type serverMsg struct {
+	Type string `json:"T"`
+	protocol.BroadcastMsg
+	protocol.NotificationsMsg
+}
+
 // ClienSession holds a client<->server session and its configuration.
 type ClientSession struct {
 	// configuration
@@ -115,4 +121,26 @@ func (sess *ClientSession) handlePing() error {
 		sess.Log.Debugf("Ping.")
 	}
 	return err
+}
+
+// handle "broadcast" messages
+func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
+	err := sess.Connection.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	if err != nil {
+		return err
+	}
+	err = sess.proto.WriteMessage(protocol.PingPongMsg{Type: "ack"})
+	if err != nil {
+		return err
+	}
+	sess.Log.Debugf("broadcast chan:%v app:%v topLevel:%d payloads:%s",
+		bcast.ChanId, bcast.AppId, bcast.TopLevel, bcast.Payloads)
+	if bcast.ChanId == protocol.SystemChannelId {
+		// the system channel id, the only one we care about for now
+		sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
+		sess.MsgCh <- &Notification{}
+	} else {
+		sess.Log.Debugf("What is this weird channel, %s?", bcast.ChanId)
+	}
+	return nil
 }
