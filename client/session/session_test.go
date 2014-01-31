@@ -176,7 +176,7 @@ func (cs *clientSessionSuite) TestNewSessionPEMWorks(c *C) {
 }
 
 func (cs *clientSessionSuite) TestNewSessionBadPEMFileContentFails(c *C) {
-	badpem, _ := ioutil.ReadFile("/etc/passwd")
+	badpem := []byte("This is not the PEM you're looking for.")
 	sess, err := NewSession("", badpem, 0, "wah", nullog)
 	c.Check(sess, IsNil)
 	c.Check(err, NotNil)
@@ -195,10 +195,10 @@ func (cs *clientSessionSuite) TestDialFailsWithNoAddress(c *C) {
 }
 
 func (cs *clientSessionSuite) TestDialConnects(c *C) {
-	lp, err := net.Listen("tcp", ":0")
+	srv, err := net.Listen("tcp", ":0")
 	c.Assert(err, IsNil)
-	defer lp.Close()
-	sess, err := NewSession(lp.Addr().String(), nil, 0, "wah", debuglog)
+	defer srv.Close()
+	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
 	err = sess.Dial()
 	c.Check(err, IsNil)
@@ -206,10 +206,10 @@ func (cs *clientSessionSuite) TestDialConnects(c *C) {
 }
 
 func (cs *clientSessionSuite) TestDialConnectFail(c *C) {
-	lp, err := net.Listen("tcp", ":0")
+	srv, err := net.Listen("tcp", ":0")
 	c.Assert(err, IsNil)
-	sess, err := NewSession(lp.Addr().String(), nil, 0, "wah", debuglog)
-	lp.Close()
+	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
+	srv.Close()
 	c.Assert(err, IsNil)
 	err = sess.Dial()
 	c.Check(sess.Connection, IsNil)
