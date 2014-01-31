@@ -263,18 +263,19 @@ var _ = Suite(&msgSuite{})
 
 func (s *msgSuite) SetUpTest(c *C) {
 	var err error
-	s.sess, err = NewSession("", nil, 0, "wah", debuglog)
+	s.sess, err = NewSession("", nil, time.Millisecond, "wah", debuglog)
 	c.Assert(err, IsNil)
-	s.sess.Connection = &testConn{Name: "TestRun* (small r)"}
+	s.sess.Connection = &testConn{Name: "TestHandle*"}
 	s.errCh = make(chan error, 1)
 	s.upCh = make(chan interface{}, 5)
 	s.downCh = make(chan interface{}, 5)
 	s.sess.proto = &testProtocol{up: s.upCh, down: s.downCh}
+	// make the message channel buffered
+	s.sess.MsgCh = make(chan *Notification, 5)
 }
 
 func (s *msgSuite) TestHandlePingWorks(c *C) {
 	s.upCh <- nil // no error
-	s.sess.ExchangeTimeout = time.Millisecond
 	c.Check(s.sess.handlePing(), IsNil)
 	c.Assert(len(s.downCh), Equals, 2)
 	c.Check(<-s.downCh, Equals, "deadline 1ms")
@@ -287,6 +288,64 @@ func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
 
 	c.Check(s.sess.handlePing(), Equals, failure)
 	c.Assert(len(s.downCh), Equals, 2)
-	c.Check(<-s.downCh, Equals, "deadline 0")
+	c.Check(<-s.downCh, Equals, "deadline 1ms")
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
+}
+
+/****************************************************************
+  handleBroadcast() tests
+****************************************************************/
+
+func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
+	msg := serverMsg{"broadcast",
+		protocol.BroadcastMsg{
+			Type:     "broadcast",
+			AppId:    "--ignored--",
+			ChanId:   "0",
+			TopLevel: 2,
+			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+		}, protocol.NotificationsMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, Equals, nil)
+	c.Assert(len(s.sess.MsgCh), Equals, 1)
+	c.Check(<-s.sess.MsgCh, Equals, &Notification{})
+	// and finally, the session keeps track of the levels
+	c.Check(s.sess.Levels.GetAll(), DeepEquals, map[string]int64{"0": 2})
+}
+
+func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
+	msg := serverMsg{"broadcast",
+		protocol.BroadcastMsg{
+			Type:     "broadcast",
+			AppId:    "APP",
+			ChanId:   "0",
+			TopLevel: 2,
+			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+		}, protocol.NotificationsMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	failure := errors.New("ACK ACK ACK")
+	s.upCh <- failure
+	c.Assert(<-s.errCh, Equals, failure)
+}
+
+func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
+	msg := serverMsg{"broadcast",
+		protocol.BroadcastMsg{
+			Type:     "broadcast",
+			AppId:    "APP",
+			ChanId:   "something awful",
+			TopLevel: 2,
+			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+		}, protocol.NotificationsMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, IsNil)
+	c.Check(len(s.sess.MsgCh), Equals, 0)
 }
