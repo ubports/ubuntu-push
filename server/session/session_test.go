@@ -415,19 +415,19 @@ func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	exchanges := make(chan broker.Exchange, 1)
-	exchanges <- &testExchange{finSleep: 3 * time.Millisecond}
+	exchanges <- &testExchange{finSleep: 6 * time.Millisecond}
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg10msPingInterval5msExchangeTout)
 	}()
-	c.Check(takeNext(down), Equals, "deadline 2ms")
+	c.Check(takeNext(down), Equals, "deadline 5ms")
 	c.Check(takeNext(down), DeepEquals, testMsg{Type: "msg"})
 	up <- nil // no write error
 	up <- testMsg{Type: "ack"}
 	tack := time.Now() // next ping interval starts around here
-	c.Check(takeNext(down), Equals, "deadline 2ms")
+	c.Check(takeNext(down), Equals, "deadline 5ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
-	c.Check(time.Since(tack) < (3+5)*time.Millisecond, Equals, true)
+	c.Check(time.Since(tack) < (6+10+1)*time.Millisecond, Equals, true)
 	up <- nil // no write error
 	up <- io.EOF
 	err := <-errCh
