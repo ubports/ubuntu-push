@@ -470,9 +470,9 @@ func (c *rememberDeadlineConn) SetWriteDeadline(t time.Time) error {
 	return c.Conn.SetDeadline(t)
 }
 
-var cfg5msPingInterval = &testSessionConfig{
-	pingInterval:    5 * time.Millisecond,
-	exchangeTimeout: 5 * time.Millisecond,
+var cfg50msPingInterval = &testSessionConfig{
+	pingInterval:    50 * time.Millisecond,
+	exchangeTimeout: 10 * time.Millisecond,
 }
 
 var nopLogger = logger.NewSimpleLogger(ioutil.Discard, "error")
@@ -486,7 +486,7 @@ func (s *sessionSuite) TestSessionWire(c *C) {
 	remSrv := &rememberDeadlineConn{srv, make([]string, 0, 2)}
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(remSrv, brkr, cfg5msPingInterval, track)
+		errCh <- Session(remSrv, brkr, cfg50msPingInterval, track)
 	}()
 	io.WriteString(cli, "\x00")
 	io.WriteString(cli, "\x00\x20{\"T\":\"connect\",\"DeviceId\":\"DEV\"}")
@@ -494,7 +494,7 @@ func (s *sessionSuite) TestSessionWire(c *C) {
 	downStream := bufio.NewReader(cli)
 	msg, err := downStream.ReadBytes(byte('}'))
 	c.Check(err, IsNil)
-	c.Check(msg, DeepEquals, []byte("\x00\x2f{\"T\":\"connack\",\"Params\":{\"PingInterval\":\"5ms\"}"))
+	c.Check(msg, DeepEquals, []byte("\x00\x30{\"T\":\"connack\",\"Params\":{\"PingInterval\":\"50ms\"}"))
 	// eat the last }
 	rbr, err := downStream.ReadByte()
 	c.Check(err, IsNil)
@@ -538,7 +538,7 @@ func (s *sessionSuite) TestSessionWireWrongVersion(c *C) {
 	defer lst.Close()
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(srv, brkr, cfg5msPingInterval, track)
+		errCh <- Session(srv, brkr, cfg50msPingInterval, track)
 	}()
 	io.WriteString(cli, "\x10")
 	err := <-errCh
@@ -557,7 +557,7 @@ func (s *sessionSuite) TestSessionWireEarlyClose(c *C) {
 	defer lst.Close()
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(srv, brkr, cfg5msPingInterval, track)
+		errCh <- Session(srv, brkr, cfg50msPingInterval, track)
 	}()
 	cli.Close()
 	err := <-errCh
@@ -575,7 +575,7 @@ func (s *sessionSuite) TestSessionWireEarlyClose2(c *C) {
 	defer lst.Close()
 	brkr := newTestBroker()
 	go func() {
-		errCh <- Session(srv, brkr, cfg5msPingInterval, track)
+		errCh <- Session(srv, brkr, cfg50msPingInterval, track)
 	}()
 	io.WriteString(cli, "\x00")
 	io.WriteString(cli, "\x00")
