@@ -116,21 +116,20 @@ func (sess *ClientSession) checkRunnable() error {
 
 // handle "ping" messages
 func (sess *ClientSession) handlePing() error {
-	err := sess.Connection.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	sess.proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
 	if err == nil {
-		err = sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
-		sess.Log.Debugf("Ping.")
+		sess.Log.Debugf("ping.")
+	} else {
+		sess.Log.Errorf("unable to pong: %s", err)
 	}
 	return err
 }
 
 // handle "broadcast" messages
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
-	err := sess.Connection.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-	if err != nil {
-		return err
-	}
-	err = sess.proto.WriteMessage(protocol.PingPongMsg{Type: "ack"})
+	sess.proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "ack"})
 	if err != nil {
 		return err
 	}
@@ -141,7 +140,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
 		sess.MsgCh <- &Notification{}
 	} else {
-		sess.Log.Debugf("What is this weird channel, %s?", bcast.ChanId)
+		sess.Log.Debugf("what is this weird channel, %s?", bcast.ChanId)
 	}
 	return nil
 }

@@ -196,8 +196,8 @@ func (s *ConnSuite) TestRun(c *C) {
 		uint32(networkmanager.Disconnected),
 	)
 
-	testingbus.WatchTicker = make(chan bool)
-	defer func() { testingbus.WatchTicker = nil }()
+	watchTicker := make(chan bool)
+	testingbus.SetWatchTicker(endp, watchTicker)
 
 	out := make(chan bool)
 	dt := time.Second / 10
@@ -219,7 +219,7 @@ func (s *ConnSuite) TestRun(c *C) {
 
 	for i, expected := range expecteds {
 		for j := 0; j < expected.n; j++ {
-			testingbus.WatchTicker <- true
+			watchTicker <- true
 		}
 		timer.Reset(dt)
 		select {

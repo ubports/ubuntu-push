@@ -81,6 +81,7 @@ func (tc *testConn) SetDeadline(t time.Time) error {
 		return errors.New("deadliner on fire")
 	}
 }
+
 func (tc *testConn) SetReadDeadline(t time.Time) error  { panic("SetReadDeadline not implemented.") }
 func (tc *testConn) SetWriteDeadline(t time.Time) error { panic("SetWriteDeadline not implemented.") }
 func (tc *testConn) Read(buf []byte) (n int, err error) { panic("Read not implemented.") }
@@ -105,7 +106,9 @@ func takeNext(ch <-chan interface{}) interface{} {
 }
 
 func (c *testProtocol) SetDeadline(t time.Time) {
-	panic("SetDeadline not implemented.")
+	deadAfter := t.Sub(time.Now())
+	deadAfter = (deadAfter + time.Millisecond/2) / time.Millisecond * time.Millisecond
+	c.down <- fmt.Sprintf("deadline %v", deadAfter)
 }
 
 func (c *testProtocol) ReadMessage(dest interface{}) error {
@@ -294,11 +297,9 @@ func (s *msgSuite) SetUpTest(c *C) {
 func (s *msgSuite) TestHandlePingWorks(c *C) {
 	s.upCh <- nil // no error
 	c.Check(s.sess.handlePing(), IsNil)
-	c.Check(len(s.downCh), Equals, 1)
+	c.Assert(len(s.downCh), Equals, 2)
+	c.Check(<-s.downCh, Equals, "deadline 1ms")
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
-	ds := s.sess.Connection.(*testConn).Deadlines
-	c.Check(ds, HasLen, 1)
-	c.Check(int((ds[0]-time.Millisecond))/10000, Equals, 0)
 }
 
 func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
@@ -306,13 +307,9 @@ func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
 	s.upCh <- failure
 
 	c.Check(s.sess.handlePing(), Equals, failure)
-	c.Check(len(s.downCh), Equals, 1)
+	c.Assert(len(s.downCh), Equals, 2)
+	c.Check(<-s.downCh, Equals, "deadline 1ms")
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
-}
-
-func (s *msgSuite) TestHandlePingAbortsOnDeadlineError(c *C) {
-	s.sess.Connection.(*testConn).DeadlineCondition = condition.Work(false)
-	c.Check(s.sess.handlePing(), NotNil)
 }
 
 /****************************************************************
@@ -329,15 +326,12 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
 	c.Assert(len(s.sess.MsgCh), Equals, 1)
 	c.Check(<-s.sess.MsgCh, Equals, &Notification{})
-	// check the deadline was set
-	ds := s.sess.Connection.(*testConn).Deadlines
-	c.Check(ds, HasLen, 1)
-	c.Check(int((ds[0]-time.Millisecond))/10000, Equals, 0)
 	// and finally, the session keeps track of the levels
 	c.Check(s.sess.Levels.GetAll(), DeepEquals, map[string]int64{"0": 2})
 }
@@ -352,6 +346,7 @@ func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	failure := errors.New("ACK ACK ACK")
 	s.upCh <- failure
@@ -368,23 +363,11 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, IsNil)
 	c.Check(len(s.sess.MsgCh), Equals, 0)
-}
-
-func (s *msgSuite) TestHandleBroadcastAbortsOnDeadlineError(c *C) {
-	msg := serverMsg{"broadcast",
-		protocol.BroadcastMsg{
-			Type:     "broadcast",
-			AppId:    "APP",
-			ChanId:   "0",
-			TopLevel: 2,
-			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-		}, protocol.NotificationsMsg{}}
-	s.sess.Connection.(*testConn).DeadlineCondition = condition.Work(false)
-	c.Check(s.sess.handleBroadcast(&msg), NotNil)
 }
 
 /****************************************************************
@@ -412,6 +395,7 @@ func (s *runSuite) TestRunReadError(c *C) {
 
 func (s *runSuite) TestRunPing(c *C) {
 	s.upCh <- protocol.PingPongMsg{Type: "ping"}
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
 	failure := errors.New("pong")
 	s.upCh <- failure
@@ -421,6 +405,7 @@ func (s *runSuite) TestRunPing(c *C) {
 func (s *runSuite) TestRunLoopsDaLoop(c *C) {
 	for i := 1; i < 10; i++ {
 		s.upCh <- protocol.PingPongMsg{Type: "ping"}
+		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 		c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
 		s.upCh <- nil
 	}
@@ -438,6 +423,7 @@ func (s *runSuite) TestRunBroadcast(c *C) {
 		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 	}
 	s.upCh <- b
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	failure := errors.New("ack")
 	s.upCh <- failure
