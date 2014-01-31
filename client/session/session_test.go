@@ -73,15 +73,7 @@ func (tc *testConn) Close() error {
 	}
 }
 
-func (tc *testConn) SetDeadline(t time.Time) error {
-	tc.Deadlines = append(tc.Deadlines, t.Sub(time.Now()))
-	if tc.DeadlineCondition == nil || tc.DeadlineCondition.OK() {
-		return nil
-	} else {
-		return errors.New("deadliner on fire")
-	}
-}
-
+func (tc *testConn) SetDeadline(t time.Time) error      { panic("SetDeadline not implemented.") }
 func (tc *testConn) SetReadDeadline(t time.Time) error  { panic("SetReadDeadline not implemented.") }
 func (tc *testConn) SetWriteDeadline(t time.Time) error { panic("SetWriteDeadline not implemented.") }
 func (tc *testConn) Read(buf []byte) (n int, err error) { panic("Read not implemented.") }
@@ -396,6 +388,7 @@ func (s *runSuite) TestRunReadError(c *C) {
 func (s *runSuite) TestRunPing(c *C) {
 	s.upCh <- protocol.PingPongMsg{Type: "ping"}
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
 	failure := errors.New("pong")
 	s.upCh <- failure
@@ -405,6 +398,7 @@ func (s *runSuite) TestRunPing(c *C) {
 func (s *runSuite) TestRunLoopsDaLoop(c *C) {
 	for i := 1; i < 10; i++ {
 		s.upCh <- protocol.PingPongMsg{Type: "ping"}
+		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 		c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
 		s.upCh <- nil
@@ -424,7 +418,8 @@ func (s *runSuite) TestRunBroadcast(c *C) {
 	}
 	s.upCh <- b
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
-	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{})
 	failure := errors.New("ack")
 	s.upCh <- failure
 	c.Check(<-s.errCh, Equals, failure)

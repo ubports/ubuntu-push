@@ -149,10 +149,9 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 func (sess *ClientSession) run() error {
 	var err error
 	var recv serverMsg
-	conn := sess.Connection
 	for {
 		deadAfter := sess.pingInterval + sess.ExchangeTimeout
-		conn.SetDeadline(time.Now().Add(deadAfter))
+		sess.proto.SetDeadline(time.Now().Add(deadAfter))
 		err = sess.proto.ReadMessage(&recv)
 		if err != nil {
 			return err
