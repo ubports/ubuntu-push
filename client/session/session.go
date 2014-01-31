@@ -129,7 +129,7 @@ func (sess *ClientSession) handlePing() error {
 // handle "broadcast" messages
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	sess.proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "ack"})
+	err := sess.proto.WriteMessage(protocol.AckMsg{})
 	if err != nil {
 		return err
 	}
