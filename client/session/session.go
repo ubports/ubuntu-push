@@ -14,6 +14,8 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// The client/session package handles the minutiae of interacting with
+// the Ubuntu Push Notifications server.
 package session
 
 import (
@@ -73,7 +75,7 @@ func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 		cp := x509.NewCertPool()
 		ok := cp.AppendCertsFromPEM(pem)
 		if !ok {
-			return nil, errors.New("dial: could not parse certificate")
+			return nil, errors.New("could not parse certificate")
 		}
 		sess.TLS.RootCAs = cp
 	}
@@ -105,10 +107,10 @@ func (sess *ClientSession) Close() error {
 // call this to ensure the session is sane to run
 func (sess *ClientSession) checkRunnable() error {
 	if sess.Connection == nil {
-		return errors.New("Can't run disconnected.")
+		return errors.New("can't run disconnected.")
 	}
 	if sess.Protocolator == nil {
-		return errors.New("Can't run without a protocol constructor.")
+		return errors.New("can't run without a protocol constructor.")
 	}
 	return nil
 }
