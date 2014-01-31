@@ -308,8 +308,7 @@ func (s *msgSuite) SetUpTest(c *C) {
 func (s *msgSuite) TestHandlePingWorks(c *C) {
 	s.upCh <- nil // no error
 	c.Check(s.sess.handlePing(), IsNil)
-	c.Assert(len(s.downCh), Equals, 2)
-	c.Check(<-s.downCh, Equals, "deadline 1ms")
+	c.Assert(len(s.downCh), Equals, 1)
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
 }
 
@@ -318,8 +317,7 @@ func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
 	s.upCh <- failure
 
 	c.Check(s.sess.handlePing(), Equals, failure)
-	c.Assert(len(s.downCh), Equals, 2)
-	c.Check(<-s.downCh, Equals, "deadline 1ms")
+	c.Assert(len(s.downCh), Equals, 1)
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
 }
 
@@ -337,7 +335,6 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
-	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
@@ -357,7 +354,6 @@ func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
-	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	failure := errors.New("ACK ACK ACK")
 	s.upCh <- failure
@@ -374,7 +370,6 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
-	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, IsNil)
@@ -405,9 +400,8 @@ func (s *runSuite) TestRunReadError(c *C) {
 }
 
 func (s *runSuite) TestRunPing(c *C) {
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	s.upCh <- protocol.PingPongMsg{Type: "ping"}
-	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
-	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
 	failure := errors.New("pong")
 	s.upCh <- failure
@@ -416,9 +410,8 @@ func (s *runSuite) TestRunPing(c *C) {
 
 func (s *runSuite) TestRunLoopsDaLoop(c *C) {
 	for i := 1; i < 10; i++ {
+		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 		s.upCh <- protocol.PingPongMsg{Type: "ping"}
-		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
-		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 		c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
 		s.upCh <- nil
 	}
@@ -435,9 +428,8 @@ func (s *runSuite) TestRunBroadcast(c *C) {
 		TopLevel: 2,
 		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 	}
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	s.upCh <- b
-	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
-	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	failure := errors.New("ack")
 	s.upCh <- failure
