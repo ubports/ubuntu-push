@@ -19,6 +19,7 @@ package session
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/logger"
@@ -72,14 +73,7 @@ func (tc *testConn) Close() error {
 	}
 }
 
-func (tc *testConn) SetDeadline(t time.Time) error {
-	tc.Deadlines = append(tc.Deadlines, t.Sub(time.Now()))
-	if tc.DeadlineCondition == nil || tc.DeadlineCondition.OK() {
-		return nil
-	} else {
-		return errors.New("deadliner on fire")
-	}
-}
+func (tc *testConn) SetDeadline(t time.Time) error      { panic("SetDeadline not implemented.") }
 func (tc *testConn) SetReadDeadline(t time.Time) error  { panic("SetReadDeadline not implemented.") }
 func (tc *testConn) SetWriteDeadline(t time.Time) error { panic("SetWriteDeadline not implemented.") }
 func (tc *testConn) Read(buf []byte) (n int, err error) { panic("Read not implemented.") }
@@ -104,7 +98,9 @@ func takeNext(ch <-chan interface{}) interface{} {
 }
 
 func (c *testProtocol) SetDeadline(t time.Time) {
-	panic("SetDeadline not implemented.")
+	deadAfter := t.Sub(time.Now())
+	deadAfter = (deadAfter + time.Millisecond/2) / time.Millisecond * time.Millisecond
+	c.down <- fmt.Sprintf("deadline %v", deadAfter)
 }
 
 func (c *testProtocol) ReadMessage(dest interface{}) error {
@@ -280,11 +276,9 @@ func (s *msgSuite) TestHandlePingWorks(c *C) {
 	s.upCh <- nil // no error
 	s.sess.ExchangeTimeout = time.Millisecond
 	c.Check(s.sess.handlePing(), IsNil)
-	c.Check(len(s.downCh), Equals, 1)
+	c.Check(len(s.downCh), Equals, 2)
+	c.Check(<-s.downCh, Equals, "deadline 1ms")
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
-	ds := s.sess.Connection.(*testConn).Deadlines
-	c.Check(ds, HasLen, 1)
-	c.Check(int((ds[0]-time.Millisecond))/10000, Equals, 0)
 }
 
 func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
@@ -292,11 +286,7 @@ func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
 	s.upCh <- failure
 
 	c.Check(s.sess.handlePing(), Equals, failure)
-	c.Check(len(s.downCh), Equals, 1)
+	c.Check(len(s.downCh), Equals, 2)
+	c.Check(<-s.downCh, Equals, "deadline 0")
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
-}
-
-func (s *msgSuite) TestHandlePingAbortsOnDeadlineError(c *C) {
-	s.sess.Connection.(*testConn).DeadlineCondition = condition.Work(false)
-	c.Check(s.sess.handlePing(), NotNil)
 }
