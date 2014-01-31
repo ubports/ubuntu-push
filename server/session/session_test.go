@@ -216,13 +216,14 @@ var cfg5msPingInterval2msExchangeTout = &testSessionConfig{
 }
 
 func (s *sessionSuite) TestSessionLoop(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	sess := &testing.TestBrokerSession{}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
@@ -237,13 +238,14 @@ func (s *sessionSuite) TestSessionLoop(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopWriteError(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	sess := &testing.TestBrokerSession{}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), FitsTypeOf, protocol.PingPongMsg{})
@@ -253,13 +255,14 @@ func (s *sessionSuite) TestSessionLoopWriteError(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopMismatch(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	sess := &testing.TestBrokerSession{}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
@@ -314,6 +317,7 @@ func (exchg *testExchange) Acked(sess broker.BrokerSession, done bool) error {
 }
 
 func (s *sessionSuite) TestSessionLoopExchange(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -322,7 +326,7 @@ func (s *sessionSuite) TestSessionLoopExchange(c *C) {
 	exchanges <- &testExchange{}
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), DeepEquals, testMsg{Type: "msg"})
@@ -337,6 +341,7 @@ func (s *sessionSuite) TestSessionLoopExchange(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopExchangeSplit(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -346,7 +351,7 @@ func (s *sessionSuite) TestSessionLoopExchangeSplit(c *C) {
 	exchanges <- exchange
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), DeepEquals, testMsg{Type: "msg", Part: 1, nParts: 2})
@@ -367,6 +372,7 @@ func (s *sessionSuite) TestSessionLoopExchangeSplit(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopExchangePrepareError(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -376,13 +382,14 @@ func (s *sessionSuite) TestSessionLoopExchangePrepareError(c *C) {
 	exchanges <- &testExchange{prepErr: prepErr}
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	err := <-errCh
 	c.Check(err, Equals, prepErr)
 }
 
 func (s *sessionSuite) TestSessionLoopExchangeAckedError(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -392,7 +399,7 @@ func (s *sessionSuite) TestSessionLoopExchangeAckedError(c *C) {
 	exchanges <- &testExchange{finErr: finErr}
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), DeepEquals, testMsg{Type: "msg"})
@@ -403,6 +410,7 @@ func (s *sessionSuite) TestSessionLoopExchangeAckedError(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopExchangeWriteError(c *C) {
+	nopTrack := NewTracker(nopLogger)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -411,7 +419,7 @@ func (s *sessionSuite) TestSessionLoopExchangeWriteError(c *C) {
 	exchanges <- &testExchange{}
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), FitsTypeOf, testMsg{})
@@ -420,7 +428,17 @@ func (s *sessionSuite) TestSessionLoopExchangeWriteError(c *C) {
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
 }
 
+type testTracker struct {
+	SessionTracker
+	interval chan interface{}
+}
+
+func (trk *testTracker) EffectivePingInterval(interval time.Duration) {
+	trk.interval <- interval
+}
+
 func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
+	track := &testTracker{NewTracker(nopLogger), make(chan interface{}, 1)}
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -429,16 +447,19 @@ func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
 	exchanges <- &testExchange{finSleep: 6 * time.Millisecond}
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg10msPingInterval5msExchangeTout)
+		errCh <- sessionLoop(tp, sess, cfg10msPingInterval5msExchangeTout, track)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 5ms")
 	c.Check(takeNext(down), DeepEquals, testMsg{Type: "msg"})
 	up <- nil // no write error
 	up <- testMsg{Type: "ack"}
-	tack := time.Now() // next ping interval starts around here
+	// next ping interval starts around here
+	interval := takeNext(track.interval).(time.Duration)
 	c.Check(takeNext(down), Equals, "deadline 5ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
-	c.Check(time.Since(tack) < (6+10+1)*time.Millisecond, Equals, true)
+	effectiveOfPing := float64(interval) / float64(10*time.Millisecond)
+	c.Check(effectiveOfPing > 0.95, Equals, true)
+	c.Check(effectiveOfPing < 1.15, Equals, true)
 	up <- nil // no write error
 	up <- io.EOF
 	err := <-errCh
