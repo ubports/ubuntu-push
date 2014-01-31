@@ -30,6 +30,8 @@ type SessionTracker interface {
 	Start(WithRemoteAddr)
 	// Session got registered with broker as sess BrokerSession.
 	Registered(sess broker.BrokerSession)
+	// Report effective elapsed ping interval.
+	EffectivePingInterval(time.Duration)
 	// Session got ended with error err (can be nil).
 	End(error) error
 }
@@ -58,6 +60,9 @@ func (trk *tracker) Start(conn WithRemoteAddr) {
 
 func (trk *tracker) Registered(sess broker.BrokerSession) {
 	trk.Infof("session(%x) registered %v", trk.sessionId, sess.DeviceIdentifier())
+}
+
+func (trk *tracker) EffectivePingInterval(time.Duration) {
 }
 
 func (trk *tracker) End(err error) error {
