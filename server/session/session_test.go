@@ -147,7 +147,6 @@ func (s *sessionSuite) TestSessionStart(c *C) {
 	}()
 	c.Check(takeNext(down), Equals, "deadline 5ms")
 	up <- protocol.ConnectMsg{Type: "connect", ClientVer: "1", DeviceId: "dev-1"}
-	c.Check(takeNext(down), Equals, "deadline 5ms")
 	c.Check(takeNext(down), Equals, protocol.ConnAckMsg{
 		Type:   "connack",
 		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
@@ -198,7 +197,6 @@ func (s *sessionSuite) TestSessionStartWriteError(c *C) {
 	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout)
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
 	// sanity
-	c.Check(takeNext(down), Matches, "deadline.*")
 	c.Check(takeNext(down), Matches, "deadline.*")
 	c.Check(takeNext(down), FitsTypeOf, protocol.ConnAckMsg{})
 }
@@ -520,7 +518,7 @@ func (s *sessionSuite) TestSessionWire(c *C) {
 	c.Check(len(brkr.registration), Equals, 0) // not yet unregistered
 	cli.Close()
 	err = <-errCh
-	c.Check(remSrv.deadlineKind, DeepEquals, []string{"read", "both", "both", "both"})
+	c.Check(remSrv.deadlineKind, DeepEquals, []string{"read", "both", "both"})
 	c.Check(err, Equals, io.EOF)
 	c.Check(takeNext(brkr.registration), Equals, "unregister DEV")
 	// tracking
