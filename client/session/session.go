@@ -140,7 +140,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
 		sess.MsgCh <- &Notification{}
 	} else {
-		sess.Log.Debugf("what is this weird channel, %s?", bcast.ChanId)
+		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)
 	}
 	return nil
 }
@@ -182,6 +182,7 @@ func (sess *ClientSession) start() error {
 		return err
 	}
 	proto := sess.Protocolator(conn)
+	proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	err = proto.WriteMessage(protocol.ConnectMsg{
 		Type:     "connect",
 		DeviceId: sess.DeviceId,

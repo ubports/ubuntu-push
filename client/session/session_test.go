@@ -74,7 +74,15 @@ func (tc *testConn) Close() error {
 	}
 }
 
-func (tc *testConn) SetDeadline(t time.Time) error      { panic("SetDeadline not implemented.") }
+func (tc *testConn) SetDeadline(t time.Time) error {
+	tc.Deadlines = append(tc.Deadlines, t.Sub(time.Now()))
+	if tc.DeadlineCondition == nil || tc.DeadlineCondition.OK() {
+		return nil
+	} else {
+		return errors.New("deadliner on fire")
+	}
+}
+
 func (tc *testConn) SetReadDeadline(t time.Time) error  { panic("SetReadDeadline not implemented.") }
 func (tc *testConn) SetWriteDeadline(t time.Time) error { panic("SetWriteDeadline not implemented.") }
 func (tc *testConn) Read(buf []byte) (n int, err error) { panic("Read not implemented.") }
@@ -473,6 +481,7 @@ func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
 		errCh <- sess.start()
 	}()
 
+	c.Check(takeNext(downCh), Equals, "deadline 0")
 	c.Check(takeNext(downCh), DeepEquals, protocol.ConnectMsg{
 		Type:     "connect",
 		DeviceId: sess.DeviceId,
@@ -498,8 +507,10 @@ func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
 		errCh <- sess.start()
 	}()
 
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
 	upCh <- io.EOF
 	err = <-errCh
 	c.Assert(err, NotNil)
@@ -520,8 +531,10 @@ func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
 		errCh <- sess.start()
 	}()
 
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
 	upCh <- protocol.ConnAckMsg{}
 	err = <-errCh
 	c.Assert(err, NotNil)
@@ -542,8 +555,10 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 		errCh <- sess.start()
 	}()
 
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
 	upCh <- protocol.ConnAckMsg{
 		Type:   "connack",
 		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
