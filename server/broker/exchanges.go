@@ -39,6 +39,9 @@ type BroadcastExchange struct {
 	NotificationPayloads []json.RawMessage
 }
 
+// check interface already here
+var _ Exchange = &BroadcastExchange{}
+
 func filterByLevel(clientLevel, topLevel int64, payloads []json.RawMessage) []json.RawMessage {
 	c := int64(len(payloads))
 	delta := topLevel - clientLevel
@@ -63,7 +66,7 @@ func (sbe *BroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.S
 }
 
 // Acked deals with an ACK for a BROADCAST.
-func (sbe *BroadcastExchange) Acked(sess BrokerSession) error {
+func (sbe *BroadcastExchange) Acked(sess BrokerSession, done bool) error {
 	scratchArea := sess.ExchangeScratchArea()
 	if scratchArea.ackMsg.Type != "ack" {
 		return &ErrAbort{"expected ACK message"}

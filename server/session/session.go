@@ -44,7 +44,6 @@ func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig
 	if connMsg.Type != "connect" {
 		return nil, &broker.ErrAbort{"expected CONNECT message"}
 	}
-	proto.SetDeadline(time.Now().Add(cfg.ExchangeTimeout()))
 	err = proto.WriteMessage(&protocol.ConnAckMsg{
 		Type:   "connack",
 		Params: protocol.ConnAckParams{PingInterval: cfg.PingInterval().String()},
@@ -70,14 +69,16 @@ func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeou
 }
 
 // sessionLoop manages the exchanges of the protocol session.
-func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg SessionConfig) error {
+func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg SessionConfig, track SessionTracker) error {
 	pingInterval := cfg.PingInterval()
 	exchangeTimeout := cfg.ExchangeTimeout()
 	pingTimer := time.NewTimer(pingInterval)
+	intervalStart := time.Now()
 	ch := sess.SessionChannel()
 	for {
 		select {
 		case <-pingTimer.C:
+			track.EffectivePingInterval(time.Since(intervalStart))
 			pingMsg := &protocol.PingPongMsg{"ping"}
 			var pongMsg protocol.PingPongMsg
 			err := exchange(proto, pingMsg, &pongMsg, exchangeTimeout)
@@ -103,8 +104,9 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 				}
 				if done {
 					pingTimer.Reset(pingInterval)
+					intervalStart = time.Now()
 				}
-				err = exchg.Acked(sess)
+				err = exchg.Acked(sess, done)
 				if err != nil {
 					return err
 				}
@@ -134,5 +136,5 @@ func Session(conn net.Conn, brkr broker.Broker, cfg SessionConfig, track Session
 	}
 	track.Registered(sess)
 	defer brkr.Unregister(sess)
-	return track.End(sessionLoop(proto, sess, cfg))
+	return track.End(sessionLoop(proto, sess, cfg, track))
 }
