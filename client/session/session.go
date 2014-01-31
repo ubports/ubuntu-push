@@ -87,15 +87,14 @@ func (sess *ClientSession) Dial() error {
 	return nil
 }
 
-func (sess *ClientSession) Close() error {
+func (sess *ClientSession) Close() {
 	if sess.Connection != nil {
-		err := sess.Connection.Close()
-		if err != nil {
-			return err
-		}
+		sess.Connection.Close()
+		// we ignore Close errors, on purpose (the thinking being that
+		// the connection isn't really usable, and you've got nothing
+		// you could do to recover at this stage).
 		sess.Connection = nil
 	}
-	return nil
 }
 
 // call this to ensure the session is sane to run
