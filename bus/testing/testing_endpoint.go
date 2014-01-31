@@ -27,9 +27,10 @@ import (
 )
 
 type testingEndpoint struct {
-	dialCond condition.Interface
-	callCond condition.Interface
-	retvals  [][]interface{}
+	dialCond    condition.Interface
+	callCond    condition.Interface
+	retvals     [][]interface{}
+	watchTicker chan bool
 }
 
 // Build a bus.Endpoint that calls OK() on its condition before returning
@@ -38,7 +39,7 @@ type testingEndpoint struct {
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them in turn, irrespective of whether Call has been called.
 func NewMultiValuedTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
-	return &testingEndpoint{dialCond, callCond, retvalses}
+	return &testingEndpoint{dialCond, callCond, retvalses, nil}
 }
 
 func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvals ...interface{}) bus.Endpoint {
@@ -46,12 +47,15 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 	for i, x := range retvals {
 		retvalses[i] = []interface{}{x}
 	}
-	return &testingEndpoint{dialCond, callCond, retvalses}
+	return &testingEndpoint{dialCond, callCond, retvalses, nil}
 }
 
-// if WatchTickeris not nil, it is used instead of the default timeout
-// to wait while sending values over WatchSignal
-var WatchTicker chan bool
+// If SetWatchTicker is called with a non-nil watchTicker, it is used
+// instead of the default timeout to wait while sending values over
+// WatchSignal. Set it to nil again to restore default behaviour.
+func SetWatchTicker(tc bus.Endpoint, watchTicker chan bool) {
+	tc.(*testingEndpoint).watchTicker = watchTicker
+}
 
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values
@@ -60,8 +64,8 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 		go func() {
 			for _, v := range tc.retvals {
 				f(v...)
-				if WatchTicker != nil {
-					<-WatchTicker
+				if tc.watchTicker != nil {
+					<-tc.watchTicker
 				} else {
 					time.Sleep(10 * time.Millisecond)
 				}
