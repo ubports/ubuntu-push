@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
@@ -138,7 +139,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
 		sess.MsgCh <- &Notification{}
 	} else {
-		sess.Log.Debugf("what is this weird channel, %s?", bcast.ChanId)
+		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)
 	}
 	return nil
 }
@@ -164,4 +165,45 @@ func (sess *ClientSession) run() error {
 			return err
 		}
 	}
+}
+
+// Call this when you've connected and are ready to start running.
+func (sess *ClientSession) start() error {
+	conn := sess.Connection
+	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	if err != nil {
+		return err
+	}
+	_, err = conn.Write(wireVersionBytes)
+	// The Writer docs: Write must return a non-nil error if it returns
+	// n < len(p). So, no need to check number of bytes written, hooray.
+	if err != nil {
+		return err
+	}
+	proto := sess.Protocolator(conn)
+	proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	err = proto.WriteMessage(protocol.ConnectMsg{
+		Type:     "connect",
+		DeviceId: sess.DeviceId,
+		Levels:   sess.Levels.GetAll(),
+	})
+	if err != nil {
+		return err
+	}
+	var connAck protocol.ConnAckMsg
+	err = proto.ReadMessage(&connAck)
+	if err != nil {
+		return err
+	}
+	if connAck.Type != "connack" {
+		return fmt.Errorf("expecting CONNACK, got %#v", connAck.Type)
+	}
+	pingInterval, err := time.ParseDuration(connAck.Params.PingInterval)
+	if err != nil {
+		return err
+	}
+	sess.proto = proto
+	sess.pingInterval = pingInterval
+	sess.Log.Debugf("Connected %v.", conn.LocalAddr())
+	return nil
 }
