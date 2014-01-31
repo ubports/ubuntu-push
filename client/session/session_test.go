@@ -319,7 +319,7 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
-	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{})
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
 	c.Assert(len(s.sess.MsgCh), Equals, 1)
@@ -339,7 +339,7 @@ func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
-	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{})
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	failure := errors.New("ACK ACK ACK")
 	s.upCh <- failure
 	c.Assert(<-s.errCh, Equals, failure)
@@ -356,7 +356,7 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
-	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{})
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, IsNil)
 	c.Check(len(s.sess.MsgCh), Equals, 0)
