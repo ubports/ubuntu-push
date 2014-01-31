@@ -27,11 +27,9 @@ import (
 )
 
 type testingEndpoint struct {
-	dialCond condition.Interface
-	callCond condition.Interface
-	retvals  [][]interface{}
-	// if WatchTickeris not nil, it is used instead of the default timeout
-	// to wait while sending values over WatchSignal
+	dialCond    condition.Interface
+	callCond    condition.Interface
+	retvals     [][]interface{}
 	watchTicker chan bool
 }
 
@@ -52,6 +50,9 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 	return &testingEndpoint{dialCond, callCond, retvalses, nil}
 }
 
+// If SetWatchTicker is called with a non-nil watchTicker, it is used
+// instead of the default timeout to wait while sending values over
+// WatchSignal. Set it to nil again to restore default behaviour.
 func SetWatchTicker(tc bus.Endpoint, watchTicker chan bool) {
 	tc.(*testingEndpoint).watchTicker = watchTicker
 }
