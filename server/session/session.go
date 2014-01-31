@@ -104,7 +104,7 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 				if done {
 					pingTimer.Reset(pingInterval)
 				}
-				err = exchg.Acked(sess)
+				err = exchg.Acked(sess, done)
 				if err != nil {
 					return err
 				}

@@ -294,14 +294,24 @@ type testExchange struct {
 	finErr   error
 	finSleep time.Duration
 	nParts   int
+	done     chan interface{}
 }
 
 func (exchg *testExchange) Prepare(sess broker.BrokerSession) (outMsg protocol.SplittableMsg, inMsg interface{}, err error) {
 	return &testMsg{Type: "msg", nParts: exchg.nParts}, &exchg.inMsg, exchg.prepErr
 }
 
-func (exchg *testExchange) Acked(sess broker.BrokerSession) error {
+func (exchg *testExchange) Acked(sess broker.BrokerSession, done bool) error {
 	time.Sleep(exchg.finSleep)
+	if exchg.done != nil {
+		var doneStr string
+		if done {
+			doneStr = "y"
+		} else {
+			doneStr = "n"
+		}
+		exchg.done <- doneStr
+	}
 	return exchg.finErr
 }
 
@@ -334,7 +344,8 @@ func (s *sessionSuite) TestSessionLoopExchangeSplit(c *C) {
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	exchanges := make(chan broker.Exchange, 1)
-	exchanges <- &testExchange{nParts: 2}
+	exchange := &testExchange{nParts: 2, done: make(chan interface{}, 2)}
+	exchanges <- exchange
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout)
@@ -343,10 +354,12 @@ func (s *sessionSuite) TestSessionLoopExchangeSplit(c *C) {
 	c.Check(takeNext(down), DeepEquals, testMsg{Type: "msg", Part: 1, nParts: 2})
 	up <- nil // no write error
 	up <- testMsg{Type: "ack"}
+	c.Check(takeNext(exchange.done), Equals, "n")
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), DeepEquals, testMsg{Type: "msg", Part: 2, nParts: 2})
 	up <- nil // no write error
 	up <- testMsg{Type: "ack"}
+	c.Check(takeNext(exchange.done), Equals, "y")
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
 	up <- nil // no write error
