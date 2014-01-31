@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
@@ -193,6 +194,9 @@ func (sess *ClientSession) start() error {
 	err = proto.ReadMessage(&connAck)
 	if err != nil {
 		return err
+	}
+	if connAck.Type != "connack" {
+		return fmt.Errorf("expecting CONNACK, got %#v", connAck.Type)
 	}
 	pingInterval, err := time.ParseDuration(connAck.Params.PingInterval)
 	if err != nil {

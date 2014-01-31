@@ -193,8 +193,7 @@ func (cs *clientSessionSuite) TestDialFailsWithNoAddress(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
 	err = sess.Dial()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*dial.*address.*")
+	c.Check(err, ErrorMatches, ".*dial.*address.*")
 }
 
 func (cs *clientSessionSuite) TestDialConnects(c *C) {
@@ -215,9 +214,7 @@ func (cs *clientSessionSuite) TestDialConnectFail(c *C) {
 	srv.Close()
 	c.Assert(err, IsNil)
 	err = sess.Dial()
-	c.Check(sess.Connection, IsNil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*connection refused")
+	c.Check(err, ErrorMatches, ".*connection refused")
 }
 
 /****************************************************************
@@ -527,10 +524,32 @@ func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
 	_, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	upCh <- nil // no error
-	upCh <- protocol.ConnAckMsg{}
+	upCh <- protocol.ConnAckMsg{Type: "connack"}
 	err = <-errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*invalid.*")
+	c.Check(err, ErrorMatches, ".*invalid.*")
+}
+
+func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartBadConnack"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
+	upCh <- protocol.ConnAckMsg{Type: "connnak"}
+	err = <-errCh
+	c.Check(err, ErrorMatches, ".*CONNACK.*")
 }
 
 func (cs *clientSessionSuite) TestStartWorks(c *C) {
