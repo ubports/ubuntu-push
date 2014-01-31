@@ -129,7 +129,7 @@ func (sess *ClientSession) handlePing() error {
 // handle "broadcast" messages
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	sess.proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-	err := sess.proto.WriteMessage(protocol.AckMsg{})
+	err := sess.proto.WriteMessage(protocol.AckMsg{"ack"})
 	if err != nil {
 		return err
 	}
@@ -149,10 +149,9 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 func (sess *ClientSession) run() error {
 	var err error
 	var recv serverMsg
-	conn := sess.Connection
 	for {
 		deadAfter := sess.pingInterval + sess.ExchangeTimeout
-		conn.SetDeadline(time.Now().Add(deadAfter))
+		sess.proto.SetDeadline(time.Now().Add(deadAfter))
 		err = sess.proto.ReadMessage(&recv)
 		if err != nil {
 			return err
