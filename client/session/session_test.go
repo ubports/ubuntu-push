@@ -276,7 +276,7 @@ func (s *msgSuite) TestHandlePingWorks(c *C) {
 	s.upCh <- nil // no error
 	s.sess.ExchangeTimeout = time.Millisecond
 	c.Check(s.sess.handlePing(), IsNil)
-	c.Check(len(s.downCh), Equals, 2)
+	c.Assert(len(s.downCh), Equals, 2)
 	c.Check(<-s.downCh, Equals, "deadline 1ms")
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
 }
@@ -286,7 +286,7 @@ func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
 	s.upCh <- failure
 
 	c.Check(s.sess.handlePing(), Equals, failure)
-	c.Check(len(s.downCh), Equals, 2)
+	c.Assert(len(s.downCh), Equals, 2)
 	c.Check(<-s.downCh, Equals, "deadline 0")
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
 }
