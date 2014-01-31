@@ -288,7 +288,7 @@ func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
 
 	c.Check(s.sess.handlePing(), Equals, failure)
 	c.Assert(len(s.downCh), Equals, 2)
-	c.Check(<-s.downCh, Equals, "deadline 0")
+	c.Check(<-s.downCh, Equals, "deadline 1ms")
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
 }
 
@@ -306,15 +306,12 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
 	c.Assert(len(s.sess.MsgCh), Equals, 1)
 	c.Check(<-s.sess.MsgCh, Equals, &Notification{})
-	// check the deadline was set
-	ds := s.sess.Connection.(*testConn).Deadlines
-	c.Check(ds, HasLen, 1)
-	c.Check(int((ds[0]-time.Millisecond))/10000, Equals, 0)
 	// and finally, the session keeps track of the levels
 	c.Check(s.sess.Levels.GetAll(), DeepEquals, map[string]int64{"0": 2})
 }
@@ -329,6 +326,7 @@ func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	failure := errors.New("ACK ACK ACK")
 	s.upCh <- failure
@@ -345,21 +343,9 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, IsNil)
 	c.Check(len(s.sess.MsgCh), Equals, 0)
-}
-
-func (s *msgSuite) TestHandleBroadcastAbortsOnDeadlineError(c *C) {
-	msg := serverMsg{"broadcast",
-		protocol.BroadcastMsg{
-			Type:     "broadcast",
-			AppId:    "APP",
-			ChanId:   "0",
-			TopLevel: 2,
-			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-		}, protocol.NotificationsMsg{}}
-	s.sess.Connection.(*testConn).DeadlineCondition = condition.Work(false)
-	c.Check(s.sess.handleBroadcast(&msg), NotNil)
 }
