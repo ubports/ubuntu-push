@@ -117,7 +117,7 @@ func (cs *clientSessionSuite) TestDialFailsWithNoAddress(c *C) {
 }
 
 func (cs *clientSessionSuite) TestDialConnects(c *C) {
-	srv, err := net.Listen("tcp", ":0")
+	srv, err := net.Listen("tcp", "localhost:0")
 	c.Assert(err, IsNil)
 	defer srv.Close()
 	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
@@ -128,7 +128,7 @@ func (cs *clientSessionSuite) TestDialConnects(c *C) {
 }
 
 func (cs *clientSessionSuite) TestDialConnectFail(c *C) {
-	srv, err := net.Listen("tcp", ":0")
+	srv, err := net.Listen("tcp", "localhost:0")
 	c.Assert(err, IsNil)
 	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
 	srv.Close()
@@ -147,8 +147,7 @@ func (cs *clientSessionSuite) TestClose(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestClose"}
-	err = sess.Close()
-	c.Check(err, IsNil)
+	sess.Close()
 	c.Check(sess.Connection, IsNil)
 }
 
@@ -156,11 +155,9 @@ func (cs *clientSessionSuite) TestCloseTwice(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestCloseTwice"}
-	err = sess.Close()
-	c.Assert(err, IsNil)
+	sess.Close()
 	c.Check(sess.Connection, IsNil)
-	err = sess.Close()
-	c.Check(err, IsNil)
+	sess.Close()
 	c.Check(sess.Connection, IsNil)
 }
 
@@ -168,9 +165,8 @@ func (cs *clientSessionSuite) TestCloseFails(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestCloseFails", CloseCondition: condition.Work(false)}
-	err = sess.Close()
-	c.Check(err, NotNil)
-	c.Check(sess.Connection, NotNil) // so you can clean up, whatever it is
+	sess.Close()
+	c.Check(sess.Connection, IsNil) // nothing you can do to clean up anyway
 }
 
 /****************************************************************
