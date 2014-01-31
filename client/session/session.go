@@ -83,12 +83,12 @@ func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 	return sess, nil
 }
 
-// Dial connects to a server using the configuration in the ClientSession
-// and sets up the connection.
-func (sess *ClientSession) Dial() error {
+// connect to a server using the configuration in the ClientSession
+// and set up the connection.
+func (sess *ClientSession) connect() error {
 	conn, err := net.DialTimeout("tcp", sess.ServerAddr, sess.ExchangeTimeout)
 	if err != nil {
-		return err
+		return fmt.Errorf("connect: %s", err)
 	}
 	sess.Connection = tls.Client(conn, sess.TLS)
 	return nil
@@ -102,17 +102,6 @@ func (sess *ClientSession) Close() {
 		// you could do to recover at this stage).
 		sess.Connection = nil
 	}
-}
-
-// call this to ensure the session is sane to run
-func (sess *ClientSession) checkRunnable() error {
-	if sess.Connection == nil {
-		return errors.New("can't run disconnected.")
-	}
-	if sess.Protocolator == nil {
-		return errors.New("can't run without a protocol constructor.")
-	}
-	return nil
 }
 
 // handle "ping" messages
@@ -144,8 +133,8 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	return nil
 }
 
-// Run the session with the server, emits a stream of events.
-func (sess *ClientSession) run() error {
+// loop runs the session with the server, emits a stream of events.
+func (sess *ClientSession) loop() error {
 	var err error
 	var recv serverMsg
 	for {
@@ -167,7 +156,7 @@ func (sess *ClientSession) run() error {
 	}
 }
 
-// Call this when you've connected and are ready to start running.
+// Call this when you've connected and want to start looping.
 func (sess *ClientSession) start() error {
 	conn := sess.Connection
 	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))

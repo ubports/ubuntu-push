@@ -186,34 +186,34 @@ func (cs *clientSessionSuite) TestNewSessionBadPEMFileContentFails(c *C) {
 }
 
 /****************************************************************
-  Dial() tests
+  connect() tests
 ****************************************************************/
 
-func (cs *clientSessionSuite) TestDialFailsWithNoAddress(c *C) {
+func (cs *clientSessionSuite) TestConnectFailsWithNoAddress(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
-	err = sess.Dial()
-	c.Check(err, ErrorMatches, ".*dial.*address.*")
+	err = sess.connect()
+	c.Check(err, ErrorMatches, ".*connect.*address.*")
 }
 
-func (cs *clientSessionSuite) TestDialConnects(c *C) {
+func (cs *clientSessionSuite) TestConnectConnects(c *C) {
 	srv, err := net.Listen("tcp", "localhost:0")
 	c.Assert(err, IsNil)
 	defer srv.Close()
 	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
-	err = sess.Dial()
+	err = sess.connect()
 	c.Check(err, IsNil)
 	c.Check(sess.Connection, NotNil)
 }
 
-func (cs *clientSessionSuite) TestDialConnectFail(c *C) {
+func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
 	srv, err := net.Listen("tcp", "localhost:0")
 	c.Assert(err, IsNil)
 	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
 	srv.Close()
 	c.Assert(err, IsNil)
-	err = sess.Dial()
+	err = sess.connect()
 	c.Check(err, ErrorMatches, ".*connection refused")
 }
 
@@ -245,35 +245,6 @@ func (cs *clientSessionSuite) TestCloseFails(c *C) {
 	sess.Connection = &testConn{Name: "TestCloseFails", CloseCondition: condition.Work(false)}
 	sess.Close()
 	c.Check(sess.Connection, IsNil) // nothing you can do to clean up anyway
-}
-
-/****************************************************************
-  checkRunnable() tests
-****************************************************************/
-
-func (cs *clientSessionSuite) TestCheckRunnableFailsIfNoConnection(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
-	c.Assert(err, IsNil)
-	// no connection!
-	c.Check(sess.checkRunnable(), NotNil)
-}
-
-func (cs *clientSessionSuite) TestCheckRunnableFailsIfNoProtocolator(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
-	c.Assert(err, IsNil)
-	// set up the connection
-	sess.Connection = &testConn{}
-	// And stomp on the protocolator
-	sess.Protocolator = nil
-	c.Check(sess.checkRunnable(), NotNil)
-}
-
-func (cs *clientSessionSuite) TestCheckRunnable(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
-	c.Assert(err, IsNil)
-	// set up the connection
-	sess.Connection = &testConn{}
-	c.Check(sess.checkRunnable(), IsNil)
 }
 
 /****************************************************************
@@ -374,28 +345,28 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 }
 
 /****************************************************************
-  run() tests
+  loop() tests
 ****************************************************************/
 
-type runSuite msgSuite
+type loopSuite msgSuite
 
-var _ = Suite(&runSuite{})
+var _ = Suite(&loopSuite{})
 
-func (s *runSuite) SetUpTest(c *C) {
+func (s *loopSuite) SetUpTest(c *C) {
 	(*msgSuite)(s).SetUpTest(c)
-	s.sess.Connection.(*testConn).Name = "TestRun* (small r)"
+	s.sess.Connection.(*testConn).Name = "TestLoop*"
 	go func() {
-		s.errCh <- s.sess.run()
+		s.errCh <- s.sess.loop()
 	}()
 }
 
-func (s *runSuite) TestRunReadError(c *C) {
+func (s *loopSuite) TestLoopReadError(c *C) {
 	s.upCh <- errors.New("Read")
 	err := <-s.errCh
 	c.Check(err, ErrorMatches, "Read")
 }
 
-func (s *runSuite) TestRunPing(c *C) {
+func (s *loopSuite) TestLoopPing(c *C) {
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	s.upCh <- protocol.PingPongMsg{Type: "ping"}
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
@@ -404,7 +375,7 @@ func (s *runSuite) TestRunPing(c *C) {
 	c.Check(<-s.errCh, Equals, failure)
 }
 
-func (s *runSuite) TestRunLoopsDaLoop(c *C) {
+func (s *loopSuite) TestLoopLoopsDaLoop(c *C) {
 	for i := 1; i < 10; i++ {
 		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 		s.upCh <- protocol.PingPongMsg{Type: "ping"}
@@ -416,7 +387,7 @@ func (s *runSuite) TestRunLoopsDaLoop(c *C) {
 	c.Check(<-s.errCh, Equals, failure)
 }
 
-func (s *runSuite) TestRunBroadcast(c *C) {
+func (s *loopSuite) TestLoopBroadcast(c *C) {
 	b := &protocol.BroadcastMsg{
 		Type:     "broadcast",
 		AppId:    "--ignored--",
