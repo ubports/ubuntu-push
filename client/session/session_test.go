@@ -430,7 +430,7 @@ func (s *runSuite) TestRunBroadcast(c *C) {
 	s.upCh <- b
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
-	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{})
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	failure := errors.New("ack")
 	s.upCh <- failure
 	c.Check(<-s.errCh, Equals, failure)
