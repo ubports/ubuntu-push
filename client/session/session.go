@@ -116,7 +116,6 @@ func (sess *ClientSession) checkRunnable() error {
 
 // handle "ping" messages
 func (sess *ClientSession) handlePing() error {
-	sess.proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
 	if err == nil {
 		sess.Log.Debugf("ping.")
@@ -128,7 +127,6 @@ func (sess *ClientSession) handlePing() error {
 
 // handle "broadcast" messages
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
-	sess.proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	err := sess.proto.WriteMessage(protocol.AckMsg{"ack"})
 	if err != nil {
 		return err
@@ -143,4 +141,27 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		sess.Log.Debugf("what is this weird channel, %s?", bcast.ChanId)
 	}
 	return nil
+}
+
+// Run the session with the server, emits a stream of events.
+func (sess *ClientSession) run() error {
+	var err error
+	var recv serverMsg
+	for {
+		deadAfter := sess.pingInterval + sess.ExchangeTimeout
+		sess.proto.SetDeadline(time.Now().Add(deadAfter))
+		err = sess.proto.ReadMessage(&recv)
+		if err != nil {
+			return err
+		}
+		switch recv.Type {
+		case "ping":
+			err = sess.handlePing()
+		case "broadcast":
+			err = sess.handleBroadcast(&recv)
+		}
+		if err != nil {
+			return err
+		}
+	}
 }
