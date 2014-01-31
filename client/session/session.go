@@ -116,11 +116,9 @@ func (sess *ClientSession) checkRunnable() error {
 
 // handle "ping" messages
 func (sess *ClientSession) handlePing() error {
-	err := sess.Connection.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-	if err == nil {
-		err = sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
-		sess.Log.Debugf("Ping.")
-	}
+	sess.proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
+	sess.Log.Debugf("Ping.")
 	return err
 }
 
