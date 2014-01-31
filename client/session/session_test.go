@@ -392,8 +392,7 @@ func (s *runSuite) SetUpTest(c *C) {
 func (s *runSuite) TestRunReadError(c *C) {
 	s.upCh <- errors.New("Read")
 	err := <-s.errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "Read")
+	c.Check(err, ErrorMatches, "Read")
 }
 
 func (s *runSuite) TestRunPing(c *C) {
@@ -442,8 +441,7 @@ func (cs *clientSessionSuite) TestStartFailsIfSetDeadlineFails(c *C) {
 	sess.Connection = &testConn{Name: "TestStartFailsIfSetDeadlineFails",
 		DeadlineCondition: condition.Work(false)} // setdeadline will fail
 	err = sess.start()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*deadline.*")
+	c.Check(err, ErrorMatches, ".*deadline.*")
 }
 
 func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
@@ -452,8 +450,7 @@ func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
 	sess.Connection = &testConn{Name: "TestStartFailsIfWriteFails",
 		WriteCondition: condition.Work(false)} // write will fail
 	err = sess.start()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*write.*")
+	c.Check(err, ErrorMatches, ".*write.*")
 }
 
 func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
@@ -478,8 +475,7 @@ func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
 	})
 	upCh <- errors.New("Overflow error in /dev/null")
 	err = <-errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, "Overflow.*null")
+	c.Check(err, ErrorMatches, "Overflow.*null")
 }
 
 func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
@@ -502,8 +498,7 @@ func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
 	upCh <- nil // no error
 	upCh <- io.EOF
 	err = <-errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*EOF.*")
+	c.Check(err, ErrorMatches, ".*EOF.*")
 }
 
 func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
