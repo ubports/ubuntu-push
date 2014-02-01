@@ -17,6 +17,7 @@
 package session
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -591,5 +592,94 @@ func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 		func() error { return nil },
 		func() error { return failure })
 	c.Check(err, Equals, nil)
+	c.Check(<-sess.ErrCh, Equals, failure)
+}
+
+/****************************************************************
+  Dial() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestDialPanics(c *C) {
+	// one last unhappy test
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Protocolator = nil
+	c.Check(sess.Dial, PanicMatches, ".*protocol constructor.")
+}
+
+func (cs *clientSessionSuite) TestDialWorks(c *C) {
+	// happy path thoughts
+	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
+	c.Assert(err, IsNil)
+	tlsCfg := &tls.Config{
+		Certificates:           []tls.Certificate{cert},
+		SessionTicketsDisabled: true,
+	}
+
+	timeout := 100 * time.Millisecond
+	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
+	c.Assert(err, IsNil)
+	sess, err := NewSession(lst.Addr().String(), nil, timeout, "wah", debuglog)
+	c.Assert(err, IsNil)
+
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(net.Conn) protocol.Protocol { return proto }
+
+	go sess.Dial()
+
+	srv, err := lst.Accept()
+	c.Assert(err, IsNil)
+
+	// connect done
+	// now, start: 1. protocol version
+	v, err := protocol.ReadWireFormatVersion(srv, timeout)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, protocol.ProtocolWireVersion)
+
+	// 2. "connect" (but on the fake protcol above! woo)
+
+	c.Check(takeNext(downCh), Equals, "deadline 100ms")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
+	upCh <- protocol.ConnAckMsg{
+		Type:   "connack",
+		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
+	}
+	// start is now done.
+
+	// 3. "loop"
+
+	// ping works,
+	c.Check(takeNext(downCh), Equals, "deadline 110ms")
+	upCh <- protocol.PingPongMsg{Type: "ping"}
+	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "pong"})
+	upCh <- nil
+
+	// and broadcasts...
+	b := &protocol.BroadcastMsg{
+		Type:     "broadcast",
+		AppId:    "--ignored--",
+		ChanId:   "0",
+		TopLevel: 2,
+		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+	}
+	c.Check(takeNext(downCh), Equals, "deadline 110ms")
+	upCh <- b
+	c.Check(takeNext(downCh), Equals, protocol.AckMsg{"ack"})
+	upCh <- nil
+	// ...get bubbled up,
+	c.Check(<-sess.MsgCh, NotNil)
+	// and their TopLevel remembered
+	c.Check(sess.Levels.GetAll(), DeepEquals, map[string]int64{"0": 2})
+
+	// and ping still work even after that.
+	c.Check(takeNext(downCh), Equals, "deadline 110ms")
+	upCh <- protocol.PingPongMsg{Type: "ping"}
+	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "pong"})
+	failure := errors.New("pongs")
+	upCh <- failure
 	c.Check(<-sess.ErrCh, Equals, failure)
 }

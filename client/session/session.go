@@ -211,3 +211,16 @@ func (sess *ClientSession) run(connect, start, loop func() error) error {
 	}
 	return err
 }
+
+// Dial takes the session from newly created (or newly disconnected)
+// to running the main loop.
+func (sess *ClientSession) Dial() error {
+	if sess.Protocolator == nil {
+		// a missing protocolator means you've willfully overridden
+		// it; returning an error here would prompt AutoRedial to just
+		// keep on trying.
+		panic("can't Reset() without a protocol constructor.")
+	}
+	sess.Close()
+	return sess.run(sess.connect, sess.start, sess.loop)
+}
