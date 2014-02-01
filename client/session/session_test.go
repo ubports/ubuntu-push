@@ -555,14 +555,14 @@ func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
 	failure := errors.New("TestRunBailsIfConnectFails")
-	ch := make(chan bool, 1)
+	has_closed := false
 	err = sess.run(
-		func() { ch <- true },
+		func() { has_closed = true },
 		func() error { return failure },
 		nil,
 		nil)
 	c.Check(err, Equals, failure)
-	c.Check(len(ch), Equals, 1)
+	c.Check(has_closed, Equals, true)
 }
 
 func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
@@ -584,19 +584,22 @@ func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 	// biggie if this stops being true)
 	c.Check(sess.ErrCh, IsNil)
 	c.Check(sess.MsgCh, IsNil)
-	failure := errors.New("TestRunRunsEvenIfLoopFails")
+	failureCh := make(chan error) // must be unbuffered
 	notf := &Notification{}
 	err = sess.run(
 		func() {},
 		func() error { return nil },
 		func() error { return nil },
-		func() error { sess.MsgCh <- notf; return failure })
+		func() error { sess.MsgCh <- notf; return <-failureCh })
 	c.Check(err, Equals, nil)
 	// if run doesn't error it sets up the channels
 	c.Assert(sess.ErrCh, NotNil)
 	c.Assert(sess.MsgCh, NotNil)
 	c.Check(<-sess.MsgCh, Equals, notf)
+	failure := errors.New("TestRunRunsEvenIfLoopFails")
+	failureCh <- failure
 	c.Check(<-sess.ErrCh, Equals, failure)
+	// so now you know it was running in a goroutine :)
 }
 
 /****************************************************************

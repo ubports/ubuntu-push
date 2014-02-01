@@ -199,15 +199,15 @@ func (sess *ClientSession) start() error {
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *ClientSession) run(close_ func(), connect, start, loop func() error) error {
-	close_()
-	err := connect()
+func (sess *ClientSession) run(closer func(), connecter, starter, looper func() error) error {
+	closer()
+	err := connecter()
 	if err == nil {
-		err = start()
+		err = starter()
 		if err == nil {
 			sess.ErrCh = make(chan error, 1)
 			sess.MsgCh = make(chan *Notification)
-			go func() { sess.ErrCh <- loop() }()
+			go func() { sess.ErrCh <- looper() }()
 		}
 	}
 	return err
