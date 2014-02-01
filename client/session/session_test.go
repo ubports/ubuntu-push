@@ -528,6 +528,11 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	proto := &testProtocol{up: upCh, down: downCh}
 	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
 
+	// just to make a point: NewSession hasn't set ErrCh & MsgCh (no
+	// biggie if this stops being true)
+	c.Check(sess.ErrCh, IsNil)
+	c.Check(sess.MsgCh, IsNil)
+
 	go func() {
 		errCh <- sess.start()
 	}()
@@ -542,5 +547,10 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	}
 	// start is now done.
 	err = <-errCh
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
+
+	// one of the things start does is set up the channels
+	c.Check(sess.ErrCh, NotNil)
+	c.Check(sess.MsgCh, NotNil)
+	// maybe check cap(ch), if they need to be buffered (not clear yet)
 }

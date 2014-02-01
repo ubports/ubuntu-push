@@ -158,6 +158,8 @@ func (sess *ClientSession) loop() error {
 
 // Call this when you've connected and want to start looping.
 func (sess *ClientSession) start() error {
+	sess.ErrCh = make(chan error, 1)
+	sess.MsgCh = make(chan *Notification)
 	conn := sess.Connection
 	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	if err != nil {
