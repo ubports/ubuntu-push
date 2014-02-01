@@ -20,6 +20,7 @@ package condition
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 type Interface interface {
@@ -62,9 +63,12 @@ func Fail2Work(left int32) *fail2Work {
 
 type fail2Work struct {
 	Left int32
+	lock sync.RWMutex
 }
 
 func (c *fail2Work) OK() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	if c.Left > 0 {
 		c.Left--
 		return false
@@ -74,6 +78,8 @@ func (c *fail2Work) OK() bool {
 }
 
 func (c *fail2Work) String() string {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	if c.Left > 0 {
 		return fmt.Sprintf("Still Broken, %d to go.", c.Left)
 	} else {
@@ -104,10 +110,13 @@ func (i _iter) String() string { return fmt.Sprintf("%d of %s", i.remaining, i.c
 
 type chain struct {
 	subs []*_iter
+	lock sync.RWMutex
 }
 
 func (c *chain) OK() bool {
 	var sub *_iter
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	for _, sub = range c.subs {
 		if sub.remaining > 0 {
 			sub.remaining--
@@ -119,6 +128,8 @@ func (c *chain) OK() bool {
 
 func (c *chain) String() string {
 	ss := make([]string, len(c.subs))
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	for i, sub := range c.subs {
 		ss[i] = sub.String()
 	}
@@ -138,5 +149,5 @@ func Chain(args ...interface{}) *chain {
 		args = args[2:]
 	}
 
-	return &chain{iters}
+	return &chain{subs: iters}
 }

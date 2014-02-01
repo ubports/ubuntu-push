@@ -196,3 +196,31 @@ func (sess *ClientSession) start() error {
 	sess.Log.Debugf("Connected %v.", conn.LocalAddr())
 	return nil
 }
+
+// run calls connect, and if it works it calls start, and if it works
+// it runs loop in a goroutine, and ships its return value over ErrCh.
+func (sess *ClientSession) run(closer func(), connecter, starter, looper func() error) error {
+	closer()
+	err := connecter()
+	if err == nil {
+		err = starter()
+		if err == nil {
+			sess.ErrCh = make(chan error, 1)
+			sess.MsgCh = make(chan *Notification)
+			go func() { sess.ErrCh <- looper() }()
+		}
+	}
+	return err
+}
+
+// Dial takes the session from newly created (or newly disconnected)
+// to running the main loop.
+func (sess *ClientSession) Dial() error {
+	if sess.Protocolator == nil {
+		// a missing protocolator means you've willfully overridden
+		// it; returning an error here would prompt AutoRedial to just
+		// keep on trying.
+		panic("can't Dial() without a protocol constructor.")
+	}
+	return sess.run(sess.Close, sess.connect, sess.start, sess.loop)
+}
