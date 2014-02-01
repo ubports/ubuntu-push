@@ -198,3 +198,16 @@ func (sess *ClientSession) start() error {
 	sess.Log.Debugf("Connected %v.", conn.LocalAddr())
 	return nil
 }
+
+// run calls connect, and if it works it calls start, and if it works
+// it runs loop in a goroutine, and ships its return value over ErrCh.
+func (sess *ClientSession) run(connect, start, loop func() error) error {
+	err := connect()
+	if err == nil {
+		err = start()
+		if err == nil {
+			go func() { sess.ErrCh <- loop() }()
+		}
+	}
+	return err
+}

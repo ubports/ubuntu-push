@@ -554,3 +554,42 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	c.Check(sess.MsgCh, NotNil)
 	// maybe check cap(ch), if they need to be buffered (not clear yet)
 }
+
+/****************************************************************
+  run() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	failure := errors.New("TestRunBailsIfConnectFails")
+	err = sess.run(
+		func() error { return failure },
+		nil,
+		nil)
+	c.Check(err, Equals, failure)
+}
+
+func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	failure := errors.New("TestRunBailsIfStartFails")
+	err = sess.run(
+		func() error { return nil },
+		func() error { return failure },
+		nil)
+	c.Check(err, Equals, failure)
+}
+
+func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess.ErrCh = make(chan error, 1)
+	c.Assert(err, IsNil)
+	failure := errors.New("TestRunRunsEvenIfLoopFails")
+	err = sess.run(
+		func() error { return nil },
+		func() error { return nil },
+		func() error { return failure })
+	c.Check(err, Equals, nil)
+	c.Check(<-sess.ErrCh, Equals, failure)
+}
