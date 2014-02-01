@@ -40,7 +40,8 @@ func TestSession(t *testing.T) { TestingT(t) }
 type clientSessionSuite struct{}
 
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
-var debuglog = logger.NewSimpleLogger(os.Stderr, "debug")
+var noisylog = logger.NewSimpleLogger(os.Stderr, "debug")
+var debuglog = nullog
 var _ = Suite(&clientSessionSuite{})
 
 //
@@ -529,11 +530,6 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	proto := &testProtocol{up: upCh, down: downCh}
 	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
 
-	// just to make a point: NewSession hasn't set ErrCh & MsgCh (no
-	// biggie if this stops being true)
-	c.Check(sess.ErrCh, IsNil)
-	c.Check(sess.MsgCh, IsNil)
-
 	go func() {
 		errCh <- sess.start()
 	}()
@@ -549,11 +545,6 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	// start is now done.
 	err = <-errCh
 	c.Check(err, IsNil)
-
-	// one of the things start does is set up the channels
-	c.Check(sess.ErrCh, NotNil)
-	c.Check(sess.MsgCh, NotNil)
-	// maybe check cap(ch), if they need to be buffered (not clear yet)
 }
 
 /****************************************************************
@@ -564,11 +555,14 @@ func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
 	failure := errors.New("TestRunBailsIfConnectFails")
+	ch := make(chan bool, 1)
 	err = sess.run(
+		func() { ch <- true },
 		func() error { return failure },
 		nil,
 		nil)
 	c.Check(err, Equals, failure)
+	c.Check(len(ch), Equals, 1)
 }
 
 func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
@@ -576,6 +570,7 @@ func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
 	c.Assert(err, IsNil)
 	failure := errors.New("TestRunBailsIfStartFails")
 	err = sess.run(
+		func() {},
 		func() error { return nil },
 		func() error { return failure },
 		nil)
@@ -584,14 +579,23 @@ func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
 
 func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", debuglog)
-	sess.ErrCh = make(chan error, 1)
 	c.Assert(err, IsNil)
+	// just to make a point: until here we haven't set ErrCh & MsgCh (no
+	// biggie if this stops being true)
+	c.Check(sess.ErrCh, IsNil)
+	c.Check(sess.MsgCh, IsNil)
 	failure := errors.New("TestRunRunsEvenIfLoopFails")
+	notf := &Notification{}
 	err = sess.run(
+		func() {},
 		func() error { return nil },
 		func() error { return nil },
-		func() error { return failure })
+		func() error { sess.MsgCh <- notf; return failure })
 	c.Check(err, Equals, nil)
+	// if run doesn't error it sets up the channels
+	c.Assert(sess.ErrCh, NotNil)
+	c.Assert(sess.MsgCh, NotNil)
+	c.Check(<-sess.MsgCh, Equals, notf)
 	c.Check(<-sess.ErrCh, Equals, failure)
 }
 
@@ -621,6 +625,10 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	c.Assert(err, IsNil)
 	sess, err := NewSession(lst.Addr().String(), nil, timeout, "wah", debuglog)
 	c.Assert(err, IsNil)
+	tconn := &testConn{CloseCondition: condition.Fail2Work(10)}
+	sess.Connection = tconn
+	// just to be sure:
+	c.Check(tconn.CloseCondition.String(), Matches, ".* 10 to go.")
 
 	upCh := make(chan interface{}, 5)
 	downCh := make(chan interface{}, 5)
@@ -633,6 +641,12 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	c.Assert(err, IsNil)
 
 	// connect done
+
+	// Dial should have had the session's old connection (tconn) closed
+	// before connecting a new one; if that was done, tconn's condition
+	// ticked forward:
+	c.Check(tconn.CloseCondition.String(), Matches, ".* 9 to go.")
+
 	// now, start: 1. protocol version
 	v, err := protocol.ReadWireFormatVersion(srv, timeout)
 	c.Assert(err, IsNil)

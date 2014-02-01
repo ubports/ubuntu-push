@@ -158,8 +158,6 @@ func (sess *ClientSession) loop() error {
 
 // Call this when you've connected and want to start looping.
 func (sess *ClientSession) start() error {
-	sess.ErrCh = make(chan error, 1)
-	sess.MsgCh = make(chan *Notification)
 	conn := sess.Connection
 	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	if err != nil {
@@ -201,11 +199,14 @@ func (sess *ClientSession) start() error {
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *ClientSession) run(connect, start, loop func() error) error {
+func (sess *ClientSession) run(close_ func(), connect, start, loop func() error) error {
+	close_()
 	err := connect()
 	if err == nil {
 		err = start()
 		if err == nil {
+			sess.ErrCh = make(chan error, 1)
+			sess.MsgCh = make(chan *Notification)
 			go func() { sess.ErrCh <- loop() }()
 		}
 	}
@@ -219,8 +220,7 @@ func (sess *ClientSession) Dial() error {
 		// a missing protocolator means you've willfully overridden
 		// it; returning an error here would prompt AutoRedial to just
 		// keep on trying.
-		panic("can't Reset() without a protocol constructor.")
+		panic("can't Dial() without a protocol constructor.")
 	}
-	sess.Close()
-	return sess.run(sess.connect, sess.start, sess.loop)
+	return sess.run(sess.Close, sess.connect, sess.start, sess.loop)
 }
