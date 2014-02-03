@@ -38,4 +38,7 @@ var _ = Suite(&commonBrokerSuite{testsuite.CommonBrokerSuite{
 	func(b broker.Broker, deviceId string) broker.BrokerSession {
 		return b.(*SimpleBroker).registry[deviceId]
 	},
+	func(exchg broker.Exchange) *broker.BroadcastExchange {
+		return exchg.(*broker.BroadcastExchange)
+	},
 }})
