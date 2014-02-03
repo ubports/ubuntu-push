@@ -150,7 +150,7 @@ func (client *Client) handleConnState(connState bool) {
 			client.session.Dial,
 			util.Jitter}
 		client.sessionRetrierStopper = ar.Stop
-		go ar.AutoRetry()
+		go ar.Retry()
 	} else {
 		// disconnected
 		if client.sessionRetrierStopper != nil {
