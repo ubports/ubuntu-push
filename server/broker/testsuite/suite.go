@@ -44,8 +44,10 @@ type FullBroker interface {
 type CommonBrokerSuite struct {
 	// Build the broker for testing.
 	MakeBroker func(store.PendingStore, broker.BrokerConfig, logger.Logger) FullBroker
-	// Let has get to a session under the broker.
+	// Let us get to a session under the broker.
 	RevealSession func(broker.Broker, string) broker.BrokerSession
+	// Let us get to a broker.BroadcastExchange from an Exchange.
+	RevealBroadcastExchange func(broker.Exchange) *broker.BroadcastExchange
 }
 
 var testBrokerConfig = &testing.TestBrokerConfig{10, 5}
@@ -154,7 +156,7 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg1 := <-sess1.SessionChannel():
-		c.Check(exchg1, DeepEquals, &broker.BroadcastExchange{
+		c.Check(s.RevealBroadcastExchange(exchg1), DeepEquals, &broker.BroadcastExchange{
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
@@ -164,7 +166,7 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg2 := <-sess2.SessionChannel():
-		c.Check(exchg2, DeepEquals, &broker.BroadcastExchange{
+		c.Check(s.RevealBroadcastExchange(exchg2), DeepEquals, &broker.BroadcastExchange{
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
