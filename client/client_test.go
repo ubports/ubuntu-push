@@ -22,6 +22,8 @@ import (
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
+	"launchpad.net/ubuntu-push/whoopsie/identifier"
+	idtesting "launchpad.net/ubuntu-push/whoopsie/identifier/testing"
 	"os"
 	"path/filepath"
 	"testing"
@@ -83,6 +85,14 @@ func (cs *clientSuite) TestReadSetsUpPEM(c *C) {
 	c.Assert(cli.pem, NotNil)
 }
 
+func (cs *clientSuite) TestReadSetsUpIdder(c *C) {
+	cli := new(Client)
+	c.Check(cli.idder, IsNil)
+	err := cli.Configure(cs.configPath)
+	c.Assert(err, IsNil)
+	c.Assert(cli.idder, DeepEquals, identifier.New())
+}
+
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
 	cli := new(Client)
 	err := cli.Configure("/does/not/exist")
@@ -127,4 +137,23 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
 	cli := new(Client)
 	err := cli.Configure(cs.configPath)
 	c.Assert(err, NotNil)
+}
+
+/*****************************************************************
+    getDeviceId tests
+******************************************************************/
+
+func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
+	cli := new(Client)
+	cli.idder = identifier.New()
+	c.Check(cli.deviceId, Equals, "")
+	c.Check(cli.getDeviceId(), IsNil)
+	c.Check(cli.deviceId, HasLen, 128)
+}
+
+func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
+	cli := new(Client)
+	cli.idder = idtesting.Failing()
+	c.Check(cli.deviceId, Equals, "")
+	c.Check(cli.getDeviceId(), NotNil)
 }

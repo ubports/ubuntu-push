@@ -25,6 +25,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/whoopsie/identifier"
 	"os"
 )
 
@@ -38,9 +39,11 @@ type ClientConfig struct {
 }
 
 type Client struct {
-	config ClientConfig
-	log    logger.Logger
-	pem    []byte
+	config   ClientConfig
+	log      logger.Logger
+	pem      []byte
+	idder    identifier.Id
+	deviceId string
 }
 
 // Configure loads the configuration specified in configPath, and sets it up.
@@ -56,6 +59,9 @@ func (client *Client) Configure(configPath string) error {
 	// later, we'll be specifying logging options in the config file
 	client.log = logger.NewSimpleLogger(os.Stderr, "error")
 
+	// overridden for testing
+	client.idder = identifier.New()
+
 	if client.config.CertPEMFile != "" {
 		client.pem, err = ioutil.ReadFile(client.config.CertPEMFile)
 		if err != nil {
@@ -68,5 +74,15 @@ func (client *Client) Configure(configPath string) error {
 		}
 	}
 
+	return nil
+}
+
+// getDeviceId gets the whoopsie identifier for the device
+func (client *Client) getDeviceId() error {
+	err := client.idder.Generate()
+	if err != nil {
+		return err
+	}
+	client.deviceId = client.idder.String()
 	return nil
 }
