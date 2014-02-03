@@ -186,3 +186,10 @@ func (client *Client) handleNotification() error {
 	client.log.Debugf("got notification id %d", not_id)
 	return nil
 }
+
+// handleClick deals with the user clicking a notification
+func (client *Client) handleClick() error {
+	// it doesn't get much simpler...
+	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
+	return urld.DispatchURL("settings:///system/system-update")
+}

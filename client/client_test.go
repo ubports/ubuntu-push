@@ -356,3 +356,20 @@ func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 	cli.log = noisylog
 	c.Check(cli.handleNotification(), NotNil)
 }
+
+/*****************************************************************
+    handleClick tests
+******************************************************************/
+
+func (cs *clientSuite) TestHandleClick(c *C) {
+	cli := new(Client)
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), nil)
+	cli.urlDispatcherEndp = endp
+	cli.log = noisylog
+	c.Check(cli.handleClick(), IsNil)
+	// check we sent the notification
+	args := testibus.GetCallArgs(endp)
+	c.Assert(args, HasLen, 1)
+	c.Check(args[0].Member, Equals, "DispatchURL")
+	c.Check(args[0].Args, DeepEquals, []interface{}{"settings:///system/system-update"})
+}
