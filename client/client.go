@@ -27,6 +27,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
+	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
@@ -47,16 +48,19 @@ type ClientConfig struct {
 
 // Client is the Ubuntu Push Notifications client-side daemon.
 type Client struct {
-	config            ClientConfig
-	log               logger.Logger
-	pem               []byte
-	idder             identifier.Id
-	deviceId          string
-	notificationsEndp bus.Endpoint
-	urlDispatcherEndp bus.Endpoint
-	connectivityEndp  bus.Endpoint
-	connCh            chan bool
-	actionsCh         <-chan notifications.RawActionReply
+	config                ClientConfig
+	log                   logger.Logger
+	pem                   []byte
+	idder                 identifier.Id
+	deviceId              string
+	notificationsEndp     bus.Endpoint
+	urlDispatcherEndp     bus.Endpoint
+	connectivityEndp      bus.Endpoint
+	connCh                chan bool
+	connState             bool
+	actionsCh             <-chan notifications.RawActionReply
+	session               *session.ClientSession
+	sessionRetrierStopper chan bool
 }
 
 // Configure loads the configuration specified in configPath, and sets it up.
@@ -118,4 +122,42 @@ func (client *Client) takeTheBus() error {
 	actionsCh, err := notifications.Raw(client.notificationsEndp, client.log).WatchActions()
 	client.actionsCh = actionsCh
 	return err
+}
+
+// handleConnState deals with connectivity events
+func (client *Client) handleConnState(connState bool) {
+	if client.connState == connState {
+		// nothing to do!
+		return
+	}
+	client.connState = connState
+	if client.session == nil {
+		sess, err := session.NewSession(string(client.config.Addr), client.pem,
+			client.config.ExchangeTimeout.Duration, client.deviceId, client.log)
+		if err != nil {
+			panic("Don't know how to handle session creation failure.")
+		}
+		client.session = sess
+	}
+	if connState {
+		// connected
+		if client.sessionRetrierStopper != nil {
+			client.sessionRetrierStopper <- true
+			client.sessionRetrierStopper = nil
+		}
+		ar := &util.AutoRetrier{
+			make(chan bool, 1),
+			client.session.Dial,
+			util.Jitter}
+		client.sessionRetrierStopper = ar.Stop
+		go ar.AutoRetry()
+	} else {
+		// disconnected
+		if client.sessionRetrierStopper != nil {
+			client.sessionRetrierStopper <- true
+			client.sessionRetrierStopper = nil
+		} else {
+			client.session.Close()
+		}
+	}
 }
