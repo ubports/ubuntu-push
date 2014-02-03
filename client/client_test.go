@@ -140,6 +140,14 @@ func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 	c.Assert(cli.connectivityEndp, NotNil)
 }
 
+func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
+	cli := new(Client)
+	c.Check(cli.connCh, IsNil)
+	err := cli.Configure(cs.configPath)
+	c.Assert(err, IsNil)
+	c.Assert(cli.connCh, NotNil)
+}
+
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
 	cli := new(Client)
 	err := cli.Configure("/does/not/exist")

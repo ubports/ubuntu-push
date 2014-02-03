@@ -57,7 +57,7 @@ type AutoRetrier struct {
 
 // AutoRetry keeps on calling Dial until it stops returning an error.  It does
 // exponential backoff, adding the output of Jitter at each step back.
-func (ar *AutoRetrier) AutoRetry() uint32 {
+func (ar *AutoRetrier) Retry() uint32 {
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
 	var numTimeouts uint32 = uint32(len(Timeouts))
@@ -85,7 +85,7 @@ func (ar *AutoRetrier) AutoRetry() uint32 {
 // jitter'ed) backoff.
 func AutoRedial(dialer Dialer) uint32 {
 	ar := &AutoRetrier{quitRedialing, dialer.Dial, dialer.Jitter}
-	return ar.AutoRetry()
+	return ar.Retry()
 }
 
 func init() {
