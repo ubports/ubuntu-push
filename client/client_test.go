@@ -17,6 +17,7 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
@@ -328,4 +329,30 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli.handleConnState(false)
 	c.Check(cli.session.State, Equals, session.Disconnected)
 	c.Check(cli.sessionRetrierStopper, IsNil)
+}
+
+/*****************************************************************
+    handleNotification tests
+******************************************************************/
+
+func (cs *clientSuite) TestHandleNotification(c *C) {
+	buf := &bytes.Buffer{}
+	cli := new(Client)
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	cli.notificationsEndp = endp
+	cli.log = logger.NewSimpleLogger(buf, "debug")
+	c.Check(cli.handleNotification(), IsNil)
+	// check we sent the notification
+	args := testibus.GetCallArgs(endp)
+	c.Assert(args, HasLen, 1)
+	c.Check(args[0].Member, Equals, "Notify")
+	c.Check(buf.String(), Matches, `.* got notification id \d+\s*`)
+}
+
+func (cs *clientSuite) TestHandleNotificationFail(c *C) {
+	cli := new(Client)
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
+	cli.notificationsEndp = endp
+	cli.log = noisylog
+	c.Check(cli.handleNotification(), NotNil)
 }

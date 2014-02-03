@@ -22,6 +22,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
@@ -160,4 +161,28 @@ func (client *Client) handleConnState(connState bool) {
 			client.session.Close()
 		}
 	}
+}
+
+// handleNotification deals with receiving a notification
+func (client *Client) handleNotification() error {
+	action_id := "dummy_id"
+	a := []string{action_id, "Go get it!"} // action value not visible on the phone
+	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
+	nots := notifications.Raw(client.notificationsEndp, client.log)
+	not_id, err := nots.Notify(
+		"ubuntu-push-client",               // app name
+		uint32(0),                          // id
+		"update_manager_icon",              // icon
+		"There's an updated system image!", // summary
+		"You've got to get it! Now! Run!",  // body
+		a,              // actions
+		h,              // hints
+		int32(10*1000), // timeout (ms)
+	)
+	if err != nil {
+		client.log.Errorf("showing notification: %s", err)
+		return err
+	}
+	client.log.Debugf("got notification id %d", not_id)
+	return nil
 }
