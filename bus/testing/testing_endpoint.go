@@ -26,11 +26,17 @@ import (
 	"time"
 )
 
+type callArgs struct {
+	Member string
+	Args   []interface{}
+}
+
 type testingEndpoint struct {
 	dialCond    condition.Interface
 	callCond    condition.Interface
 	retvals     [][]interface{}
 	watchTicker chan bool
+	callArgs    []callArgs
 }
 
 // Build a bus.Endpoint that calls OK() on its condition before returning
@@ -39,7 +45,7 @@ type testingEndpoint struct {
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them in turn, irrespective of whether Call has been called.
 func NewMultiValuedTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
-	return &testingEndpoint{dialCond, callCond, retvalses, nil}
+	return &testingEndpoint{dialCond, callCond, retvalses, nil, nil}
 }
 
 func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvals ...interface{}) bus.Endpoint {
@@ -47,7 +53,7 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 	for i, x := range retvals {
 		retvalses[i] = []interface{}{x}
 	}
-	return &testingEndpoint{dialCond, callCond, retvalses, nil}
+	return &testingEndpoint{dialCond, callCond, retvalses, nil, nil}
 }
 
 // If SetWatchTicker is called with a non-nil watchTicker, it is used
@@ -55,6 +61,11 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 // WatchSignal. Set it to nil again to restore default behaviour.
 func SetWatchTicker(tc bus.Endpoint, watchTicker chan bool) {
 	tc.(*testingEndpoint).watchTicker = watchTicker
+}
+
+// GetCallArgs returns a list of the arguments for each Call() invocation.
+func GetCallArgs(tc bus.Endpoint) []callArgs {
+	return tc.(*testingEndpoint).callArgs
 }
 
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
@@ -81,6 +92,7 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 // See Endpoint's Call. This Call will check its condition to decide whether
 // to return an error, or the first of its return values
 func (tc *testingEndpoint) Call(member string, args ...interface{}) ([]interface{}, error) {
+	tc.callArgs = append(tc.callArgs, callArgs{member, args})
 	if tc.callCond.OK() {
 		if len(tc.retvals) == 0 {
 			panic("No return values provided!")
