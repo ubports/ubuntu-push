@@ -20,10 +20,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/bus/networkmanager"
+	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
+	"launchpad.net/ubuntu-push/testing/condition"
+	"launchpad.net/ubuntu-push/util"
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
 	idtesting "launchpad.net/ubuntu-push/whoopsie/identifier/testing"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,16 +38,41 @@ import (
 
 func TestClient(t *testing.T) { TestingT(t) }
 
+// takeNext takes a value from given channel with a 5s timeout
+func takeNextBool(ch <-chan bool) bool {
+	select {
+	case <-time.After(5 * time.Second):
+		panic("channel stuck: too long waiting")
+	case v := <-ch:
+		return v
+	}
+}
+
 type clientSuite struct {
+	timeouts   []time.Duration
 	configPath string
 }
 
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 var noisylog = logger.NewSimpleLogger(os.Stderr, "debug")
-var debuglog = nullog
 var _ = Suite(&clientSuite{})
 
+const (
+	staticText = "something ipsum dolor something"
+	staticHash = "6155f83b471583f47c99998a472a178f"
+)
+
+func mkHandler(text string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.(http.Flusher).Flush()
+		w.Write([]byte(text))
+		w.(http.Flusher).Flush()
+	}
+}
+
 func (cs *clientSuite) SetUpTest(c *C) {
+	cs.timeouts = util.Timeouts
+	util.Timeouts = []time.Duration{0}
 	dir := c.MkDir()
 	cs.configPath = filepath.Join(dir, "config")
 	cfg := fmt.Sprintf(`
@@ -55,6 +86,10 @@ func (cs *clientSuite) SetUpTest(c *C) {
     "recheck_timeout": "3h"
 }`, helpers.SourceRelative("../server/acceptance/config/testing.cert"))
 	ioutil.WriteFile(cs.configPath, []byte(cfg), 0600)
+}
+
+func (cs *clientSuite) TearDownTest(c *C) {
+	util.Timeouts = cs.timeouts
 }
 
 /*****************************************************************
@@ -91,6 +126,18 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	err := cli.Configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.idder, DeepEquals, identifier.New())
+}
+
+func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
+	cli := new(Client)
+	c.Check(cli.notificationsEndp, IsNil)
+	c.Check(cli.urlDispatcherEndp, IsNil)
+	c.Check(cli.connectivityEndp, IsNil)
+	err := cli.Configure(cs.configPath)
+	c.Assert(err, IsNil)
+	c.Assert(cli.notificationsEndp, NotNil)
+	c.Assert(cli.urlDispatcherEndp, NotNil)
+	c.Assert(cli.connectivityEndp, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
@@ -156,4 +203,66 @@ func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
 	cli.idder = idtesting.Failing()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), NotNil)
+}
+
+/*****************************************************************
+    takeTheBus tests
+******************************************************************/
+
+func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
+	// http server used for connectivity test
+	ts := httptest.NewServer(mkHandler(staticText))
+	defer ts.Close()
+
+	// testing endpoints
+	nCond := condition.Fail2Work(3)
+	nEndp := testibus.NewMultiValuedTestingEndpoint(nCond, condition.Work(true),
+		[]interface{}{uint32(1), "hello"})
+	uCond := condition.Fail2Work(5)
+	uEndp := testibus.NewTestingEndpoint(uCond, condition.Work(false))
+	cCond := condition.Fail2Work(7)
+	cEndp := testibus.NewTestingEndpoint(cCond, condition.Work(true),
+		uint32(networkmanager.ConnectedGlobal),
+	)
+	// ok, create the thing
+	cli := new(Client)
+	err := cli.Configure(cs.configPath)
+	c.Assert(err, IsNil)
+	// the user actions channel has not been set up
+	c.Check(cli.actionsCh, IsNil)
+
+	// and stomp on things for testing
+	cli.config.ConnectivityConfig.ConnectivityCheckURL = ts.URL
+	cli.config.ConnectivityConfig.ConnectivityCheckMD5 = staticHash
+	cli.notificationsEndp = nEndp
+	cli.urlDispatcherEndp = uEndp
+	cli.connectivityEndp = cEndp
+
+	c.Assert(cli.takeTheBus(), IsNil)
+	// the notifications and urldispatcher endpoints retried until connected
+	c.Check(nCond.OK(), Equals, true)
+	c.Check(uCond.OK(), Equals, true)
+	// the user actions channel has now been set up
+	c.Check(cli.actionsCh, NotNil)
+	c.Check(takeNextBool(cli.connCh), Equals, false)
+	c.Check(takeNextBool(cli.connCh), Equals, true)
+	// the connectivity endpoint retried until connected
+	c.Check(cCond.OK(), Equals, true)
+}
+
+// takeTheBus can, in fact, fail
+func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
+	cli := new(Client)
+	err := cli.Configure(cs.configPath)
+	c.Assert(err, IsNil)
+	// the user actions channel has not been set up
+	c.Check(cli.actionsCh, IsNil)
+
+	// and stomp on things for testing
+	cli.notificationsEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+
+	c.Check(cli.takeTheBus(), NotNil)
+	c.Check(cli.actionsCh, IsNil)
 }
