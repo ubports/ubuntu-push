@@ -1,0 +1,73 @@
+digraph g {
+    // both "neato" and "dot" produce reasonable & interesting outputs
+    graph [rankdir=LR size="20,15" overlap="scale" splines="true"]
+    node [fontname="Ubuntu Mono" fontsize=12 margin=0]
+    edge [fontname="Ubuntu Mono" fontsize=10 decorate=true]
+
+    // states
+    node []
+    "INIT"         [shape=doublecircle]
+    "Error"        [shape=doublecircle color="#990000"]
+    "Configured"
+    "Identified"
+    "SysBusOK"     [label="System\nBus\nGO"]
+    "Waiting4Conn" [label="Waiting\nfor\nConnectivity"]
+    "Connected"    [label="Network\nConnected"]
+    "SesBusOK"     [label="Session\nBus\nGO"]
+    "Running"
+    "Notified"
+    "Shown"        [label="Notification\nShown"]
+    "Clicked"
+
+    // auto-transitions
+    node [shape=triangle]
+    "read config"       [label="read\nconfig"]
+    "get system id"     [label="get\nsystem\nid"]
+    "conn sys bus"      [label="connect\nsystem\nbus"]
+    "watch conn"        [label="watch\nconnectivity"]
+    "conn ses bus"      [label="connect\nsession\nbus"]
+    "start session"     [label="start\npush\nsession"]
+    "show notification" [label="show\nnotification"]
+    "dispatch URL"      [label="dispatch\nURL"]
+
+    //
+    "INIT" -> "read config"
+    "Configured" -> "get system id"
+    "Identified" -> { "conn sys bus" "conn ses bus" }
+    "SysBusOK" -> "watch conn"
+    "Connected" -> "start session"
+    "Notified" -> "show notification"
+    "Clicked" -> "dispatch URL" -> "SesBusOK"
+    "Shown" -> "SesBusOK" // XXX state:state auto-transition?
+
+    // events
+    edge [color="#000099"]
+    "Waiting4Conn" -> "Connected" [label="connected"]
+    "Waiting4Conn" -> "Waiting4Conn" [label="disconnected"]
+    "SesBusOK" -> "Notified" [label="notification\narrived"]
+    "SesBusOK" -> "Clicked"  [label="user\nclicked\nnotification"]
+
+    { "Connected" "Running" } -> "Waiting4Conn" [constraint=false label="disconnected"]
+    "Running" -> "SesBusOK" [constraint=false style=dotted label=notification]
+    "Shown" -> "Running"  [constraint=false style=dotted label=shown]
+
+    // OKs
+    edge [color="#009900" label="OK"]
+    "read config" -> "Configured"
+    "get system id" -> "Identified"
+    "conn sys bus" -> "SysBusOK"
+    "conn ses bus" -> "SesBusOK"
+    "watch conn" -> "Waiting4Conn"
+    "start session" -> "Running"
+    "show notification" -> "Shown"
+
+    //err
+    edge [color="#990000" label="err" constraint=false]
+    { "read config"
+      "get system id"
+    } -> Error
+    "conn ses bus" -> "conn ses bus"
+    "conn sys bus" -> "conn sys bus"
+    "watch conn" -> "conn sys bus"
+    "start session" -> "start session"
+}
