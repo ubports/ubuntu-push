@@ -67,7 +67,7 @@ func (cs *clientSuite) TestConfigureWorks(c *C) {
 	c.Check(cli.config.ExchangeTimeout.Duration, Equals, time.Duration(10*time.Millisecond))
 }
 
-func (cs *clientSuite) TestReadSetsUpLog(c *C) {
+func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
 	cli := new(Client)
 	c.Check(cli.log, IsNil)
 	err := cli.Configure(cs.configPath)
@@ -75,7 +75,7 @@ func (cs *clientSuite) TestReadSetsUpLog(c *C) {
 	c.Assert(cli.log, NotNil)
 }
 
-func (cs *clientSuite) TestReadSetsUpPEM(c *C) {
+func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
 	cli := new(Client)
 	c.Check(cli.pem, IsNil)
 	err := cli.Configure(cs.configPath)
