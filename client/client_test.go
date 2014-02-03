@@ -85,7 +85,7 @@ func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
 	c.Assert(cli.pem, NotNil)
 }
 
-func (cs *clientSuite) TestReadSetsUpIdder(c *C) {
+func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	cli := new(Client)
 	c.Check(cli.idder, IsNil)
 	err := cli.Configure(cs.configPath)
