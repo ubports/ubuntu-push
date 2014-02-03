@@ -22,28 +22,41 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
+	"launchpad.net/ubuntu-push/bus/networkmanager"
+	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/util"
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
 	"os"
 )
 
+// ClientConfig holds the client configuration
 type ClientConfig struct {
-	connectivity.ConnectivityConfig
-	// session configuration
+	connectivity.ConnectivityConfig // q.v.
+	// A reasonably large maximum ping time
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
-	// server connection config
-	Addr        config.ConfigHostPort
+	// The server to connect to
+	Addr config.ConfigHostPort
+	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
 }
 
+// Client is the Ubuntu Push Notifications client-side daemon.
 type Client struct {
-	config   ClientConfig
-	log      logger.Logger
-	pem      []byte
-	idder    identifier.Id
-	deviceId string
+	config            ClientConfig
+	log               logger.Logger
+	pem               []byte
+	idder             identifier.Id
+	deviceId          string
+	notificationsEndp bus.Endpoint
+	urlDispatcherEndp bus.Endpoint
+	connectivityEndp  bus.Endpoint
+	connCh            chan bool
+	actionsCh         <-chan notifications.RawActionReply
 }
 
 // Configure loads the configuration specified in configPath, and sets it up.
@@ -61,6 +74,11 @@ func (client *Client) Configure(configPath string) error {
 
 	// overridden for testing
 	client.idder = identifier.New()
+	client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
+	client.urlDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, client.log)
+	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
+
+	client.connCh = make(chan bool)
 
 	if client.config.CertPEMFile != "" {
 		client.pem, err = ioutil.ReadFile(client.config.CertPEMFile)
@@ -85,4 +103,19 @@ func (client *Client) getDeviceId() error {
 	}
 	client.deviceId = client.idder.String()
 	return nil
+}
+
+// takeTheBus starts the connection(s) to D-Bus and sets up associated event channels
+func (client *Client) takeTheBus() error {
+	go connectivity.ConnectedState(client.connectivityEndp,
+		client.config.ConnectivityConfig, client.log, client.connCh)
+	iniCh := make(chan uint32)
+	go func() { iniCh <- util.AutoRedial(client.notificationsEndp) }()
+	go func() { iniCh <- util.AutoRedial(client.urlDispatcherEndp) }()
+	<-iniCh
+	<-iniCh
+
+	actionsCh, err := notifications.Raw(client.notificationsEndp, client.log).WatchActions()
+	client.actionsCh = actionsCh
+	return err
 }

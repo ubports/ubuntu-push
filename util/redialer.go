@@ -49,14 +49,20 @@ func Jitter(spread time.Duration) time.Duration {
 	return time.Duration(rand.Int63n(2*n+1) - n)
 }
 
-// AutoRetry keeps on calling f() until it stops returning an error.
-// It does exponential backoff, adding jitter at each step back.
-func AutoRetry(f func() error, jitter func(time.Duration) time.Duration) uint32 {
+type AutoRetrier struct {
+	Stop   chan bool
+	Dial   func() error
+	Jitter func(time.Duration) time.Duration
+}
+
+// AutoRetry keeps on calling Dial until it stops returning an error.  It does
+// exponential backoff, adding the output of Jitter at each step back.
+func (ar *AutoRetrier) Retry() uint32 {
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
 	var numTimeouts uint32 = uint32(len(Timeouts))
 	for {
-		if f() == nil {
+		if ar.Dial() == nil {
 			return dialAttempts + 1
 		}
 		if dialAttempts < numTimeouts {
@@ -64,10 +70,10 @@ func AutoRetry(f func() error, jitter func(time.Duration) time.Duration) uint32 
 		} else {
 			timeout = Timeouts[numTimeouts-1]
 		}
-		timeout += jitter(timeout)
+		timeout += ar.Jitter(timeout)
 		dialAttempts++
 		select {
-		case <-quitRedialing:
+		case <-ar.Stop:
 			return dialAttempts
 		case <-time.NewTimer(timeout).C:
 		}
@@ -78,7 +84,8 @@ func AutoRetry(f func() error, jitter func(time.Duration) time.Duration) uint32 
 // stops returning an error. It does exponential (optionally
 // jitter'ed) backoff.
 func AutoRedial(dialer Dialer) uint32 {
-	return AutoRetry(dialer.Dial, dialer.Jitter)
+	ar := &AutoRetrier{quitRedialing, dialer.Dial, dialer.Jitter}
+	return ar.Retry()
 }
 
 func init() {
