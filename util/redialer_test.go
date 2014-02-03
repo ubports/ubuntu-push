@@ -76,7 +76,8 @@ func (s *RedialerSuite) TestAutoRetry(c *C) {
 		}
 	}
 	jitter := func(time.Duration) time.Duration { return 0 }
-	c.Check(AutoRetry(f, jitter), Equals, uint32(6))
+	ar := &AutoRetrier{nil, f, jitter}
+	c.Check(ar.AutoRetry(), Equals, uint32(6))
 }
 
 func (s *RedialerSuite) TestJitter(c *C) {
