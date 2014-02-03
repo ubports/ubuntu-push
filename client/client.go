@@ -58,7 +58,7 @@ type Client struct {
 	urlDispatcherEndp     bus.Endpoint
 	connectivityEndp      bus.Endpoint
 	connCh                chan bool
-	connState             bool
+	hasConnectivity       bool
 	actionsCh             <-chan notifications.RawActionReply
 	session               *session.ClientSession
 	sessionRetrierStopper chan bool
@@ -125,41 +125,60 @@ func (client *Client) takeTheBus() error {
 	return err
 }
 
+// initSession creates the session object
+func (client *Client) initSession() {
+	sess, err := session.NewSession(string(client.config.Addr), client.pem,
+		client.config.ExchangeTimeout.Duration, client.deviceId, client.log)
+	if err != nil {
+		panic("Don't know how to handle session creation failure.")
+	}
+	client.session = sess
+}
+
+// connectSession kicks off the session connection dance
+func (client *Client) connectSession() {
+	if client.sessionRetrierStopper != nil {
+		client.sessionRetrierStopper <- true
+		client.sessionRetrierStopper = nil
+	}
+	ar := &util.AutoRetrier{
+		make(chan bool, 1),
+		client.session.Dial,
+		util.Jitter}
+	client.sessionRetrierStopper = ar.Stop
+	go ar.Retry()
+}
+
+// disconnectSession disconnects the session
+func (client *Client) disconnectSession() {
+	if client.sessionRetrierStopper != nil {
+		client.sessionRetrierStopper <- true
+		client.sessionRetrierStopper = nil
+	} else {
+		client.session.Close()
+	}
+}
+
 // handleConnState deals with connectivity events
-func (client *Client) handleConnState(connState bool) {
-	if client.connState == connState {
+func (client *Client) handleConnState(hasConnectivity bool) {
+	if client.hasConnectivity == hasConnectivity {
 		// nothing to do!
 		return
 	}
-	client.connState = connState
-	if client.session == nil {
-		sess, err := session.NewSession(string(client.config.Addr), client.pem,
-			client.config.ExchangeTimeout.Duration, client.deviceId, client.log)
-		if err != nil {
-			panic("Don't know how to handle session creation failure.")
-		}
-		client.session = sess
-	}
-	if connState {
-		// connected
-		if client.sessionRetrierStopper != nil {
-			client.sessionRetrierStopper <- true
-			client.sessionRetrierStopper = nil
-		}
-		ar := &util.AutoRetrier{
-			make(chan bool, 1),
-			client.session.Dial,
-			util.Jitter}
-		client.sessionRetrierStopper = ar.Stop
-		go ar.Retry()
+	client.hasConnectivity = hasConnectivity
+	if hasConnectivity {
+		client.connectSession()
 	} else {
-		// disconnected
-		if client.sessionRetrierStopper != nil {
-			client.sessionRetrierStopper <- true
-			client.sessionRetrierStopper = nil
-		} else {
-			client.session.Close()
-		}
+		client.disconnectSession()
+	}
+}
+
+// handleErr deals with the session erroring out of its loop
+func (client *Client) handleErr(err error) {
+	// if we're not connected, we don't really care
+	client.log.Errorf("session exited: %s", err)
+	if client.hasConnectivity {
+		client.connectSession()
 	}
 }
 

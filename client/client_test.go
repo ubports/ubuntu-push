@@ -278,32 +278,50 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 }
 
 /*****************************************************************
+    handleErr tests
+******************************************************************/
+
+func (cs *clientSuite) TestHandleErr(c *C) {
+	cli := new(Client)
+	cli.log = noisylog
+	cli.initSession()
+	cli.hasConnectivity = true
+	cli.handleErr(nil)
+	c.Assert(cli.session, NotNil)
+	// let the session connection fail
+	time.Sleep(100 * time.Millisecond)
+	c.Check(cli.session.State, Equals, session.Error)
+}
+
+/*****************************************************************
     handleConnState tests
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := new(Client)
-
+	cli.initSession()
 	// let's pretend the client had a previous attempt at connecting still pending
 	// (hard to trigger in real life, but possible)
 	cli.sessionRetrierStopper = make(chan bool, 1)
 
-	c.Assert(cli.connState, Equals, false)
+	c.Assert(cli.hasConnectivity, Equals, false)
 	cli.handleConnState(true)
-	c.Check(cli.connState, Equals, true)
+	c.Check(cli.hasConnectivity, Equals, true)
 	c.Assert(cli.session, NotNil)
-	c.Check(cli.session.State, Equals, session.Disconnected)
+	// let the session connection fail
+	time.Sleep(100 * time.Millisecond)
+	c.Check(cli.session.State, Equals, session.Error)
 }
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 	cli := new(Client)
 	// here we want to check that we don't do anything
 	c.Assert(cli.session, IsNil)
-	c.Assert(cli.connState, Equals, false)
+	c.Assert(cli.hasConnectivity, Equals, false)
 	cli.handleConnState(false)
 	c.Check(cli.session, IsNil)
 
-	cli.connState = true
+	cli.hasConnectivity = true
 	cli.handleConnState(true)
 	c.Check(cli.session, IsNil)
 }
@@ -312,7 +330,7 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := new(Client)
 	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, noisylog)
 	cli.session.Dial()
-	cli.connState = true
+	cli.hasConnectivity = true
 
 	// cli.session.State will be "Error" here, for now at least
 	c.Check(cli.session.State, Not(Equals), session.Disconnected)
@@ -324,7 +342,7 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := new(Client)
 	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, noisylog)
 	cli.sessionRetrierStopper = make(chan bool, 1)
-	cli.connState = true
+	cli.hasConnectivity = true
 
 	cli.handleConnState(false)
 	c.Check(cli.session.State, Equals, session.Disconnected)
