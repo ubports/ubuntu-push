@@ -39,7 +39,7 @@ import (
 // ClientConfig holds the client configuration
 type ClientConfig struct {
 	connectivity.ConnectivityConfig // q.v.
-	// A reasonably large maximum ping time
+	// A reasonably larg timeout for receive/answer pairs
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// The server to connect to
 	Addr config.ConfigHostPort
@@ -142,6 +142,7 @@ func (client *Client) initSession() error {
 
 // connectSession kicks off the session connection dance
 func (client *Client) connectSession() {
+	// XXX: lp:1276199
 	if client.sessionRetrierStopper != nil {
 		client.sessionRetrierStopper <- true
 		client.sessionRetrierStopper = nil
@@ -156,6 +157,7 @@ func (client *Client) connectSession() {
 
 // disconnectSession disconnects the session
 func (client *Client) disconnectSession() {
+	// XXX: lp:1276199
 	if client.sessionRetrierStopper != nil {
 		client.sessionRetrierStopper <- true
 		client.sessionRetrierStopper = nil
