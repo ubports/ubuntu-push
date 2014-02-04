@@ -45,6 +45,8 @@ type ClientConfig struct {
 	Addr config.ConfigHostPort
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
+	// The logging level (one of "debug", "info", "error")
+	LogLevel string `json:"log_level"`
 }
 
 // Client is the Ubuntu Push Notifications client-side daemon.
@@ -75,8 +77,8 @@ func (client *Client) Configure(configPath string) error {
 	if err != nil {
 		return fmt.Errorf("reading config: %v", err)
 	}
-	// later, we'll be specifying logging options in the config file
-	client.log = logger.NewSimpleLogger(os.Stderr, "error")
+	// later, we'll be specifying more logging options in the config file
+	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel)
 
 	// overridden for testing
 	client.idder = identifier.New()
