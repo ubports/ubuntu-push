@@ -62,6 +62,7 @@ type Client struct {
 	actionsCh             <-chan notifications.RawActionReply
 	session               *session.ClientSession
 	sessionRetrierStopper chan bool
+	sessionRetryCh        chan uint32
 }
 
 // Configure loads the configuration specified in configPath, and sets it up.
@@ -84,6 +85,7 @@ func (client *Client) Configure(configPath string) error {
 	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
 
 	client.connCh = make(chan bool)
+	client.sessionRetryCh = make(chan uint32)
 
 	if client.config.CertPEMFile != "" {
 		client.pem, err = ioutil.ReadFile(client.config.CertPEMFile)
@@ -126,13 +128,14 @@ func (client *Client) takeTheBus() error {
 }
 
 // initSession creates the session object
-func (client *Client) initSession() {
+func (client *Client) initSession() error {
 	sess, err := session.NewSession(string(client.config.Addr), client.pem,
 		client.config.ExchangeTimeout.Duration, client.deviceId, client.log)
 	if err != nil {
-		panic("Don't know how to handle session creation failure.")
+		return err
 	}
 	client.session = sess
+	return nil
 }
 
 // connectSession kicks off the session connection dance
@@ -146,7 +149,7 @@ func (client *Client) connectSession() {
 		client.session.Dial,
 		util.Jitter}
 	client.sessionRetrierStopper = ar.Stop
-	go ar.Retry()
+	go func() { client.sessionRetryCh <- ar.Retry() }()
 }
 
 // disconnectSession disconnects the session
@@ -211,4 +214,22 @@ func (client *Client) handleClick() error {
 	// it doesn't get much simpler...
 	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
 	return urld.DispatchURL("settings:///system/system-update")
+}
+
+// doLoop connects events with their handlers
+func (client *Client) doLoop(connhandler func(bool), clickhandler, notifhandler func() error, errhandler func(error)) {
+	for {
+		select {
+		case state := <-client.connCh:
+			connhandler(state)
+		case <-client.actionsCh:
+			clickhandler()
+		case <-client.session.MsgCh:
+			notifhandler()
+		case err := <-client.session.ErrCh:
+			errhandler(err)
+		case count := <-client.sessionRetryCh:
+			client.log.Debugf("Session connected after %d attempts", count)
+		}
+	}
 }

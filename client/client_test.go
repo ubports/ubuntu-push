@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
+	"launchpad.net/ubuntu-push/bus/notifications"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/logger"
@@ -390,4 +391,53 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Check(args[0].Args, DeepEquals, []interface{}{"settings:///system/system-update"})
+}
+
+/*****************************************************************
+    doLoop tests
+******************************************************************/
+
+func (cs *clientSuite) TestDoLoopConn(c *C) {
+	cli := new(Client)
+	cli.connCh = make(chan bool, 1)
+	cli.connCh <- true
+	cli.initSession()
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(func(bool) { ch <- true }, func() error { return nil }, func() error { return nil }, func(error) {})
+	c.Check(takeNextBool(ch), Equals, true)
+}
+
+func (cs *clientSuite) TestDoLoopClick(c *C) {
+	cli := new(Client)
+	cli.initSession()
+	aCh := make(chan notifications.RawActionReply, 1)
+	aCh <- notifications.RawActionReply{}
+	cli.actionsCh = aCh
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(func(bool) {}, func() error { ch <- true; return nil }, func() error { return nil }, func(error) {})
+	c.Check(takeNextBool(ch), Equals, true)
+}
+
+func (cs *clientSuite) TestDoLoopNotif(c *C) {
+	cli := new(Client)
+	cli.initSession()
+	cli.session.MsgCh = make(chan *session.Notification, 1)
+	cli.session.MsgCh <- &session.Notification{}
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(func(bool) {}, func() error { return nil }, func() error { ch <- true; return nil }, func(error) {})
+	c.Check(takeNextBool(ch), Equals, true)
+}
+
+func (cs *clientSuite) TestDoLoopErr(c *C) {
+	cli := new(Client)
+	cli.initSession()
+	cli.session.ErrCh = make(chan error, 1)
+	cli.session.ErrCh <- nil
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(func(bool) {}, func() error { return nil }, func() error { return nil }, func(error) { ch <- true })
+	c.Check(takeNextBool(ch), Equals, true)
 }
