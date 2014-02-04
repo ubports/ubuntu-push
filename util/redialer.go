@@ -18,6 +18,7 @@ package util
 
 import (
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -30,13 +31,27 @@ type Dialer interface {
 	Jitter(time.Duration) time.Duration
 }
 
-// The timeouts used during backoff. While this is public, you'd
-// usually not need to meddle with it.
-var Timeouts []time.Duration
+// The timeouts used during backoff.
+var timeouts []time.Duration
+var trwlock sync.RWMutex
 
 var ( //  for use in testing
 	quitRedialing chan bool = make(chan bool)
 )
+
+func Timeouts() []time.Duration {
+	trwlock.RLock()
+	defer trwlock.RUnlock()
+	return timeouts
+}
+
+// for testing
+func SwapTimeouts(newTimeouts []time.Duration) (oldTimeouts []time.Duration) {
+	trwlock.Lock()
+	defer trwlock.Unlock()
+	oldTimeouts, timeouts = timeouts, newTimeouts
+	return
+}
 
 // Jitter returns a random time.Duration somewhere in [-spread, spread].
 //
@@ -60,15 +75,16 @@ type AutoRetrier struct {
 func (ar *AutoRetrier) Retry() uint32 {
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
-	var numTimeouts uint32 = uint32(len(Timeouts))
+	timeouts := Timeouts()
+	var numTimeouts uint32 = uint32(len(timeouts))
 	for {
 		if ar.Dial() == nil {
 			return dialAttempts + 1
 		}
 		if dialAttempts < numTimeouts {
-			timeout = Timeouts[dialAttempts]
+			timeout = timeouts[dialAttempts]
 		} else {
-			timeout = Timeouts[numTimeouts-1]
+			timeout = timeouts[numTimeouts-1]
 		}
 		timeout += ar.Jitter(timeout)
 		dialAttempts++
@@ -90,10 +106,10 @@ func AutoRedial(dialer Dialer) uint32 {
 
 func init() {
 	ps := []int{1, 2, 5, 11, 19, 37, 67, 113, 191} // 3 pₙ₊₁ ≥ 5 pₙ
-	Timeouts = make([]time.Duration, len(ps))
+	timeouts := make([]time.Duration, len(ps))
 	for i, n := range ps {
-		Timeouts[i] = time.Duration(n) * time.Second
+		timeouts[i] = time.Duration(n) * time.Second
 	}
-
+	SwapTimeouts(timeouts)
 	rand.Seed(time.Now().Unix()) // good enough for us (not crypto, yadda)
 }
