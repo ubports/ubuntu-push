@@ -44,4 +44,15 @@ func (s *exchangesImplSuite) TestFilterByLevel(c *C) {
 	c.Check(len(res), Equals, 3)
 	res = filterByLevel(1, 5, payloads)
 	c.Check(len(res), Equals, 3)
+	// too ahead, pick only last
+	res = filterByLevel(10, 5, payloads)
+	c.Check(len(res), Equals, 1)
+	c.Check(res[0], DeepEquals, json.RawMessage(`{"a": 5}`))
+}
+
+func (s *exchangesImplSuite) TestFilterByLevelEmpty(c *C) {
+	res := filterByLevel(5, 0, nil)
+	c.Check(len(res), Equals, 0)
+	res = filterByLevel(5, 10, nil)
+	c.Check(len(res), Equals, 0)
 }
