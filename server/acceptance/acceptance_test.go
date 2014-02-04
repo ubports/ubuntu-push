@@ -484,3 +484,92 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
+
+func (s *acceptanceSuite) TestBroadcastTooAhead(c *C) {
+	// send broadcasts that will be pending
+	got, err := s.postRequest("/broadcast", &api.Broadcast{
+		Channel: "system",
+		Data:    json.RawMessage(`{"b": 1}`),
+	})
+	c.Check(err, IsNil)
+	c.Check(got, Matches, ".*ok.*")
+	got, err = s.postRequest("/broadcast", &api.Broadcast{
+		Channel: "system",
+		Data:    json.RawMessage(`{"b": 2}`),
+	})
+	c.Check(err, IsNil)
+	c.Check(got, Matches, ".*ok.*")
+
+	clientShutdown := make(chan bool, 1) // abused as an atomic flag
+	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
+		// read after ack
+		if op == "read" && len(clientShutdown) > 0 {
+			// exit the sess.Run() goroutine, client will close
+			runtime.Goexit()
+		}
+		return false, 0, nil
+	}
+	events, errCh := s.startClient(c, "DEVB", intercept, map[string]int64{
+		protocol.SystemChannelId: 10,
+	})
+	// gettting last one pending on connect
+	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":2}]`)
+	clientShutdown <- true
+	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}
+
+func (s *acceptanceSuite) TestBroadcastTooAheadOnEmpty(c *C) {
+	// nothing there
+	clientShutdown := make(chan bool, 1) // abused as an atomic flag
+	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
+		// read after ack
+		if op == "read" && len(clientShutdown) > 0 {
+			// exit the sess.Run() goroutine, client will close
+			runtime.Goexit()
+		}
+		return false, 0, nil
+	}
+	events, errCh := s.startClient(c, "DEVB", intercept, map[string]int64{
+		protocol.SystemChannelId: 10,
+	})
+	// gettting empty pending on connect
+	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:0 payloads:null`)
+	clientShutdown <- true
+	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}
+
+func (s *acceptanceSuite) TestBroadcastWayBehind(c *C) {
+	// send broadcasts that will be pending
+	got, err := s.postRequest("/broadcast", &api.Broadcast{
+		Channel: "system",
+		Data:    json.RawMessage(`{"b": 1}`),
+	})
+	c.Check(err, IsNil)
+	c.Check(got, Matches, ".*ok.*")
+	got, err = s.postRequest("/broadcast", &api.Broadcast{
+		Channel: "system",
+		Data:    json.RawMessage(`{"b": 2}`),
+	})
+	c.Check(err, IsNil)
+	c.Check(got, Matches, ".*ok.*")
+
+	clientShutdown := make(chan bool, 1) // abused as an atomic flag
+	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
+		// read after ack
+		if op == "read" && len(clientShutdown) > 0 {
+			// exit the sess.Run() goroutine, client will close
+			runtime.Goexit()
+		}
+		return false, 0, nil
+	}
+	events, errCh := s.startClient(c, "DEVB", intercept, map[string]int64{
+		protocol.SystemChannelId: -10,
+	})
+	// gettting pending on connect
+	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":1},{"b":2}]`)
+	clientShutdown <- true
+	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}
