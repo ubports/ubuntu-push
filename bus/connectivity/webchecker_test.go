@@ -61,12 +61,11 @@ func mkHandler(text string) http.HandlerFunc {
 }
 
 func (s *WebcheckerSuite) SetUpSuite(c *C) {
-	s.timeouts = util.Timeouts
-	util.Timeouts = []time.Duration{0}
+	s.timeouts = util.SwapTimeouts([]time.Duration{0})
 }
 
 func (s *WebcheckerSuite) TearDownSuite(c *C) {
-	util.Timeouts = s.timeouts
+	util.SwapTimeouts(s.timeouts)
 	s.timeouts = nil
 }
 
