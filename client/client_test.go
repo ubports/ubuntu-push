@@ -311,9 +311,6 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli.handleConnState(true)
 	c.Check(cli.hasConnectivity, Equals, true)
 	c.Assert(cli.session, NotNil)
-	// let the session connection fail
-	time.Sleep(10 * time.Millisecond)
-	c.Check(cli.session.State(), Equals, session.Error)
 }
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
