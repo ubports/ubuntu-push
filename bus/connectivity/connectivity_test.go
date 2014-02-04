@@ -42,12 +42,11 @@ var _ = Suite(&ConnSuite{})
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 
 func (s *ConnSuite) SetUpSuite(c *C) {
-	s.timeouts = util.Timeouts
-	util.Timeouts = []time.Duration{0, 0, 0, 0}
+	s.timeouts = util.SwapTimeouts([]time.Duration{0, 0, 0, 0})
 }
 
 func (s *ConnSuite) TearDownSuite(c *C) {
-	util.Timeouts = s.timeouts
+	util.SwapTimeouts(s.timeouts)
 	s.timeouts = nil
 }
 
