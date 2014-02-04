@@ -192,7 +192,10 @@ func (sto *testFailingStore) GetChannelSnapshot(chanId store.InternalChannelId) 
 }
 
 func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
-	s.testlog.Written = make(chan bool, 1)
+	logged := make(chan bool, 1)
+	s.testlog.SetLogEventCb(func(string) {
+		logged <- true
+	})
 	sto := &testFailingStore{countdownToFail: 1}
 	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
@@ -203,7 +206,7 @@ func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
 	select {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to log error")
-	case <-s.testlog.Written:
+	case <- logged:
 	}
 	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful broadcast, get channel snapshot for 0: get channel snapshot fail\n")
 }

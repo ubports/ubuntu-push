@@ -29,7 +29,7 @@ type captureHelper struct {
 	outputFunc func(int, string) error
 	lock       sync.Mutex
 	logEvents  []string
-	written    *chan bool
+	logEventCb func(string)
 }
 
 func (h *captureHelper) Output(calldepth int, s string) error {
@@ -37,8 +37,8 @@ func (h *captureHelper) Output(calldepth int, s string) error {
 	if err == nil {
 		h.lock.Lock()
 		defer h.lock.Unlock()
-		if *h.written != nil {
-			*h.written <- true
+		if h.logEventCb != nil {
+			h.logEventCb(s)
 		}
 		h.logEvents = append(h.logEvents, s+"\n")
 	}
@@ -57,12 +57,17 @@ func (h *captureHelper) reset() {
 	h.logEvents = nil
 }
 
+func (h *captureHelper) setLogEventCb(cb func(string)) {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+	h.logEventCb = cb
+}
+
 // TestLogger implements logger.Logger using gocheck.C and supporting
 // capturing log strings.
 type TestLogger struct {
 	logger.Logger
 	helper  *captureHelper
-	Written chan bool
 }
 
 // NewTestLogger can be used in tests instead of NewSimpleLogger(FromMinimalLogger).
@@ -74,7 +79,6 @@ func NewTestLogger(minLog interface {
 		Logger: logger.NewSimpleLoggerFromMinimalLogger(h, level),
 		helper: h,
 	}
-	h.written = &log.Written
 	return log
 }
 
@@ -86,6 +90,11 @@ func (tlog *TestLogger) Captured() string {
 // Reset resets accumulated log events.
 func (tlog *TestLogger) ResetCapture() {
 	tlog.helper.reset()
+}
+
+// SetLogEventCb sets a callback invoked for log events.
+func (tlog *TestLogger) SetLogEventCb(cb func(string)) {
+	tlog.helper.setLogEventCb(cb)
 }
 
 // SourceRelative produces a path relative to the source code, makes
