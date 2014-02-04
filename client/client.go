@@ -22,6 +22,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
@@ -57,7 +58,7 @@ type Client struct {
 	urlDispatcherEndp     bus.Endpoint
 	connectivityEndp      bus.Endpoint
 	connCh                chan bool
-	connState             bool
+	hasConnectivity       bool
 	actionsCh             <-chan notifications.RawActionReply
 	session               *session.ClientSession
 	sessionRetrierStopper chan bool
@@ -124,40 +125,90 @@ func (client *Client) takeTheBus() error {
 	return err
 }
 
+// initSession creates the session object
+func (client *Client) initSession() {
+	sess, err := session.NewSession(string(client.config.Addr), client.pem,
+		client.config.ExchangeTimeout.Duration, client.deviceId, client.log)
+	if err != nil {
+		panic("Don't know how to handle session creation failure.")
+	}
+	client.session = sess
+}
+
+// connectSession kicks off the session connection dance
+func (client *Client) connectSession() {
+	if client.sessionRetrierStopper != nil {
+		client.sessionRetrierStopper <- true
+		client.sessionRetrierStopper = nil
+	}
+	ar := &util.AutoRetrier{
+		make(chan bool, 1),
+		client.session.Dial,
+		util.Jitter}
+	client.sessionRetrierStopper = ar.Stop
+	go ar.Retry()
+}
+
+// disconnectSession disconnects the session
+func (client *Client) disconnectSession() {
+	if client.sessionRetrierStopper != nil {
+		client.sessionRetrierStopper <- true
+		client.sessionRetrierStopper = nil
+	} else {
+		client.session.Close()
+	}
+}
+
 // handleConnState deals with connectivity events
-func (client *Client) handleConnState(connState bool) {
-	if client.connState == connState {
+func (client *Client) handleConnState(hasConnectivity bool) {
+	if client.hasConnectivity == hasConnectivity {
 		// nothing to do!
 		return
 	}
-	client.connState = connState
-	if client.session == nil {
-		sess, err := session.NewSession(string(client.config.Addr), client.pem,
-			client.config.ExchangeTimeout.Duration, client.deviceId, client.log)
-		if err != nil {
-			panic("Don't know how to handle session creation failure.")
-		}
-		client.session = sess
-	}
-	if connState {
-		// connected
-		if client.sessionRetrierStopper != nil {
-			client.sessionRetrierStopper <- true
-			client.sessionRetrierStopper = nil
-		}
-		ar := &util.AutoRetrier{
-			make(chan bool, 1),
-			client.session.Dial,
-			util.Jitter}
-		client.sessionRetrierStopper = ar.Stop
-		go ar.Retry()
+	client.hasConnectivity = hasConnectivity
+	if hasConnectivity {
+		client.connectSession()
 	} else {
-		// disconnected
-		if client.sessionRetrierStopper != nil {
-			client.sessionRetrierStopper <- true
-			client.sessionRetrierStopper = nil
-		} else {
-			client.session.Close()
-		}
+		client.disconnectSession()
 	}
+}
+
+// handleErr deals with the session erroring out of its loop
+func (client *Client) handleErr(err error) {
+	// if we're not connected, we don't really care
+	client.log.Errorf("session exited: %s", err)
+	if client.hasConnectivity {
+		client.connectSession()
+	}
+}
+
+// handleNotification deals with receiving a notification
+func (client *Client) handleNotification() error {
+	action_id := "dummy_id"
+	a := []string{action_id, "Go get it!"} // action value not visible on the phone
+	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
+	nots := notifications.Raw(client.notificationsEndp, client.log)
+	not_id, err := nots.Notify(
+		"ubuntu-push-client",               // app name
+		uint32(0),                          // id
+		"update_manager_icon",              // icon
+		"There's an updated system image!", // summary
+		"You've got to get it! Now! Run!",  // body
+		a,              // actions
+		h,              // hints
+		int32(10*1000), // timeout (ms)
+	)
+	if err != nil {
+		client.log.Errorf("showing notification: %s", err)
+		return err
+	}
+	client.log.Debugf("got notification id %d", not_id)
+	return nil
+}
+
+// handleClick deals with the user clicking a notification
+func (client *Client) handleClick() error {
+	// it doesn't get much simpler...
+	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
+	return urld.DispatchURL("settings:///system/system-update")
 }

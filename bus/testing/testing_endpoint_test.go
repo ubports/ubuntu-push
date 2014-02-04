@@ -65,6 +65,15 @@ func (s *TestingEndpointSuite) TestCallPanicsWithNiceMessage(c *C) {
 	c.Check(func() { endp.Call("") }, PanicMatches, "No return values provided.*")
 }
 
+// Test that Call() updates callArgs
+func (s *TestingEndpointSuite) TestCallArgs(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true), 0)
+	_, err := endp.Call("what", "is", "this", "thing")
+	c.Assert(err, IsNil)
+	c.Check(GetCallArgs(endp), DeepEquals,
+		[]callArgs{{"what", []interface{}{"is", "this", "thing"}}})
+}
+
 // Test that WatchSignal() with a positive condition sends the provided return
 // values over the channel.
 func (s *TestingEndpointSuite) TestWatch(c *C) {
