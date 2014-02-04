@@ -147,14 +147,17 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	err := sess.proto.WriteMessage(protocol.AckMsg{"ack"})
 	if err != nil {
 		sess.setState(Error)
+		sess.Log.Errorf("unable to ack broadcast: %s", err)
 		return err
 	}
 	sess.Log.Debugf("broadcast chan:%v app:%v topLevel:%d payloads:%s",
 		bcast.ChanId, bcast.AppId, bcast.TopLevel, bcast.Payloads)
 	if bcast.ChanId == protocol.SystemChannelId {
 		// the system channel id, the only one we care about for now
+		sess.Log.Debugf("sending it over")
 		sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
 		sess.MsgCh <- &Notification{}
+		sess.Log.Debugf("sent it over")
 	} else {
 		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)
 	}
@@ -192,6 +195,7 @@ func (sess *ClientSession) start() error {
 	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	if err != nil {
 		sess.setState(Error)
+		sess.Log.Errorf("unable to start: set deadline: %s", err)
 		return err
 	}
 	_, err = conn.Write(wireVersionBytes)
@@ -199,6 +203,7 @@ func (sess *ClientSession) start() error {
 	// n < len(p). So, no need to check number of bytes written, hooray.
 	if err != nil {
 		sess.setState(Error)
+		sess.Log.Errorf("unable to start: write version: %s", err)
 		return err
 	}
 	proto := sess.Protocolator(conn)
@@ -210,12 +215,14 @@ func (sess *ClientSession) start() error {
 	})
 	if err != nil {
 		sess.setState(Error)
+		sess.Log.Errorf("unable to start: connect: %s", err)
 		return err
 	}
 	var connAck protocol.ConnAckMsg
 	err = proto.ReadMessage(&connAck)
 	if err != nil {
 		sess.setState(Error)
+		sess.Log.Errorf("unable to start: connack: %s", err)
 		return err
 	}
 	if connAck.Type != "connack" {
@@ -225,6 +232,7 @@ func (sess *ClientSession) start() error {
 	pingInterval, err := time.ParseDuration(connAck.Params.PingInterval)
 	if err != nil {
 		sess.setState(Error)
+		sess.Log.Errorf("unable to start: parse ping interval: %s", err)
 		return err
 	}
 	sess.proto = proto

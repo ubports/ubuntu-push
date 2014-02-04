@@ -18,10 +18,12 @@ package client
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
+	"launchpad.net/ubuntu-push/bus/notifications"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/logger"
@@ -57,6 +59,7 @@ type clientSuite struct {
 
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 var noisylog = logger.NewSimpleLogger(os.Stderr, "debug")
+var debuglog = noisylog
 var _ = Suite(&clientSuite{})
 
 const (
@@ -82,6 +85,7 @@ func (cs *clientSuite) TearDownSuite(c *C) {
 }
 
 func (cs *clientSuite) SetUpTest(c *C) {
+	debuglog.Debugf("---")
 	dir := c.MkDir()
 	cs.configPath = filepath.Join(dir, "config")
 	cfg := fmt.Sprintf(`
@@ -92,7 +96,8 @@ func (cs *clientSuite) SetUpTest(c *C) {
     "connectivity_check_md5": "",
     "addr": ":0",
     "cert_pem_file": %#v,
-    "recheck_timeout": "3h"
+    "recheck_timeout": "3h",
+    "log_level": "debug"
 }`, helpers.SourceRelative("../server/acceptance/config/testing.cert"))
 	ioutil.WriteFile(cs.configPath, []byte(cfg), 0600)
 }
@@ -205,6 +210,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
 
 func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 	cli := new(Client)
+	cli.log = debuglog
 	cli.idder = identifier.New()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), IsNil)
@@ -213,6 +219,7 @@ func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 
 func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
 	cli := new(Client)
+	cli.log = debuglog
 	cli.idder = idtesting.Failing()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), NotNil)
@@ -237,8 +244,10 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	cEndp := testibus.NewTestingEndpoint(cCond, condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal),
 	)
+	testibus.SetWatchTicker(cEndp, make(chan bool))
 	// ok, create the thing
 	cli := new(Client)
+	cli.log = debuglog
 	err := cli.Configure(cs.configPath)
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
@@ -267,6 +276,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 	cli := new(Client)
 	err := cli.Configure(cs.configPath)
+	cli.log = debuglog
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
 	c.Check(cli.actionsCh, IsNil)
@@ -285,15 +295,13 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleErr(c *C) {
+	buf := &bytes.Buffer{}
 	cli := new(Client)
-	cli.log = noisylog
+	cli.log = logger.NewSimpleLogger(buf, "debug")
 	cli.initSession()
 	cli.hasConnectivity = true
-	cli.handleErr(nil)
-	c.Assert(cli.session, NotNil)
-	// let the session connection fail
-	time.Sleep(100 * time.Millisecond)
-	c.Check(cli.session.State(), Equals, session.Error)
+	cli.handleErr(errors.New("bananas"))
+	c.Check(buf.String(), Matches, ".*session exited.*bananas\n")
 }
 
 /*****************************************************************
@@ -302,19 +310,23 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := new(Client)
+	cli.log = debuglog
 	cli.initSession()
 	// let's pretend the client had a previous attempt at connecting still pending
 	// (hard to trigger in real life, but possible)
-	cli.sessionRetrierStopper = make(chan bool, 1)
+	ch := make(chan bool, 1)
+	cli.sessionRetrierStopper = ch
 
 	c.Assert(cli.hasConnectivity, Equals, false)
 	cli.handleConnState(true)
+	c.Check(len(ch), Equals, 1)
 	c.Check(cli.hasConnectivity, Equals, true)
 	c.Assert(cli.session, NotNil)
 }
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 	cli := new(Client)
+	cli.log = debuglog
 	// here we want to check that we don't do anything
 	c.Assert(cli.session, IsNil)
 	c.Assert(cli.hasConnectivity, Equals, false)
@@ -328,7 +340,8 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := new(Client)
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, noisylog)
+	cli.log = debuglog
+	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, debuglog)
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
@@ -340,7 +353,8 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := new(Client)
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, noisylog)
+	cli.log = debuglog
+	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, debuglog)
 	cli.sessionRetrierStopper = make(chan bool, 1)
 	cli.hasConnectivity = true
 
@@ -369,9 +383,9 @@ func (cs *clientSuite) TestHandleNotification(c *C) {
 
 func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 	cli := new(Client)
+	cli.log = debuglog
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
-	cli.log = noisylog
 	c.Check(cli.handleNotification(), NotNil)
 }
 
@@ -381,13 +395,66 @@ func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 
 func (cs *clientSuite) TestHandleClick(c *C) {
 	cli := new(Client)
+	cli.log = debuglog
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), nil)
 	cli.urlDispatcherEndp = endp
-	cli.log = noisylog
 	c.Check(cli.handleClick(), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Check(args[0].Args, DeepEquals, []interface{}{"settings:///system/system-update"})
+}
+
+/*****************************************************************
+    doLoop tests
+******************************************************************/
+
+func (cs *clientSuite) TestDoLoopConn(c *C) {
+	cli := new(Client)
+	cli.log = debuglog
+	cli.connCh = make(chan bool, 1)
+	cli.connCh <- true
+	cli.initSession()
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(func(bool) { ch <- true }, func() error { return nil }, func() error { return nil }, func(error) {})
+	c.Check(takeNextBool(ch), Equals, true)
+}
+
+func (cs *clientSuite) TestDoLoopClick(c *C) {
+	cli := new(Client)
+	cli.log = debuglog
+	cli.initSession()
+	aCh := make(chan notifications.RawActionReply, 1)
+	aCh <- notifications.RawActionReply{}
+	cli.actionsCh = aCh
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(func(bool) {}, func() error { ch <- true; return nil }, func() error { return nil }, func(error) {})
+	c.Check(takeNextBool(ch), Equals, true)
+}
+
+func (cs *clientSuite) TestDoLoopNotif(c *C) {
+	cli := new(Client)
+	cli.log = debuglog
+	cli.initSession()
+	cli.session.MsgCh = make(chan *session.Notification, 1)
+	cli.session.MsgCh <- &session.Notification{}
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(func(bool) {}, func() error { return nil }, func() error { ch <- true; return nil }, func(error) {})
+	c.Check(takeNextBool(ch), Equals, true)
+}
+
+func (cs *clientSuite) TestDoLoopErr(c *C) {
+	cli := new(Client)
+	cli.log = debuglog
+	cli.initSession()
+	cli.session.ErrCh = make(chan error, 1)
+	cli.session.ErrCh <- nil
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(func(bool) {}, func() error { return nil }, func() error { return nil }, func(error) { ch <- true })
+	c.Check(takeNextBool(ch), Equals, true)
 }
