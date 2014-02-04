@@ -32,13 +32,13 @@ type commonBrokerSuite struct {
 }
 
 var _ = Suite(&commonBrokerSuite{testsuite.CommonBrokerSuite{
-	func(sto store.PendingStore, cfg broker.BrokerConfig, log logger.Logger) testsuite.FullBroker {
+	MakeBroker: func(sto store.PendingStore, cfg broker.BrokerConfig, log logger.Logger) testsuite.FullBroker {
 		return NewSimpleBroker(sto, cfg, log)
 	},
-	func(b broker.Broker, deviceId string) broker.BrokerSession {
+	RevealSession: func(b broker.Broker, deviceId string) broker.BrokerSession {
 		return b.(*SimpleBroker).registry[deviceId]
 	},
-	func(exchg broker.Exchange) *broker.BroadcastExchange {
+	RevealBroadcastExchange: func(exchg broker.Exchange) *broker.BroadcastExchange {
 		return exchg.(*broker.BroadcastExchange)
 	},
 }})
