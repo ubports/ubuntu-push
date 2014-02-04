@@ -17,12 +17,10 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"net/http"
@@ -102,9 +100,9 @@ var testDevicesParsedConfig = DevicesParsedConfig{
 }
 
 func (s *runnerSuite) TestDevicesRunner(c *C) {
-	buf := &bytes.Buffer{}
 	prevBootLogger := BootLogger
-	BootLogger = logger.NewSimpleLogger(buf, "debug")
+	testlog := helpers.NewTestLogger(c, "debug")
+	BootLogger = testlog
 	defer func() {
 		BootLogger = prevBootLogger
 	}()
