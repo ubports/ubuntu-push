@@ -27,6 +27,8 @@ import (
 
 // Logger is a simple logger interface with logging at levels.
 type Logger interface {
+	// (Re)xpose base Output for logging events
+	Output(calldept int, s string) error
 	// Errorf logs an error.
 	Errorf(format string, v ...interface{})
 	// Fatalf logs an error and exists the program with os.Exit(1).
@@ -41,8 +43,8 @@ type Logger interface {
 }
 
 type simpleLogger struct {
-	*log.Logger
-	nlevel int
+	outputFunc func(calldepth int, s string) error
+	nlevel     int
 }
 
 const (
@@ -57,24 +59,41 @@ var levelToNLevel = map[string]int{
 	"debug": lDebug,
 }
 
-// NewSimpleLogger creates a logger logging only up to the given level.
-// level can be in order: "error", "info", "debug".
-func NewSimpleLogger(w io.Writer, level string) Logger {
+// NewSimpleLoggerFromMinimalLogger creates a logger logging only up
+// to the given level. level can be in order: "error", "info",
+// "debug". It takes a value just implementing stlib Logger.Output().
+func NewSimpleLoggerFromMinimalLogger(minLog interface {
+	Output(calldepth int, s string) error
+}, level string) Logger {
 	nlevel := levelToNLevel[level]
 	return &simpleLogger{
-		log.New(w, "", log.Ldate|log.Ltime|log.Lmicroseconds),
+		minLog.Output,
 		nlevel,
 	}
 }
 
+// NewSimpleLogger creates a logger logging only up to the given
+// level. level can be in order: "error", "info", "debug". It takes a
+// io.Writer.
+func NewSimpleLogger(w io.Writer, level string) Logger {
+	return NewSimpleLoggerFromMinimalLogger(
+		log.New(w, "", log.Ldate|log.Ltime|log.Lmicroseconds),
+		level,
+	)
+}
+
+func (lg *simpleLogger) Output(calldepth int, s string) error {
+	return lg.outputFunc(calldepth+2, s)
+}
+
 func (lg *simpleLogger) Errorf(format string, v ...interface{}) {
-	lg.Printf("ERROR "+format, v...)
+	lg.outputFunc(2, fmt.Sprintf("ERROR "+format, v...))
 }
 
 var osExit = os.Exit // for testing
 
 func (lg *simpleLogger) Fatalf(format string, v ...interface{}) {
-	lg.Printf("ERROR "+format, v...)
+	lg.outputFunc(2, fmt.Sprintf("ERROR "+format, v...))
 	osExit(1)
 }
 
@@ -83,17 +102,17 @@ func (lg *simpleLogger) PanicStackf(format string, v ...interface{}) {
 	stack := make([]byte, 8*1024) // Stack writes less but doesn't fail
 	stackWritten := runtime.Stack(stack, false)
 	stack = stack[:stackWritten]
-	lg.Printf("ERROR(PANIC) %s:\n%s", msg, stack)
+	lg.outputFunc(2, fmt.Sprintf("ERROR(PANIC) %s:\n%s", msg, stack))
 }
 
 func (lg *simpleLogger) Infof(format string, v ...interface{}) {
 	if lg.nlevel >= lInfo {
-		lg.Printf("INFO "+format, v...)
+		lg.outputFunc(2, fmt.Sprintf("INFO "+format, v...))
 	}
 }
 
 func (lg *simpleLogger) Debugf(format string, v ...interface{}) {
 	if lg.nlevel >= lDebug {
-		lg.Printf("DEBUG "+format, v...)
+		lg.outputFunc(2, fmt.Sprintf("DEBUG "+format, v...))
 	}
 }
