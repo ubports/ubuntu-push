@@ -44,7 +44,13 @@ var _ Exchange = &BroadcastExchange{}
 
 func filterByLevel(clientLevel, topLevel int64, payloads []json.RawMessage) []json.RawMessage {
 	c := int64(len(payloads))
+	if c == 0 {
+		return nil
+	}
 	delta := topLevel - clientLevel
+	if delta < 0 { // means too ahead, send the last pending
+		delta = 1
+	}
 	if delta < c {
 		return payloads[c-delta:]
 	} else {
