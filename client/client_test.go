@@ -295,7 +295,7 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli.handleConnState(true)
 	c.Check(cli.connState, Equals, true)
 	c.Assert(cli.session, NotNil)
-	c.Check(cli.session.State, Equals, session.Disconnected)
+	c.Check(cli.session.State(), Equals, session.Disconnected)
 }
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
@@ -317,10 +317,10 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli.session.Dial()
 	cli.connState = true
 
-	// cli.session.State will be "Error" here, for now at least
-	c.Check(cli.session.State, Not(Equals), session.Disconnected)
+	// cli.session.State() will be "Error" here, for now at least
+	c.Check(cli.session.State(), Not(Equals), session.Disconnected)
 	cli.handleConnState(false)
-	c.Check(cli.session.State, Equals, session.Disconnected)
+	c.Check(cli.session.State(), Equals, session.Disconnected)
 }
 
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
@@ -330,7 +330,7 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli.connState = true
 
 	cli.handleConnState(false)
-	c.Check(cli.session.State, Equals, session.Disconnected)
+	c.Check(cli.session.State(), Equals, session.Disconnected)
 	c.Check(cli.sessionRetrierStopper, IsNil)
 }
 
