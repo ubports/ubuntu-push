@@ -20,7 +20,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"syscall"
@@ -30,7 +29,9 @@ import (
 
 func TestListener(t *testing.T) { TestingT(t) }
 
-type listenerSuite struct{}
+type listenerSuite struct {
+	testlog *helpers.TestLogger
+}
 
 var _ = Suite(&listenerSuite{})
 
@@ -48,6 +49,10 @@ func (s *listenerSuite) SetUpSuite(*C) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func (s *listenerSuite) SetUpTest(c *C) {
+	s.testlog = helpers.NewTestLogger(c, "error")
 }
 
 type testDevListenerCfg struct {
@@ -135,14 +140,12 @@ func testReadByte(c *C, conn net.Conn, expected uint32) {
 }
 
 func (s *listenerSuite) TestDeviceAcceptLoop(c *C) {
-	buf := &helpers.SyncedLogBuffer{}
-	logger := logger.NewSimpleLogger(buf, "error")
 	lst, err := DeviceListen(&testDevListenerCfg{"127.0.0.1:0"})
 	c.Check(err, IsNil)
 	defer lst.Close()
 	errCh := make(chan error)
 	go func() {
-		errCh <- lst.AcceptLoop(testSession, logger)
+		errCh <- lst.AcceptLoop(testSession, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
 	conn1, err := testTlsDial(c, listenerAddr)
@@ -157,12 +160,10 @@ func (s *listenerSuite) TestDeviceAcceptLoop(c *C) {
 	testReadByte(c, conn2, '2')
 	lst.Close()
 	c.Check(<-errCh, ErrorMatches, ".*use of closed.*")
-	c.Check(buf.String(), Equals, "")
+	c.Check(s.testlog.Captured(), Equals, "")
 }
 
 func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
-	buf := &helpers.SyncedLogBuffer{}
-	logger := logger.NewSimpleLogger(buf, "error")
 	// ENFILE is not the temp network error we want to handle this way
 	// but is relatively easy to generate in a controlled way
 	var err error
@@ -171,7 +172,7 @@ func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
 	defer lst.Close()
 	errCh := make(chan error)
 	go func() {
-		errCh <- lst.AcceptLoop(testSession, logger)
+		errCh <- lst.AcceptLoop(testSession, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
 	conns := make([]net.Conn, 0, NofileMax)
@@ -195,12 +196,10 @@ func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
 	testReadByte(c, conn2, '2')
 	lst.Close()
 	c.Check(<-errCh, ErrorMatches, ".*use of closed.*")
-	c.Check(buf.String(), Matches, ".*device listener:.*accept.*too many open.*-- retrying\n")
+	c.Check(s.testlog.Captured(), Matches, ".*device listener:.*accept.*too many open.*-- retrying\n")
 }
 
 func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
-	buf := &helpers.SyncedLogBuffer{}
-	logger := logger.NewSimpleLogger(buf, "error")
 	lst, err := DeviceListen(&testDevListenerCfg{"127.0.0.1:0"})
 	c.Check(err, IsNil)
 	defer lst.Close()
@@ -209,12 +208,12 @@ func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
 		errCh <- lst.AcceptLoop(func(conn net.Conn) error {
 			defer conn.Close()
 			panic("session crash")
-		}, logger)
+		}, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
 	_, err = testTlsDial(c, listenerAddr)
 	c.Assert(err, Not(IsNil))
 	lst.Close()
 	c.Check(<-errCh, ErrorMatches, ".*use of closed.*")
-	c.Check(buf.String(), Matches, "(?s).* ERROR\\(PANIC\\) terminating device connection on: session crash:.*AcceptLoop.*")
+	c.Check(s.testlog.Captured(), Matches, "(?s)ERROR\\(PANIC\\) terminating device connection on: session crash:.*AcceptLoop.*")
 }
