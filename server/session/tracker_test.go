@@ -19,13 +19,13 @@ package session
 import (
 	"fmt"
 	. "launchpad.net/gocheck"
-	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 )
 
-type trackerSuite struct{
+type trackerSuite struct {
 	testlog *helpers.TestLogger
 }
 
