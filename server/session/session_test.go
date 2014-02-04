@@ -18,17 +18,15 @@ package session
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"reflect"
 	gotesting "testing"
@@ -37,7 +35,13 @@ import (
 
 func TestSession(t *gotesting.T) { TestingT(t) }
 
-type sessionSuite struct{}
+type sessionSuite struct {
+	testlog *helpers.TestLogger
+}
+
+func (s *sessionSuite) SetUpTest(c *C) {
+	s.testlog = helpers.NewTestLogger(c, "debug")
+}
 
 var _ = Suite(&sessionSuite{})
 
@@ -216,7 +220,7 @@ var cfg5msPingInterval2msExchangeTout = &testSessionConfig{
 }
 
 func (s *sessionSuite) TestSessionLoop(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -238,7 +242,7 @@ func (s *sessionSuite) TestSessionLoop(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopWriteError(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -255,7 +259,7 @@ func (s *sessionSuite) TestSessionLoopWriteError(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopMismatch(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -317,7 +321,7 @@ func (exchg *testExchange) Acked(sess broker.BrokerSession, done bool) error {
 }
 
 func (s *sessionSuite) TestSessionLoopExchange(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -341,7 +345,7 @@ func (s *sessionSuite) TestSessionLoopExchange(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopExchangeSplit(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -372,7 +376,7 @@ func (s *sessionSuite) TestSessionLoopExchangeSplit(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopExchangePrepareError(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -389,7 +393,7 @@ func (s *sessionSuite) TestSessionLoopExchangePrepareError(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopExchangeAckedError(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -410,7 +414,7 @@ func (s *sessionSuite) TestSessionLoopExchangeAckedError(c *C) {
 }
 
 func (s *sessionSuite) TestSessionLoopExchangeWriteError(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -438,7 +442,7 @@ func (trk *testTracker) EffectivePingInterval(interval time.Duration) {
 }
 
 func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
-	track := &testTracker{NewTracker(nopLogger), make(chan interface{}, 1)}
+	track := &testTracker{NewTracker(s.testlog), make(chan interface{}, 1)}
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -458,8 +462,9 @@ func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
 	c.Check(takeNext(down), Equals, "deadline 5ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
 	effectiveOfPing := float64(interval) / float64(10*time.Millisecond)
-	c.Check(effectiveOfPing > 0.95, Equals, true)
-	c.Check(effectiveOfPing < 1.15, Equals, true)
+	comment := Commentf("effectiveOfPing=%f", effectiveOfPing)
+	c.Check(effectiveOfPing > 0.95, Equals, true, comment)
+	c.Check(effectiveOfPing < 1.15, Equals, true, comment)
 	up <- nil // no write error
 	up <- io.EOF
 	err := <-errCh
@@ -507,11 +512,8 @@ var cfg50msPingInterval = &testSessionConfig{
 	exchangeTimeout: 10 * time.Millisecond,
 }
 
-var nopLogger = logger.NewSimpleLogger(ioutil.Discard, "error")
-
 func (s *sessionSuite) TestSessionWire(c *C) {
-	buf := &bytes.Buffer{}
-	track := NewTracker(logger.NewSimpleLogger(buf, "debug"))
+	track := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
@@ -543,11 +545,11 @@ func (s *sessionSuite) TestSessionWire(c *C) {
 	c.Check(err, Equals, io.EOF)
 	c.Check(takeNext(brkr.registration), Equals, "unregister DEV")
 	// tracking
-	c.Check(buf.String(), Matches, `.*connected.*\n.*registered DEV.*\n.*ended with: EOF\n`)
+	c.Check(s.testlog.Captured(), Matches, `.*connected.*\n.*registered DEV.*\n.*ended with: EOF\n`)
 }
 
 func (s *sessionSuite) TestSessionWireTimeout(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
@@ -563,8 +565,7 @@ func (s *sessionSuite) TestSessionWireTimeout(c *C) {
 }
 
 func (s *sessionSuite) TestSessionWireWrongVersion(c *C) {
-	buf := &bytes.Buffer{}
-	track := NewTracker(logger.NewSimpleLogger(buf, "debug"))
+	track := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
@@ -577,13 +578,12 @@ func (s *sessionSuite) TestSessionWireWrongVersion(c *C) {
 	c.Check(err, DeepEquals, &broker.ErrAbort{"unexpected wire format version"})
 	cli.Close()
 	// tracking
-	c.Check(buf.String(), Matches, `.*connected.*\n.*ended with: session aborted \(unexpected.*version\)\n`)
+	c.Check(s.testlog.Captured(), Matches, `.*connected.*\n.*ended with: session aborted \(unexpected.*version\)\n`)
 
 }
 
 func (s *sessionSuite) TestSessionWireEarlyClose(c *C) {
-	buf := &bytes.Buffer{}
-	track := NewTracker(logger.NewSimpleLogger(buf, "debug"))
+	track := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
@@ -595,13 +595,12 @@ func (s *sessionSuite) TestSessionWireEarlyClose(c *C) {
 	err := <-errCh
 	c.Check(err, Equals, io.EOF)
 	// tracking
-	c.Check(buf.String(), Matches, `.*connected.*\n.*ended with: EOF\n`)
+	c.Check(s.testlog.Captured(), Matches, `.*connected.*\n.*ended with: EOF\n`)
 
 }
 
 func (s *sessionSuite) TestSessionWireEarlyClose2(c *C) {
-	buf := &bytes.Buffer{}
-	track := NewTracker(logger.NewSimpleLogger(buf, "debug"))
+	track := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
@@ -615,11 +614,11 @@ func (s *sessionSuite) TestSessionWireEarlyClose2(c *C) {
 	err := <-errCh
 	c.Check(err, Equals, io.EOF)
 	// tracking
-	c.Check(buf.String(), Matches, `.*connected.*\n.*ended with: EOF\n`)
+	c.Check(s.testlog.Captured(), Matches, `.*connected.*\n.*ended with: EOF\n`)
 }
 
 func (s *sessionSuite) TestSessionWireTimeout2(c *C) {
-	nopTrack := NewTracker(nopLogger)
+	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
 	srv, cli, lst := serverClientWire()
 	defer lst.Close()
