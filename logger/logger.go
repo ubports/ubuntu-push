@@ -27,7 +27,7 @@ import (
 
 // Logger is a simple logger interface with logging at levels.
 type Logger interface {
-	// (Re)xpose base Output for logging events
+	// (Re)xpose base Output for logging events.
 	Output(calldept int, s string) error
 	// Errorf logs an error.
 	Errorf(format string, v ...interface{})
