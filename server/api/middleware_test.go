@@ -17,10 +17,8 @@
 package api
 
 import (
-	"bytes"
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
-	// "launchpad.net/ubuntu-push/testing"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"net/http"
 	"net/http/httptest"
 )
@@ -30,8 +28,7 @@ type middlewareSuite struct{}
 var _ = Suite(&middlewareSuite{})
 
 func (s *middlewareSuite) TestPanicTo500Handler(c *C) {
-	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
+	logger := helpers.NewTestLogger(c, "debug")
 	panicking := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		panic("panic in handler")
 	})
@@ -40,7 +37,7 @@ func (s *middlewareSuite) TestPanicTo500Handler(c *C) {
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, nil)
 	c.Check(w.Code, Equals, 500)
-	c.Check(buf.String(), Matches, "(?s).* ERROR\\(PANIC\\) serving http: panic in handler:.*")
+	c.Check(logger.Captured(), Matches, "(?s)ERROR\\(PANIC\\) serving http: panic in handler:.*")
 	c.Check(w.Header().Get("Content-Type"), Equals, "application/json")
 	c.Check(w.Body.String(), Equals, `{"error":"internal","message":"INTERNAL SERVER ERROR"}`)
 }
