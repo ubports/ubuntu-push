@@ -168,7 +168,7 @@ func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
 	c.Check(err, IsNil)
 	// but no root CAs set
 	c.Check(sess.TLS.RootCAs, IsNil)
-	c.Check(sess.State, Equals, Disconnected)
+	c.Check(sess.State(), Equals, Disconnected)
 }
 
 var certfile string = helpers.SourceRelative("../../server/acceptance/config/testing.cert")
@@ -197,7 +197,7 @@ func (cs *clientSessionSuite) TestConnectFailsWithNoAddress(c *C) {
 	c.Assert(err, IsNil)
 	err = sess.connect()
 	c.Check(err, ErrorMatches, ".*connect.*address.*")
-	c.Check(sess.State, Equals, Error)
+	c.Check(sess.State(), Equals, Error)
 }
 
 func (cs *clientSessionSuite) TestConnectConnects(c *C) {
@@ -209,7 +209,7 @@ func (cs *clientSessionSuite) TestConnectConnects(c *C) {
 	err = sess.connect()
 	c.Check(err, IsNil)
 	c.Check(sess.Connection, NotNil)
-	c.Check(sess.State, Equals, Connected)
+	c.Check(sess.State(), Equals, Connected)
 }
 
 func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
@@ -220,7 +220,7 @@ func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
 	c.Assert(err, IsNil)
 	err = sess.connect()
 	c.Check(err, ErrorMatches, ".*connection refused")
-	c.Check(sess.State, Equals, Error)
+	c.Check(sess.State(), Equals, Error)
 }
 
 /****************************************************************
@@ -233,7 +233,7 @@ func (cs *clientSessionSuite) TestClose(c *C) {
 	sess.Connection = &testConn{Name: "TestClose"}
 	sess.Close()
 	c.Check(sess.Connection, IsNil)
-	c.Check(sess.State, Equals, Disconnected)
+	c.Check(sess.State(), Equals, Disconnected)
 }
 
 func (cs *clientSessionSuite) TestCloseTwice(c *C) {
@@ -244,7 +244,7 @@ func (cs *clientSessionSuite) TestCloseTwice(c *C) {
 	c.Check(sess.Connection, IsNil)
 	sess.Close()
 	c.Check(sess.Connection, IsNil)
-	c.Check(sess.State, Equals, Disconnected)
+	c.Check(sess.State(), Equals, Disconnected)
 }
 
 func (cs *clientSessionSuite) TestCloseFails(c *C) {
@@ -253,7 +253,7 @@ func (cs *clientSessionSuite) TestCloseFails(c *C) {
 	sess.Connection = &testConn{Name: "TestCloseFails", CloseCondition: condition.Work(false)}
 	sess.Close()
 	c.Check(sess.Connection, IsNil) // nothing you can do to clean up anyway
-	c.Check(sess.State, Equals, Disconnected)
+	c.Check(sess.State(), Equals, Disconnected)
 }
 
 /****************************************************************
@@ -296,7 +296,7 @@ func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
 	c.Check(s.sess.handlePing(), Equals, failure)
 	c.Assert(len(s.downCh), Equals, 1)
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
-	c.Check(s.sess.State, Equals, Error)
+	c.Check(s.sess.State(), Equals, Error)
 }
 
 /****************************************************************
@@ -336,7 +336,7 @@ func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
 	failure := errors.New("ACK ACK ACK")
 	s.upCh <- failure
 	c.Assert(<-s.errCh, Equals, failure)
-	c.Check(s.sess.State, Equals, Error)
+	c.Check(s.sess.State(), Equals, Error)
 }
 
 func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
@@ -372,15 +372,15 @@ func (s *loopSuite) SetUpTest(c *C) {
 }
 
 func (s *loopSuite) TestLoopReadError(c *C) {
-	c.Check(s.sess.State, Equals, Running)
+	c.Check(s.sess.State(), Equals, Running)
 	s.upCh <- errors.New("Read")
 	err := <-s.errCh
 	c.Check(err, ErrorMatches, "Read")
-	c.Check(s.sess.State, Equals, Error)
+	c.Check(s.sess.State(), Equals, Error)
 }
 
 func (s *loopSuite) TestLoopPing(c *C) {
-	c.Check(s.sess.State, Equals, Running)
+	c.Check(s.sess.State(), Equals, Running)
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	s.upCh <- protocol.PingPongMsg{Type: "ping"}
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
@@ -390,7 +390,7 @@ func (s *loopSuite) TestLoopPing(c *C) {
 }
 
 func (s *loopSuite) TestLoopLoopsDaLoop(c *C) {
-	c.Check(s.sess.State, Equals, Running)
+	c.Check(s.sess.State(), Equals, Running)
 	for i := 1; i < 10; i++ {
 		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 		s.upCh <- protocol.PingPongMsg{Type: "ping"}
@@ -403,7 +403,7 @@ func (s *loopSuite) TestLoopLoopsDaLoop(c *C) {
 }
 
 func (s *loopSuite) TestLoopBroadcast(c *C) {
-	c.Check(s.sess.State, Equals, Running)
+	c.Check(s.sess.State(), Equals, Running)
 	b := &protocol.BroadcastMsg{
 		Type:     "broadcast",
 		AppId:    "--ignored--",
@@ -429,7 +429,7 @@ func (cs *clientSessionSuite) TestStartFailsIfSetDeadlineFails(c *C) {
 		DeadlineCondition: condition.Work(false)} // setdeadline will fail
 	err = sess.start()
 	c.Check(err, ErrorMatches, ".*deadline.*")
-	c.Check(sess.State, Equals, Error)
+	c.Check(sess.State(), Equals, Error)
 }
 
 func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
@@ -439,7 +439,7 @@ func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
 		WriteCondition: condition.Work(false)} // write will fail
 	err = sess.start()
 	c.Check(err, ErrorMatches, ".*write.*")
-	c.Check(sess.State, Equals, Error)
+	c.Check(sess.State(), Equals, Error)
 }
 
 func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
@@ -465,7 +465,7 @@ func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
 	upCh <- errors.New("Overflow error in /dev/null")
 	err = <-errCh
 	c.Check(err, ErrorMatches, "Overflow.*null")
-	c.Check(sess.State, Equals, Error)
+	c.Check(sess.State(), Equals, Error)
 }
 
 func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
@@ -489,7 +489,7 @@ func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
 	upCh <- io.EOF
 	err = <-errCh
 	c.Check(err, ErrorMatches, ".*EOF.*")
-	c.Check(sess.State, Equals, Error)
+	c.Check(sess.State(), Equals, Error)
 }
 
 func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
@@ -513,7 +513,7 @@ func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
 	upCh <- protocol.ConnAckMsg{Type: "connack"}
 	err = <-errCh
 	c.Check(err, ErrorMatches, ".*invalid.*")
-	c.Check(sess.State, Equals, Error)
+	c.Check(sess.State(), Equals, Error)
 }
 
 func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
@@ -537,7 +537,7 @@ func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
 	upCh <- protocol.ConnAckMsg{Type: "connnak"}
 	err = <-errCh
 	c.Check(err, ErrorMatches, ".*CONNACK.*")
-	c.Check(sess.State, Equals, Error)
+	c.Check(sess.State(), Equals, Error)
 }
 
 func (cs *clientSessionSuite) TestStartWorks(c *C) {
@@ -565,7 +565,7 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	// start is now done.
 	err = <-errCh
 	c.Check(err, IsNil)
-	c.Check(sess.State, Equals, Started)
+	c.Check(sess.State(), Equals, Started)
 }
 
 /****************************************************************
