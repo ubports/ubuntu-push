@@ -67,7 +67,7 @@ func (h *captureHelper) setLogEventCb(cb func(string)) {
 // capturing log strings.
 type TestLogger struct {
 	logger.Logger
-	helper  *captureHelper
+	helper *captureHelper
 }
 
 // NewTestLogger can be used in tests instead of NewSimpleLogger(FromMinimalLogger).

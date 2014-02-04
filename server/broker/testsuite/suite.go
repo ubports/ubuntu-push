@@ -206,7 +206,7 @@ func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
 	select {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to log error")
-	case <- logged:
+	case <-logged:
 	}
 	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful broadcast, get channel snapshot for 0: get channel snapshot fail\n")
 }
