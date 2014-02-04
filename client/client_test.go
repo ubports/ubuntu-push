@@ -293,7 +293,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 	c.Assert(cli.session, NotNil)
 	// let the session connection fail
 	time.Sleep(100 * time.Millisecond)
-	c.Check(cli.session.State, Equals, session.Error)
+	c.Check(cli.session.State(), Equals, session.Error)
 }
 
 /*****************************************************************
@@ -312,8 +312,8 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	c.Check(cli.hasConnectivity, Equals, true)
 	c.Assert(cli.session, NotNil)
 	// let the session connection fail
-	time.Sleep(100 * time.Millisecond)
-	c.Check(cli.session.State, Equals, session.Error)
+	time.Sleep(10 * time.Millisecond)
+	c.Check(cli.session.State(), Equals, session.Error)
 }
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
@@ -335,10 +335,10 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
-	// cli.session.State will be "Error" here, for now at least
-	c.Check(cli.session.State, Not(Equals), session.Disconnected)
+	// cli.session.State() will be "Error" here, for now at least
+	c.Check(cli.session.State(), Not(Equals), session.Disconnected)
 	cli.handleConnState(false)
-	c.Check(cli.session.State, Equals, session.Disconnected)
+	c.Check(cli.session.State(), Equals, session.Disconnected)
 }
 
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
@@ -348,7 +348,7 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)
-	c.Check(cli.session.State, Equals, session.Disconnected)
+	c.Check(cli.session.State(), Equals, session.Disconnected)
 	c.Check(cli.sessionRetrierStopper, IsNil)
 }
 
