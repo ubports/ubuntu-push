@@ -70,9 +70,16 @@ func mkHandler(text string) http.HandlerFunc {
 	}
 }
 
+func (cs *clientSuite) SetUpSuite(c *C) {
+	cs.timeouts = util.SwapTimeouts([]time.Duration{0})
+}
+
+func (cs *clientSuite) TearDownSuite(c *C) {
+	util.SwapTimeouts(cs.timeouts)
+	cs.timeouts = nil
+}
+
 func (cs *clientSuite) SetUpTest(c *C) {
-	cs.timeouts = util.Timeouts
-	util.Timeouts = []time.Duration{0}
 	dir := c.MkDir()
 	cs.configPath = filepath.Join(dir, "config")
 	cfg := fmt.Sprintf(`
@@ -86,10 +93,6 @@ func (cs *clientSuite) SetUpTest(c *C) {
     "recheck_timeout": "3h"
 }`, helpers.SourceRelative("../server/acceptance/config/testing.cert"))
 	ioutil.WriteFile(cs.configPath, []byte(cfg), 0600)
-}
-
-func (cs *clientSuite) TearDownTest(c *C) {
-	util.Timeouts = cs.timeouts
 }
 
 /*****************************************************************

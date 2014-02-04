@@ -27,6 +27,7 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"net"
+	"sync/atomic"
 	"time"
 )
 
@@ -41,6 +42,17 @@ type serverMsg struct {
 	protocol.BroadcastMsg
 	protocol.NotificationsMsg
 }
+
+// ClientSessionState is a way to broadly track the progress of the session
+type ClientSessionState uint32
+
+const (
+	Error ClientSessionState = iota
+	Disconnected
+	Connected
+	Started
+	Running
+)
 
 // ClienSession holds a client<->server session and its configuration.
 type ClientSession struct {
@@ -57,12 +69,14 @@ type ClientSession struct {
 	proto        protocol.Protocol
 	pingInterval time.Duration
 	// status
-	ErrCh chan error
-	MsgCh chan *Notification
+	stateP *uint32
+	ErrCh  chan error
+	MsgCh  chan *Notification
 }
 
 func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 	deviceId string, log logger.Logger) (*ClientSession, error) {
+	state := uint32(Disconnected)
 	sess := &ClientSession{
 		ExchangeTimeout: exchangeTimeout,
 		ServerAddr:      serverAddr,
@@ -71,6 +85,7 @@ func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 		Protocolator:    protocol.NewProtocol0,
 		Levels:          levelmap.NewLevelMap(),
 		TLS:             &tls.Config{InsecureSkipVerify: true}, // XXX
+		stateP:          &state,
 	}
 	if pem != nil {
 		cp := x509.NewCertPool()
@@ -83,14 +98,24 @@ func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 	return sess, nil
 }
 
+func (sess *ClientSession) State() ClientSessionState {
+	return ClientSessionState(atomic.LoadUint32(sess.stateP))
+}
+
+func (sess *ClientSession) setState(state ClientSessionState) {
+	atomic.StoreUint32(sess.stateP, uint32(state))
+}
+
 // connect to a server using the configuration in the ClientSession
 // and set up the connection.
 func (sess *ClientSession) connect() error {
 	conn, err := net.DialTimeout("tcp", sess.ServerAddr, sess.ExchangeTimeout)
 	if err != nil {
+		sess.setState(Error)
 		return fmt.Errorf("connect: %s", err)
 	}
 	sess.Connection = tls.Client(conn, sess.TLS)
+	sess.setState(Connected)
 	return nil
 }
 
@@ -102,6 +127,7 @@ func (sess *ClientSession) Close() {
 		// you could do to recover at this stage).
 		sess.Connection = nil
 	}
+	sess.setState(Disconnected)
 }
 
 // handle "ping" messages
@@ -110,6 +136,7 @@ func (sess *ClientSession) handlePing() error {
 	if err == nil {
 		sess.Log.Debugf("ping.")
 	} else {
+		sess.setState(Error)
 		sess.Log.Errorf("unable to pong: %s", err)
 	}
 	return err
@@ -119,6 +146,7 @@ func (sess *ClientSession) handlePing() error {
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	err := sess.proto.WriteMessage(protocol.AckMsg{"ack"})
 	if err != nil {
+		sess.setState(Error)
 		return err
 	}
 	sess.Log.Debugf("broadcast chan:%v app:%v topLevel:%d payloads:%s",
@@ -137,11 +165,13 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 func (sess *ClientSession) loop() error {
 	var err error
 	var recv serverMsg
+	sess.setState(Running)
 	for {
 		deadAfter := sess.pingInterval + sess.ExchangeTimeout
 		sess.proto.SetDeadline(time.Now().Add(deadAfter))
 		err = sess.proto.ReadMessage(&recv)
 		if err != nil {
+			sess.setState(Error)
 			return err
 		}
 		switch recv.Type {
@@ -161,12 +191,14 @@ func (sess *ClientSession) start() error {
 	conn := sess.Connection
 	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	if err != nil {
+		sess.setState(Error)
 		return err
 	}
 	_, err = conn.Write(wireVersionBytes)
 	// The Writer docs: Write must return a non-nil error if it returns
 	// n < len(p). So, no need to check number of bytes written, hooray.
 	if err != nil {
+		sess.setState(Error)
 		return err
 	}
 	proto := sess.Protocolator(conn)
@@ -177,23 +209,28 @@ func (sess *ClientSession) start() error {
 		Levels:   sess.Levels.GetAll(),
 	})
 	if err != nil {
+		sess.setState(Error)
 		return err
 	}
 	var connAck protocol.ConnAckMsg
 	err = proto.ReadMessage(&connAck)
 	if err != nil {
+		sess.setState(Error)
 		return err
 	}
 	if connAck.Type != "connack" {
+		sess.setState(Error)
 		return fmt.Errorf("expecting CONNACK, got %#v", connAck.Type)
 	}
 	pingInterval, err := time.ParseDuration(connAck.Params.PingInterval)
 	if err != nil {
+		sess.setState(Error)
 		return err
 	}
 	sess.proto = proto
 	sess.pingInterval = pingInterval
 	sess.Log.Debugf("Connected %v.", conn.LocalAddr())
+	sess.setState(Started)
 	return nil
 }
 
