@@ -14,17 +14,20 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// The client/session package handles the minutiae of interacting with
+// the Ubuntu Push Notifications server.
 package session
 
 import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"io/ioutil"
-	"launchpad.net/ubuntu-push/config"
+	"fmt"
+	"launchpad.net/ubuntu-push/client/session/levelmap"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"net"
+	"sync/atomic"
 	"time"
 )
 
@@ -34,29 +37,22 @@ type Notification struct {
 	// something something something
 }
 
-type LevelMap interface {
-	Set(level string, top int64)
-	GetAll() map[string]int64
+type serverMsg struct {
+	Type string `json:"T"`
+	protocol.BroadcastMsg
+	protocol.NotificationsMsg
 }
 
-type mapLevelMap map[string]int64
+// ClientSessionState is a way to broadly track the progress of the session
+type ClientSessionState uint32
 
-func (m *mapLevelMap) Set(level string, top int64) {
-	(*m)[level] = top
-}
-func (m *mapLevelMap) GetAll() map[string]int64 {
-	return map[string]int64(*m)
-}
-
-var _ LevelMap = &mapLevelMap{}
-
-type ClientConfig struct {
-	// session configuration
-	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
-	// server connection config
-	Addr        config.ConfigHostPort
-	CertPEMFile string `json:"cert_pem_file"`
-}
+const (
+	Error ClientSessionState = iota
+	Disconnected
+	Connected
+	Started
+	Running
+)
 
 // ClienSession holds a client<->server session and its configuration.
 type ClientSession struct {
@@ -64,151 +60,212 @@ type ClientSession struct {
 	DeviceId        string
 	ServerAddr      string
 	ExchangeTimeout time.Duration
-	Levels          LevelMap
+	Levels          levelmap.LevelMap
+	Protocolator    func(net.Conn) protocol.Protocol
 	// connection
 	Connection   net.Conn
-	Protocolator func(net.Conn) protocol.Protocol
 	Log          logger.Logger
 	TLS          *tls.Config
+	proto        protocol.Protocol
+	pingInterval time.Duration
 	// status
-	ErrCh chan error
-	MsgCh chan *Notification
+	stateP *uint32
+	ErrCh  chan error
+	MsgCh  chan *Notification
 }
 
-func NewSession(config ClientConfig, log logger.Logger, deviceId string) (*ClientSession, error) {
+func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
+	deviceId string, log logger.Logger) (*ClientSession, error) {
+	state := uint32(Disconnected)
 	sess := &ClientSession{
-		ExchangeTimeout: config.ExchangeTimeout.TimeDuration(),
-		ServerAddr:      config.Addr.HostPort(),
+		ExchangeTimeout: exchangeTimeout,
+		ServerAddr:      serverAddr,
 		DeviceId:        deviceId,
 		Log:             log,
 		Protocolator:    protocol.NewProtocol0,
-		Levels:          &mapLevelMap{},
+		Levels:          levelmap.NewLevelMap(),
 		TLS:             &tls.Config{InsecureSkipVerify: true}, // XXX
+		stateP:          &state,
 	}
-	if config.CertPEMFile != "" {
-		cert, err := ioutil.ReadFile(config.CertPEMFile)
-		if err != nil {
-			return nil, err
-		}
+	if pem != nil {
 		cp := x509.NewCertPool()
-		ok := cp.AppendCertsFromPEM(cert)
+		ok := cp.AppendCertsFromPEM(pem)
 		if !ok {
-			return nil, errors.New("dial: could not parse certificate")
+			return nil, errors.New("could not parse certificate")
 		}
 		sess.TLS.RootCAs = cp
 	}
 	return sess, nil
 }
 
-// Dial connects to a server using the configuration in the ClientSession
-// and sets up the connection.
-func (sess *ClientSession) Dial() error {
+func (sess *ClientSession) State() ClientSessionState {
+	return ClientSessionState(atomic.LoadUint32(sess.stateP))
+}
+
+func (sess *ClientSession) setState(state ClientSessionState) {
+	atomic.StoreUint32(sess.stateP, uint32(state))
+}
+
+// connect to a server using the configuration in the ClientSession
+// and set up the connection.
+func (sess *ClientSession) connect() error {
 	conn, err := net.DialTimeout("tcp", sess.ServerAddr, sess.ExchangeTimeout)
 	if err != nil {
-		return err
+		sess.setState(Error)
+		return fmt.Errorf("connect: %s", err)
 	}
 	sess.Connection = tls.Client(conn, sess.TLS)
+	sess.setState(Connected)
 	return nil
 }
 
-type serverMsg struct {
-	Type string `json:"T"`
-	protocol.BroadcastMsg
-	protocol.NotificationsMsg
+func (sess *ClientSession) Close() {
+	if sess.Connection != nil {
+		sess.Connection.Close()
+		// we ignore Close errors, on purpose (the thinking being that
+		// the connection isn't really usable, and you've got nothing
+		// you could do to recover at this stage).
+		sess.Connection = nil
+	}
+	sess.setState(Disconnected)
 }
 
-func (sess *ClientSession) Reset() error {
-	if sess.Protocolator == nil {
-		return errors.New("Can't Reset() without a protocol constructor.")
+// handle "ping" messages
+func (sess *ClientSession) handlePing() error {
+	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
+	if err == nil {
+		sess.Log.Debugf("ping.")
+	} else {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to pong: %s", err)
 	}
-	if sess.Connection != nil {
-		sess.Connection.Close() // just in case
-	}
-	err := sess.Dial()
+	return err
+}
+
+// handle "broadcast" messages
+func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
+	err := sess.proto.WriteMessage(protocol.AckMsg{"ack"})
 	if err != nil {
-		sess.Log.Errorf("%s", err)
+		sess.setState(Error)
+		sess.Log.Errorf("unable to ack broadcast: %s", err)
 		return err
 	}
-	sess.ErrCh = make(chan error, 1)
-	sess.MsgCh = make(chan *Notification)
-	sess.Run()
+	sess.Log.Debugf("broadcast chan:%v app:%v topLevel:%d payloads:%s",
+		bcast.ChanId, bcast.AppId, bcast.TopLevel, bcast.Payloads)
+	if bcast.ChanId == protocol.SystemChannelId {
+		// the system channel id, the only one we care about for now
+		sess.Log.Debugf("sending it over")
+		sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
+		sess.MsgCh <- &Notification{}
+		sess.Log.Debugf("sent it over")
+	} else {
+		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)
+	}
 	return nil
 }
 
-func (sess *ClientSession) Run() {
-	go func() { sess.ErrCh <- sess.run() }()
+// loop runs the session with the server, emits a stream of events.
+func (sess *ClientSession) loop() error {
+	var err error
+	var recv serverMsg
+	sess.setState(Running)
+	for {
+		deadAfter := sess.pingInterval + sess.ExchangeTimeout
+		sess.proto.SetDeadline(time.Now().Add(deadAfter))
+		err = sess.proto.ReadMessage(&recv)
+		if err != nil {
+			sess.setState(Error)
+			return err
+		}
+		switch recv.Type {
+		case "ping":
+			err = sess.handlePing()
+		case "broadcast":
+			err = sess.handleBroadcast(&recv)
+		}
+		if err != nil {
+			return err
+		}
+	}
 }
 
-// Run the session with the server, emits a stream of events.
-func (sess *ClientSession) run() error {
+// Call this when you've connected and want to start looping.
+func (sess *ClientSession) start() error {
 	conn := sess.Connection
-	if conn == nil {
-		return errors.New("Can't run() disconnected.")
-	}
-	if sess.Protocolator == nil {
-		return errors.New("Can't run() without a protocol constructor.")
-	}
-	defer conn.Close()
 	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to start: set deadline: %s", err)
 		return err
 	}
 	_, err = conn.Write(wireVersionBytes)
 	// The Writer docs: Write must return a non-nil error if it returns
 	// n < len(p). So, no need to check number of bytes written, hooray.
 	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to start: write version: %s", err)
 		return err
 	}
 	proto := sess.Protocolator(conn)
+	proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	err = proto.WriteMessage(protocol.ConnectMsg{
 		Type:     "connect",
 		DeviceId: sess.DeviceId,
 		Levels:   sess.Levels.GetAll(),
 	})
 	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to start: connect: %s", err)
 		return err
 	}
 	var connAck protocol.ConnAckMsg
 	err = proto.ReadMessage(&connAck)
 	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to start: connack: %s", err)
 		return err
+	}
+	if connAck.Type != "connack" {
+		sess.setState(Error)
+		return fmt.Errorf("expecting CONNACK, got %#v", connAck.Type)
 	}
 	pingInterval, err := time.ParseDuration(connAck.Params.PingInterval)
 	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to start: parse ping interval: %s", err)
 		return err
 	}
+	sess.proto = proto
+	sess.pingInterval = pingInterval
 	sess.Log.Debugf("Connected %v.", conn.LocalAddr())
-	var recv serverMsg
-	for {
-		deadAfter := pingInterval + sess.ExchangeTimeout
-		conn.SetDeadline(time.Now().Add(deadAfter))
-		err = proto.ReadMessage(&recv)
-		if err != nil {
-			return err
-		}
-		switch recv.Type {
-		case "ping":
-			conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-			err := proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
-			if err != nil {
-				return err
-			}
-			sess.Log.Debugf("Ping.")
-		case "broadcast":
-			conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-			err := proto.WriteMessage(protocol.PingPongMsg{Type: "ack"})
-			if err != nil {
-				return err
-			}
-			sess.Log.Debugf("broadcast chan:%v app:%v topLevel:%d payloads:%s",
-				recv.ChanId, recv.AppId, recv.TopLevel, recv.Payloads)
-			if recv.ChanId == protocol.SystemChannelId {
-				// the system channel id, the only one we care about for now
-				sess.Levels.Set(recv.ChanId, recv.TopLevel)
-				sess.MsgCh <- &Notification{}
-			} else {
-				sess.Log.Debugf("What is this weird channel, %s?", recv.ChanId)
-			}
+	sess.setState(Started)
+	return nil
+}
+
+// run calls connect, and if it works it calls start, and if it works
+// it runs loop in a goroutine, and ships its return value over ErrCh.
+func (sess *ClientSession) run(closer func(), connecter, starter, looper func() error) error {
+	closer()
+	err := connecter()
+	if err == nil {
+		err = starter()
+		if err == nil {
+			sess.ErrCh = make(chan error, 1)
+			sess.MsgCh = make(chan *Notification)
+			go func() { sess.ErrCh <- looper() }()
 		}
 	}
+	return err
+}
+
+// Dial takes the session from newly created (or newly disconnected)
+// to running the main loop.
+func (sess *ClientSession) Dial() error {
+	if sess.Protocolator == nil {
+		// a missing protocolator means you've willfully overridden
+		// it; returning an error here would prompt AutoRedial to just
+		// keep on trying.
+		panic("can't Dial() without a protocol constructor.")
+	}
+	return sess.run(sess.Close, sess.connect, sess.start, sess.loop)
 }

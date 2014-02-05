@@ -40,7 +40,7 @@ type Identifier struct {
 }
 
 // New creates an Identifier, but does not call Generate() on it.
-func New() *Identifier {
+func New() Id {
 	return &Identifier{}
 }
 

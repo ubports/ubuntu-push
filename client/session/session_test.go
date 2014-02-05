@@ -17,6 +17,7 @@
 package session
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,8 +31,6 @@ import (
 	"net"
 	"os"
 	"reflect"
-	"runtime"
-	"strings"
 	"testing"
 	"time"
 )
@@ -41,65 +40,13 @@ func TestSession(t *testing.T) { TestingT(t) }
 type clientSessionSuite struct{}
 
 var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
-var debuglog = logger.NewSimpleLogger(os.Stderr, "debug")
+var noisylog = logger.NewSimpleLogger(os.Stderr, "debug")
+var debuglog = nullog
 var _ = Suite(&clientSessionSuite{})
 
-/****************************************************************
-  NewSession() tests
-****************************************************************/
-
-func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
-	cfg := ClientConfig{}
-	sess, err := NewSession(cfg, nullog, "wah")
-	c.Check(sess, NotNil)
-	c.Check(err, IsNil)
-}
-
-var certfile string = helpers.SourceRelative("../../server/acceptance/config/testing.cert")
-
-func (cs *clientSessionSuite) TestNewSessionPEMWorks(c *C) {
-	cfg := ClientConfig{CertPEMFile: certfile}
-	sess, err := NewSession(cfg, nullog, "wah")
-	c.Check(sess, NotNil)
-	c.Assert(err, IsNil)
-	c.Check(sess.TLS.RootCAs, NotNil)
-}
-
-func (cs *clientSessionSuite) TestNewSessionBadPEMFilePathFails(c *C) {
-	cfg := ClientConfig{CertPEMFile: "/no/such/path"}
-	sess, err := NewSession(cfg, nullog, "wah")
-	c.Check(sess, IsNil)
-	c.Check(err, NotNil)
-}
-
-func (cs *clientSessionSuite) TestNewSessionBadPEMFileContentFails(c *C) {
-	cfg := ClientConfig{CertPEMFile: "/etc/passwd"}
-	sess, err := NewSession(cfg, nullog, "wah")
-	c.Check(sess, IsNil)
-	c.Check(err, NotNil)
-}
-
-/****************************************************************
-  Run() tests
-****************************************************************/
-
-func testname() string {
-	pcs := make([]uintptr, 200)
-	runtime.Callers(0, pcs)
-	testname := "<unknown>"
-	for _, pc := range pcs {
-		me := runtime.FuncForPC(pc)
-		if me == nil {
-			break
-		}
-		parts := strings.Split(me.Name(), ".")
-		funcname := parts[len(parts)-1]
-		if strings.HasPrefix(funcname, "Test") {
-			testname = funcname
-		}
-	}
-	return testname
-}
+//
+// helpers! candidates to live in their own ../testing/ package.
+//
 
 type xAddr string
 
@@ -114,13 +61,20 @@ type testConn struct {
 	Writes            [][]byte
 	WriteCondition    condition.Interface
 	DeadlineCondition condition.Interface
+	CloseCondition    condition.Interface
 }
 
 func (tc *testConn) LocalAddr() net.Addr { return xAddr(tc.Name) }
 
 func (tc *testConn) RemoteAddr() net.Addr { return xAddr(tc.Name) }
 
-func (tc *testConn) Close() error { return nil }
+func (tc *testConn) Close() error {
+	if tc.CloseCondition == nil || tc.CloseCondition.OK() {
+		return nil
+	} else {
+		return errors.New("closer on fire")
+	}
+}
 
 func (tc *testConn) SetDeadline(t time.Time) error {
 	tc.Deadlines = append(tc.Deadlines, t.Sub(time.Now()))
@@ -131,9 +85,9 @@ func (tc *testConn) SetDeadline(t time.Time) error {
 	}
 }
 
-func (tc *testConn) SetReadDeadline(t time.Time) error  { panic("NIH"); return nil }
-func (tc *testConn) SetWriteDeadline(t time.Time) error { panic("NIH"); return nil }
-func (tc *testConn) Read(buf []byte) (n int, err error) { panic("NIH"); return -1, nil }
+func (tc *testConn) SetReadDeadline(t time.Time) error  { panic("SetReadDeadline not implemented.") }
+func (tc *testConn) SetWriteDeadline(t time.Time) error { panic("SetWriteDeadline not implemented.") }
+func (tc *testConn) Read(buf []byte) (n int, err error) { panic("Read not implemented.") }
 
 func (tc *testConn) Write(buf []byte) (int, error) {
 	store := make([]byte, len(buf))
@@ -205,303 +159,251 @@ func (c *testProtocol) WriteMessage(src interface{}) error {
 }
 
 /****************************************************************
- *
- *  Go way down to the bottom if you want to see the full, working case.
- *  This has a rather slow buildup.
- *
- *  TODO: check deadlines
- *
- ****************************************************************/
+  NewSession() tests
+****************************************************************/
 
-func (cs *clientSessionSuite) TestRunFailsIfNilConnection(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	// not connected!
-	err = sess.run()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*disconnected.*")
+func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
+	sess, err := NewSession("", nil, 0, "", nullog)
+	c.Check(sess, NotNil)
+	c.Check(err, IsNil)
+	// but no root CAs set
+	c.Check(sess.TLS.RootCAs, IsNil)
+	c.Check(sess.State(), Equals, Disconnected)
 }
 
-func (cs *clientSessionSuite) TestRunFailsIfNilProtocolator(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
+var certfile string = helpers.SourceRelative("../../server/acceptance/config/testing.cert")
+var pem, _ = ioutil.ReadFile(certfile)
+
+func (cs *clientSessionSuite) TestNewSessionPEMWorks(c *C) {
+	sess, err := NewSession("", pem, 0, "wah", nullog)
+	c.Check(sess, NotNil)
 	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()} // ok, have a constructor
-	sess.Protocolator = nil                       // but no protocol, seeficare.
-	err = sess.run()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*protocol constructor.*")
+	c.Check(sess.TLS.RootCAs, NotNil)
 }
 
-func (cs *clientSessionSuite) TestRunFailsIfSetDeadlineFails(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname(),
-		DeadlineCondition: condition.Work(false)} // setdeadline will fail
-	err = sess.run()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*deadline.*")
+func (cs *clientSessionSuite) TestNewSessionBadPEMFileContentFails(c *C) {
+	badpem := []byte("This is not the PEM you're looking for.")
+	sess, err := NewSession("", badpem, 0, "wah", nullog)
+	c.Check(sess, IsNil)
+	c.Check(err, NotNil)
 }
 
-func (cs *clientSessionSuite) TestRunFailsIfWriteFails(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
+/****************************************************************
+  connect() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestConnectFailsWithNoAddress(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname(),
-		WriteCondition: condition.Work(false)} // write will fail
-	err = sess.run()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*write.*")
+	err = sess.connect()
+	c.Check(err, ErrorMatches, ".*connect.*address.*")
+	c.Check(sess.State(), Equals, Error)
 }
 
-func (cs *clientSessionSuite) TestRunConnectMessageFails(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
+func (cs *clientSessionSuite) TestConnectConnects(c *C) {
+	srv, err := net.Listen("tcp", "localhost:0")
 	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()}
-	errCh := make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+	defer srv.Close()
+	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	err = sess.connect()
+	c.Check(err, IsNil)
+	c.Check(sess.Connection, NotNil)
+	c.Check(sess.State(), Equals, Connected)
+}
 
+func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
+	srv, err := net.Listen("tcp", "localhost:0")
+	c.Assert(err, IsNil)
+	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
+	srv.Close()
+	c.Assert(err, IsNil)
+	err = sess.connect()
+	c.Check(err, ErrorMatches, ".*connection refused")
+	c.Check(sess.State(), Equals, Error)
+}
+
+/****************************************************************
+  Close() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestClose(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestClose"}
+	sess.Close()
+	c.Check(sess.Connection, IsNil)
+	c.Check(sess.State(), Equals, Disconnected)
+}
+
+func (cs *clientSessionSuite) TestCloseTwice(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestCloseTwice"}
+	sess.Close()
+	c.Check(sess.Connection, IsNil)
+	sess.Close()
+	c.Check(sess.Connection, IsNil)
+	c.Check(sess.State(), Equals, Disconnected)
+}
+
+func (cs *clientSessionSuite) TestCloseFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestCloseFails", CloseCondition: condition.Work(false)}
+	sess.Close()
+	c.Check(sess.Connection, IsNil) // nothing you can do to clean up anyway
+	c.Check(sess.State(), Equals, Disconnected)
+}
+
+/****************************************************************
+  handlePing() tests
+****************************************************************/
+
+type msgSuite struct {
+	sess   *ClientSession
+	upCh   chan interface{}
+	downCh chan interface{}
+	errCh  chan error
+}
+
+var _ = Suite(&msgSuite{})
+
+func (s *msgSuite) SetUpTest(c *C) {
+	var err error
+	s.sess, err = NewSession("", nil, time.Millisecond, "wah", debuglog)
+	c.Assert(err, IsNil)
+	s.sess.Connection = &testConn{Name: "TestHandle*"}
+	s.errCh = make(chan error, 1)
+	s.upCh = make(chan interface{}, 5)
+	s.downCh = make(chan interface{}, 5)
+	s.sess.proto = &testProtocol{up: s.upCh, down: s.downCh}
+	// make the message channel buffered
+	s.sess.MsgCh = make(chan *Notification, 5)
+}
+
+func (s *msgSuite) TestHandlePingWorks(c *C) {
+	s.upCh <- nil // no error
+	c.Check(s.sess.handlePing(), IsNil)
+	c.Assert(len(s.downCh), Equals, 1)
+	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
+}
+
+func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
+	failure := errors.New("Pong")
+	s.upCh <- failure
+
+	c.Check(s.sess.handlePing(), Equals, failure)
+	c.Assert(len(s.downCh), Equals, 1)
+	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
+	c.Check(s.sess.State(), Equals, Error)
+}
+
+/****************************************************************
+  handleBroadcast() tests
+****************************************************************/
+
+func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
+	msg := serverMsg{"broadcast",
+		protocol.BroadcastMsg{
+			Type:     "broadcast",
+			AppId:    "--ignored--",
+			ChanId:   "0",
+			TopLevel: 2,
+			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+		}, protocol.NotificationsMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, Equals, nil)
+	c.Assert(len(s.sess.MsgCh), Equals, 1)
+	c.Check(<-s.sess.MsgCh, Equals, &Notification{})
+	// and finally, the session keeps track of the levels
+	c.Check(s.sess.Levels.GetAll(), DeepEquals, map[string]int64{"0": 2})
+}
+
+func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
+	msg := serverMsg{"broadcast",
+		protocol.BroadcastMsg{
+			Type:     "broadcast",
+			AppId:    "APP",
+			ChanId:   "0",
+			TopLevel: 2,
+			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+		}, protocol.NotificationsMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	failure := errors.New("ACK ACK ACK")
+	s.upCh <- failure
+	c.Assert(<-s.errCh, Equals, failure)
+	c.Check(s.sess.State(), Equals, Error)
+}
+
+func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
+	msg := serverMsg{"broadcast",
+		protocol.BroadcastMsg{
+			Type:     "broadcast",
+			AppId:    "APP",
+			ChanId:   "something awful",
+			TopLevel: 2,
+			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+		}, protocol.NotificationsMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, IsNil)
+	c.Check(len(s.sess.MsgCh), Equals, 0)
+}
+
+/****************************************************************
+  loop() tests
+****************************************************************/
+
+type loopSuite msgSuite
+
+var _ = Suite(&loopSuite{})
+
+func (s *loopSuite) SetUpTest(c *C) {
+	(*msgSuite)(s).SetUpTest(c)
+	s.sess.Connection.(*testConn).Name = "TestLoop*"
 	go func() {
-		errCh <- sess.run()
+		s.errCh <- s.sess.loop()
 	}()
-
-	c.Check(takeNext(downCh), DeepEquals, protocol.ConnectMsg{
-		Type:     "connect",
-		DeviceId: sess.DeviceId,
-		Levels:   map[string]int64{},
-	})
-	upCh <- errors.New("Overflow error in /dev/null")
-	err = <-errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, "Overflow.*null")
 }
 
-func (cs *clientSessionSuite) TestRunConnackReadError(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()}
-	errCh := make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
-
-	go func() {
-		errCh <- sess.run()
-	}()
-
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
-	upCh <- io.EOF
-	err = <-errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*EOF.*")
+func (s *loopSuite) TestLoopReadError(c *C) {
+	c.Check(s.sess.State(), Equals, Running)
+	s.upCh <- errors.New("Read")
+	err := <-s.errCh
+	c.Check(err, ErrorMatches, "Read")
+	c.Check(s.sess.State(), Equals, Error)
 }
 
-func (cs *clientSessionSuite) TestRunBadConnack(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()}
-	errCh := make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
-
-	go func() {
-		errCh <- sess.run()
-	}()
-
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
-	upCh <- protocol.ConnAckMsg{}
-	err = <-errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*invalid.*")
+func (s *loopSuite) TestLoopPing(c *C) {
+	c.Check(s.sess.State(), Equals, Running)
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	s.upCh <- protocol.PingPongMsg{Type: "ping"}
+	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
+	failure := errors.New("pong")
+	s.upCh <- failure
+	c.Check(<-s.errCh, Equals, failure)
 }
 
-func (cs *clientSessionSuite) TestRunMainloopReadError(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()}
-	errCh := make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
-
-	go func() {
-		errCh <- sess.run()
-	}()
-
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
-	upCh <- protocol.ConnAckMsg{
-		Type:   "connack",
-		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
+func (s *loopSuite) TestLoopLoopsDaLoop(c *C) {
+	c.Check(s.sess.State(), Equals, Running)
+	for i := 1; i < 10; i++ {
+		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+		s.upCh <- protocol.PingPongMsg{Type: "ping"}
+		c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
+		s.upCh <- nil
 	}
-	// in the mainloop!
-	upCh <- errors.New("Read")
-	err = <-errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "Read")
+	failure := errors.New("pong")
+	s.upCh <- failure
+	c.Check(<-s.errCh, Equals, failure)
 }
 
-func (cs *clientSessionSuite) TestRunPongWriteError(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()}
-	errCh := make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
-
-	go func() {
-		errCh <- sess.run()
-	}()
-
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
-	upCh <- protocol.ConnAckMsg{
-		Type:   "connack",
-		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
-	}
-	// in the mainloop!
-	upCh <- protocol.PingPongMsg{Type: "ping"}
-	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "pong"})
-	upCh <- errors.New("Pong")
-	err = <-errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "Pong")
-}
-
-func (cs *clientSessionSuite) TestRunPingPong(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()}
-	errCh := make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
-
-	go func() {
-		errCh <- sess.run()
-	}()
-
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
-	upCh <- protocol.ConnAckMsg{
-		Type:   "connack",
-		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
-	}
-	// in the mainloop!
-	upCh <- protocol.PingPongMsg{Type: "ping"}
-	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "pong"})
-	upCh <- nil    // pong ok
-	upCh <- io.EOF // close it down
-	err = <-errCh
-}
-
-func (cs *clientSessionSuite) TestRunBadAckWrite(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()}
-	errCh := make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
-	sess.MsgCh = make(chan *Notification, 5)
-
-	go func() {
-		errCh <- sess.run()
-	}()
-
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
-	upCh <- protocol.ConnAckMsg{
-		Type:   "connack",
-		Params: protocol.ConnAckParams{time.Second.String()},
-	}
-	// in the mainloop!
-
-	b := &protocol.BroadcastMsg{
-		Type:     "broadcast",
-		AppId:    "APP",
-		ChanId:   "0",
-		TopLevel: 2,
-		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-	}
-	upCh <- b
-	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "ack"})
-	upCh <- errors.New("ACK ACK ACK")
-	err = <-errCh
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "ACK ACK ACK")
-}
-
-func (cs *clientSessionSuite) TestRunBroadcastWrongChannel(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()}
-	errCh := make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
-	sess.MsgCh = make(chan *Notification, 5)
-
-	go func() {
-		errCh <- sess.run()
-	}()
-
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
-	upCh <- protocol.ConnAckMsg{
-		Type:   "connack",
-		Params: protocol.ConnAckParams{time.Second.String()},
-	}
-	// in the mainloop!
-
-	b := &protocol.BroadcastMsg{
-		Type:     "broadcast",
-		AppId:    "APP",
-		ChanId:   "42",
-		TopLevel: 2,
-		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-	}
-	upCh <- b
-	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "ack"})
-	upCh <- nil    // ack ok
-	upCh <- io.EOF // close it down
-	err = <-errCh
-	c.Check(len(sess.MsgCh), Equals, 0)
-}
-
-func (cs *clientSessionSuite) TestRunBroadcastRightChannel(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: testname()}
-	sess.ErrCh = make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
-	sess.MsgCh = make(chan *Notification, 5)
-
-	sess.Run()
-
-	takeNext(downCh) // connectMsg
-	upCh <- nil      // no error
-	upCh <- protocol.ConnAckMsg{
-		Type:   "connack",
-		Params: protocol.ConnAckParams{time.Second.String()},
-	}
-	// in the mainloop!
-
+func (s *loopSuite) TestLoopBroadcast(c *C) {
+	c.Check(s.sess.State(), Equals, Running)
 	b := &protocol.BroadcastMsg{
 		Type:     "broadcast",
 		AppId:    "--ignored--",
@@ -509,78 +411,313 @@ func (cs *clientSessionSuite) TestRunBroadcastRightChannel(c *C) {
 		TopLevel: 2,
 		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 	}
-	upCh <- b
-	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "ack"})
-	upCh <- nil    // ack ok
-	upCh <- io.EOF // close it down
-	err = <-sess.ErrCh
-	c.Assert(len(sess.MsgCh), Equals, 1)
-	c.Check(<-sess.MsgCh, Equals, &Notification{})
-	// and finally, the session keeps track of the levels
-	c.Check(sess.Levels.GetAll(), DeepEquals, map[string]int64{"0": 2})
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	s.upCh <- b
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	failure := errors.New("ack")
+	s.upCh <- failure
+	c.Check(<-s.errCh, Equals, failure)
 }
 
-/*
- *
- *
- *
- * breathe in...
- */
-
-func (cs *clientSessionSuite) TestDialFailsWithNoAddress(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
+/****************************************************************
+  start() tests
+****************************************************************/
+func (cs *clientSessionSuite) TestStartFailsIfSetDeadlineFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
-	err = sess.Dial()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*dial.*address.*")
+	sess.Connection = &testConn{Name: "TestStartFailsIfSetDeadlineFails",
+		DeadlineCondition: condition.Work(false)} // setdeadline will fail
+	err = sess.start()
+	c.Check(err, ErrorMatches, ".*deadline.*")
+	c.Check(sess.State(), Equals, Error)
 }
 
-func (cs *clientSessionSuite) TestDialConnects(c *C) {
-	lp, err := net.Listen("tcp", ":0")
+func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
-	defer lp.Close()
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
+	sess.Connection = &testConn{Name: "TestStartFailsIfWriteFails",
+		WriteCondition: condition.Work(false)} // write will fail
+	err = sess.start()
+	c.Check(err, ErrorMatches, ".*write.*")
+	c.Check(sess.State(), Equals, Error)
+}
+
+func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
 	c.Assert(err, IsNil)
-	sess.ServerAddr = lp.Addr().String()
-	err = sess.Dial()
-	c.Check(err, IsNil)
-	c.Check(sess.Connection, NotNil)
-}
-
-func (cs *clientSessionSuite) TestResetFailsWithoutProtocolator(c *C) {
-	sess, _ := NewSession(ClientConfig{}, debuglog, "wah")
-	sess.Protocolator = nil
-	err := sess.Reset()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*protocol constructor\\.")
-}
-
-func (cs *clientSessionSuite) TestResetFailsWithNoAddress(c *C) {
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	err = sess.Reset()
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Matches, ".*dial.*address.*")
-}
-
-func (cs *clientSessionSuite) TestResets(c *C) {
+	sess.Connection = &testConn{Name: "TestStartConnectMessageFails"}
+	errCh := make(chan error, 1)
 	upCh := make(chan interface{}, 5)
 	downCh := make(chan interface{}, 5)
 	proto := &testProtocol{up: upCh, down: downCh}
-	lp, err := net.Listen("tcp", ":0")
-	c.Assert(err, IsNil)
-	defer lp.Close()
-
-	sess, err := NewSession(ClientConfig{}, debuglog, "wah")
-	c.Assert(err, IsNil)
-	sess.ServerAddr = lp.Addr().String()
-	sess.Connection = &testConn{Name: testname()}
 	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
 
-	sess.Reset()
+	go func() {
+		errCh <- sess.start()
+	}()
 
-	// wheee
-	err = <-sess.ErrCh
-	c.Assert(err, NotNil) // some random tcp error because
-	// there's nobody talking to the port
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	c.Check(takeNext(downCh), DeepEquals, protocol.ConnectMsg{
+		Type:     "connect",
+		DeviceId: sess.DeviceId,
+		Levels:   map[string]int64{},
+	})
+	upCh <- errors.New("Overflow error in /dev/null")
+	err = <-errCh
+	c.Check(err, ErrorMatches, "Overflow.*null")
+	c.Check(sess.State(), Equals, Error)
+}
+
+func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartConnackReadError"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
+	upCh <- io.EOF
+	err = <-errCh
+	c.Check(err, ErrorMatches, ".*EOF.*")
+	c.Check(sess.State(), Equals, Error)
+}
+
+func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartBadConnack"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
+	upCh <- protocol.ConnAckMsg{Type: "connack"}
+	err = <-errCh
+	c.Check(err, ErrorMatches, ".*invalid.*")
+	c.Check(sess.State(), Equals, Error)
+}
+
+func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartBadConnack"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
+	upCh <- protocol.ConnAckMsg{Type: "connnak"}
+	err = <-errCh
+	c.Check(err, ErrorMatches, ".*CONNACK.*")
+	c.Check(sess.State(), Equals, Error)
+}
+
+func (cs *clientSessionSuite) TestStartWorks(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartWorks"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
+	upCh <- protocol.ConnAckMsg{
+		Type:   "connack",
+		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
+	}
+	// start is now done.
+	err = <-errCh
+	c.Check(err, IsNil)
+	c.Check(sess.State(), Equals, Started)
+}
+
+/****************************************************************
+  run() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	failure := errors.New("TestRunBailsIfConnectFails")
+	has_closed := false
+	err = sess.run(
+		func() { has_closed = true },
+		func() error { return failure },
+		nil,
+		nil)
+	c.Check(err, Equals, failure)
+	c.Check(has_closed, Equals, true)
+}
+
+func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	failure := errors.New("TestRunBailsIfStartFails")
+	err = sess.run(
+		func() {},
+		func() error { return nil },
+		func() error { return failure },
+		nil)
+	c.Check(err, Equals, failure)
+}
+
+func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	// just to make a point: until here we haven't set ErrCh & MsgCh (no
+	// biggie if this stops being true)
+	c.Check(sess.ErrCh, IsNil)
+	c.Check(sess.MsgCh, IsNil)
+	failureCh := make(chan error) // must be unbuffered
+	notf := &Notification{}
+	err = sess.run(
+		func() {},
+		func() error { return nil },
+		func() error { return nil },
+		func() error { sess.MsgCh <- notf; return <-failureCh })
+	c.Check(err, Equals, nil)
+	// if run doesn't error it sets up the channels
+	c.Assert(sess.ErrCh, NotNil)
+	c.Assert(sess.MsgCh, NotNil)
+	c.Check(<-sess.MsgCh, Equals, notf)
+	failure := errors.New("TestRunRunsEvenIfLoopFails")
+	failureCh <- failure
+	c.Check(<-sess.ErrCh, Equals, failure)
+	// so now you know it was running in a goroutine :)
+}
+
+/****************************************************************
+  Dial() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestDialPanics(c *C) {
+	// one last unhappy test
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	sess.Protocolator = nil
+	c.Check(sess.Dial, PanicMatches, ".*protocol constructor.")
+}
+
+func (cs *clientSessionSuite) TestDialWorks(c *C) {
+	// happy path thoughts
+	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
+	c.Assert(err, IsNil)
+	tlsCfg := &tls.Config{
+		Certificates:           []tls.Certificate{cert},
+		SessionTicketsDisabled: true,
+	}
+
+	timeout := 100 * time.Millisecond
+	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
+	c.Assert(err, IsNil)
+	sess, err := NewSession(lst.Addr().String(), nil, timeout, "wah", debuglog)
+	c.Assert(err, IsNil)
+	tconn := &testConn{CloseCondition: condition.Fail2Work(10)}
+	sess.Connection = tconn
+	// just to be sure:
+	c.Check(tconn.CloseCondition.String(), Matches, ".* 10 to go.")
+
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(net.Conn) protocol.Protocol { return proto }
+
+	go sess.Dial()
+
+	srv, err := lst.Accept()
+	c.Assert(err, IsNil)
+
+	// connect done
+
+	// Dial should have had the session's old connection (tconn) closed
+	// before connecting a new one; if that was done, tconn's condition
+	// ticked forward:
+	c.Check(tconn.CloseCondition.String(), Matches, ".* 9 to go.")
+
+	// now, start: 1. protocol version
+	v, err := protocol.ReadWireFormatVersion(srv, timeout)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, protocol.ProtocolWireVersion)
+
+	// 2. "connect" (but on the fake protcol above! woo)
+
+	c.Check(takeNext(downCh), Equals, "deadline 100ms")
+	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	upCh <- nil // no error
+	upCh <- protocol.ConnAckMsg{
+		Type:   "connack",
+		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
+	}
+	// start is now done.
+
+	// 3. "loop"
+
+	// ping works,
+	c.Check(takeNext(downCh), Equals, "deadline 110ms")
+	upCh <- protocol.PingPongMsg{Type: "ping"}
+	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "pong"})
+	upCh <- nil
+
+	// and broadcasts...
+	b := &protocol.BroadcastMsg{
+		Type:     "broadcast",
+		AppId:    "--ignored--",
+		ChanId:   "0",
+		TopLevel: 2,
+		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+	}
+	c.Check(takeNext(downCh), Equals, "deadline 110ms")
+	upCh <- b
+	c.Check(takeNext(downCh), Equals, protocol.AckMsg{"ack"})
+	upCh <- nil
+	// ...get bubbled up,
+	c.Check(<-sess.MsgCh, NotNil)
+	// and their TopLevel remembered
+	c.Check(sess.Levels.GetAll(), DeepEquals, map[string]int64{"0": 2})
+
+	// and ping still work even after that.
+	c.Check(takeNext(downCh), Equals, "deadline 110ms")
+	upCh <- protocol.PingPongMsg{Type: "ping"}
+	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "pong"})
+	failure := errors.New("pongs")
+	upCh <- failure
+	c.Check(<-sess.ErrCh, Equals, failure)
 }

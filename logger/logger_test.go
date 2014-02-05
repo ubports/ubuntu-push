@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	. "launchpad.net/gocheck"
+	"log"
 	"os"
 	"runtime"
 	"testing"
@@ -126,4 +127,13 @@ func (s *loggerSuite) TestPanicStackfNoPanicScenario(c *C) {
 	var ok bool
 	panicAndRecover(logger, 6, false, &line, &ok)
 	c.Check(buf.String(), Equals, "")
+}
+
+func (s *loggerSuite) TestReexposeOutput(c *C) {
+	buf := &bytes.Buffer{}
+	baselog := log.New(buf, "", log.Lshortfile)
+	logger := NewSimpleLoggerFromMinimalLogger(baselog, "error")
+	baselog.Output(1, "foobar")
+	logger.Output(1, "foobaz")
+	c.Check(buf.String(), Matches, "logger_test.go:[0-9]+: foobar\nlogger_test.go:[0-9]+: foobaz\n")
 }

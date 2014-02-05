@@ -17,16 +17,21 @@
 package session
 
 import (
-	"bytes"
 	"fmt"
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 )
 
-type trackerSuite struct{}
+type trackerSuite struct {
+	testlog *helpers.TestLogger
+}
+
+func (s *trackerSuite) SetUpTest(c *C) {
+	s.testlog = helpers.NewTestLogger(c, "debug")
+}
 
 var _ = Suite(&trackerSuite{})
 
@@ -36,32 +41,26 @@ func (tra *testRemoteAddrable) RemoteAddr() net.Addr {
 	return &net.TCPAddr{net.IPv4(127, 0, 0, 1), 9999, ""}
 }
 
-func (s *sessionSuite) TestSessionTrackStart(c *C) {
-	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
-	track := NewTracker(logger)
+func (s *trackerSuite) TestSessionTrackStart(c *C) {
+	track := NewTracker(s.testlog)
 	track.Start(&testRemoteAddrable{})
 	c.Check(track.(*tracker).sessionId, Not(Equals), 0)
-	regExpected := fmt.Sprintf(`.* DEBUG session\(%x\) connected 127\.0\.0\.1:9999\n`, track.(*tracker).sessionId)
-	c.Check(buf.String(), Matches, regExpected)
+	regExpected := fmt.Sprintf(`DEBUG session\(%x\) connected 127\.0\.0\.1:9999\n`, track.(*tracker).sessionId)
+	c.Check(s.testlog.Captured(), Matches, regExpected)
 }
 
-func (s *sessionSuite) TestSessionTrackRegistered(c *C) {
-	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
-	track := NewTracker(logger)
+func (s *trackerSuite) TestSessionTrackRegistered(c *C) {
+	track := NewTracker(s.testlog)
 	track.Start(&testRemoteAddrable{})
 	track.Registered(&testing.TestBrokerSession{DeviceId: "DEV-ID"})
-	regExpected := fmt.Sprintf(`.*connected.*\n.* INFO session\(%x\) registered DEV-ID\n`, track.(*tracker).sessionId)
-	c.Check(buf.String(), Matches, regExpected)
+	regExpected := fmt.Sprintf(`.*connected.*\nINFO session\(%x\) registered DEV-ID\n`, track.(*tracker).sessionId)
+	c.Check(s.testlog.Captured(), Matches, regExpected)
 }
 
-func (s *sessionSuite) TestSessionTrackEnd(c *C) {
-	buf := &bytes.Buffer{}
-	logger := logger.NewSimpleLogger(buf, "debug")
-	track := NewTracker(logger)
+func (s *trackerSuite) TestSessionTrackEnd(c *C) {
+	track := NewTracker(s.testlog)
 	track.Start(&testRemoteAddrable{})
 	track.End(&broker.ErrAbort{})
-	regExpected := fmt.Sprintf(`.*connected.*\n.* DEBUG session\(%x\) ended with: session aborted \(\)\n`, track.(*tracker).sessionId)
-	c.Check(buf.String(), Matches, regExpected)
+	regExpected := fmt.Sprintf(`.*connected.*\nDEBUG session\(%x\) ended with: session aborted \(\)\n`, track.(*tracker).sessionId)
+	c.Check(s.testlog.Captured(), Matches, regExpected)
 }

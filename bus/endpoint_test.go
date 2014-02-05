@@ -38,9 +38,10 @@ func (s *BusSuite) TestDial(c *C) {
 	endp := newEndpoint(SystemBus, Address{"", "", ""}, nullog)
 	c.Assert(endp.bus, IsNil)
 	err := endp.Dial()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
+	defer endp.Close() // yes, a second close. On purpose.
 	c.Assert(endp.bus, NotNil)
-	endp.Close()
+	endp.Close()              // the first close. If you're counting right.
 	c.Assert(endp.bus, IsNil) // Close cleans up
 }
 

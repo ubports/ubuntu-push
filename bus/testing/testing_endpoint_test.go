@@ -20,6 +20,7 @@ import (
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"testing"
+	"time"
 )
 
 // hook up gocheck
@@ -64,6 +65,15 @@ func (s *TestingEndpointSuite) TestCallPanicsWithNiceMessage(c *C) {
 	c.Check(func() { endp.Call("") }, PanicMatches, "No return values provided.*")
 }
 
+// Test that Call() updates callArgs
+func (s *TestingEndpointSuite) TestCallArgs(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true), 0)
+	_, err := endp.Call("what", "is", "this", "thing")
+	c.Assert(err, IsNil)
+	c.Check(GetCallArgs(endp), DeepEquals,
+		[]callArgs{{"what", []interface{}{"is", "this", "thing"}}})
+}
+
 // Test that WatchSignal() with a positive condition sends the provided return
 // values over the channel.
 func (s *TestingEndpointSuite) TestWatch(c *C) {
@@ -100,6 +110,32 @@ func (s *TestingEndpointSuite) TestWatchFails(c *C) {
 	c.Check(e, NotNil)
 }
 
+// Test WatchSignal can use the WatchTicker instead of a timeout (if
+// the former is not nil)
+func (s *TestingEndpointSuite) TestWatchTicker(c *C) {
+	watchTicker := make(chan bool, 3)
+	watchTicker <- true
+	watchTicker <- true
+	watchTicker <- true
+	c.Assert(len(watchTicker), Equals, 3)
+
+	endp := NewTestingEndpoint(nil, condition.Work(true), 0, 0)
+	SetWatchTicker(endp, watchTicker)
+	ch := make(chan int)
+	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
+	c.Check(e, IsNil)
+
+	// wait for the destructor to be called
+	select {
+	case <-time.Tick(10 * time.Millisecond):
+		c.Fatal("timed out waiting for close on channel")
+	case <-ch:
+	}
+
+	// now if all went well, the ticker will have been tuck twice.
+	c.Assert(len(watchTicker), Equals, 1)
+}
+
 // Tests that GetProperty() works
 func (s *TestingEndpointSuite) TestGetProperty(c *C) {
 	var m uint32 = 42
@@ -134,4 +170,10 @@ func (s *TestingBusSuite) TestDialNoWork(c *C) {
 func (s *TestingBusSuite) TestEndpointString(c *C) {
 	endp := NewTestingEndpoint(condition.Fail2Work(2), nil, "hello there")
 	c.Check(endp.String(), Matches, ".*Still Broken.*hello there.*")
+}
+
+// Test testingEndpoints have no jitters
+func (s *TestingBusSuite) TestEndpointJitter(c *C) {
+	endp := NewTestingEndpoint(nil, nil)
+	c.Check(endp.Jitter(time.Duration(42)), Equals, time.Duration(0))
 }

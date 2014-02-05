@@ -232,7 +232,7 @@ func (s *handlersSuite) TestFromBroadcastError(c *C) {
 	payload := json.RawMessage(`{"foo":"bar"}`)
 
 	request := newPostRequest("/broadcast", &Broadcast{
-		Channel:     "unkown",
+		Channel:     "unknown",
 		ExpireAfter: 60,
 		Data:        payload,
 	}, testServer)
@@ -240,6 +240,23 @@ func (s *handlersSuite) TestFromBroadcastError(c *C) {
 	response, err := s.client.Do(request)
 	c.Assert(err, IsNil)
 	checkError(c, response, ErrUnknownChannel)
+}
+
+func (s *handlersSuite) TestMissingData(c *C) {
+	testServer := httptest.NewServer(&BroadcastHandler{})
+	defer testServer.Close()
+
+	packedMessage := []byte(`{"channel": "system"}`)
+	reader := bytes.NewReader(packedMessage)
+
+	request, err := http.NewRequest("POST", testServer.URL, reader)
+	c.Assert(err, IsNil)
+	request.ContentLength = int64(len(packedMessage))
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := s.client.Do(request)
+	c.Assert(err, IsNil)
+	checkError(c, response, ErrMissingData)
 }
 
 func (s *handlersSuite) TestCannotBroadcastMalformedData(c *C) {

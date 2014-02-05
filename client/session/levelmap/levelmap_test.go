@@ -14,31 +14,28 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package server
+package levelmap
 
 import (
 	. "launchpad.net/gocheck"
-	helpers "launchpad.net/ubuntu-push/testing"
-	"net"
 	"testing"
 )
 
-func TestRunners(t *testing.T) { TestingT(t) }
+func TestLevelMap(t *testing.T) { TestingT(t) }
 
-type bootlogSuite struct{}
+type lmSuite struct{}
 
-var _ = Suite(&bootlogSuite{})
+var _ = Suite(&lmSuite{})
 
-func (s *bootlogSuite) TestBootLogListener(c *C) {
-	prevBootLogger := BootLogger
-	testlog := helpers.NewTestLogger(c, "info")
-	BootLogger = testlog
-	defer func() {
-		BootLogger = prevBootLogger
-	}()
-	lst, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, IsNil)
-	defer lst.Close()
-	BootLogListener("client", lst)
-	c.Check(testlog.Captured(), Matches, "INFO listening for client on "+lst.Addr().String()+"\n")
+func (cs *lmSuite) TestAllTheThings(c *C) {
+	// checks NewLevelMap returns a LevelMap
+	var lm LevelMap = NewLevelMap()
+	// setting a couple of things, sets them
+	lm.Set("this", 12)
+	lm.Set("that", 42)
+	c.Check(lm.GetAll(), DeepEquals, map[string]int64{"this": 12, "that": 42})
+	// re-setting one of them, resets it
+	lm.Set("this", 999)
+	c.Check(lm.GetAll(), DeepEquals, map[string]int64{"this": 999, "that": 42})
+	// huzzah
 }

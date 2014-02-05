@@ -17,6 +17,7 @@
 package util
 
 import (
+	"errors"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
@@ -37,12 +38,11 @@ var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 var _ = Suite(&RedialerSuite{})
 
 func (s *RedialerSuite) SetUpSuite(c *C) {
-	s.timeouts = Timeouts
-	Timeouts = []time.Duration{0, 0}
+	s.timeouts = SwapTimeouts([]time.Duration{0, 0})
 }
 
 func (s *RedialerSuite) TearDownSuite(c *C) {
-	Timeouts = s.timeouts
+	SwapTimeouts(s.timeouts)
 	s.timeouts = nil
 }
 
@@ -54,6 +54,52 @@ func (s *RedialerSuite) TestWorks(c *C) {
 
 func (s *RedialerSuite) TestCanBeStopped(c *C) {
 	endp := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	go func() { c.Check(AutoRedial(endp), Equals, uint32(1)) }()
+	ch := make(chan uint32)
+	go func() { ch <- AutoRedial(endp) }()
 	quitRedialing <- true
+	select {
+	case n := <-ch:
+		c.Check(n, Equals, uint32(1))
+	case <-time.Tick(20 * time.Millisecond):
+		c.Fatal("timed out waiting for redial")
+	}
+}
+
+func (s *RedialerSuite) TestAutoRetry(c *C) {
+	cond := condition.Fail2Work(5)
+	f := func() error {
+		if cond.OK() {
+			return nil
+		} else {
+			return errors.New("X")
+		}
+	}
+	jitter := func(time.Duration) time.Duration { return 0 }
+	ar := &AutoRetrier{nil, f, jitter}
+	c.Check(ar.Retry(), Equals, uint32(6))
+}
+
+func (s *RedialerSuite) TestJitter(c *C) {
+	num_tries := 20       // should do the math
+	spread := time.Second //
+	has_neg := false
+	has_pos := false
+	has_zero := true
+	for i := 0; i < num_tries; i++ {
+		n := Jitter(spread)
+		if n > 0 {
+			has_pos = true
+		} else if n < 0 {
+			has_neg = true
+		} else {
+			has_zero = true
+		}
+	}
+	c.Check(has_neg, Equals, true)
+	c.Check(has_pos, Equals, true)
+	c.Check(has_zero, Equals, true)
+
+	// a negative spread is caught in the reasonable place
+	c.Check(func() { Jitter(time.Duration(-1)) }, PanicMatches,
+		"spread must be non-negative")
 }

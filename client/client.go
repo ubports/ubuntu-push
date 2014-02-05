@@ -1,6 +1,27 @@
-package main
+/*
+ Copyright 2013-2014 Canonical Ltd.
+
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of the GNU General Public License version 3, as published
+ by the Free Software Foundation.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranties of
+ MERCHANTABILITY, SATISFACTORY QUALITY, or FITNESS FOR A PARTICULAR
+ PURPOSE.  See the GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License along
+ with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// The client package implements the Ubuntu Push Notifications client-side
+// daemon.
+package client
 
 import (
+	"encoding/pem"
+	"fmt"
+	"io/ioutil"
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
@@ -15,19 +36,165 @@ import (
 	"os"
 )
 
-type configuration struct {
-	connectivity.ConnectivityConfig
-	session.ClientConfig
+// ClientConfig holds the client configuration
+type ClientConfig struct {
+	connectivity.ConnectivityConfig // q.v.
+	// A reasonably larg timeout for receive/answer pairs
+	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
+	// The server to connect to
+	Addr config.ConfigHostPort
+	// The PEM-encoded server certificate
+	CertPEMFile string `json:"cert_pem_file"`
+	// The logging level (one of "debug", "info", "error")
+	LogLevel string `json:"log_level"`
 }
 
-const (
-	configFName string = "client.json"
-)
+// Client is the Ubuntu Push Notifications client-side daemon.
+type Client struct {
+	config                ClientConfig
+	log                   logger.Logger
+	pem                   []byte
+	idder                 identifier.Id
+	deviceId              string
+	notificationsEndp     bus.Endpoint
+	urlDispatcherEndp     bus.Endpoint
+	connectivityEndp      bus.Endpoint
+	connCh                chan bool
+	hasConnectivity       bool
+	actionsCh             <-chan notifications.RawActionReply
+	session               *session.ClientSession
+	sessionRetrierStopper chan bool
+	sessionRetryCh        chan uint32
+}
 
-func notify_update(nots *notifications.RawNotifications, log logger.Logger) {
-	action_id := "my_action_id"
+// Configure loads the configuration specified in configPath, and sets it up.
+func (client *Client) Configure(configPath string) error {
+	f, err := os.Open(configPath)
+	if err != nil {
+		return fmt.Errorf("opening config: %v", err)
+	}
+	err = config.ReadConfig(f, &client.config)
+	if err != nil {
+		return fmt.Errorf("reading config: %v", err)
+	}
+	// later, we'll be specifying more logging options in the config file
+	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel)
+
+	// overridden for testing
+	client.idder = identifier.New()
+	client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
+	client.urlDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, client.log)
+	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
+
+	client.connCh = make(chan bool)
+	client.sessionRetryCh = make(chan uint32)
+
+	if client.config.CertPEMFile != "" {
+		client.pem, err = ioutil.ReadFile(client.config.CertPEMFile)
+		if err != nil {
+			return fmt.Errorf("reading PEM file: %v", err)
+		}
+		// sanity check
+		p, _ := pem.Decode(client.pem)
+		if p == nil {
+			return fmt.Errorf("no PEM found in PEM file")
+		}
+	}
+
+	return nil
+}
+
+// getDeviceId gets the whoopsie identifier for the device
+func (client *Client) getDeviceId() error {
+	err := client.idder.Generate()
+	if err != nil {
+		return err
+	}
+	client.deviceId = client.idder.String()
+	return nil
+}
+
+// takeTheBus starts the connection(s) to D-Bus and sets up associated event channels
+func (client *Client) takeTheBus() error {
+	go connectivity.ConnectedState(client.connectivityEndp,
+		client.config.ConnectivityConfig, client.log, client.connCh)
+	iniCh := make(chan uint32)
+	go func() { iniCh <- util.AutoRedial(client.notificationsEndp) }()
+	go func() { iniCh <- util.AutoRedial(client.urlDispatcherEndp) }()
+	<-iniCh
+	<-iniCh
+
+	actionsCh, err := notifications.Raw(client.notificationsEndp, client.log).WatchActions()
+	client.actionsCh = actionsCh
+	return err
+}
+
+// initSession creates the session object
+func (client *Client) initSession() error {
+	sess, err := session.NewSession(string(client.config.Addr), client.pem,
+		client.config.ExchangeTimeout.Duration, client.deviceId, client.log)
+	if err != nil {
+		return err
+	}
+	client.session = sess
+	return nil
+}
+
+// connectSession kicks off the session connection dance
+func (client *Client) connectSession() {
+	// XXX: lp:1276199
+	if client.sessionRetrierStopper != nil {
+		client.sessionRetrierStopper <- true
+		client.sessionRetrierStopper = nil
+	}
+	ar := &util.AutoRetrier{
+		make(chan bool, 1),
+		client.session.Dial,
+		util.Jitter}
+	client.sessionRetrierStopper = ar.Stop
+	go func() { client.sessionRetryCh <- ar.Retry() }()
+}
+
+// disconnectSession disconnects the session
+func (client *Client) disconnectSession() {
+	// XXX: lp:1276199
+	if client.sessionRetrierStopper != nil {
+		client.sessionRetrierStopper <- true
+		client.sessionRetrierStopper = nil
+	} else {
+		client.session.Close()
+	}
+}
+
+// handleConnState deals with connectivity events
+func (client *Client) handleConnState(hasConnectivity bool) {
+	if client.hasConnectivity == hasConnectivity {
+		// nothing to do!
+		return
+	}
+	client.hasConnectivity = hasConnectivity
+	if hasConnectivity {
+		client.connectSession()
+	} else {
+		client.disconnectSession()
+	}
+}
+
+// handleErr deals with the session erroring out of its loop
+func (client *Client) handleErr(err error) {
+	// if we're not connected, we don't really care
+	client.log.Errorf("session exited: %s", err)
+	if client.hasConnectivity {
+		client.connectSession()
+	}
+}
+
+// handleNotification deals with receiving a notification
+func (client *Client) handleNotification() error {
+	action_id := "dummy_id"
 	a := []string{action_id, "Go get it!"} // action value not visible on the phone
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
+	nots := notifications.Raw(client.notificationsEndp, client.log)
 	not_id, err := nots.Notify(
 		"ubuntu-push-client",               // app name
 		uint32(0),                          // id
@@ -36,106 +203,37 @@ func notify_update(nots *notifications.RawNotifications, log logger.Logger) {
 		"You've got to get it! Now! Run!",  // body
 		a,              // actions
 		h,              // hints
-		int32(10*1000), // timeout
+		int32(10*1000), // timeout (ms)
 	)
 	if err != nil {
-		log.Fatalf("%s", err)
+		client.log.Errorf("showing notification: %s", err)
+		return err
 	}
-	log.Debugf("Got notification id %d\n", not_id)
+	client.log.Debugf("got notification id %d", not_id)
+	return nil
 }
 
-func main() {
-	log := logger.NewSimpleLogger(os.Stderr, "debug")
-	f, err := os.Open(configFName)
-	if err != nil {
-		log.Fatalf("reading config: %v", err)
-	}
-	cfg := &configuration{}
-	err = config.ReadConfig(f, cfg)
-	if err != nil {
-		log.Fatalf("reading config: %v", err)
-	}
-	whopId := identifier.New()
-	err = whopId.Generate()
-	if err != nil {
-		log.Fatalf("Generating device id: %v", err)
-	}
-	deviceId := whopId.String()
-	log.Debugf("Connecting as device id %s", deviceId)
-	session, err := session.NewSession(cfg.ClientConfig, log, deviceId)
-	if err != nil {
-		log.Fatalf("%s", err)
-	}
-	// ^^ up to this line, things that never change
-	var is_connected, ok bool
-	// vv from this line, things that never stay the same
+// handleClick deals with the user clicking a notification
+func (client *Client) handleClick() error {
+	// it doesn't get much simpler...
+	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
+	return urld.DispatchURL("settings:///system/system-update")
+}
+
+// doLoop connects events with their handlers
+func (client *Client) doLoop(connhandler func(bool), clickhandler, notifhandler func() error, errhandler func(error)) {
 	for {
-		log.Debugf("Here we go!")
-		is_connected = false
-		connCh := make(chan bool)
-		iniCh := make(chan uint32)
-
-		notEndp := bus.SessionBus.Endpoint(notifications.BusAddress, log)
-		urlEndp := bus.SessionBus.Endpoint(urldispatcher.BusAddress, log)
-
-		go func() { iniCh <- util.AutoRetry(session.Reset) }()
-		go func() { iniCh <- util.AutoRedial(notEndp) }()
-		go func() { iniCh <- util.AutoRedial(urlEndp) }()
-		go connectivity.ConnectedState(bus.SystemBus.Endpoint(networkmanager.BusAddress, log), cfg.ConnectivityConfig, log, connCh)
-
-		<-iniCh
-		<-iniCh
-		<-iniCh
-		nots := notifications.Raw(notEndp, log)
-		urld := urldispatcher.New(urlEndp, log)
-
-		actnCh, err := nots.WatchActions()
-		if err != nil {
-			log.Errorf("%s", err)
-			continue
-		}
-
-	InnerLoop:
-		for {
-			select {
-			case is_connected, ok = <-connCh:
-				// handle connectivty changes
-				// disconnect session if offline, reconnect if online
-				if !ok {
-					log.Errorf("connectivity checker crashed? restarting everything")
-					break InnerLoop
-				}
-				// fallthrough
-				// oh, silly ol' go doesn't like that.
-				if is_connected {
-					err = session.Reset()
-					if err != nil {
-						break InnerLoop
-					}
-				}
-			case <-session.ErrCh:
-				// handle session errors
-				// restart if online, otherwise ignore
-				if is_connected {
-					err = session.Reset()
-					if err != nil {
-						break InnerLoop
-					}
-				}
-			case <-session.MsgCh:
-				// handle push notifications
-				// pop up client notification
-				// what to do does not depend on the rest
-				// (... for now)
-				log.Debugf("got a notification! let's pop it up.")
-				notify_update(nots, log)
-			case <-actnCh:
-				// handle action clicks
-				// launch system updates
-				// what to do does not depend on the rest
-				// (... for now)
-				urld.DispatchURL("settings:///system/system-update")
-			}
+		select {
+		case state := <-client.connCh:
+			connhandler(state)
+		case <-client.actionsCh:
+			clickhandler()
+		case <-client.session.MsgCh:
+			notifhandler()
+		case err := <-client.session.ErrCh:
+			errhandler(err)
+		case count := <-client.sessionRetryCh:
+			client.log.Debugf("Session connected after %d attempts", count)
 		}
 	}
 }

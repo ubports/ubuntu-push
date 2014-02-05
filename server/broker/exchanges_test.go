@@ -52,7 +52,7 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"x"},{"a":"y"}]}`)
 	err = json.Unmarshal([]byte(`{"T":"ack"}`), outMsg)
 	c.Assert(err, IsNil)
-	err = exchg.Acked(sess)
+	err = exchg.Acked(sess, true)
 	c.Assert(err, IsNil)
 	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(3))
 }
@@ -76,7 +76,7 @@ func (s *exchangesSuite) TestBroadcastExchangeAckMismatch(c *C) {
 	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"y"}]}`)
 	err = json.Unmarshal([]byte(`{}`), outMsg)
 	c.Assert(err, IsNil)
-	err = exchg.Acked(sess)
+	err = exchg.Acked(sess, true)
 	c.Assert(err, Not(IsNil))
 	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(0))
 }
@@ -103,6 +103,6 @@ func (s *exchangesSuite) TestBroadcastExchangeFilterByLevel(c *C) {
 	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"y"}]}`)
 	err = json.Unmarshal([]byte(`{"T":"ack"}`), outMsg)
 	c.Assert(err, IsNil)
-	err = exchg.Acked(sess)
+	err = exchg.Acked(sess, true)
 	c.Assert(err, IsNil)
 }

@@ -44,8 +44,16 @@ type FullBroker interface {
 type CommonBrokerSuite struct {
 	// Build the broker for testing.
 	MakeBroker func(store.PendingStore, broker.BrokerConfig, logger.Logger) FullBroker
-	// Let has get to a session under the broker.
+	// Let us get to a session under the broker.
 	RevealSession func(broker.Broker, string) broker.BrokerSession
+	// Let us get to a broker.BroadcastExchange from an Exchange.
+	RevealBroadcastExchange func(broker.Exchange) *broker.BroadcastExchange
+	// private
+	testlog *helpers.TestLogger
+}
+
+func (s *CommonBrokerSuite) SetUpTest(c *C) {
+	s.testlog = helpers.NewTestLogger(c, "error")
 }
 
 var testBrokerConfig = &testing.TestBrokerConfig{10, 5}
@@ -108,16 +116,14 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPending(c *C) {
 }
 
 func (s *CommonBrokerSuite) TestRegistrationFeedPendingError(c *C) {
-	buf := &helpers.SyncedLogBuffer{}
-	logger := logger.NewSimpleLogger(buf, "error")
 	sto := &testFailingStore{}
-	b := s.MakeBroker(sto, testBrokerConfig, logger)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
 	c.Assert(err, IsNil)
 	// but
-	c.Check(buf.String(), Matches, ".*ERROR unsuccessful feed pending, get channel snapshot for 0: get channel snapshot fail\n")
+	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful feed pending, get channel snapshot for 0: get channel snapshot fail\n")
 }
 
 func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
@@ -154,7 +160,7 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg1 := <-sess1.SessionChannel():
-		c.Check(exchg1, DeepEquals, &broker.BroadcastExchange{
+		c.Check(s.RevealBroadcastExchange(exchg1), DeepEquals, &broker.BroadcastExchange{
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
@@ -164,7 +170,7 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg2 := <-sess2.SessionChannel():
-		c.Check(exchg2, DeepEquals, &broker.BroadcastExchange{
+		c.Check(s.RevealBroadcastExchange(exchg2), DeepEquals, &broker.BroadcastExchange{
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
@@ -186,10 +192,12 @@ func (sto *testFailingStore) GetChannelSnapshot(chanId store.InternalChannelId) 
 }
 
 func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
-	buf := &helpers.SyncedLogBuffer{Written: make(chan bool, 1)}
-	logger := logger.NewSimpleLogger(buf, "error")
+	logged := make(chan bool, 1)
+	s.testlog.SetLogEventCb(func(string) {
+		logged <- true
+	})
 	sto := &testFailingStore{countdownToFail: 1}
-	b := s.MakeBroker(sto, testBrokerConfig, logger)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
@@ -198,7 +206,7 @@ func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
 	select {
 	case <-time.After(5 * time.Second):
 		c.Fatal("taking too long to log error")
-	case <-buf.Written:
+	case <-logged:
 	}
-	c.Check(buf.String(), Matches, ".*ERROR unsuccessful broadcast, get channel snapshot for 0: get channel snapshot fail\n")
+	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful broadcast, get channel snapshot for 0: get channel snapshot fail\n")
 }

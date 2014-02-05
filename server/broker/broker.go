@@ -40,8 +40,8 @@ type BrokerSending interface {
 
 // Exchange leads the session through performing an exchange, typically delivery.
 type Exchange interface {
-	Prepare(BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error)
-	Acked(BrokerSession) error
+	Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error)
+	Acked(sess BrokerSession, done bool) error
 }
 
 // LevelsMap is the type for holding channel levels for session.

@@ -22,7 +22,7 @@ package notifications
 // this is the lower-level api
 
 import (
-	"errors"
+	"fmt"
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/logger"
@@ -75,7 +75,8 @@ func (raw *RawNotifications) Notify(
 		return 0, err
 	}
 	if len(rvs) != 1 {
-		return 0, errors.New("Wrong number of arguments in reply from Notify")
+		return 0, fmt.Errorf("Wrong number of values in Notify response: %d",
+			len(rvs))
 	}
 	return rvs[0].(uint32), nil
 }

@@ -26,10 +26,17 @@ import (
 	"time"
 )
 
+type callArgs struct {
+	Member string
+	Args   []interface{}
+}
+
 type testingEndpoint struct {
-	dialCond condition.Interface
-	callCond condition.Interface
-	retvals  [][]interface{}
+	dialCond    condition.Interface
+	callCond    condition.Interface
+	retvals     [][]interface{}
+	watchTicker chan bool
+	callArgs    []callArgs
 }
 
 // Build a bus.Endpoint that calls OK() on its condition before returning
@@ -38,7 +45,7 @@ type testingEndpoint struct {
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them in turn, irrespective of whether Call has been called.
 func NewMultiValuedTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
-	return &testingEndpoint{dialCond, callCond, retvalses}
+	return &testingEndpoint{dialCond, callCond, retvalses, nil, nil}
 }
 
 func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvals ...interface{}) bus.Endpoint {
@@ -46,7 +53,19 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 	for i, x := range retvals {
 		retvalses[i] = []interface{}{x}
 	}
-	return &testingEndpoint{dialCond, callCond, retvalses}
+	return &testingEndpoint{dialCond, callCond, retvalses, nil, nil}
+}
+
+// If SetWatchTicker is called with a non-nil watchTicker, it is used
+// instead of the default timeout to wait while sending values over
+// WatchSignal. Set it to nil again to restore default behaviour.
+func SetWatchTicker(tc bus.Endpoint, watchTicker chan bool) {
+	tc.(*testingEndpoint).watchTicker = watchTicker
+}
+
+// GetCallArgs returns a list of the arguments for each Call() invocation.
+func GetCallArgs(tc bus.Endpoint) []callArgs {
+	return tc.(*testingEndpoint).callArgs
 }
 
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
@@ -56,7 +75,11 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 		go func() {
 			for _, v := range tc.retvals {
 				f(v...)
-				time.Sleep(10 * time.Millisecond)
+				if tc.watchTicker != nil {
+					<-tc.watchTicker
+				} else {
+					time.Sleep(10 * time.Millisecond)
+				}
 			}
 			d()
 		}()
@@ -69,6 +92,7 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 // See Endpoint's Call. This Call will check its condition to decide whether
 // to return an error, or the first of its return values
 func (tc *testingEndpoint) Call(member string, args ...interface{}) ([]interface{}, error) {
+	tc.callArgs = append(tc.callArgs, callArgs{member, args})
 	if tc.callCond.OK() {
 		if len(tc.retvals) == 0 {
 			panic("No return values provided!")
@@ -86,7 +110,8 @@ func (tc *testingEndpoint) GetProperty(property string) (interface{}, error) {
 		return nil, err
 	}
 	if len(rvs) != 1 {
-		return nil, errors.New("Wrong number of arguments in reply to GetProperty")
+		return nil, errors.New("Wrong number of values given to testingEndpoint" +
+			" -- GetProperty only returns a single value for now!")
 	}
 	return rvs[0], err
 }
@@ -109,6 +134,9 @@ func (endp *testingEndpoint) String() string {
 
 // see Endpoint's Close. This one does nothing.
 func (tc *testingEndpoint) Close() {}
+
+// see Endpoint's Jitter.
+func (tc *testingEndpoint) Jitter(_ time.Duration) time.Duration { return 0 }
 
 // ensure testingEndpoint implements bus.Endpoint
 var _ bus.Endpoint = &testingEndpoint{}
