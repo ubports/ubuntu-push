@@ -478,7 +478,7 @@ func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
 }
 
 /*****************************************************************
-    loop() tests
+    Loop() tests
 ******************************************************************/
 
 func (cs *clientSuite) TestLoop(c *C) {
@@ -501,7 +501,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.session.MsgCh = make(chan *session.Notification)
 	cli.session.ErrCh = make(chan error)
 
-	go cli.loop()
+	go cli.Loop()
 
 	// sessionConnectedCh to nothing in particular, but it'll help sync this test
 	cli.sessionConnectedCh <- 42
@@ -536,7 +536,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 }
 
 /*****************************************************************
-    start() tests
+    Start() tests
 ******************************************************************/
 
 func (cs *clientSuite) TestStart(c *C) {
@@ -553,7 +553,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// no nuthin'.
 
 	// so we start,
-	cli.start(cs.configPath)
+	cli.Start(cs.configPath)
 
 	// and now everthing is better! We have a config,
 	c.Check(string(cli.config.Addr), Equals, ":0")

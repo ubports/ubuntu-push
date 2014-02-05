@@ -222,24 +222,18 @@ func (client *Client) doStart(fs ...func() error) error {
 	return nil
 }
 
-// loop calls doLoop with the "real" handlers
-func (client *Client) loop() {
+// Loop calls doLoop with the "real" handlers
+func (client *Client) Loop() {
 	client.doLoop(client.handleConnState, client.handleClick,
 		client.handleNotification, client.handleErr)
 }
 
-// start calls doStart with the "real" starters
-func (client *Client) start(configPath string) {
+// Start calls doStart with the "real" starters
+func (client *Client) Start(configPath string) {
 	client.doStart(
 		func() error { return client.configure(configPath) },
 		client.getDeviceId,
 		client.initSession,
 		client.takeTheBus,
 	)
-}
-
-func Dance(configPath string) {
-	cli := new(Client)
-	cli.start(configPath)
-	cli.loop()
 }
