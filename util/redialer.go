@@ -39,13 +39,16 @@ type Jitterer interface {
 var timeouts []time.Duration
 var trwlock sync.RWMutex
 
+// retrieve the list of timeouts used for exponential backoff
 func Timeouts() []time.Duration {
 	trwlock.RLock()
 	defer trwlock.RUnlock()
 	return timeouts
 }
 
-// for testing
+// for testing: change the default timeouts for the provided ones,
+// returning the defaults (the idea being you reset them on test
+// teardown)
 func SwapTimeouts(newTimeouts []time.Duration) (oldTimeouts []time.Duration) {
 	trwlock.Lock()
 	defer trwlock.Unlock()
@@ -57,8 +60,8 @@ func SwapTimeouts(newTimeouts []time.Duration) (oldTimeouts []time.Duration) {
 // it stops returning an error. It does exponential (optionally jitter'ed)
 // backoff.
 type AutoRedialer interface {
-	Redial() uint32
-	Stop()
+	Redial() uint32 // Redial keeps on calling Dial until it stops returning an error.
+	Stop()          // Stop shuts down the given AutoRedialer, if it is still retrying.
 }
 
 type autoRedialer struct {
@@ -68,7 +71,6 @@ type autoRedialer struct {
 	jitter func(time.Duration) time.Duration
 }
 
-// Stop shuts down the given AutoRedialer, if it is still retrying.
 func (ar *autoRedialer) Stop() {
 	if ar != nil {
 		ar.lock.RLock()
