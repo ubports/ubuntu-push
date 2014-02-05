@@ -296,7 +296,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 	buf := &bytes.Buffer{}
 	cli := new(Client)
 	cli.log = logger.NewSimpleLogger(buf, "debug")
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 	cli.hasConnectivity = true
 	cli.handleErr(errors.New("bananas"))
 	c.Check(buf.String(), Matches, ".*session exited.*bananas\n")
@@ -309,7 +309,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := new(Client)
 	cli.log = cs.log
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 
 	c.Assert(cli.hasConnectivity, Equals, false)
 	cli.handleConnState(true)
@@ -406,7 +406,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli.log = cs.log
 	cli.connCh = make(chan bool, 1)
 	cli.connCh <- true
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 
 	ch := make(chan bool, 1)
 	go cli.doLoop(func(bool) { ch <- true }, func() error { return nil }, func() error { return nil }, func(error) {})
@@ -416,7 +416,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli := new(Client)
 	cli.log = cs.log
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 	aCh := make(chan notifications.RawActionReply, 1)
 	aCh <- notifications.RawActionReply{}
 	cli.actionsCh = aCh
@@ -429,7 +429,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli := new(Client)
 	cli.log = cs.log
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 	cli.session.MsgCh = make(chan *session.Notification, 1)
 	cli.session.MsgCh <- &session.Notification{}
 
@@ -441,7 +441,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli := new(Client)
 	cli.log = cs.log
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 	cli.session.ErrCh = make(chan error, 1)
 	cli.session.ErrCh <- nil
 
@@ -495,7 +495,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal))
 
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 
 	cli.session.MsgCh = make(chan *session.Notification)
 	cli.session.ErrCh = make(chan error)
