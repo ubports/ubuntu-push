@@ -34,7 +34,6 @@ import (
 	idtesting "launchpad.net/ubuntu-push/whoopsie/identifier/testing"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -55,11 +54,9 @@ func takeNextBool(ch <-chan bool) bool {
 type clientSuite struct {
 	timeouts   []time.Duration
 	configPath string
+	log        logger.Logger
 }
 
-var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
-var noisylog = logger.NewSimpleLogger(os.Stderr, "debug")
-var debuglog = noisylog
 var _ = Suite(&clientSuite{})
 
 const (
@@ -85,7 +82,7 @@ func (cs *clientSuite) TearDownSuite(c *C) {
 }
 
 func (cs *clientSuite) SetUpTest(c *C) {
-	debuglog.Debugf("---")
+	cs.log = helpers.NewTestLogger(c, "debug")
 	dir := c.MkDir()
 	cs.configPath = filepath.Join(dir, "config")
 	cfg := fmt.Sprintf(`
@@ -210,7 +207,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
 
 func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	cli.idder = identifier.New()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), IsNil)
@@ -219,7 +216,7 @@ func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 
 func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	cli.idder = idtesting.Failing()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), NotNil)
@@ -247,7 +244,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	testibus.SetWatchTicker(cEndp, make(chan bool))
 	// ok, create the thing
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	err := cli.Configure(cs.configPath)
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
@@ -276,7 +273,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 	cli := new(Client)
 	err := cli.Configure(cs.configPath)
-	cli.log = debuglog
+	cli.log = cs.log
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
 	c.Check(cli.actionsCh, IsNil)
@@ -310,7 +307,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	cli.initSession()
 
 	c.Assert(cli.hasConnectivity, Equals, false)
@@ -321,7 +318,7 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	// here we want to check that we don't do anything
 	c.Assert(cli.session, IsNil)
 	c.Assert(cli.hasConnectivity, Equals, false)
@@ -335,8 +332,8 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, debuglog)
+	cli.log = cs.log
+	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, cs.log)
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
@@ -348,8 +345,8 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, debuglog)
+	cli.log = cs.log
+	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, cs.log)
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)
@@ -376,7 +373,7 @@ func (cs *clientSuite) TestHandleNotification(c *C) {
 
 func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
 	c.Check(cli.handleNotification(), NotNil)
@@ -388,7 +385,7 @@ func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 
 func (cs *clientSuite) TestHandleClick(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), nil)
 	cli.urlDispatcherEndp = endp
 	c.Check(cli.handleClick(), IsNil)
@@ -405,7 +402,7 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 
 func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	cli.connCh = make(chan bool, 1)
 	cli.connCh <- true
 	cli.initSession()
@@ -417,7 +414,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 
 func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	cli.initSession()
 	aCh := make(chan notifications.RawActionReply, 1)
 	aCh <- notifications.RawActionReply{}
@@ -430,7 +427,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 
 func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	cli.initSession()
 	cli.session.MsgCh = make(chan *session.Notification, 1)
 	cli.session.MsgCh <- &session.Notification{}
@@ -442,7 +439,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 
 func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli := new(Client)
-	cli.log = debuglog
+	cli.log = cs.log
 	cli.initSession()
 	cli.session.ErrCh = make(chan error, 1)
 	cli.session.ErrCh <- nil
