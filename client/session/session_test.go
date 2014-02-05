@@ -219,19 +219,6 @@ func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
 }
 
 /****************************************************************
-  AutoRedial() tests
-****************************************************************/
-
-func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
-	c.Assert(err, IsNil)
-	ch := make(chan uint32)
-	sess.AutoRedial(ch)
-	sess.retrier.Stop()
-	c.Check(<-ch, Not(Equals), 0)
-}
-
-/****************************************************************
   Close() tests
 ****************************************************************/
 
@@ -270,7 +257,7 @@ func (*derp) Redial() uint32 { return 0 }
 func (d *derp) Stop()        { d.stopped = true }
 
 func (cs *clientSessionSuite) TestCloseStopsRetrier(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	ar := new(derp)
 	sess.retrier = ar
@@ -287,7 +274,7 @@ func (cs *clientSessionSuite) TestCloseStopsRetrier(c *C) {
 
 func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
 	// checks that AutoRedial sets up a retrier and tries redialing it
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	ar := new(derp)
 	sess.retrier = ar
@@ -298,7 +285,7 @@ func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
 
 func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
 	// checks that AutoRedial stops the previous retrier
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	ch := make(chan uint32)
 	c.Check(sess.retrier, IsNil)
