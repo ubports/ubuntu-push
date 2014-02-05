@@ -229,8 +229,8 @@ func (client *Client) Loop() {
 }
 
 // Start calls doStart with the "real" starters
-func (client *Client) Start(configPath string) {
-	client.doStart(
+func (client *Client) Start(configPath string) error {
+	return client.doStart(
 		func() error { return client.configure(configPath) },
 		client.getDeviceId,
 		client.initSession,

@@ -553,7 +553,9 @@ func (cs *clientSuite) TestStart(c *C) {
 	// no nuthin'.
 
 	// so we start,
-	cli.Start(cs.configPath)
+	err := cli.Start(cs.configPath)
+	// and it works
+	c.Check(err, IsNil)
 
 	// and now everthing is better! We have a config,
 	c.Check(string(cli.config.Addr), Equals, ":0")
@@ -564,4 +566,12 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and a bus,
 	c.Check(cli.notificationsEndp, NotNil)
 	// and everthying us just peachy!
+}
+
+func (cs *clientSuite) TestStartCanFail(c *C) {
+	cli := new(Client)
+	// easiest way for it to fail is to feed it a bad config
+	err := cli.Start("/does/not/exist")
+	// and it works. Err. Doesn't.
+	c.Check(err, NotNil)
 }
