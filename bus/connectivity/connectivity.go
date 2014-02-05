@@ -64,7 +64,8 @@ type connectedState struct {
 func (cs *connectedState) start() networkmanager.State {
 	var initial networkmanager.State
 	for {
-		cs.connAttempts += util.AutoRedial(cs.endp)
+		ar := util.NewAutoRedialer(cs.endp)
+		cs.connAttempts += ar.Redial()
 		nm := networkmanager.New(cs.endp, cs.log)
 
 		// Get the current state.

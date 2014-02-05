@@ -624,12 +624,43 @@ func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 }
 
 /****************************************************************
+  Jitter() tests
+****************************************************************/
+
+func (s *clientSessionSuite) TestJitter(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
+	c.Assert(err, IsNil)
+	num_tries := 20       // should do the math
+	spread := time.Second //
+	has_neg := false
+	has_pos := false
+	has_zero := true
+	for i := 0; i < num_tries; i++ {
+		n := sess.Jitter(spread)
+		if n > 0 {
+			has_pos = true
+		} else if n < 0 {
+			has_neg = true
+		} else {
+			has_zero = true
+		}
+	}
+	c.Check(has_neg, Equals, true)
+	c.Check(has_pos, Equals, true)
+	c.Check(has_zero, Equals, true)
+
+	// a negative spread is caught in the reasonable place
+	c.Check(func() { sess.Jitter(time.Duration(-1)) }, PanicMatches,
+		"spread must be non-negative")
+}
+
+/****************************************************************
   Dial() tests
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestDialPanics(c *C) {
 	// one last unhappy test
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Protocolator = nil
 	c.Check(sess.Dial, PanicMatches, ".*protocol constructor.")

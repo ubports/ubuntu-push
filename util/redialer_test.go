@@ -17,9 +17,9 @@
 package util
 
 import (
-	"errors"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/bus"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -46,60 +46,80 @@ func (s *RedialerSuite) TearDownSuite(c *C) {
 	s.timeouts = nil
 }
 
+// Redial() tests
+
 func (s *RedialerSuite) TestWorks(c *C) {
 	endp := testibus.NewTestingEndpoint(condition.Fail2Work(3), nil)
-	// instead of bus.Dial(), we do AutoRedial(bus)
-	c.Check(AutoRedial(endp), Equals, uint32(4))
+	ar := NewAutoRedialer(endp)
+	c.Check(ar.stop, NotNil)
+	c.Check(ar.Redial(), Equals, uint32(4))
+	// and on success, the stopper goes away
+	c.Check(ar.stop, IsNil)
 }
 
-func (s *RedialerSuite) TestCanBeStopped(c *C) {
+func (s *RedialerSuite) TestRetryNil(c *C) {
+	var ar *AutoRedialer
+	c.Check(ar.Redial, Not(PanicMatches), ".* nil pointer dereference")
+}
+
+func (s *RedialerSuite) TestRetryTwice(c *C) {
+	endp := testibus.NewTestingEndpoint(condition.Work(true), nil)
+	ar := NewAutoRedialer(endp)
+	c.Check(ar.Redial(), Equals, uint32(1))
+	c.Check(ar.Redial, PanicMatches, ".*shut.?down.*")
+}
+
+type JitteringEndpoint struct {
+	bus.Endpoint
+	jittered int
+}
+
+func (j *JitteringEndpoint) Jitter(time.Duration) time.Duration {
+	j.jittered++
+	return 0
+}
+
+func (s *RedialerSuite) TestJitterWorks(c *C) {
+	endp := &JitteringEndpoint{
+		testibus.NewTestingEndpoint(condition.Fail2Work(3), nil),
+		0,
+	}
+	ar := NewAutoRedialer(endp)
+	c.Check(ar.Redial(), Equals, uint32(4))
+	c.Check(endp.jittered, Equals, 3)
+}
+
+// Stop() tests
+
+func (s *RedialerSuite) TestStopWorksOnNil(c *C) {
+	// as a convenience, Stop() should succeed on nil
+	// (a nil retrier certainly isn't retrying!)
+	var ar *AutoRedialer
+	c.Check(ar, IsNil)
+	ar.Stop() // nothing happens
+}
+
+func (s *RedialerSuite) TestStopStops(c *C) {
 	endp := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	ch := make(chan uint32)
-	go func() { ch <- AutoRedial(endp) }()
-	quitRedialing <- true
+	countCh := make(chan uint32)
+	ar := NewAutoRedialer(endp)
+	go func() { countCh <- ar.Redial() }()
+	ar.Stop()
 	select {
-	case n := <-ch:
+	case n := <-countCh:
 		c.Check(n, Equals, uint32(1))
-	case <-time.Tick(20 * time.Millisecond):
+	case <-time.After(20 * time.Millisecond):
 		c.Fatal("timed out waiting for redial")
 	}
+	// on Stop(), the stopper goes away too
+	c.Check(ar.stop, IsNil)
 }
 
-func (s *RedialerSuite) TestAutoRetry(c *C) {
-	cond := condition.Fail2Work(5)
-	f := func() error {
-		if cond.OK() {
-			return nil
-		} else {
-			return errors.New("X")
-		}
-	}
-	jitter := func(time.Duration) time.Duration { return 0 }
-	ar := &AutoRetrier{nil, f, jitter}
-	c.Check(ar.Retry(), Equals, uint32(6))
-}
-
-func (s *RedialerSuite) TestJitter(c *C) {
-	num_tries := 20       // should do the math
-	spread := time.Second //
-	has_neg := false
-	has_pos := false
-	has_zero := true
-	for i := 0; i < num_tries; i++ {
-		n := Jitter(spread)
-		if n > 0 {
-			has_pos = true
-		} else if n < 0 {
-			has_neg = true
-		} else {
-			has_zero = true
-		}
-	}
-	c.Check(has_neg, Equals, true)
-	c.Check(has_pos, Equals, true)
-	c.Check(has_zero, Equals, true)
-
-	// a negative spread is caught in the reasonable place
-	c.Check(func() { Jitter(time.Duration(-1)) }, PanicMatches,
-		"spread must be non-negative")
+func (s *RedialerSuite) TestTwoStops(c *C) {
+	endp := testibus.NewTestingEndpoint(condition.Work(false), nil)
+	countCh := make(chan uint32)
+	ar := NewAutoRedialer(endp)
+	go func() { countCh <- ar.Redial() }()
+	ar.Stop()
+	ar.Stop()
 }

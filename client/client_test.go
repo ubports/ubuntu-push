@@ -312,14 +312,9 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := new(Client)
 	cli.log = debuglog
 	cli.initSession()
-	// let's pretend the client had a previous attempt at connecting still pending
-	// (hard to trigger in real life, but possible)
-	ch := make(chan bool, 1)
-	cli.sessionRetrierStopper = ch
 
 	c.Assert(cli.hasConnectivity, Equals, false)
 	cli.handleConnState(true)
-	c.Check(len(ch), Equals, 1)
 	c.Check(cli.hasConnectivity, Equals, true)
 	c.Assert(cli.session, NotNil)
 }
@@ -355,12 +350,10 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := new(Client)
 	cli.log = debuglog
 	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, debuglog)
-	cli.sessionRetrierStopper = make(chan bool, 1)
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)
 	c.Check(cli.session.State(), Equals, session.Disconnected)
-	c.Check(cli.sessionRetrierStopper, IsNil)
 }
 
 /*****************************************************************

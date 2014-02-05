@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/logger"
-	"time"
 )
 
 /*****************************************************************
@@ -37,7 +36,6 @@ type Endpoint interface {
 	Dial() error
 	Close()
 	String() string
-	Jitter(time.Duration) time.Duration
 }
 
 type endpoint struct {
@@ -135,11 +133,6 @@ func (endp *endpoint) Close() {
 // String() performs advanced endpoint stringification
 func (endp *endpoint) String() string {
 	return fmt.Sprintf("<Connection to %s %#v>", endp.bus, endp.addr)
-}
-
-// Jitter() returns 0: no need to jitter D-Bus connections.
-func (endp *endpoint) Jitter(_ time.Duration) time.Duration {
-	return 0
 }
 
 /*
