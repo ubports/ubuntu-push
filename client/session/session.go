@@ -122,18 +122,21 @@ func (sess *ClientSession) connect() error {
 	return nil
 }
 
-func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
+func (sess *ClientSession) stopRedial() {
 	if sess.retrier != nil {
 		sess.retrier.Stop()
+		sess.retrier = nil
 	}
+}
+
+func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
+	sess.stopRedial()
 	sess.retrier = util.NewAutoRedialer(sess)
 	go func() { doneCh <- sess.retrier.Redial() }()
 }
 
 func (sess *ClientSession) Close() {
-	if sess.retrier != nil {
-		sess.retrier.Stop()
-	}
+	sess.stopRedial()
 	sess.doClose()
 }
 func (sess *ClientSession) doClose() {
