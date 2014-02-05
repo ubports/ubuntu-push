@@ -21,6 +21,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	testingbus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/util"
@@ -34,6 +35,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type ConnSuite struct {
 	timeouts []time.Duration
+	log      logger.Logger
 }
 
 var _ = Suite(&ConnSuite{})
@@ -47,6 +49,11 @@ func (s *ConnSuite) TearDownSuite(c *C) {
 	s.timeouts = nil
 }
 
+func (s *ConnSuite) SetUpTest(c *C) {
+	s.log = helpers.NewTestLogger(c, "debug")
+	s.log.Debugf("---")
+}
+
 /*
    tests for connectedState's Start() method
 */
@@ -54,7 +61,7 @@ func (s *ConnSuite) TearDownSuite(c *C) {
 // when given a working config and bus, Start() will work
 func (s *ConnSuite) TestStartWorks(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting))
-	cs := connectedState{config: ConnectivityConfig{}, log: helpers.NewTestLogger(c, "debug"), endp: endp}
+	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 }
@@ -62,7 +69,7 @@ func (s *ConnSuite) TestStartWorks(c *C) {
 // if the bus fails a couple of times, we're still OK
 func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting))
-	cs := connectedState{config: ConnectivityConfig{}, log: helpers.NewTestLogger(c, "debug"), endp: endp}
+	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(3)) // 1 more than the Fail2Work
@@ -71,7 +78,7 @@ func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 // when the calls to NetworkManager fail for a bit, we're still OK
 func (s *ConnSuite) TestStartRetriesCall(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting))
-	cs := connectedState{config: ConnectivityConfig{}, log: helpers.NewTestLogger(c, "debug"), endp: endp}
+	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 
@@ -89,7 +96,7 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), nmcond,
 		uint32(networkmanager.Connecting),
 		uint32(networkmanager.ConnectedGlobal))
-	cs := connectedState{config: ConnectivityConfig{}, log: helpers.NewTestLogger(c, "debug"), endp: endp}
+	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(2))
@@ -113,7 +120,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 		config:         cfg,
 		networkStateCh: ch,
 		timer:          time.NewTimer(time.Second),
-		log:            helpers.NewTestLogger(c, "debug"),
+		log:            s.log,
 		webget:         func(ch chan<- bool) { ch <- webget_p.OK() },
 		lastSent:       false,
 	}
@@ -198,7 +205,7 @@ func (s *ConnSuite) TestRun(c *C) {
 	out := make(chan bool)
 	dt := time.Second / 10
 	timer := time.NewTimer(dt)
-	go ConnectedState(endp, cfg, helpers.NewTestLogger(c, "debug"), out)
+	go ConnectedState(endp, cfg, s.log, out)
 	var v bool
 	expecteds := []struct {
 		p bool

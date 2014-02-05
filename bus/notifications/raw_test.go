@@ -22,6 +22,7 @@ package notifications
 import (
 	. "launchpad.net/gocheck"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"testing"
@@ -31,13 +32,20 @@ import (
 // hook up gocheck
 func TestRaw(t *testing.T) { TestingT(t) }
 
-type RawSuite struct{}
+type RawSuite struct {
+	log logger.Logger
+}
+
+func (s *RawSuite) SetUpTest(c *C) {
+	s.log = helpers.NewTestLogger(c, "debug")
+	s.log.Debugf("---")
+}
 
 var _ = Suite(&RawSuite{})
 
 func (s *RawSuite) TestNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
-	raw := Raw(endp, helpers.NewTestLogger(c, "debug"))
+	raw := Raw(endp, s.log)
 	nid, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(1))
@@ -45,14 +53,14 @@ func (s *RawSuite) TestNotifies(c *C) {
 
 func (s *RawSuite) TestNotifiesFails(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
-	raw := Raw(endp, helpers.NewTestLogger(c, "debug"))
+	raw := Raw(endp, s.log)
 	_, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
 	c.Check(err, NotNil)
 }
 
 func (s *RawSuite) TestNotifiesFailsWeirdly(c *C) {
 	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{1, 2})
-	raw := Raw(endp, helpers.NewTestLogger(c, "debug"))
+	raw := Raw(endp, s.log)
 	_, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
 	c.Check(err, NotNil)
 }
@@ -60,7 +68,7 @@ func (s *RawSuite) TestNotifiesFailsWeirdly(c *C) {
 func (s *RawSuite) TestWatchActions(c *C) {
 	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true),
 		[]interface{}{uint32(1), "hello"})
-	raw := Raw(endp, helpers.NewTestLogger(c, "debug"))
+	raw := Raw(endp, s.log)
 	ch, err := raw.WatchActions()
 	c.Assert(err, IsNil)
 	// check we get the right action reply
@@ -78,7 +86,7 @@ func (s *RawSuite) TestWatchActions(c *C) {
 
 func (s *RawSuite) TestWatchActionsFails(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
-	raw := Raw(endp, helpers.NewTestLogger(c, "debug"))
+	raw := Raw(endp, s.log)
 	_, err := raw.WatchActions()
 	c.Check(err, NotNil)
 }
