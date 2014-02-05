@@ -83,7 +83,6 @@ func (cs *clientSuite) TearDownSuite(c *C) {
 
 func (cs *clientSuite) SetUpTest(c *C) {
 	cs.log = helpers.NewTestLogger(c, "debug")
-	cs.log.Debugf("---")
 	dir := c.MkDir()
 	cs.configPath = filepath.Join(dir, "config")
 	cfg := fmt.Sprintf(`
