@@ -125,9 +125,11 @@ func (endp *endpoint) GetProperty(property string) (interface{}, error) {
 
 // Close the connection to dbus.
 func (endp *endpoint) Close() {
-	endp.bus.Close()
-	endp.bus = nil
-	endp.proxy = nil
+	if endp.bus != nil {
+		endp.bus.Close()
+		endp.bus = nil
+		endp.proxy = nil
+	}
 }
 
 // String() performs advanced endpoint stringification

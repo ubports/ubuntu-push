@@ -18,12 +18,13 @@ package bus
 
 import (
 	. "launchpad.net/gocheck"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"os"
 	"testing"
 )
 
 // hook up gocheck
-func EndpointTest(t *testing.T) { TestingT(t) }
+func TestEndpoint(t *testing.T) { TestingT(t) }
 
 type EndpointSuite struct{}
 
@@ -35,7 +36,7 @@ var _ = Suite(&EndpointSuite{})
 // Tests that we can connect to the *actual* system bus.
 // XXX maybe connect to a mock/fake/etc bus?
 func (s *BusSuite) TestDial(c *C) {
-	endp := newEndpoint(SystemBus, Address{"", "", ""}, nullog)
+	endp := newEndpoint(SystemBus, Address{"", "", ""}, helpers.NewTestLogger(c, "debug"))
 	c.Assert(endp.bus, IsNil)
 	err := endp.Dial()
 	c.Assert(err, IsNil)
@@ -53,7 +54,7 @@ func (s *BusSuite) TestDialCanFail(c *C) {
 	defer os.Setenv(db, odb)
 	os.Setenv(db, "")
 
-	endp := newEndpoint(SessionBus, Address{"", "", ""}, nullog)
+	endp := newEndpoint(SessionBus, Address{"", "", ""}, helpers.NewTestLogger(c, "debug"))
 	err := endp.Dial()
 	c.Check(err, NotNil)
 }

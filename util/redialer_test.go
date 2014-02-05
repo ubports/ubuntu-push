@@ -17,11 +17,9 @@
 package util
 
 import (
-	"io/ioutil"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/bus"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
-	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"testing"
 	"time"
@@ -34,7 +32,6 @@ type RedialerSuite struct {
 	timeouts []time.Duration
 }
 
-var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 var _ = Suite(&RedialerSuite{})
 
 func (s *RedialerSuite) SetUpSuite(c *C) {

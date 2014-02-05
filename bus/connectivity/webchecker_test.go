@@ -18,6 +18,7 @@ package connectivity
 
 import (
 	. "launchpad.net/gocheck"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/util"
 	"net/http"
 	"net/http/httptest"
@@ -74,7 +75,7 @@ func (s *WebcheckerSuite) TestWorks(c *C) {
 	ts := httptest.NewServer(mkHandler(staticText))
 	defer ts.Close()
 
-	ck := NewWebchecker(ts.URL, staticHash, nullog)
+	ck := NewWebchecker(ts.URL, staticHash, helpers.NewTestLogger(c, "debug"))
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, true)
@@ -82,7 +83,7 @@ func (s *WebcheckerSuite) TestWorks(c *C) {
 
 // Webchecker sends false if the download fails.
 func (s *WebcheckerSuite) TestActualFails(c *C) {
-	ck := NewWebchecker("garbage://", "", nullog)
+	ck := NewWebchecker("garbage://", "", helpers.NewTestLogger(c, "debug"))
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
@@ -93,7 +94,7 @@ func (s *WebcheckerSuite) TestHashFails(c *C) {
 	ts := httptest.NewServer(mkHandler(""))
 	defer ts.Close()
 
-	ck := NewWebchecker(ts.URL, staticHash, nullog)
+	ck := NewWebchecker(ts.URL, staticHash, helpers.NewTestLogger(c, "debug"))
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
@@ -104,7 +105,7 @@ func (s *WebcheckerSuite) TestTooBigFails(c *C) {
 	ts := httptest.NewServer(mkHandler(bigText))
 	defer ts.Close()
 
-	ck := NewWebchecker(ts.URL, bigHash, nullog)
+	ck := NewWebchecker(ts.URL, bigHash, helpers.NewTestLogger(c, "debug"))
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)

@@ -24,12 +24,10 @@ import (
 	"io"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"net"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -39,9 +37,6 @@ func TestSession(t *testing.T) { TestingT(t) }
 
 type clientSessionSuite struct{}
 
-var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
-var noisylog = logger.NewSimpleLogger(os.Stderr, "debug")
-var debuglog = nullog
 var _ = Suite(&clientSessionSuite{})
 
 //
@@ -163,7 +158,7 @@ func (c *testProtocol) WriteMessage(src interface{}) error {
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
-	sess, err := NewSession("", nil, 0, "", nullog)
+	sess, err := NewSession("", nil, 0, "", helpers.NewTestLogger(c, "debug"))
 	c.Check(sess, NotNil)
 	c.Check(err, IsNil)
 	// but no root CAs set
@@ -175,7 +170,7 @@ var certfile string = helpers.SourceRelative("../../server/acceptance/config/tes
 var pem, _ = ioutil.ReadFile(certfile)
 
 func (cs *clientSessionSuite) TestNewSessionPEMWorks(c *C) {
-	sess, err := NewSession("", pem, 0, "wah", nullog)
+	sess, err := NewSession("", pem, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Check(sess, NotNil)
 	c.Assert(err, IsNil)
 	c.Check(sess.TLS.RootCAs, NotNil)
@@ -183,7 +178,7 @@ func (cs *clientSessionSuite) TestNewSessionPEMWorks(c *C) {
 
 func (cs *clientSessionSuite) TestNewSessionBadPEMFileContentFails(c *C) {
 	badpem := []byte("This is not the PEM you're looking for.")
-	sess, err := NewSession("", badpem, 0, "wah", nullog)
+	sess, err := NewSession("", badpem, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Check(sess, IsNil)
 	c.Check(err, NotNil)
 }
@@ -193,7 +188,7 @@ func (cs *clientSessionSuite) TestNewSessionBadPEMFileContentFails(c *C) {
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestConnectFailsWithNoAddress(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	err = sess.connect()
 	c.Check(err, ErrorMatches, ".*connect.*address.*")
@@ -204,7 +199,7 @@ func (cs *clientSessionSuite) TestConnectConnects(c *C) {
 	srv, err := net.Listen("tcp", "localhost:0")
 	c.Assert(err, IsNil)
 	defer srv.Close()
-	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
+	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	err = sess.connect()
 	c.Check(err, IsNil)
@@ -215,7 +210,7 @@ func (cs *clientSessionSuite) TestConnectConnects(c *C) {
 func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
 	srv, err := net.Listen("tcp", "localhost:0")
 	c.Assert(err, IsNil)
-	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", debuglog)
+	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	srv.Close()
 	c.Assert(err, IsNil)
 	err = sess.connect()
@@ -224,11 +219,24 @@ func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
 }
 
 /****************************************************************
+  AutoRedial() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
+	c.Assert(err, IsNil)
+	ch := make(chan uint32)
+	sess.AutoRedial(ch)
+	sess.retrier.Stop()
+	c.Check(<-ch, Not(Equals), 0)
+}
+
+/****************************************************************
   Close() tests
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestClose(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestClose"}
 	sess.Close()
@@ -237,7 +245,7 @@ func (cs *clientSessionSuite) TestClose(c *C) {
 }
 
 func (cs *clientSessionSuite) TestCloseTwice(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestCloseTwice"}
 	sess.Close()
@@ -248,7 +256,7 @@ func (cs *clientSessionSuite) TestCloseTwice(c *C) {
 }
 
 func (cs *clientSessionSuite) TestCloseFails(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestCloseFails", CloseCondition: condition.Work(false)}
 	sess.Close()
@@ -271,7 +279,7 @@ var _ = Suite(&msgSuite{})
 
 func (s *msgSuite) SetUpTest(c *C) {
 	var err error
-	s.sess, err = NewSession("", nil, time.Millisecond, "wah", debuglog)
+	s.sess, err = NewSession("", nil, time.Millisecond, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	s.sess.Connection = &testConn{Name: "TestHandle*"}
 	s.errCh = make(chan error, 1)
@@ -423,7 +431,7 @@ func (s *loopSuite) TestLoopBroadcast(c *C) {
   start() tests
 ****************************************************************/
 func (cs *clientSessionSuite) TestStartFailsIfSetDeadlineFails(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestStartFailsIfSetDeadlineFails",
 		DeadlineCondition: condition.Work(false)} // setdeadline will fail
@@ -433,7 +441,7 @@ func (cs *clientSessionSuite) TestStartFailsIfSetDeadlineFails(c *C) {
 }
 
 func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestStartFailsIfWriteFails",
 		WriteCondition: condition.Work(false)} // write will fail
@@ -443,7 +451,7 @@ func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
 }
 
 func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestStartConnectMessageFails"}
 	errCh := make(chan error, 1)
@@ -469,7 +477,7 @@ func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
 }
 
 func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestStartConnackReadError"}
 	errCh := make(chan error, 1)
@@ -493,7 +501,7 @@ func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
 }
 
 func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestStartBadConnack"}
 	errCh := make(chan error, 1)
@@ -517,7 +525,7 @@ func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
 }
 
 func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestStartBadConnack"}
 	errCh := make(chan error, 1)
@@ -541,7 +549,7 @@ func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
 }
 
 func (cs *clientSessionSuite) TestStartWorks(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestStartWorks"}
 	errCh := make(chan error, 1)
@@ -573,7 +581,7 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	failure := errors.New("TestRunBailsIfConnectFails")
 	has_closed := false
@@ -587,7 +595,7 @@ func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
 }
 
 func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	failure := errors.New("TestRunBailsIfStartFails")
 	err = sess.run(
@@ -599,7 +607,7 @@ func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
 }
 
 func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	// just to make a point: until here we haven't set ErrCh & MsgCh (no
 	// biggie if this stops being true)
@@ -678,7 +686,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	timeout := 100 * time.Millisecond
 	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
 	c.Assert(err, IsNil)
-	sess, err := NewSession(lst.Addr().String(), nil, timeout, "wah", debuglog)
+	sess, err := NewSession(lst.Addr().String(), nil, timeout, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	tconn := &testConn{CloseCondition: condition.Fail2Work(10)}
 	sess.Connection = tconn
