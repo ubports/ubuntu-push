@@ -673,8 +673,8 @@ func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
   Jitter() tests
 ****************************************************************/
 
-func (s *clientSessionSuite) TestJitter(c *C) {
-	sess, err := NewSession("", nil, 0, "wah", s.log)
+func (cs *clientSessionSuite) TestJitter(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", cs.log)
 	c.Assert(err, IsNil)
 	num_tries := 20       // should do the math
 	spread := time.Second //
