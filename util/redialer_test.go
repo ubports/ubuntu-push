@@ -51,14 +51,14 @@ func (s *RedialerSuite) TearDownSuite(c *C) {
 func (s *RedialerSuite) TestWorks(c *C) {
 	endp := testibus.NewTestingEndpoint(condition.Fail2Work(3), nil)
 	ar := NewAutoRedialer(endp)
-	c.Check(ar.stop, NotNil)
+	c.Check(ar.(*autoRedialer).stop, NotNil)
 	c.Check(ar.Redial(), Equals, uint32(4))
 	// and on success, the stopper goes away
-	c.Check(ar.stop, IsNil)
+	c.Check(ar.(*autoRedialer).stop, IsNil)
 }
 
 func (s *RedialerSuite) TestRetryNil(c *C) {
-	var ar *AutoRedialer
+	var ar *autoRedialer
 	c.Check(ar.Redial, Not(PanicMatches), ".* nil pointer dereference")
 }
 
@@ -94,7 +94,7 @@ func (s *RedialerSuite) TestJitterWorks(c *C) {
 func (s *RedialerSuite) TestStopWorksOnNil(c *C) {
 	// as a convenience, Stop() should succeed on nil
 	// (a nil retrier certainly isn't retrying!)
-	var ar *AutoRedialer
+	var ar *autoRedialer
 	c.Check(ar, IsNil)
 	ar.Stop() // nothing happens
 }
@@ -112,14 +112,7 @@ func (s *RedialerSuite) TestStopStops(c *C) {
 		c.Fatal("timed out waiting for redial")
 	}
 	// on Stop(), the stopper goes away too
-	c.Check(ar.stop, IsNil)
-}
-
-func (s *RedialerSuite) TestTwoStops(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	countCh := make(chan uint32)
-	ar := NewAutoRedialer(endp)
-	go func() { countCh <- ar.Redial() }()
-	ar.Stop()
+	c.Check(ar.(*autoRedialer).stop, IsNil)
+	// and the next Stop() doesn't panic nor block
 	ar.Stop()
 }

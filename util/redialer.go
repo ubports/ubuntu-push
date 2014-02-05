@@ -56,7 +56,12 @@ func SwapTimeouts(newTimeouts []time.Duration) (oldTimeouts []time.Duration) {
 // An AutoRedialer's Redial() method retries its dialer's Dial() method until
 // it stops returning an error. It does exponential (optionally jitter'ed)
 // backoff.
-type AutoRedialer struct {
+type AutoRedialer interface {
+	Redial() uint32
+	Stop()
+}
+
+type autoRedialer struct {
 	stop   chan bool
 	lock   sync.RWMutex
 	dial   func() error
@@ -64,7 +69,7 @@ type AutoRedialer struct {
 }
 
 // Stop shuts down the given AutoRedialer, if it is still retrying.
-func (ar *AutoRedialer) Stop() {
+func (ar *autoRedialer) Stop() {
 	if ar != nil {
 		ar.lock.RLock()
 		defer ar.lock.RUnlock()
@@ -74,7 +79,7 @@ func (ar *AutoRedialer) Stop() {
 	}
 }
 
-func (ar *AutoRedialer) shutdown() {
+func (ar *autoRedialer) shutdown() {
 	ar.lock.Lock()
 	defer ar.lock.Unlock()
 	close(ar.stop)
@@ -83,7 +88,7 @@ func (ar *AutoRedialer) shutdown() {
 
 // Redial keeps on calling Dial until it stops returning an error.  It does
 // exponential backoff, adding the output of Jitter at each step back.
-func (ar *AutoRedialer) Redial() uint32 {
+func (ar *autoRedialer) Redial() uint32 {
 	if ar == nil {
 		// at least it's better than the segfault...
 		panic("you can't Redial a nil AutoRedialer")
@@ -124,8 +129,8 @@ func (ar *AutoRedialer) Redial() uint32 {
 
 // returns a stoppable AutoRedialer using the provided Dialer. If the Dialer
 // is also a Jitterer, the backoff will be jittered.
-func NewAutoRedialer(dialer Dialer) *AutoRedialer {
-	ar := &AutoRedialer{stop: make(chan bool), dial: dialer.Dial}
+func NewAutoRedialer(dialer Dialer) AutoRedialer {
+	ar := &autoRedialer{stop: make(chan bool), dial: dialer.Dial}
 	jitterer, ok := dialer.(Jitterer)
 	if ok {
 		ar.jitter = jitterer.Jitter
