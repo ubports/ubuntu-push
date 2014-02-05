@@ -158,7 +158,6 @@ func (c *testProtocol) WriteMessage(src interface{}) error {
 
 func (cs *clientSessionSuite) SetUpTest(c *C) {
 	cs.log = helpers.NewTestLogger(c, "debug")
-	cs.log.Debugf("---")
 }
 
 /****************************************************************

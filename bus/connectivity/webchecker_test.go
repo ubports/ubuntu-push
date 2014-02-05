@@ -74,7 +74,6 @@ func (s *WebcheckerSuite) TearDownSuite(c *C) {
 
 func (s *WebcheckerSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	s.log.Debugf("---")
 }
 
 // Webchecker sends true when everything works

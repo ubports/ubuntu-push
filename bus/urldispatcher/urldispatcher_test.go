@@ -36,7 +36,6 @@ var _ = Suite(&UDSuite{})
 
 func (s *UDSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	s.log.Debugf("---")
 }
 
 func (s *UDSuite) TestWorks(c *C) {

@@ -36,7 +36,6 @@ var _ = Suite(&NMSuite{})
 
 func (s *NMSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	s.log.Debugf("---")
 }
 
 // TestNames checks that networkmanager.State objects serialize

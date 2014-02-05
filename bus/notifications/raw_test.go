@@ -38,7 +38,6 @@ type RawSuite struct {
 
 func (s *RawSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	s.log.Debugf("---")
 }
 
 var _ = Suite(&RawSuite{})

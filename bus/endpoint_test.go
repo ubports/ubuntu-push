@@ -31,7 +31,6 @@ var _ = Suite(&EndpointSuite{})
 
 func (s *EndpointSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	s.log.Debugf("---")
 }
 
 // TODO: this is going to remain empty until go-dbus grows some

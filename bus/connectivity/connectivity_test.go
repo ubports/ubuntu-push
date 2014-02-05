@@ -51,7 +51,6 @@ func (s *ConnSuite) TearDownSuite(c *C) {
 
 func (s *ConnSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	s.log.Debugf("---")
 }
 
 /*
