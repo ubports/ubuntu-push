@@ -17,7 +17,6 @@
 package util
 
 import (
-	"math/rand"
 	"sync"
 	"time"
 )
@@ -27,7 +26,12 @@ import (
 // fails.
 type Dialer interface {
 	Dial() error
-	String() string
+}
+
+// A Jitterer is a Dialer that wants to vary the backoff a little (to avoid a
+// thundering herd, for example).
+type Jitterer interface {
+	Dialer
 	Jitter(time.Duration) time.Duration
 }
 
@@ -35,17 +39,16 @@ type Dialer interface {
 var timeouts []time.Duration
 var trwlock sync.RWMutex
 
-var ( //  for use in testing
-	quitRedialing chan bool = make(chan bool)
-)
-
+// retrieve the list of timeouts used for exponential backoff
 func Timeouts() []time.Duration {
 	trwlock.RLock()
 	defer trwlock.RUnlock()
 	return timeouts
 }
 
-// for testing
+// for testing: change the default timeouts for the provided ones,
+// returning the defaults (the idea being you reset them on test
+// teardown)
 func SwapTimeouts(newTimeouts []time.Duration) (oldTimeouts []time.Duration) {
 	trwlock.Lock()
 	defer trwlock.Unlock()
@@ -53,32 +56,60 @@ func SwapTimeouts(newTimeouts []time.Duration) (oldTimeouts []time.Duration) {
 	return
 }
 
-// Jitter returns a random time.Duration somewhere in [-spread, spread].
-//
-// This is meant as a default implementation for Dialers to use if wanted.
-func Jitter(spread time.Duration) time.Duration {
-	if spread < 0 {
-		panic("spread must be non-negative")
+// An AutoRedialer's Redial() method retries its dialer's Dial() method until
+// it stops returning an error. It does exponential (optionally jitter'ed)
+// backoff.
+type AutoRedialer interface {
+	Redial() uint32 // Redial keeps on calling Dial until it stops returning an error.
+	Stop()          // Stop shuts down the given AutoRedialer, if it is still retrying.
+}
+
+type autoRedialer struct {
+	stop   chan bool
+	lock   sync.RWMutex
+	dial   func() error
+	jitter func(time.Duration) time.Duration
+}
+
+func (ar *autoRedialer) Stop() {
+	if ar != nil {
+		ar.lock.RLock()
+		defer ar.lock.RUnlock()
+		if ar.stop != nil {
+			ar.stop <- true
+		}
 	}
-	n := int64(spread)
-	return time.Duration(rand.Int63n(2*n+1) - n)
 }
 
-type AutoRetrier struct {
-	Stop   chan bool
-	Dial   func() error
-	Jitter func(time.Duration) time.Duration
+func (ar *autoRedialer) shutdown() {
+	ar.lock.Lock()
+	defer ar.lock.Unlock()
+	close(ar.stop)
+	ar.stop = nil
 }
 
-// AutoRetry keeps on calling Dial until it stops returning an error.  It does
+// Redial keeps on calling Dial until it stops returning an error.  It does
 // exponential backoff, adding the output of Jitter at each step back.
-func (ar *AutoRetrier) Retry() uint32 {
+func (ar *autoRedialer) Redial() uint32 {
+	if ar == nil {
+		// at least it's better than the segfault...
+		panic("you can't Redial a nil AutoRedialer")
+	}
+	if ar.stop == nil {
+		panic("this AutoRedialer has already been shut down")
+	}
+	defer ar.shutdown()
+
+	ar.lock.RLock()
+	stop := ar.stop
+	ar.lock.RUnlock()
+
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
 	timeouts := Timeouts()
 	var numTimeouts uint32 = uint32(len(timeouts))
 	for {
-		if ar.Dial() == nil {
+		if ar.dial() == nil {
 			return dialAttempts + 1
 		}
 		if dialAttempts < numTimeouts {
@@ -86,22 +117,27 @@ func (ar *AutoRetrier) Retry() uint32 {
 		} else {
 			timeout = timeouts[numTimeouts-1]
 		}
-		timeout += ar.Jitter(timeout)
+		if ar.jitter != nil {
+			timeout += ar.jitter(timeout)
+		}
 		dialAttempts++
 		select {
-		case <-ar.Stop:
+		case <-stop:
 			return dialAttempts
-		case <-time.NewTimer(timeout).C:
+		case <-time.After(timeout):
 		}
 	}
 }
 
-// AutoRedialer takes a Dialer and retries its Dial() method until it
-// stops returning an error. It does exponential (optionally
-// jitter'ed) backoff.
-func AutoRedial(dialer Dialer) uint32 {
-	ar := &AutoRetrier{quitRedialing, dialer.Dial, dialer.Jitter}
-	return ar.Retry()
+// returns a stoppable AutoRedialer using the provided Dialer. If the Dialer
+// is also a Jitterer, the backoff will be jittered.
+func NewAutoRedialer(dialer Dialer) AutoRedialer {
+	ar := &autoRedialer{stop: make(chan bool), dial: dialer.Dial}
+	jitterer, ok := dialer.(Jitterer)
+	if ok {
+		ar.jitter = jitterer.Jitter
+	}
+	return ar
 }
 
 func init() {
@@ -111,5 +147,4 @@ func init() {
 		timeouts[i] = time.Duration(n) * time.Second
 	}
 	SwapTimeouts(timeouts)
-	rand.Seed(time.Now().Unix()) // good enough for us (not crypto, yadda)
 }

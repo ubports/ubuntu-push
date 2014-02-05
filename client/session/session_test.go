@@ -256,6 +256,50 @@ func (cs *clientSessionSuite) TestCloseFails(c *C) {
 	c.Check(sess.State(), Equals, Disconnected)
 }
 
+type derp struct{ stopped bool }
+
+func (*derp) Redial() uint32 { return 0 }
+func (d *derp) Stop()        { d.stopped = true }
+
+func (cs *clientSessionSuite) TestCloseStopsRetrier(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	ar := new(derp)
+	sess.retrier = ar
+	c.Check(ar.stopped, Equals, false)
+	sess.Close()
+	c.Check(ar.stopped, Equals, true)
+	sess.Close() // double close check
+	c.Check(ar.stopped, Equals, true)
+}
+
+/****************************************************************
+  AutoRedial() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
+	// checks that AutoRedial sets up a retrier and tries redialing it
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	ar := new(derp)
+	sess.retrier = ar
+	c.Check(ar.stopped, Equals, false)
+	sess.AutoRedial(nil)
+	c.Check(ar.stopped, Equals, true)
+}
+
+func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
+	// checks that AutoRedial stops the previous retrier
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	ch := make(chan uint32)
+	c.Check(sess.retrier, IsNil)
+	sess.AutoRedial(ch)
+	c.Assert(sess.retrier, NotNil)
+	sess.retrier.Stop()
+	c.Check(<-ch, Not(Equals), 0)
+}
+
 /****************************************************************
   handlePing() tests
 ****************************************************************/
@@ -624,12 +668,43 @@ func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 }
 
 /****************************************************************
+  Jitter() tests
+****************************************************************/
+
+func (s *clientSessionSuite) TestJitter(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
+	c.Assert(err, IsNil)
+	num_tries := 20       // should do the math
+	spread := time.Second //
+	has_neg := false
+	has_pos := false
+	has_zero := true
+	for i := 0; i < num_tries; i++ {
+		n := sess.Jitter(spread)
+		if n > 0 {
+			has_pos = true
+		} else if n < 0 {
+			has_neg = true
+		} else {
+			has_zero = true
+		}
+	}
+	c.Check(has_neg, Equals, true)
+	c.Check(has_pos, Equals, true)
+	c.Check(has_zero, Equals, true)
+
+	// a negative spread is caught in the reasonable place
+	c.Check(func() { sess.Jitter(time.Duration(-1)) }, PanicMatches,
+		"spread must be non-negative")
+}
+
+/****************************************************************
   Dial() tests
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestDialPanics(c *C) {
 	// one last unhappy test
-	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	sess, err := NewSession("", nil, 0, "wah", helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	sess.Protocolator = nil
 	c.Check(sess.Dial, PanicMatches, ".*protocol constructor.")

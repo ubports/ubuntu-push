@@ -51,20 +51,19 @@ type ClientConfig struct {
 
 // Client is the Ubuntu Push Notifications client-side daemon.
 type Client struct {
-	config                ClientConfig
-	log                   logger.Logger
-	pem                   []byte
-	idder                 identifier.Id
-	deviceId              string
-	notificationsEndp     bus.Endpoint
-	urlDispatcherEndp     bus.Endpoint
-	connectivityEndp      bus.Endpoint
-	connCh                chan bool
-	hasConnectivity       bool
-	actionsCh             <-chan notifications.RawActionReply
-	session               *session.ClientSession
-	sessionRetrierStopper chan bool
-	sessionRetryCh        chan uint32
+	config             ClientConfig
+	log                logger.Logger
+	pem                []byte
+	idder              identifier.Id
+	deviceId           string
+	notificationsEndp  bus.Endpoint
+	urlDispatcherEndp  bus.Endpoint
+	connectivityEndp   bus.Endpoint
+	connCh             chan bool
+	hasConnectivity    bool
+	actionsCh          <-chan notifications.RawActionReply
+	session            *session.ClientSession
+	sessionConnectedCh chan uint32
 }
 
 // Configure loads the configuration specified in configPath, and sets it up.
@@ -86,8 +85,8 @@ func (client *Client) Configure(configPath string) error {
 	client.urlDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, client.log)
 	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
 
-	client.connCh = make(chan bool)
-	client.sessionRetryCh = make(chan uint32)
+	client.connCh = make(chan bool, 1)
+	client.sessionConnectedCh = make(chan uint32, 1)
 
 	if client.config.CertPEMFile != "" {
 		client.pem, err = ioutil.ReadFile(client.config.CertPEMFile)
@@ -119,8 +118,8 @@ func (client *Client) takeTheBus() error {
 	go connectivity.ConnectedState(client.connectivityEndp,
 		client.config.ConnectivityConfig, client.log, client.connCh)
 	iniCh := make(chan uint32)
-	go func() { iniCh <- util.AutoRedial(client.notificationsEndp) }()
-	go func() { iniCh <- util.AutoRedial(client.urlDispatcherEndp) }()
+	go func() { iniCh <- util.NewAutoRedialer(client.notificationsEndp).Redial() }()
+	go func() { iniCh <- util.NewAutoRedialer(client.urlDispatcherEndp).Redial() }()
 	<-iniCh
 	<-iniCh
 
@@ -140,32 +139,6 @@ func (client *Client) initSession() error {
 	return nil
 }
 
-// connectSession kicks off the session connection dance
-func (client *Client) connectSession() {
-	// XXX: lp:1276199
-	if client.sessionRetrierStopper != nil {
-		client.sessionRetrierStopper <- true
-		client.sessionRetrierStopper = nil
-	}
-	ar := &util.AutoRetrier{
-		make(chan bool, 1),
-		client.session.Dial,
-		util.Jitter}
-	client.sessionRetrierStopper = ar.Stop
-	go func() { client.sessionRetryCh <- ar.Retry() }()
-}
-
-// disconnectSession disconnects the session
-func (client *Client) disconnectSession() {
-	// XXX: lp:1276199
-	if client.sessionRetrierStopper != nil {
-		client.sessionRetrierStopper <- true
-		client.sessionRetrierStopper = nil
-	} else {
-		client.session.Close()
-	}
-}
-
 // handleConnState deals with connectivity events
 func (client *Client) handleConnState(hasConnectivity bool) {
 	if client.hasConnectivity == hasConnectivity {
@@ -174,9 +147,9 @@ func (client *Client) handleConnState(hasConnectivity bool) {
 	}
 	client.hasConnectivity = hasConnectivity
 	if hasConnectivity {
-		client.connectSession()
+		client.session.AutoRedial(client.sessionConnectedCh)
 	} else {
-		client.disconnectSession()
+		client.session.Close()
 	}
 }
 
@@ -185,7 +158,7 @@ func (client *Client) handleErr(err error) {
 	// if we're not connected, we don't really care
 	client.log.Errorf("session exited: %s", err)
 	if client.hasConnectivity {
-		client.connectSession()
+		client.session.AutoRedial(client.sessionConnectedCh)
 	}
 }
 
@@ -232,7 +205,7 @@ func (client *Client) doLoop(connhandler func(bool), clickhandler, notifhandler 
 			notifhandler()
 		case err := <-client.session.ErrCh:
 			errhandler(err)
-		case count := <-client.sessionRetryCh:
+		case count := <-client.sessionConnectedCh:
 			client.log.Debugf("Session connected after %d attempts", count)
 		}
 	}
