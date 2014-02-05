@@ -17,9 +17,8 @@
 package server
 
 import (
-	"bytes"
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"testing"
 )
@@ -31,9 +30,9 @@ type bootlogSuite struct{}
 var _ = Suite(&bootlogSuite{})
 
 func (s *bootlogSuite) TestBootLogListener(c *C) {
-	buf := &bytes.Buffer{}
 	prevBootLogger := BootLogger
-	BootLogger = logger.NewSimpleLogger(buf, "info")
+	testlog := helpers.NewTestLogger(c, "info")
+	BootLogger = testlog
 	defer func() {
 		BootLogger = prevBootLogger
 	}()
@@ -41,5 +40,5 @@ func (s *bootlogSuite) TestBootLogListener(c *C) {
 	c.Assert(err, IsNil)
 	defer lst.Close()
 	BootLogListener("client", lst)
-	c.Check(buf.String(), Matches, ".* INFO listening for client on "+lst.Addr().String()+"\n")
+	c.Check(testlog.Captured(), Matches, "INFO listening for client on "+lst.Addr().String()+"\n")
 }
