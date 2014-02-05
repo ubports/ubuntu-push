@@ -449,3 +449,30 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	go cli.doLoop(func(bool) {}, func() error { return nil }, func() error { return nil }, func(error) { ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
+
+/*****************************************************************
+    doStart tests
+******************************************************************/
+
+func (cs *clientSuite) TestDoStartWorks(c *C) {
+	cli := new(Client)
+	one_called := false
+	two_called := false
+	one := func() error { one_called = true; return nil }
+	two := func() error { two_called = true; return nil }
+	c.Check(cli.doStart(one, two), IsNil)
+	c.Check(one_called, Equals, true)
+	c.Check(two_called, Equals, true)
+}
+
+func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
+	cli := new(Client)
+	one_called := false
+	two_called := false
+	failure := errors.New("Failure")
+	one := func() error { one_called = true; return failure }
+	two := func() error { two_called = true; return nil }
+	c.Check(cli.doStart(one, two), Equals, failure)
+	c.Check(one_called, Equals, true)
+	c.Check(two_called, Equals, false)
+}

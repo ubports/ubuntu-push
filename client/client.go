@@ -210,3 +210,14 @@ func (client *Client) doLoop(connhandler func(bool), clickhandler, notifhandler 
 		}
 	}
 }
+
+// doStart calls each of its arguments in order, returning the first non-nil
+// error (or nil at the end)
+func (client *Client) doStart(fs ...func() error) error {
+	for _, f := range fs {
+		if err := f(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
