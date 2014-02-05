@@ -487,7 +487,6 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.connCh = make(chan bool)
 	cli.sessionConnectedCh = make(chan uint32)
 	aCh := make(chan notifications.RawActionReply, 1)
-	aCh <- notifications.RawActionReply{}
 	cli.actionsCh = aCh
 	cli.log = logger.NewSimpleLogger(buf, "debug")
 	cli.notificationsEndp = testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
@@ -501,14 +500,22 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.session.MsgCh = make(chan *session.Notification)
 	cli.session.ErrCh = make(chan error)
 
+	// we use tick() to make sure things have been through the
+	// event loop at least once before looking at things;
+	// otherwise there's a race between what we're trying to look
+	// at and the loop itself.
+	tick := func() { cli.sessionConnectedCh <- 42 }
+
 	go cli.Loop()
 
 	// sessionConnectedCh to nothing in particular, but it'll help sync this test
 	cli.sessionConnectedCh <- 42
-	cli.sessionConnectedCh <- 42 // we check things one loop later (loopy, i know)
+	tick()
 	c.Check(buf, Matches, "(?ms).*Session connected after 42 attempts$")
 
 	//  * actionsCh to the click handler/url dispatcher
+	aCh <- notifications.RawActionReply{}
+	tick()
 	uargs := testibus.GetCallArgs(cli.urlDispatcherEndp)
 	c.Assert(uargs, HasLen, 1)
 	c.Check(uargs[0].Member, Equals, "DispatchURL")
@@ -517,21 +524,21 @@ func (cs *clientSuite) TestLoop(c *C) {
 	//  * connCh to the connectivity checker
 	c.Check(cli.hasConnectivity, Equals, false)
 	cli.connCh <- true
-	cli.sessionConnectedCh <- 42
+	tick()
 	c.Check(cli.hasConnectivity, Equals, true)
 	cli.connCh <- false
-	cli.sessionConnectedCh <- 42
+	tick()
 	c.Check(cli.hasConnectivity, Equals, false)
 
 	//  * session.MsgCh to the notifications handler
 	cli.session.MsgCh <- &session.Notification{}
-	cli.sessionConnectedCh <- 42
+	tick()
 	nargs := testibus.GetCallArgs(cli.notificationsEndp)
 	c.Check(nargs, HasLen, 1)
 
 	//  * session.ErrCh to the error handler
 	cli.session.ErrCh <- nil
-	cli.sessionConnectedCh <- 42
+	tick()
 	c.Check(buf, Matches, "(?ms).*session exited.*")
 }
 
