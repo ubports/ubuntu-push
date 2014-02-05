@@ -476,3 +476,61 @@ func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
 	c.Check(one_called, Equals, true)
 	c.Check(two_called, Equals, false)
 }
+
+/*****************************************************************
+    loop() tests
+******************************************************************/
+
+func (cs *clientSuite) TestLoop(c *C) {
+	buf := &bytes.Buffer{}
+	cli := new(Client)
+	cli.connCh = make(chan bool)
+	cli.sessionConnectedCh = make(chan uint32)
+	aCh := make(chan notifications.RawActionReply, 1)
+	aCh <- notifications.RawActionReply{}
+	cli.actionsCh = aCh
+	cli.log = logger.NewSimpleLogger(buf, "debug")
+	cli.notificationsEndp = testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
+		condition.Work(true), []interface{}{uint32(1), "hello"})
+	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
+		uint32(networkmanager.ConnectedGlobal))
+
+	cli.initSession()
+
+	cli.session.MsgCh = make(chan *session.Notification)
+	cli.session.ErrCh = make(chan error)
+
+	go cli.loop()
+
+	// sessionConnectedCh to nothing in particular, but it'll help sync this test
+	cli.sessionConnectedCh <- 42
+	cli.sessionConnectedCh <- 42 // we check things one loop later (loopy, i know)
+	c.Check(buf, Matches, "(?ms).*Session connected after 42 attempts$")
+
+	//  * actionsCh to the click handler/url dispatcher
+	uargs := testibus.GetCallArgs(cli.urlDispatcherEndp)
+	c.Assert(uargs, HasLen, 1)
+	c.Check(uargs[0].Member, Equals, "DispatchURL")
+
+	// loop() should have connected:
+	//  * connCh to the connectivity checker
+	c.Check(cli.hasConnectivity, Equals, false)
+	cli.connCh <- true
+	cli.sessionConnectedCh <- 42
+	c.Check(cli.hasConnectivity, Equals, true)
+	cli.connCh <- false
+	cli.sessionConnectedCh <- 42
+	c.Check(cli.hasConnectivity, Equals, false)
+
+	//  * session.MsgCh to the notifications handler
+	cli.session.MsgCh <- &session.Notification{}
+	cli.sessionConnectedCh <- 42
+	nargs := testibus.GetCallArgs(cli.notificationsEndp)
+	c.Check(nargs, HasLen, 1)
+
+	//  * session.ErrCh to the error handler
+	cli.session.ErrCh <- nil
+	cli.sessionConnectedCh <- 42
+	c.Check(buf, Matches, "(?ms).*session exited.*")
+}

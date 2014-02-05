@@ -221,3 +221,9 @@ func (client *Client) doStart(fs ...func() error) error {
 	}
 	return nil
 }
+
+// loop calls doLoop with the "real" handlers
+func (client *Client) loop() {
+	client.doLoop(client.handleConnState, client.handleClick,
+		client.handleNotification, client.handleErr)
+}
