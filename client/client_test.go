@@ -101,12 +101,12 @@ func (cs *clientSuite) SetUpTest(c *C) {
 }
 
 /*****************************************************************
-    Configure tests
+    configure tests
 ******************************************************************/
 
 func (cs *clientSuite) TestConfigureWorks(c *C) {
 	cli := new(Client)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.config, NotNil)
 	c.Check(cli.config.ExchangeTimeout.Duration, Equals, time.Duration(10*time.Millisecond))
@@ -115,7 +115,7 @@ func (cs *clientSuite) TestConfigureWorks(c *C) {
 func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
 	cli := new(Client)
 	c.Check(cli.log, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.log, NotNil)
 }
@@ -123,7 +123,7 @@ func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
 func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
 	cli := new(Client)
 	c.Check(cli.pem, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.pem, NotNil)
 }
@@ -131,7 +131,7 @@ func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
 func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	cli := new(Client)
 	c.Check(cli.idder, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.idder, DeepEquals, identifier.New())
 }
@@ -141,7 +141,7 @@ func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 	c.Check(cli.notificationsEndp, IsNil)
 	c.Check(cli.urlDispatcherEndp, IsNil)
 	c.Check(cli.connectivityEndp, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.notificationsEndp, NotNil)
 	c.Assert(cli.urlDispatcherEndp, NotNil)
@@ -151,20 +151,20 @@ func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
 	cli := new(Client)
 	c.Check(cli.connCh, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.connCh, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
 	cli := new(Client)
-	err := cli.Configure("/does/not/exist")
+	err := cli.configure("/does/not/exist")
 	c.Assert(err, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadConfig(c *C) {
 	cli := new(Client)
-	err := cli.Configure("/etc/passwd")
+	err := cli.configure("/etc/passwd")
 	c.Assert(err, NotNil)
 }
 
@@ -181,7 +181,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEMFilename(c *C) {
 }`), 0600)
 
 	cli := new(Client)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, NotNil)
 }
 
@@ -198,7 +198,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
 }`), 0600)
 
 	cli := new(Client)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, NotNil)
 }
 
@@ -246,7 +246,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	// ok, create the thing
 	cli := new(Client)
 	cli.log = cs.log
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
 	c.Check(cli.actionsCh, IsNil)
@@ -273,7 +273,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 // takeTheBus can, in fact, fail
 func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 	cli := new(Client)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	cli.log = cs.log
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
@@ -533,4 +533,35 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.session.ErrCh <- nil
 	cli.sessionConnectedCh <- 42
 	c.Check(buf, Matches, "(?ms).*session exited.*")
+}
+
+/*****************************************************************
+    start() tests
+******************************************************************/
+
+func (cs *clientSuite) TestStart(c *C) {
+	cli := new(Client)
+	// before start, everything sucks:
+	// no config,
+	c.Check(string(cli.config.Addr), Equals, "")
+	// no device id,
+	c.Check(cli.deviceId, HasLen, 0)
+	// no session,
+	c.Check(cli.session, IsNil)
+	// no bus,
+	c.Check(cli.notificationsEndp, IsNil)
+	// no nuthin'.
+
+	// so we start,
+	cli.start(cs.configPath)
+
+	// and now everthing is better! We have a config,
+	c.Check(string(cli.config.Addr), Equals, ":0")
+	// and a device id,
+	c.Check(cli.deviceId, HasLen, 128)
+	// and a session,
+	c.Check(cli.session, NotNil)
+	// and a bus,
+	c.Check(cli.notificationsEndp, NotNil)
+	// and everthying us just peachy!
 }
