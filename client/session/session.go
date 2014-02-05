@@ -70,7 +70,7 @@ type ClientSession struct {
 	TLS          *tls.Config
 	proto        protocol.Protocol
 	pingInterval time.Duration
-	retrier      *util.AutoRedialer
+	retrier      util.AutoRedialer
 	// status
 	stateP *uint32
 	ErrCh  chan error
@@ -123,13 +123,17 @@ func (sess *ClientSession) connect() error {
 }
 
 func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
-	sess.retrier.Stop()
+	if sess.retrier != nil {
+		sess.retrier.Stop()
+	}
 	sess.retrier = util.NewAutoRedialer(sess)
 	go func() { doneCh <- sess.retrier.Redial() }()
 }
 
 func (sess *ClientSession) Close() {
-	sess.retrier.Stop()
+	if sess.retrier != nil {
+		sess.retrier.Stop()
+	}
 	sess.doClose()
 }
 func (sess *ClientSession) doClose() {

@@ -264,6 +264,50 @@ func (cs *clientSessionSuite) TestCloseFails(c *C) {
 	c.Check(sess.State(), Equals, Disconnected)
 }
 
+type derp struct{ stopped bool }
+
+func (*derp) Redial() uint32 { return 0 }
+func (d *derp) Stop()        { d.stopped = true }
+
+func (cs *clientSessionSuite) TestCloseStopsRetrier(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	ar := new(derp)
+	sess.retrier = ar
+	c.Check(ar.stopped, Equals, false)
+	sess.Close()
+	c.Check(ar.stopped, Equals, true)
+	sess.Close() // double close check
+	c.Check(ar.stopped, Equals, true)
+}
+
+/****************************************************************
+  AutoRedial() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
+	// checks that AutoRedial sets up a retrier and tries redialing it
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	ar := new(derp)
+	sess.retrier = ar
+	c.Check(ar.stopped, Equals, false)
+	sess.AutoRedial(nil)
+	c.Check(ar.stopped, Equals, true)
+}
+
+func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
+	// checks that AutoRedial stops the previous retrier
+	sess, err := NewSession("", nil, 0, "wah", debuglog)
+	c.Assert(err, IsNil)
+	ch := make(chan uint32)
+	c.Check(sess.retrier, IsNil)
+	sess.AutoRedial(ch)
+	c.Assert(sess.retrier, NotNil)
+	sess.retrier.Stop()
+	c.Check(<-ch, Not(Equals), 0)
+}
+
 /****************************************************************
   handlePing() tests
 ****************************************************************/
