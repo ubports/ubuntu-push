@@ -59,7 +59,7 @@ var levelToNLevel = map[string]int{
 	"debug": lDebug,
 }
 
-// MinimalLogger is the  minimal interface required to be build a simple logger on top.
+// MinimalLogger is the  minimal interface required to build a simple logger on top.
 type MinimalLogger interface {
 	Output(calldepth int, s string) error
 }
