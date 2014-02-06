@@ -171,9 +171,3 @@ func (s *TestingBusSuite) TestEndpointString(c *C) {
 	endp := NewTestingEndpoint(condition.Fail2Work(2), nil, "hello there")
 	c.Check(endp.String(), Matches, ".*Still Broken.*hello there.*")
 }
-
-// Test testingEndpoints have no jitters
-func (s *TestingBusSuite) TestEndpointJitter(c *C) {
-	endp := NewTestingEndpoint(nil, nil)
-	c.Check(endp.Jitter(time.Duration(42)), Equals, time.Duration(0))
-}

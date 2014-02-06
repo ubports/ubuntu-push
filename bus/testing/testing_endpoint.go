@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/testing/condition"
+	"sync"
 	"time"
 )
 
@@ -37,6 +38,7 @@ type testingEndpoint struct {
 	retvals     [][]interface{}
 	watchTicker chan bool
 	callArgs    []callArgs
+	callArgsLck sync.RWMutex
 }
 
 // Build a bus.Endpoint that calls OK() on its condition before returning
@@ -45,7 +47,7 @@ type testingEndpoint struct {
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them in turn, irrespective of whether Call has been called.
 func NewMultiValuedTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
-	return &testingEndpoint{dialCond, callCond, retvalses, nil, nil}
+	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses}
 }
 
 func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvals ...interface{}) bus.Endpoint {
@@ -53,7 +55,7 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 	for i, x := range retvals {
 		retvalses[i] = []interface{}{x}
 	}
-	return &testingEndpoint{dialCond, callCond, retvalses, nil, nil}
+	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses}
 }
 
 // If SetWatchTicker is called with a non-nil watchTicker, it is used
@@ -65,6 +67,8 @@ func SetWatchTicker(tc bus.Endpoint, watchTicker chan bool) {
 
 // GetCallArgs returns a list of the arguments for each Call() invocation.
 func GetCallArgs(tc bus.Endpoint) []callArgs {
+	tc.(*testingEndpoint).callArgsLck.RLock()
+	defer tc.(*testingEndpoint).callArgsLck.RUnlock()
 	return tc.(*testingEndpoint).callArgs
 }
 
@@ -92,6 +96,9 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 // See Endpoint's Call. This Call will check its condition to decide whether
 // to return an error, or the first of its return values
 func (tc *testingEndpoint) Call(member string, args ...interface{}) ([]interface{}, error) {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
 	tc.callArgs = append(tc.callArgs, callArgs{member, args})
 	if tc.callCond.OK() {
 		if len(tc.retvals) == 0 {
@@ -134,9 +141,6 @@ func (endp *testingEndpoint) String() string {
 
 // see Endpoint's Close. This one does nothing.
 func (tc *testingEndpoint) Close() {}
-
-// see Endpoint's Jitter.
-func (tc *testingEndpoint) Jitter(_ time.Duration) time.Duration { return 0 }
 
 // ensure testingEndpoint implements bus.Endpoint
 var _ bus.Endpoint = &testingEndpoint{}

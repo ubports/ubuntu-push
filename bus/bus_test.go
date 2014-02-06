@@ -18,19 +18,17 @@ package bus
 
 import (
 	"fmt"
-	"io/ioutil"
 	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"testing"
 )
 
 // hook up gocheck
-func BusTest(t *testing.T) { TestingT(t) }
+func TestBus(t *testing.T) { TestingT(t) }
 
 type BusSuite struct{}
 
-var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
 var _ = Suite(&BusSuite{})
 
 // Test we stringify sanely
@@ -47,6 +45,6 @@ func (s *BusSuite) TestDBusType(c *C) {
 
 // Tests that we can get an endpoint back
 func (s *BusSuite) TestEndpoint(c *C) {
-	endp := SystemBus.Endpoint(Address{"", "", ""}, nullog)
+	endp := SystemBus.Endpoint(Address{"", "", ""}, helpers.NewTestLogger(c, "debug"))
 	c.Assert(endp, NotNil)
 }

@@ -19,10 +19,10 @@ package bus
 // Here we define the Endpoint, which represents the DBus connection itself.
 
 import (
+	"errors"
 	"fmt"
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/logger"
-	"time"
 )
 
 /*****************************************************************
@@ -37,7 +37,6 @@ type Endpoint interface {
 	Dial() error
 	Close()
 	String() string
-	Jitter(time.Duration) time.Duration
 }
 
 type endpoint struct {
@@ -66,8 +65,39 @@ func (endp *endpoint) Dial() error {
 	if err != nil {
 		return err
 	}
+	d := dbus.BusDaemon{bus.Object(dbus.BUS_DAEMON_NAME, dbus.BUS_DAEMON_PATH)}
+	name := endp.addr.Name
+	hasOwner, err := d.NameHasOwner(name)
+	if err != nil {
+		endp.log.Debugf("Unable to determine ownership of %#v: %v", name, err)
+		bus.Close()
+		return err
+	}
+	if !hasOwner {
+		// maybe it's waiting to be activated?
+		names, err := d.ListActivatableNames()
+		if err != nil {
+			endp.log.Debugf("%#v has no owner, and when listing activatable: %v", name, err)
+			bus.Close()
+			return err
+		}
+		found := false
+		for _, name := range names {
+			if name == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			msg := fmt.Sprintf("%#v has no owner, and not in activatables", name)
+			endp.log.Debugf(msg)
+			bus.Close()
+			return errors.New(msg)
+		}
+	}
+	endp.log.Infof("%#v dialed in.", name)
 	endp.bus = bus
-	endp.proxy = bus.Object(endp.addr.Name, dbus.ObjectPath(endp.addr.Path))
+	endp.proxy = bus.Object(name, dbus.ObjectPath(endp.addr.Path))
 	return nil
 }
 
@@ -127,19 +157,16 @@ func (endp *endpoint) GetProperty(property string) (interface{}, error) {
 
 // Close the connection to dbus.
 func (endp *endpoint) Close() {
-	endp.bus.Close()
-	endp.bus = nil
-	endp.proxy = nil
+	if endp.bus != nil {
+		endp.bus.Close()
+		endp.bus = nil
+		endp.proxy = nil
+	}
 }
 
 // String() performs advanced endpoint stringification
 func (endp *endpoint) String() string {
 	return fmt.Sprintf("<Connection to %s %#v>", endp.bus, endp.addr)
-}
-
-// Jitter() returns 0: no need to jitter D-Bus connections.
-func (endp *endpoint) Jitter(_ time.Duration) time.Duration {
-	return 0
 }
 
 /*

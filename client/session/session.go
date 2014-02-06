@@ -26,6 +26,8 @@ import (
 	"launchpad.net/ubuntu-push/client/session/levelmap"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
+	"launchpad.net/ubuntu-push/util"
+	"math/rand"
 	"net"
 	"sync/atomic"
 	"time"
@@ -68,6 +70,7 @@ type ClientSession struct {
 	TLS          *tls.Config
 	proto        protocol.Protocol
 	pingInterval time.Duration
+	retrier      util.AutoRedialer
 	// status
 	stateP *uint32
 	ErrCh  chan error
@@ -119,7 +122,24 @@ func (sess *ClientSession) connect() error {
 	return nil
 }
 
+func (sess *ClientSession) stopRedial() {
+	if sess.retrier != nil {
+		sess.retrier.Stop()
+		sess.retrier = nil
+	}
+}
+
+func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
+	sess.stopRedial()
+	sess.retrier = util.NewAutoRedialer(sess)
+	go func() { doneCh <- sess.retrier.Redial() }()
+}
+
 func (sess *ClientSession) Close() {
+	sess.stopRedial()
+	sess.doClose()
+}
+func (sess *ClientSession) doClose() {
 	if sess.Connection != nil {
 		sess.Connection.Close()
 		// we ignore Close errors, on purpose (the thinking being that
@@ -258,6 +278,15 @@ func (sess *ClientSession) run(closer func(), connecter, starter, looper func() 
 	return err
 }
 
+// This Jitter returns a random time.Duration somewhere in [-spread, spread].
+func (sess *ClientSession) Jitter(spread time.Duration) time.Duration {
+	if spread < 0 {
+		panic("spread must be non-negative")
+	}
+	n := int64(spread)
+	return time.Duration(rand.Int63n(2*n+1) - n)
+}
+
 // Dial takes the session from newly created (or newly disconnected)
 // to running the main loop.
 func (sess *ClientSession) Dial() error {
@@ -267,5 +296,9 @@ func (sess *ClientSession) Dial() error {
 		// keep on trying.
 		panic("can't Dial() without a protocol constructor.")
 	}
-	return sess.run(sess.Close, sess.connect, sess.start, sess.loop)
+	return sess.run(sess.doClose, sess.connect, sess.start, sess.loop)
+}
+
+func init() {
+	rand.Seed(time.Now().Unix()) // good enough for us (we're not using it for crypto)
 }

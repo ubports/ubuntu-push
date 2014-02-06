@@ -63,28 +63,33 @@ type connectedState struct {
 // up the watch.
 func (cs *connectedState) start() networkmanager.State {
 	var initial networkmanager.State
+	var ch <-chan networkmanager.State
+	var err error
 	for {
-		cs.connAttempts += util.AutoRedial(cs.endp)
+		ar := util.NewAutoRedialer(cs.endp)
+		cs.connAttempts += ar.Redial()
 		nm := networkmanager.New(cs.endp, cs.log)
 
 		// Get the current state.
 		initial = nm.GetState()
 		if initial == networkmanager.Unknown {
 			cs.log.Debugf("Failed to get state.")
-			cs.endp.Close()
-			continue
+			goto Continue
 		}
 
 		// set up the watch
-		ch, err := nm.WatchState()
+		ch, err = nm.WatchState()
 		if err != nil {
 			cs.log.Debugf("Failed to set up the watch: %s", err)
-			cs.endp.Close()
-			continue
+			goto Continue
 		}
 
 		cs.networkStateCh = ch
 		return initial
+
+	Continue:
+		cs.endp.Close()
+		time.Sleep(10 * time.Millisecond) // that should cool things
 	}
 }
 

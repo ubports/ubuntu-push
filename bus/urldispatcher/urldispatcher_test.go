@@ -17,10 +17,10 @@
 package urldispatcher
 
 import (
-	"io/ioutil"
 	. "launchpad.net/gocheck"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/logger"
+	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"testing"
 )
@@ -28,22 +28,26 @@ import (
 // hook up gocheck
 func TestUrldispatcher(t *testing.T) { TestingT(t) }
 
-type UDSuite struct{}
+type UDSuite struct {
+	log logger.Logger
+}
 
 var _ = Suite(&UDSuite{})
 
-var nullog = logger.NewSimpleLogger(ioutil.Discard, "error")
+func (s *UDSuite) SetUpTest(c *C) {
+	s.log = helpers.NewTestLogger(c, "debug")
+}
 
 func (s *UDSuite) TestWorks(c *C) {
 	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{})
-	ud := New(endp, nullog)
+	ud := New(endp, s.log)
 	err := ud.DispatchURL("this")
 	c.Check(err, IsNil)
 }
 
 func (s *UDSuite) TestFailsIfCallFails(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
-	ud := New(endp, nullog)
+	ud := New(endp, s.log)
 	err := ud.DispatchURL("this")
 	c.Check(err, NotNil)
 }
