@@ -1,3 +1,9 @@
+ubuntu-push-client (0.1-0.2) trusty; urgency=medium
+
+  * A lot closer!
+
+ -- John Lenton <jlenton@gmail.com>  Thu, 06 Feb 2014 17:31:39 +0000
+
 ubuntu-push-client (0.1-0.1) trusty; urgency=low
 
   * Initial release
