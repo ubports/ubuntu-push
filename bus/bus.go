@@ -80,3 +80,9 @@ type Address struct {
 	Path      string
 	Interface string
 }
+
+var BusDaemonAddress = Address{
+	dbus.BUS_DAEMON_NAME,
+	string(dbus.BUS_DAEMON_PATH),
+	dbus.BUS_DAEMON_IFACE,
+}
