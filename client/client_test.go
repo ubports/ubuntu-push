@@ -17,7 +17,6 @@
 package client
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -27,7 +26,6 @@ import (
 	"launchpad.net/ubuntu-push/bus/notifications"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/client/session"
-	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/util"
@@ -55,7 +53,7 @@ func takeNextBool(ch <-chan bool) bool {
 type clientSuite struct {
 	timeouts   []time.Duration
 	configPath string
-	log        logger.Logger
+	log        *helpers.TestLogger
 }
 
 var _ = Suite(&clientSuite{})
@@ -293,13 +291,12 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleErr(c *C) {
-	buf := &bytes.Buffer{}
 	cli := new(Client)
-	cli.log = logger.NewSimpleLogger(buf, "debug")
+	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 	cli.hasConnectivity = true
 	cli.handleErr(errors.New("bananas"))
-	c.Check(buf.String(), Matches, ".*session exited.*bananas\n")
+	c.Check(cs.log.Captured(), Matches, ".*session exited.*bananas\n")
 }
 
 /*****************************************************************
@@ -359,17 +356,16 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleNotification(c *C) {
-	buf := &bytes.Buffer{}
 	cli := new(Client)
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
-	cli.log = logger.NewSimpleLogger(buf, "debug")
+	cli.log = cs.log
 	c.Check(cli.handleNotification(), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "Notify")
-	c.Check(buf.String(), Matches, `.* got notification id \d+\s*`)
+	c.Check(cs.log.Captured(), Matches, `.* got notification id \d+\s*`)
 }
 
 func (cs *clientSuite) TestHandleNotificationFail(c *C) {
@@ -482,13 +478,12 @@ func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestLoop(c *C) {
-	buf := &bytes.Buffer{}
 	cli := new(Client)
 	cli.connCh = make(chan bool)
 	cli.sessionConnectedCh = make(chan uint32)
 	aCh := make(chan notifications.RawActionReply, 1)
 	cli.actionsCh = aCh
-	cli.log = logger.NewSimpleLogger(buf, "debug")
+	cli.log = cs.log
 	cli.notificationsEndp = testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
 		condition.Work(true), []interface{}{uint32(1), "hello"})
 	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
@@ -511,7 +506,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	// sessionConnectedCh to nothing in particular, but it'll help sync this test
 	cli.sessionConnectedCh <- 42
 	tick()
-	c.Check(buf, Matches, "(?ms).*Session connected after 42 attempts$")
+	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
 
 	//  * actionsCh to the click handler/url dispatcher
 	aCh <- notifications.RawActionReply{}
@@ -539,7 +534,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	//  * session.ErrCh to the error handler
 	cli.session.ErrCh <- nil
 	tick()
-	c.Check(buf, Matches, "(?ms).*session exited.*")
+	c.Check(cs.log.Captured(), Matches, "(?ms).*session exited.*")
 }
 
 /*****************************************************************
