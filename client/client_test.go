@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
@@ -545,7 +546,21 @@ func (cs *clientSuite) TestLoop(c *C) {
     Start() tests
 ******************************************************************/
 
+// XXX this is a hack.
+func (cs *clientSuite) hasDbus() bool {
+	for _, b := range []bus.Bus{bus.SystemBus, bus.SessionBus} {
+		if b.Endpoint(bus.BusDaemonAddress, cs.log).Dial() != nil {
+			return false
+		}
+	}
+	return true
+}
+
 func (cs *clientSuite) TestStart(c *C) {
+	if !cs.hasDbus() {
+		c.Skip("no dbus")
+	}
+
 	cli := new(Client)
 	// before start, everything sucks:
 	// no config,
