@@ -59,12 +59,15 @@ var levelToNLevel = map[string]int{
 	"debug": lDebug,
 }
 
+// MinimalLogger is the  minimal interface required to be build a simple logger on top.
+type MinimalLogger interface {
+	Output(calldepth int, s string) error
+}
+
 // NewSimpleLoggerFromMinimalLogger creates a logger logging only up
 // to the given level. level can be in order: "error", "info",
 // "debug". It takes a value just implementing stlib Logger.Output().
-func NewSimpleLoggerFromMinimalLogger(minLog interface {
-	Output(calldepth int, s string) error
-}, level string) Logger {
+func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger {
 	nlevel := levelToNLevel[level]
 	return &simpleLogger{
 		minLog.Output,
