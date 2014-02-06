@@ -71,9 +71,7 @@ type TestLogger struct {
 }
 
 // NewTestLogger can be used in tests instead of NewSimpleLogger(FromMinimalLogger).
-func NewTestLogger(minLog interface {
-	Output(int, string) error
-}, level string) *TestLogger {
+func NewTestLogger(minLog logger.MinimalLogger, level string) *TestLogger {
 	h := &captureHelper{outputFunc: minLog.Output}
 	log := &TestLogger{
 		Logger: logger.NewSimpleLoggerFromMinimalLogger(h, level),
