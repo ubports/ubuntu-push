@@ -5,9 +5,9 @@ coverage.out
 debian/files
 obj-*
 debian/tmp
+debian/golang-ubuntu-push-dev
 debian/ubuntu-push-client
 debian/*.debhelper.log
 debian/*.ex
 debian/*.EX
-debian/ubuntu-push-client.substvars
-debian/docs
+debian/*.substvars
