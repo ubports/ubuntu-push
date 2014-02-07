@@ -3,14 +3,21 @@
 
 export DH_VERBOSE=1
 export DH_GOPKG := launchpad.net/ubuntu-push
+export DEB_BUILD_OPTIONS := nostrip
+export UBUNTU_PUSH_TEST_RESOURCES_ROOT := $(CURDIR)
 
-# Tests are currently broken
-override_dh_auto_test:
+TMP := debian/tmp
+DIR := debian/ubuntu-push-client
+BIN := $DIR/usr/lib/ubuntu-push-client
+CFG := $DIR/etc/xdg/ubuntu-push-client
+UPS := $DIR/usr/share/upstart/sessions
 
 override_dh_install:
-	mv -v debian/ubuntu-push-client debian/tmp
-	mkdir -vp debian/ubuntu-push-client/usr/bin
-	mv -v debian/tmp/usr/bin/ubuntu-push debian/ubuntu-push-client/usr/bin/ubuntu-push-client
+	mv -v $(DIR) $(TMP)
+	mkdir -vp $(BIN) $(CFG) $(UPS)
+	mv -v $(TMP)/usr/bin/ubuntu-push $(BIN)/ubuntu-push-client
+	cp -v debian/config.json $(CFG)
+	cp -v debian/ubuntu-push-client.conf $(UPS)
 
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing

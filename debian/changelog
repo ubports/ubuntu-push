@@ -1,3 +1,9 @@
+ubuntu-push-client (0.1-0.3) trusty; urgency=medium
+
+  * first one with a config file and upstart thingie!
+
+ -- John Lenton <john.lenton@canonical.com>  Fri, 07 Feb 2014 11:29:36 +0000
+
 ubuntu-push-client (0.1-0.2) trusty; urgency=medium
 
   * A lot closer!
