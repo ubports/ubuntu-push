@@ -156,6 +156,14 @@ func (c *testProtocol) WriteMessage(src interface{}) error {
 	return nil
 }
 
+// brokenLevelMap is a LevelMap that always breaks
+type brokenLevelMap struct{}
+
+func (*brokenLevelMap) Set(string, int64) error           { return errors.New("broken.") }
+func (*brokenLevelMap) GetAll() (map[string]int64, error) { return nil, errors.New("broken.") }
+
+/////
+
 func (cs *clientSessionSuite) SetUpTest(c *C) {
 	cs.log = helpers.NewTestLogger(c, "debug")
 }
@@ -365,7 +373,9 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 	c.Assert(len(s.sess.MsgCh), Equals, 1)
 	c.Check(<-s.sess.MsgCh, Equals, &Notification{})
 	// and finally, the session keeps track of the levels
-	c.Check(s.sess.Levels.GetAll(), DeepEquals, map[string]int64{"0": 2})
+	levels, err := s.sess.Levels.GetAll()
+	c.Check(err, IsNil)
+	c.Check(levels, DeepEquals, map[string]int64{"0": 2})
 }
 
 func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
@@ -399,6 +409,26 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, IsNil)
 	c.Check(len(s.sess.MsgCh), Equals, 0)
+}
+
+func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
+	s.sess.Levels = &brokenLevelMap{}
+	msg := serverMsg{"broadcast",
+		protocol.BroadcastMsg{
+			Type:     "broadcast",
+			AppId:    "--ignored--",
+			ChanId:   "0",
+			TopLevel: 2,
+			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+		}, protocol.NotificationsMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	s.upCh <- nil // ack ok
+	// start returns with error
+	c.Check(<-s.errCh, Not(Equals), nil)
+	// no message sent out
+	c.Check(len(s.sess.MsgCh), Equals, 0)
+	// and no ack if we can't update the levels
+	c.Check(len(s.downCh), Equals, 0)
 }
 
 /****************************************************************
@@ -486,6 +516,26 @@ func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
 	err = sess.start()
 	c.Check(err, ErrorMatches, ".*write.*")
 	c.Check(sess.State(), Equals, Error)
+}
+
+func (cs *clientSessionSuite) TestStartFailsIfGetLevelsFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", cs.log)
+	c.Assert(err, IsNil)
+	sess.Levels = &brokenLevelMap{}
+	sess.Connection = &testConn{Name: "TestStartConnectMessageFails"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	err = <-errCh
+	c.Check(err, ErrorMatches, "broken.")
 }
 
 func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
@@ -788,7 +838,9 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	// ...get bubbled up,
 	c.Check(<-sess.MsgCh, NotNil)
 	// and their TopLevel remembered
-	c.Check(sess.Levels.GetAll(), DeepEquals, map[string]int64{"0": 2})
+	levels, err := sess.Levels.GetAll()
+	c.Check(err, IsNil)
+	c.Check(levels, DeepEquals, map[string]int64{"0": 2})
 
 	// and ping still work even after that.
 	c.Check(takeNext(downCh), Equals, "deadline 110ms")

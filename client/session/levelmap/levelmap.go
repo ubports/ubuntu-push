@@ -24,23 +24,24 @@ package levelmap
 
 type LevelMap interface {
 	// Set() (re)sets the given level to the given value.
-	Set(level string, top int64)
+	Set(level string, top int64) error
 	// GetAll() returns a "simple" map of the current levels.
-	GetAll() map[string]int64
+	GetAll() (map[string]int64, error)
 }
 
 type mapLevelMap map[string]int64
 
-func (m *mapLevelMap) Set(level string, top int64) {
+func (m *mapLevelMap) Set(level string, top int64) error {
 	(*m)[level] = top
+	return nil
 }
-func (m *mapLevelMap) GetAll() map[string]int64 {
-	return map[string]int64(*m)
+func (m *mapLevelMap) GetAll() (map[string]int64, error) {
+	return map[string]int64(*m), nil
 }
 
 var _ LevelMap = &mapLevelMap{}
 
 // default constructor
-func NewLevelMap() LevelMap {
-	return &mapLevelMap{}
+func NewLevelMap() (LevelMap, error) {
+	return &mapLevelMap{}, nil
 }
