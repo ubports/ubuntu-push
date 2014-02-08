@@ -175,12 +175,13 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEMFilename(c *C) {
     "connectivity_check_md5": "",
     "addr": ":0",
     "cert_pem_file": "/a/b/c",
+    "log_level": "debug",
     "recheck_timeout": "3h"
 }`), 0600)
 
 	cli := NewPushClient(cs.configPath)
 	err := cli.configure()
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "reading PEM file: .*")
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
@@ -192,12 +193,13 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
     "connectivity_check_md5": "",
     "addr": ":0",
     "cert_pem_file": "/etc/passwd",
+    "log_level": "debug",
     "recheck_timeout": "3h"
 }`), 0600)
 
 	cli := NewPushClient(cs.configPath)
 	err := cli.configure()
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "no PEM found.*")
 }
 
 /*****************************************************************
