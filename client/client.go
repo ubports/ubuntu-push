@@ -52,6 +52,7 @@ type ClientConfig struct {
 
 // pushClient is the Ubuntu Push Notifications client-side daemon.
 type pushClient struct {
+	leveldbPath        string
 	configPath         string
 	config             ClientConfig
 	log                logger.Logger
@@ -70,9 +71,10 @@ type pushClient struct {
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
-func NewPushClient(configPath string) *pushClient {
+func NewPushClient(configPath string, leveldbPath string) *pushClient {
 	client := new(pushClient)
 	client.configPath = configPath
+	client.leveldbPath = leveldbPath
 
 	return client
 }
@@ -143,12 +145,21 @@ func (client *pushClient) takeTheBus() error {
 func (client *pushClient) initSession() error {
 	sess, err := session.NewSession(string(client.config.Addr), client.pem,
 		client.config.ExchangeTimeout.Duration, client.deviceId,
-		levelmap.NewLevelMap, client.log)
+		client.levelMapFactory, client.log)
 	if err != nil {
 		return err
 	}
 	client.session = sess
 	return nil
+}
+
+// levelmapFactory returns a levelMap for the session
+func (client *pushClient) levelMapFactory() (levelmap.LevelMap, error) {
+	if client.leveldbPath == "" {
+		return levelmap.NewLevelMap()
+	} else {
+		return levelmap.NewSqliteLevelMap(client.leveldbPath)
+	}
 }
 
 // handleConnState deals with connectivity events
