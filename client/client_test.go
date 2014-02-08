@@ -103,43 +103,43 @@ func (cs *clientSuite) SetUpTest(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestConfigureWorks(c *C) {
-	cli := new(Client)
-	err := cli.configure(cs.configPath)
+	cli := NewPushClient(cs.configPath)
+	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.config, NotNil)
 	c.Check(cli.config.ExchangeTimeout.Duration, Equals, time.Duration(10*time.Millisecond))
 }
 
 func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	c.Check(cli.log, IsNil)
-	err := cli.configure(cs.configPath)
+	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.log, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	c.Check(cli.pem, IsNil)
-	err := cli.configure(cs.configPath)
+	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.pem, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	c.Check(cli.idder, IsNil)
-	err := cli.configure(cs.configPath)
+	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.idder, DeepEquals, identifier.New())
 }
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	c.Check(cli.notificationsEndp, IsNil)
 	c.Check(cli.urlDispatcherEndp, IsNil)
 	c.Check(cli.connectivityEndp, IsNil)
-	err := cli.configure(cs.configPath)
+	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.notificationsEndp, NotNil)
 	c.Assert(cli.urlDispatcherEndp, NotNil)
@@ -147,22 +147,22 @@ func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	c.Check(cli.connCh, IsNil)
-	err := cli.configure(cs.configPath)
+	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.connCh, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
-	cli := new(Client)
-	err := cli.configure("/does/not/exist")
+	cli := NewPushClient("/does/not/exist")
+	err := cli.configure()
 	c.Assert(err, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadConfig(c *C) {
-	cli := new(Client)
-	err := cli.configure("/etc/passwd")
+	cli := NewPushClient("/etc/passwd")
+	err := cli.configure()
 	c.Assert(err, NotNil)
 }
 
@@ -178,8 +178,8 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEMFilename(c *C) {
     "recheck_timeout": "3h"
 }`), 0600)
 
-	cli := new(Client)
-	err := cli.configure(cs.configPath)
+	cli := NewPushClient(cs.configPath)
+	err := cli.configure()
 	c.Assert(err, NotNil)
 }
 
@@ -195,8 +195,8 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
     "recheck_timeout": "3h"
 }`), 0600)
 
-	cli := new(Client)
-	err := cli.configure(cs.configPath)
+	cli := NewPushClient(cs.configPath)
+	err := cli.configure()
 	c.Assert(err, NotNil)
 }
 
@@ -205,7 +205,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	cli.idder = identifier.New()
 	c.Check(cli.deviceId, Equals, "")
@@ -214,7 +214,7 @@ func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 }
 
 func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	cli.idder = idtesting.Failing()
 	c.Check(cli.deviceId, Equals, "")
@@ -242,9 +242,9 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	)
 	testibus.SetWatchTicker(cEndp, make(chan bool))
 	// ok, create the thing
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
-	err := cli.configure(cs.configPath)
+	err := cli.configure()
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
 	c.Check(cli.actionsCh, IsNil)
@@ -270,8 +270,8 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 
 // takeTheBus can, in fact, fail
 func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
-	cli := new(Client)
-	err := cli.configure(cs.configPath)
+	cli := NewPushClient(cs.configPath)
+	err := cli.configure()
 	cli.log = cs.log
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
@@ -291,7 +291,7 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleErr(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 	cli.hasConnectivity = true
@@ -304,7 +304,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 
@@ -315,7 +315,7 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 }
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	// here we want to check that we don't do anything
 	c.Assert(cli.session, IsNil)
@@ -329,7 +329,7 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 }
 
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, cs.log)
 	cli.session.Dial()
@@ -342,7 +342,7 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 }
 
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, cs.log)
 	cli.hasConnectivity = true
@@ -356,7 +356,7 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleNotification(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
@@ -369,7 +369,7 @@ func (cs *clientSuite) TestHandleNotification(c *C) {
 }
 
 func (cs *clientSuite) TestHandleNotificationFail(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
@@ -381,7 +381,7 @@ func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleClick(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), nil)
 	cli.urlDispatcherEndp = endp
@@ -398,7 +398,7 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDoLoopConn(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	cli.connCh = make(chan bool, 1)
 	cli.connCh <- true
@@ -410,7 +410,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 }
 
 func (cs *clientSuite) TestDoLoopClick(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 	aCh := make(chan notifications.RawActionReply, 1)
@@ -423,7 +423,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 }
 
 func (cs *clientSuite) TestDoLoopNotif(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 	cli.session.MsgCh = make(chan *session.Notification, 1)
@@ -435,7 +435,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 }
 
 func (cs *clientSuite) TestDoLoopErr(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 	cli.session.ErrCh = make(chan error, 1)
@@ -451,7 +451,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDoStartWorks(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	one_called := false
 	two_called := false
 	one := func() error { one_called = true; return nil }
@@ -462,7 +462,7 @@ func (cs *clientSuite) TestDoStartWorks(c *C) {
 }
 
 func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	one_called := false
 	two_called := false
 	failure := errors.New("Failure")
@@ -478,7 +478,7 @@ func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestLoop(c *C) {
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	cli.connCh = make(chan bool)
 	cli.sessionConnectedCh = make(chan uint32)
 	aCh := make(chan notifications.RawActionReply, 1)
@@ -556,7 +556,7 @@ func (cs *clientSuite) TestStart(c *C) {
 		c.Skip("no dbus")
 	}
 
-	cli := new(Client)
+	cli := NewPushClient(cs.configPath)
 	// before start, everything sucks:
 	// no config,
 	c.Check(string(cli.config.Addr), Equals, "")
@@ -569,7 +569,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// no nuthin'.
 
 	// so we start,
-	err := cli.Start(cs.configPath)
+	err := cli.Start()
 	// and it works
 	c.Check(err, IsNil)
 
@@ -585,9 +585,9 @@ func (cs *clientSuite) TestStart(c *C) {
 }
 
 func (cs *clientSuite) TestStartCanFail(c *C) {
-	cli := new(Client)
+	cli := NewPushClient("/does/not/exist")
 	// easiest way for it to fail is to feed it a bad config
-	err := cli.Start("/does/not/exist")
+	err := cli.Start()
 	// and it works. Err. Doesn't.
 	c.Check(err, NotNil)
 }
