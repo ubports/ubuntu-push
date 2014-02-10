@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"time"
 )
 
 type InternalChannelId string
@@ -66,7 +67,7 @@ type PendingStore interface {
 	// given the name.
 	GetInternalChannelId(name string) (InternalChannelId, error)
 	// AppendToChannel appends a notification to the channel. xxx expiration
-	AppendToChannel(chanId InternalChannelId, notification json.RawMessage) error
+	AppendToChannel(chanId InternalChannelId, notification json.RawMessage, expiration time.Time) error
 	// GetChannelSnapshot gets all the current notifications and
 	// current top level in the channel.
 	GetChannelSnapshot(chanId InternalChannelId) (topLevel int64, payloads []json.RawMessage, err error)

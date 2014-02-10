@@ -19,18 +19,32 @@ package store
 import (
 	"encoding/json"
 	"sync"
+	"time"
 )
+
+// one stored notification
+type notification struct {
+	payload json.RawMessage
+	expiration time.Time
+}
+
+// one stored channel
+type channel struct {
+	topLevel int64
+	notifications []notification
+}
+
 
 // InMemoryPendingStore is a basic in-memory pending notification store.
 type InMemoryPendingStore struct {
 	lock  sync.Mutex
-	store map[InternalChannelId][]json.RawMessage
+	store map[InternalChannelId]*channel
 }
 
 // NewInMemoryPendingStore returns a new InMemoryStore.
 func NewInMemoryPendingStore() *InMemoryPendingStore {
 	return &InMemoryPendingStore{
-		store: make(map[InternalChannelId][]json.RawMessage),
+		store: make(map[InternalChannelId]*channel),
 	}
 }
 
@@ -41,25 +55,40 @@ func (sto *InMemoryPendingStore) GetInternalChannelId(name string) (InternalChan
 	return InternalChannelId(""), ErrUnknownChannel
 }
 
-func (sto *InMemoryPendingStore) AppendToChannel(chanId InternalChannelId, notification json.RawMessage) error {
+func (sto *InMemoryPendingStore) AppendToChannel(chanId InternalChannelId, notificationPayload json.RawMessage, expiration time.Time) error {
 	sto.lock.Lock()
 	defer sto.lock.Unlock()
 	prev := sto.store[chanId]
-	sto.store[chanId] = append(prev, notification)
+	if prev == nil {
+		prev = &channel{}
+	}
+	prev.topLevel++
+	prev.notifications = append(prev.notifications, notification{
+		payload: notificationPayload,
+		expiration: expiration,
+	})
+	sto.store[chanId] = prev
 	return nil
 }
 
 func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (int64, []json.RawMessage, error) {
 	sto.lock.Lock()
 	defer sto.lock.Unlock()
-	notifications, ok := sto.store[chanId]
+	channel, ok := sto.store[chanId]
 	if !ok {
 		return 0, nil, nil
 	}
-	n := len(notifications)
-	res := make([]json.RawMessage, n)
-	copy(res, notifications)
-	return int64(n), res, nil
+	topLevel := channel.topLevel
+	n := len(channel.notifications)
+	res := make([]json.RawMessage, 0, n)
+	now := time.Now()
+	for _, notification := range channel.notifications {
+		if notification.expiration.Before(now) {
+			continue
+		}
+		res = append(res, notification.payload)
+	}
+	return topLevel, res, nil
 }
 
 // sanity check we implement the interface
