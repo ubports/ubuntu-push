@@ -24,16 +24,15 @@ import (
 
 // one stored notification
 type notification struct {
-	payload json.RawMessage
+	payload    json.RawMessage
 	expiration time.Time
 }
 
 // one stored channel
 type channel struct {
-	topLevel int64
+	topLevel      int64
 	notifications []notification
 }
-
 
 // InMemoryPendingStore is a basic in-memory pending notification store.
 type InMemoryPendingStore struct {
@@ -64,7 +63,7 @@ func (sto *InMemoryPendingStore) AppendToChannel(chanId InternalChannelId, notif
 	}
 	prev.topLevel++
 	prev.notifications = append(prev.notifications, notification{
-		payload: notificationPayload,
+		payload:    notificationPayload,
 		expiration: expiration,
 	})
 	sto.store[chanId] = prev

@@ -70,7 +70,7 @@ func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshortWithExpiration(
 	notification1 := json.RawMessage(`{"a":1}`)
 	notification2 := json.RawMessage(`{"a":2}`)
 
-	verySoon  := time.Now().Add(100 * time.Millisecond)
+	verySoon := time.Now().Add(100 * time.Millisecond)
 	muchLater := time.Now().Add(time.Minute)
 
 	sto.AppendToChannel(SystemInternalChannelId, notification1, muchLater)
