@@ -18,6 +18,8 @@
 package testing
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -103,5 +105,19 @@ func SourceRelative(relativePath string) string {
 	if !ok {
 		panic("failed to get source filename using Caller()")
 	}
-	return filepath.Join(filepath.Dir(file), relativePath)
+	dir := filepath.Dir(file)
+
+	root := os.Getenv("UBUNTU_PUSH_TEST_RESOURCES_ROOT")
+	if root != "" {
+		const sep = "launchpad.net/ubuntu-push/"
+
+		idx := strings.LastIndex(dir, sep)
+		if idx == -1 {
+			panic(fmt.Errorf("Unable to find %s in %#v", sep, dir))
+		}
+		idx += len(sep)
+
+		dir = filepath.Join(root, dir[idx:])
+	}
+	return filepath.Join(dir, relativePath)
 }

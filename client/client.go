@@ -66,8 +66,8 @@ type Client struct {
 	sessionConnectedCh chan uint32
 }
 
-// Configure loads the configuration specified in configPath, and sets it up.
-func (client *Client) Configure(configPath string) error {
+// configure loads the configuration specified in configPath, and sets it up.
+func (client *Client) configure(configPath string) error {
 	f, err := os.Open(configPath)
 	if err != nil {
 		return fmt.Errorf("opening config: %v", err)
@@ -209,4 +209,31 @@ func (client *Client) doLoop(connhandler func(bool), clickhandler, notifhandler 
 			client.log.Debugf("Session connected after %d attempts", count)
 		}
 	}
+}
+
+// doStart calls each of its arguments in order, returning the first non-nil
+// error (or nil at the end)
+func (client *Client) doStart(fs ...func() error) error {
+	for _, f := range fs {
+		if err := f(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Loop calls doLoop with the "real" handlers
+func (client *Client) Loop() {
+	client.doLoop(client.handleConnState, client.handleClick,
+		client.handleNotification, client.handleErr)
+}
+
+// Start calls doStart with the "real" starters
+func (client *Client) Start(configPath string) error {
+	return client.doStart(
+		func() error { return client.configure(configPath) },
+		client.getDeviceId,
+		client.initSession,
+		client.takeTheBus,
+	)
 }

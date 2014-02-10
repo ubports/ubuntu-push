@@ -39,6 +39,13 @@ func (s *EndpointSuite) SetUpTest(c *C) {
 // Tests that we can connect to the *actual* system bus.
 // XXX maybe connect to a mock/fake/etc bus?
 func (s *EndpointSuite) TestDial(c *C) {
+	// if somebody's set up the env var, assume it's "live"
+	if os.Getenv("DBUS_SYSTEM_BUS_ADDRESS") == "" {
+		// otherwise, check
+		if _, err := os.Stat("/var/run/dbus/system_bus_socket"); os.IsNotExist(err) {
+			c.Skip("system bus not present")
+		}
+	}
 	endp := newEndpoint(SystemBus, Address{"", "", ""}, s.log)
 	c.Assert(endp.bus, IsNil)
 	err := endp.Dial()
