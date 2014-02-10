@@ -20,6 +20,7 @@ package broker
 
 import (
 	"fmt"
+
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/store"
 )

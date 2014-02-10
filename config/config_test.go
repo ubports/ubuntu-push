@@ -19,12 +19,13 @@ package config
 import (
 	"bytes"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
 )
 
 func TestConfig(t *testing.T) { TestingT(t) }

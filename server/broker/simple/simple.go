@@ -18,12 +18,12 @@
 package simple
 
 import (
+	"sync"
+
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/store"
-	// "log"
-	"sync"
 )
 
 // SimpleBroker implements broker.Broker/BrokerSending for everything in just one process.

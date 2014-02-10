@@ -19,11 +19,12 @@ package logger
 import (
 	"bytes"
 	"fmt"
-	. "launchpad.net/gocheck"
 	"log"
 	"os"
 	"runtime"
 	"testing"
+
+	. "launchpad.net/gocheck"
 )
 
 func TestLogger(t *testing.T) { TestingT(t) }

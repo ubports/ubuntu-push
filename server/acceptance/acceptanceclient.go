@@ -22,9 +22,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"launchpad.net/ubuntu-push/protocol"
 	"net"
 	"time"
+
+	"launchpad.net/ubuntu-push/protocol"
 )
 
 var wireVersionBytes = []byte{protocol.ProtocolWireVersion}
