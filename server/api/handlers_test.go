@@ -140,9 +140,9 @@ func (s *handlersSuite) TestDoBroadcastUnknownChannel(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	bh := &BroadcastHandler{sto, nil, nil}
 	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "unknown",
+		Channel:  "unknown",
 		ExpireOn: future,
-		Data:    json.RawMessage(`{"a": 1}`),
+		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrUnknownChannel)
 }
@@ -171,9 +171,9 @@ func (s *handlersSuite) TestDoBroadcastUnknownError(c *C) {
 	}
 	bh := &BroadcastHandler{sto, nil, nil}
 	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "system",
+		Channel:  "system",
 		ExpireOn: future,
-		Data:    json.RawMessage(`{"a": 1}`),
+		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrUnknown)
 }
@@ -190,9 +190,9 @@ func (s *handlersSuite) TestDoBroadcastCouldNotStoreNotification(c *C) {
 	}
 	bh := &BroadcastHandler{sto, nil, nil}
 	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "system",
+		Channel:  "system",
 		ExpireOn: future,
-		Data:    json.RawMessage(`{"a": 1}`),
+		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrCouldNotStoreNotification)
 }
