@@ -19,12 +19,14 @@ package server
 import (
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/config"
-	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"net/http"
 	"time"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/config"
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 type runnerSuite struct {

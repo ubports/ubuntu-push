@@ -23,10 +23,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/api"
-	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"net/http"
 	"os"
@@ -37,6 +33,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/protocol"
+	"launchpad.net/ubuntu-push/server/api"
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 func TestAcceptance(t *testing.T) { TestingT(t) }

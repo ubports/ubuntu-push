@@ -19,11 +19,12 @@ package main
 
 import (
 	"flag"
-	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/server/acceptance"
 	"log"
 	"os"
 	"path/filepath"
+
+	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/server/acceptance"
 )
 
 var (

@@ -19,11 +19,13 @@ package server
 import (
 	"bytes"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/config"
 	"os"
 	"path/filepath"
 	"time"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/config"
 )
 
 type configSuite struct{}

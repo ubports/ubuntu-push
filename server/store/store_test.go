@@ -18,9 +18,11 @@ package store
 
 import (
 	// "fmt"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/protocol"
 	"testing"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/protocol"
 )
 
 func TestStore(t *testing.T) { TestingT(t) }

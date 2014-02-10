@@ -18,8 +18,8 @@ package broker
 
 import (
 	"encoding/json"
+
 	. "launchpad.net/gocheck"
-	// "log"
 )
 
 type exchangesImplSuite struct{}

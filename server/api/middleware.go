@@ -18,8 +18,9 @@ package api
 
 import (
 	"fmt"
-	"launchpad.net/ubuntu-push/logger"
 	"net/http"
+
+	"launchpad.net/ubuntu-push/logger"
 )
 
 // PanicTo500Handler wraps another handler such that panics are recovered
