@@ -17,16 +17,15 @@
 package client
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/client/session"
-	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/util"
@@ -54,7 +53,7 @@ func takeNextBool(ch <-chan bool) bool {
 type clientSuite struct {
 	timeouts   []time.Duration
 	configPath string
-	log        logger.Logger
+	log        *helpers.TestLogger
 }
 
 var _ = Suite(&clientSuite{})
@@ -100,12 +99,12 @@ func (cs *clientSuite) SetUpTest(c *C) {
 }
 
 /*****************************************************************
-    Configure tests
+    configure tests
 ******************************************************************/
 
 func (cs *clientSuite) TestConfigureWorks(c *C) {
 	cli := new(Client)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.config, NotNil)
 	c.Check(cli.config.ExchangeTimeout.Duration, Equals, time.Duration(10*time.Millisecond))
@@ -114,7 +113,7 @@ func (cs *clientSuite) TestConfigureWorks(c *C) {
 func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
 	cli := new(Client)
 	c.Check(cli.log, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.log, NotNil)
 }
@@ -122,7 +121,7 @@ func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
 func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
 	cli := new(Client)
 	c.Check(cli.pem, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.pem, NotNil)
 }
@@ -130,7 +129,7 @@ func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
 func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	cli := new(Client)
 	c.Check(cli.idder, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.idder, DeepEquals, identifier.New())
 }
@@ -140,7 +139,7 @@ func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 	c.Check(cli.notificationsEndp, IsNil)
 	c.Check(cli.urlDispatcherEndp, IsNil)
 	c.Check(cli.connectivityEndp, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.notificationsEndp, NotNil)
 	c.Assert(cli.urlDispatcherEndp, NotNil)
@@ -150,20 +149,20 @@ func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
 	cli := new(Client)
 	c.Check(cli.connCh, IsNil)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	c.Assert(cli.connCh, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
 	cli := new(Client)
-	err := cli.Configure("/does/not/exist")
+	err := cli.configure("/does/not/exist")
 	c.Assert(err, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadConfig(c *C) {
 	cli := new(Client)
-	err := cli.Configure("/etc/passwd")
+	err := cli.configure("/etc/passwd")
 	c.Assert(err, NotNil)
 }
 
@@ -180,7 +179,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEMFilename(c *C) {
 }`), 0600)
 
 	cli := new(Client)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, NotNil)
 }
 
@@ -197,7 +196,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
 }`), 0600)
 
 	cli := new(Client)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, NotNil)
 }
 
@@ -245,7 +244,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	// ok, create the thing
 	cli := new(Client)
 	cli.log = cs.log
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
 	c.Check(cli.actionsCh, IsNil)
@@ -272,7 +271,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 // takeTheBus can, in fact, fail
 func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 	cli := new(Client)
-	err := cli.Configure(cs.configPath)
+	err := cli.configure(cs.configPath)
 	cli.log = cs.log
 	c.Assert(err, IsNil)
 	// the user actions channel has not been set up
@@ -292,13 +291,12 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleErr(c *C) {
-	buf := &bytes.Buffer{}
 	cli := new(Client)
-	cli.log = logger.NewSimpleLogger(buf, "debug")
-	cli.initSession()
+	cli.log = cs.log
+	c.Assert(cli.initSession(), IsNil)
 	cli.hasConnectivity = true
 	cli.handleErr(errors.New("bananas"))
-	c.Check(buf.String(), Matches, ".*session exited.*bananas\n")
+	c.Check(cs.log.Captured(), Matches, ".*session exited.*bananas\n")
 }
 
 /*****************************************************************
@@ -308,7 +306,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := new(Client)
 	cli.log = cs.log
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 
 	c.Assert(cli.hasConnectivity, Equals, false)
 	cli.handleConnState(true)
@@ -358,17 +356,16 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleNotification(c *C) {
-	buf := &bytes.Buffer{}
 	cli := new(Client)
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
-	cli.log = logger.NewSimpleLogger(buf, "debug")
+	cli.log = cs.log
 	c.Check(cli.handleNotification(), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "Notify")
-	c.Check(buf.String(), Matches, `.* got notification id \d+\s*`)
+	c.Check(cs.log.Captured(), Matches, `.* got notification id \d+\s*`)
 }
 
 func (cs *clientSuite) TestHandleNotificationFail(c *C) {
@@ -405,7 +402,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli.log = cs.log
 	cli.connCh = make(chan bool, 1)
 	cli.connCh <- true
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 
 	ch := make(chan bool, 1)
 	go cli.doLoop(func(bool) { ch <- true }, func() error { return nil }, func() error { return nil }, func(error) {})
@@ -415,7 +412,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli := new(Client)
 	cli.log = cs.log
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 	aCh := make(chan notifications.RawActionReply, 1)
 	aCh <- notifications.RawActionReply{}
 	cli.actionsCh = aCh
@@ -428,7 +425,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli := new(Client)
 	cli.log = cs.log
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 	cli.session.MsgCh = make(chan *session.Notification, 1)
 	cli.session.MsgCh <- &session.Notification{}
 
@@ -440,11 +437,157 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli := new(Client)
 	cli.log = cs.log
-	cli.initSession()
+	c.Assert(cli.initSession(), IsNil)
 	cli.session.ErrCh = make(chan error, 1)
 	cli.session.ErrCh <- nil
 
 	ch := make(chan bool, 1)
 	go cli.doLoop(func(bool) {}, func() error { return nil }, func() error { return nil }, func(error) { ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
+}
+
+/*****************************************************************
+    doStart tests
+******************************************************************/
+
+func (cs *clientSuite) TestDoStartWorks(c *C) {
+	cli := new(Client)
+	one_called := false
+	two_called := false
+	one := func() error { one_called = true; return nil }
+	two := func() error { two_called = true; return nil }
+	c.Check(cli.doStart(one, two), IsNil)
+	c.Check(one_called, Equals, true)
+	c.Check(two_called, Equals, true)
+}
+
+func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
+	cli := new(Client)
+	one_called := false
+	two_called := false
+	failure := errors.New("Failure")
+	one := func() error { one_called = true; return failure }
+	two := func() error { two_called = true; return nil }
+	c.Check(cli.doStart(one, two), Equals, failure)
+	c.Check(one_called, Equals, true)
+	c.Check(two_called, Equals, false)
+}
+
+/*****************************************************************
+    Loop() tests
+******************************************************************/
+
+func (cs *clientSuite) TestLoop(c *C) {
+	cli := new(Client)
+	cli.connCh = make(chan bool)
+	cli.sessionConnectedCh = make(chan uint32)
+	aCh := make(chan notifications.RawActionReply, 1)
+	cli.actionsCh = aCh
+	cli.log = cs.log
+	cli.notificationsEndp = testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
+		condition.Work(true), []interface{}{uint32(1), "hello"})
+	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
+		uint32(networkmanager.ConnectedGlobal))
+
+	c.Assert(cli.initSession(), IsNil)
+
+	cli.session.MsgCh = make(chan *session.Notification)
+	cli.session.ErrCh = make(chan error)
+
+	// we use tick() to make sure things have been through the
+	// event loop at least once before looking at things;
+	// otherwise there's a race between what we're trying to look
+	// at and the loop itself.
+	tick := func() { cli.sessionConnectedCh <- 42 }
+
+	go cli.Loop()
+
+	// sessionConnectedCh to nothing in particular, but it'll help sync this test
+	cli.sessionConnectedCh <- 42
+	tick()
+	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
+
+	//  * actionsCh to the click handler/url dispatcher
+	aCh <- notifications.RawActionReply{}
+	tick()
+	uargs := testibus.GetCallArgs(cli.urlDispatcherEndp)
+	c.Assert(uargs, HasLen, 1)
+	c.Check(uargs[0].Member, Equals, "DispatchURL")
+
+	// loop() should have connected:
+	//  * connCh to the connectivity checker
+	c.Check(cli.hasConnectivity, Equals, false)
+	cli.connCh <- true
+	tick()
+	c.Check(cli.hasConnectivity, Equals, true)
+	cli.connCh <- false
+	tick()
+	c.Check(cli.hasConnectivity, Equals, false)
+
+	//  * session.MsgCh to the notifications handler
+	cli.session.MsgCh <- &session.Notification{}
+	tick()
+	nargs := testibus.GetCallArgs(cli.notificationsEndp)
+	c.Check(nargs, HasLen, 1)
+
+	//  * session.ErrCh to the error handler
+	cli.session.ErrCh <- nil
+	tick()
+	c.Check(cs.log.Captured(), Matches, "(?ms).*session exited.*")
+}
+
+/*****************************************************************
+    Start() tests
+******************************************************************/
+
+// XXX this is a hack.
+func (cs *clientSuite) hasDbus() bool {
+	for _, b := range []bus.Bus{bus.SystemBus, bus.SessionBus} {
+		if b.Endpoint(bus.BusDaemonAddress, cs.log).Dial() != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func (cs *clientSuite) TestStart(c *C) {
+	if !cs.hasDbus() {
+		c.Skip("no dbus")
+	}
+
+	cli := new(Client)
+	// before start, everything sucks:
+	// no config,
+	c.Check(string(cli.config.Addr), Equals, "")
+	// no device id,
+	c.Check(cli.deviceId, HasLen, 0)
+	// no session,
+	c.Check(cli.session, IsNil)
+	// no bus,
+	c.Check(cli.notificationsEndp, IsNil)
+	// no nuthin'.
+
+	// so we start,
+	err := cli.Start(cs.configPath)
+	// and it works
+	c.Check(err, IsNil)
+
+	// and now everthing is better! We have a config,
+	c.Check(string(cli.config.Addr), Equals, ":0")
+	// and a device id,
+	c.Check(cli.deviceId, HasLen, 128)
+	// and a session,
+	c.Check(cli.session, NotNil)
+	// and a bus,
+	c.Check(cli.notificationsEndp, NotNil)
+	// and everthying us just peachy!
+}
+
+func (cs *clientSuite) TestStartCanFail(c *C) {
+	cli := new(Client)
+	// easiest way for it to fail is to feed it a bad config
+	err := cli.Start("/does/not/exist")
+	// and it works. Err. Doesn't.
+	c.Check(err, NotNil)
 }
