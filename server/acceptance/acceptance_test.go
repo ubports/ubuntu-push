@@ -354,8 +354,8 @@ func (s *acceptanceSuite) TestBroadcastToConnected(c *C) {
 		Channel: "system",
 		Data:    json.RawMessage(`{"n": 42}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
 	clientShutdown <- true
 	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
@@ -368,8 +368,8 @@ func (s *acceptanceSuite) TestBroadcastPending(c *C) {
 		Channel: "system",
 		Data:    json.RawMessage(`{"b": 1}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 
 	clientShutdown := make(chan bool, 1) // abused as an atomic flag
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
@@ -396,8 +396,8 @@ func (s *acceptanceSuite) TestBroadcasLargeNeedsSplitting(c *C) {
 			Channel: "system",
 			Data:    json.RawMessage(fmt.Sprintf(payloadFmt, i)),
 		})
-		c.Check(err, IsNil)
-		c.Check(got, Matches, ".*ok.*")
+		c.Assert(err, IsNil)
+		c.Assert(got, Matches, ".*ok.*")
 	}
 
 	clientShutdown := make(chan bool, 1) // abused as an atomic flag
@@ -437,8 +437,8 @@ func (s *acceptanceSuite) TestBroadcastDistribution2(c *C) {
 		Channel: "system",
 		Data:    json.RawMessage(`{"n": 42}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	c.Check(nextEvent(events1, errCh1), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
 	c.Check(nextEvent(events2, errCh2), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
 	clientShutdown <- true
@@ -463,8 +463,8 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 		Channel: "system",
 		Data:    json.RawMessage(`{"b": 1}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"b":1}]`)
 	clientShutdown <- true
 	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
@@ -474,8 +474,8 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 		Channel: "system",
 		Data:    json.RawMessage(`{"b": 2}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	// reconnect, provide levels, get only later notification
 	<-clientShutdown // reset
 	events, errCh = s.startClient(c, "DEVD", intercept, map[string]int64{
@@ -493,14 +493,14 @@ func (s *acceptanceSuite) TestBroadcastTooAhead(c *C) {
 		Channel: "system",
 		Data:    json.RawMessage(`{"b": 1}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	got, err = s.postRequest("/broadcast", &api.Broadcast{
 		Channel: "system",
 		Data:    json.RawMessage(`{"b": 2}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 
 	clientShutdown := make(chan bool, 1) // abused as an atomic flag
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
@@ -548,14 +548,14 @@ func (s *acceptanceSuite) TestBroadcastWayBehind(c *C) {
 		Channel: "system",
 		Data:    json.RawMessage(`{"b": 1}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	got, err = s.postRequest("/broadcast", &api.Broadcast{
 		Channel: "system",
 		Data:    json.RawMessage(`{"b": 2}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 
 	clientShutdown := make(chan bool, 1) // abused as an atomic flag
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
