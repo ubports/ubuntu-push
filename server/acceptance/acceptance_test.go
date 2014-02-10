@@ -23,10 +23,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/api"
-	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"net/http"
 	"os"
@@ -37,6 +33,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/protocol"
+	"launchpad.net/ubuntu-push/server/api"
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 func TestAcceptance(t *testing.T) { TestingT(t) }
@@ -299,6 +301,8 @@ func (s *acceptanceSuite) TestConnectPingNeverPong(c *C) {
 
 // Tests about broadcast
 
+var future = time.Now().Add(9 * time.Hour).Format(time.RFC3339)
+
 func (s *acceptanceSuite) postRequest(path string, message interface{}) (string, error) {
 	packedMessage, err := json.Marshal(message)
 	if err != nil {
@@ -349,11 +353,12 @@ func (s *acceptanceSuite) TestBroadcastToConnected(c *C) {
 	}
 	events, errCh := s.startClient(c, "DEVB", intercept, nil)
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"n": 42}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"n": 42}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
 	clientShutdown <- true
 	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
@@ -363,11 +368,12 @@ func (s *acceptanceSuite) TestBroadcastToConnected(c *C) {
 func (s *acceptanceSuite) TestBroadcastPending(c *C) {
 	// send broadcast that will be pending
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 1}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 
 	clientShutdown := make(chan bool, 1) // abused as an atomic flag
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
@@ -391,11 +397,12 @@ func (s *acceptanceSuite) TestBroadcasLargeNeedsSplitting(c *C) {
 	payloadFmt := fmt.Sprintf(`{"b":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
 	for i := 0; i < 32; i++ {
 		got, err := s.postRequest("/broadcast", &api.Broadcast{
-			Channel: "system",
-			Data:    json.RawMessage(fmt.Sprintf(payloadFmt, i)),
+			Channel:  "system",
+			ExpireOn: future,
+			Data:     json.RawMessage(fmt.Sprintf(payloadFmt, i)),
 		})
-		c.Check(err, IsNil)
-		c.Check(got, Matches, ".*ok.*")
+		c.Assert(err, IsNil)
+		c.Assert(got, Matches, ".*ok.*")
 	}
 
 	clientShutdown := make(chan bool, 1) // abused as an atomic flag
@@ -432,11 +439,12 @@ func (s *acceptanceSuite) TestBroadcastDistribution2(c *C) {
 	events2, errCh2 := s.startClient(c, "DEV2", intercept, nil)
 	// broadcast
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"n": 42}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"n": 42}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	c.Check(nextEvent(events1, errCh1), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
 	c.Check(nextEvent(events2, errCh2), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
 	clientShutdown <- true
@@ -458,22 +466,24 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 	}
 	events, errCh := s.startClient(c, "DEVD", intercept, nil)
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 1}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"b":1}]`)
 	clientShutdown <- true
 	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 	// another broadcast
 	got, err = s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 2}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 2}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	// reconnect, provide levels, get only later notification
 	<-clientShutdown // reset
 	events, errCh = s.startClient(c, "DEVD", intercept, map[string]int64{
@@ -488,17 +498,19 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 func (s *acceptanceSuite) TestBroadcastTooAhead(c *C) {
 	// send broadcasts that will be pending
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 1}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	got, err = s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 2}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 2}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 
 	clientShutdown := make(chan bool, 1) // abused as an atomic flag
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
@@ -543,17 +555,19 @@ func (s *acceptanceSuite) TestBroadcastTooAheadOnEmpty(c *C) {
 func (s *acceptanceSuite) TestBroadcastWayBehind(c *C) {
 	// send broadcasts that will be pending
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 1}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 	got, err = s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 2}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 2}`),
 	})
-	c.Check(err, IsNil)
-	c.Check(got, Matches, ".*ok.*")
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
 
 	clientShutdown := make(chan bool, 1) // abused as an atomic flag
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
