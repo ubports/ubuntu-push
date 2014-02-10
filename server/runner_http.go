@@ -17,9 +17,10 @@
 package server
 
 import (
-	"launchpad.net/ubuntu-push/config"
 	"net"
 	"net/http"
+
+	"launchpad.net/ubuntu-push/config"
 )
 
 // A HTTPServeParsedConfig holds and can be used to parse the HTTP server config.

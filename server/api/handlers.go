@@ -22,10 +22,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/store"
-	"net/http"
 )
 
 const MaxRequestBodyBytes = 4 * 1024

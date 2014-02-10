@@ -19,9 +19,10 @@ package listener
 
 import (
 	"crypto/tls"
-	"launchpad.net/ubuntu-push/logger"
 	"net"
 	"time"
+
+	"launchpad.net/ubuntu-push/logger"
 )
 
 // A DeviceListenerConfig offers the DeviceListener configuration.

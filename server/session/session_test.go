@@ -22,18 +22,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"reflect"
+	stdtesting "testing"
+	"time"
+
 	. "launchpad.net/gocheck"
+
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	helpers "launchpad.net/ubuntu-push/testing"
-	"net"
-	"reflect"
-	gotesting "testing"
-	"time"
 )
 
-func TestSession(t *gotesting.T) { TestingT(t) }
+func TestSession(t *stdtesting.T) { TestingT(t) }
 
 type sessionSuite struct {
 	testlog *helpers.TestLogger

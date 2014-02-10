@@ -18,15 +18,16 @@ package simple
 
 import (
 	"encoding/json"
+	stdtesting "testing"
+
 	. "launchpad.net/gocheck"
+
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
-	// "log"
-	gotesting "testing"
 )
 
-func TestSimple(t *gotesting.T) { TestingT(t) }
+func TestSimple(t *stdtesting.T) { TestingT(t) }
 
 type simpleSuite struct{}
 

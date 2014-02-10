@@ -17,10 +17,12 @@
 package api
 
 import (
-	. "launchpad.net/gocheck"
-	helpers "launchpad.net/ubuntu-push/testing"
 	"net/http"
 	"net/http/httptest"
+
+	. "launchpad.net/gocheck"
+
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 type middlewareSuite struct{}

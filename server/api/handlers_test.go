@@ -22,12 +22,14 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/server/store"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/server/store"
 )
 
 func TestHandlers(t *testing.T) { TestingT(t) }

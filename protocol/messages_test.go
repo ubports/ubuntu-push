@@ -19,8 +19,9 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
-	. "launchpad.net/gocheck"
 	"strings"
+
+	. "launchpad.net/gocheck"
 )
 
 type messagesSuite struct{}

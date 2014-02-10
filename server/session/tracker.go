@@ -17,10 +17,11 @@
 package session
 
 import (
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/server/broker"
 	"net"
 	"time"
+
+	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/server/broker"
 )
 
 // SessionTracker logs session events.
