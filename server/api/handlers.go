@@ -22,10 +22,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"time"
+
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/store"
-	"net/http"
 )
 
 const MaxRequestBodyBytes = 4 * 1024
@@ -96,6 +98,16 @@ var (
 		invalidRequest,
 		"Missing data field",
 	}
+	ErrInvalidExpiration = &APIError{
+		http.StatusBadRequest,
+		invalidRequest,
+		"Invalid expiration date",
+	}
+	ErrPastExpiration = &APIError{
+		http.StatusBadRequest,
+		invalidRequest,
+		"Past expiration date",
+	}
 	ErrUnknownChannel = &APIError{
 		http.StatusBadRequest,
 		unknownChannel,
@@ -121,9 +133,9 @@ type Message struct {
 
 // Broadcast request JSON object.
 type Broadcast struct {
-	Channel     string          `json:"channel"`
-	ExpireAfter uint8           `json:"expire_after"`
-	Data        json.RawMessage `json:"data"`
+	Channel  string          `json:"channel"`
+	ExpireOn string          `json:"expire_on"`
+	Data     json.RawMessage `json:"data"`
 }
 
 func respondError(writer http.ResponseWriter, apiErr *APIError) {
@@ -177,11 +189,20 @@ func readBody(request *http.Request) ([]byte, *APIError) {
 	return body, nil
 }
 
-func checkBroadcast(bcast *Broadcast) *APIError {
+var zeroTime = time.Time{}
+
+func checkBroadcast(bcast *Broadcast) (time.Time, *APIError) {
 	if len(bcast.Data) == 0 {
-		return ErrMissingData
+		return zeroTime, ErrMissingData
 	}
-	return nil
+	expire, err := time.Parse(time.RFC3339, bcast.ExpireOn)
+	if err != nil {
+		return zeroTime, ErrInvalidExpiration
+	}
+	if expire.Before(time.Now()) {
+		return zeroTime, ErrPastExpiration
+	}
+	return expire, nil
 }
 
 // state holds the interfaces to delegate to serving requests
@@ -194,7 +215,7 @@ type state struct {
 type BroadcastHandler state
 
 func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
-	apiErr := checkBroadcast(bcast)
+	expire, apiErr := checkBroadcast(bcast)
 	if apiErr != nil {
 		return apiErr
 	}
@@ -207,8 +228,7 @@ func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
 			return ErrUnknown
 		}
 	}
-	// xxx ignoring expiration for now
-	err = h.store.AppendToChannel(chanId, bcast.Data)
+	err = h.store.AppendToChannel(chanId, bcast.Data, expire)
 	if err != nil {
 		// assume this for now
 		return ErrCouldNotStoreNotification
