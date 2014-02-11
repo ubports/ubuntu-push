@@ -301,6 +301,8 @@ func (s *acceptanceSuite) TestConnectPingNeverPong(c *C) {
 
 // Tests about broadcast
 
+var future = time.Now().Add(9 * time.Hour).Format(time.RFC3339)
+
 func (s *acceptanceSuite) postRequest(path string, message interface{}) (string, error) {
 	packedMessage, err := json.Marshal(message)
 	if err != nil {
@@ -351,8 +353,9 @@ func (s *acceptanceSuite) TestBroadcastToConnected(c *C) {
 	}
 	events, errCh := s.startClient(c, "DEVB", intercept, nil)
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"n": 42}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"n": 42}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -365,8 +368,9 @@ func (s *acceptanceSuite) TestBroadcastToConnected(c *C) {
 func (s *acceptanceSuite) TestBroadcastPending(c *C) {
 	// send broadcast that will be pending
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 1}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -393,8 +397,9 @@ func (s *acceptanceSuite) TestBroadcasLargeNeedsSplitting(c *C) {
 	payloadFmt := fmt.Sprintf(`{"b":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
 	for i := 0; i < 32; i++ {
 		got, err := s.postRequest("/broadcast", &api.Broadcast{
-			Channel: "system",
-			Data:    json.RawMessage(fmt.Sprintf(payloadFmt, i)),
+			Channel:  "system",
+			ExpireOn: future,
+			Data:     json.RawMessage(fmt.Sprintf(payloadFmt, i)),
 		})
 		c.Assert(err, IsNil)
 		c.Assert(got, Matches, ".*ok.*")
@@ -434,8 +439,9 @@ func (s *acceptanceSuite) TestBroadcastDistribution2(c *C) {
 	events2, errCh2 := s.startClient(c, "DEV2", intercept, nil)
 	// broadcast
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"n": 42}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"n": 42}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -460,8 +466,9 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 	}
 	events, errCh := s.startClient(c, "DEVD", intercept, nil)
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 1}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -471,8 +478,9 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 	c.Check(len(errCh), Equals, 0)
 	// another broadcast
 	got, err = s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 2}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 2}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -490,14 +498,16 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 func (s *acceptanceSuite) TestBroadcastTooAhead(c *C) {
 	// send broadcasts that will be pending
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 1}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
 	got, err = s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 2}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 2}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -545,14 +555,16 @@ func (s *acceptanceSuite) TestBroadcastTooAheadOnEmpty(c *C) {
 func (s *acceptanceSuite) TestBroadcastWayBehind(c *C) {
 	// send broadcasts that will be pending
 	got, err := s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 1}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
 	got, err = s.postRequest("/broadcast", &api.Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"b": 2}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 2}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")

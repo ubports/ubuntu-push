@@ -108,7 +108,8 @@ func (s *CommonBrokerSuite) TestRegistrationBrokenLevels(c *C) {
 func (s *CommonBrokerSuite) TestRegistrationFeedPending(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
-	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
+	muchLater := time.Now().Add(10 * time.Minute)
+	sto.AppendToChannel(store.SystemInternalChannelId, notification1, muchLater)
 	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
@@ -156,7 +157,8 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-2"})
 	c.Assert(err, IsNil)
 	// add notification to channel *after* the registrations
-	sto.AppendToChannel(store.SystemInternalChannelId, notification1)
+	muchLater := time.Now().Add(10 * time.Minute)
+	sto.AppendToChannel(store.SystemInternalChannelId, notification1, muchLater)
 	b.Broadcast(store.SystemInternalChannelId)
 	select {
 	case <-time.After(5 * time.Second):
