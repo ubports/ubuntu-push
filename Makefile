@@ -9,7 +9,7 @@ endif
 
 GODEPS = launchpad.net/gocheck
 GODEPS += launchpad.net/go-dbus/v1
-GODEPS += code.google.com/p/gosqlite
+GODEPS += code.google.com/p/gosqlite/sqlite3
 
 bootstrap:
 	mkdir -p $(GOPATH)/bin
