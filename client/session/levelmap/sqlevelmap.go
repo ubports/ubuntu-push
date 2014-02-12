@@ -26,6 +26,8 @@ type sqliteLevelMap struct {
 	db *sql.DB
 }
 
+// NewSqliteLevelMap returns an implementation of LevelMap that
+// persists the map in an sqlite database.
 func NewSqliteLevelMap(filename string) (LevelMap, error) {
 	db, err := sql.Open("sqlite3", filename)
 	if err != nil {
