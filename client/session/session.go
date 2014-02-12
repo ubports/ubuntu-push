@@ -80,13 +80,17 @@ type ClientSession struct {
 func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 	deviceId string, log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
+	levels, err := levelmap.NewLevelMap()
+	if err != nil {
+		return nil, err
+	}
 	sess := &ClientSession{
 		ExchangeTimeout: exchangeTimeout,
 		ServerAddr:      serverAddr,
 		DeviceId:        deviceId,
 		Log:             log,
 		Protocolator:    protocol.NewProtocol0,
-		Levels:          levelmap.NewLevelMap(),
+		Levels:          levels,
 		TLS:             &tls.Config{InsecureSkipVerify: true}, // XXX
 		stateP:          &state,
 	}
@@ -164,7 +168,16 @@ func (sess *ClientSession) handlePing() error {
 
 // handle "broadcast" messages
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
-	err := sess.proto.WriteMessage(protocol.AckMsg{"ack"})
+	err := sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
+	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to set level: %v", err)
+		sess.proto.WriteMessage(protocol.AckMsg{"nak"})
+		return err
+	}
+	// the server assumes if we ack the broadcast, we've updated
+	// our levels. Hence the order.
+	err = sess.proto.WriteMessage(protocol.AckMsg{"ack"})
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to ack broadcast: %s", err)
@@ -175,7 +188,6 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	if bcast.ChanId == protocol.SystemChannelId {
 		// the system channel id, the only one we care about for now
 		sess.Log.Debugf("sending it over")
-		sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
 		sess.MsgCh <- &Notification{}
 		sess.Log.Debugf("sent it over")
 	} else {
@@ -228,10 +240,16 @@ func (sess *ClientSession) start() error {
 	}
 	proto := sess.Protocolator(conn)
 	proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	levels, err := sess.Levels.GetAll()
+	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to start: get levels: %v", err)
+		return err
+	}
 	err = proto.WriteMessage(protocol.ConnectMsg{
 		Type:     "connect",
 		DeviceId: sess.DeviceId,
-		Levels:   sess.Levels.GetAll(),
+		Levels:   levels,
 	})
 	if err != nil {
 		sess.setState(Error)
