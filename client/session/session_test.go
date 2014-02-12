@@ -164,21 +164,20 @@ type clientSessionSuite struct {
 	lvls func() (levelmap.LevelMap, error)
 }
 
+func (cs *clientSessionSuite) SetUpTest(c *C) {
+	cs.log = helpers.NewTestLogger(c, "debug")
+}
+
+// in-memory level map testing
+var _ = Suite(&clientSessionSuite{lvls: levelmap.NewLevelMap})
+
+// sqlite level map testing
 type clientSqlevelsSessionSuite struct{ clientSessionSuite }
 
-var _ = Suite(&clientSessionSuite{})
 var _ = Suite(&clientSqlevelsSessionSuite{})
-
-func (cs *clientSessionSuite) SetUpSuite(c *C) {
-	cs.lvls = levelmap.NewLevelMap
-}
 
 func (cs *clientSqlevelsSessionSuite) SetUpSuite(c *C) {
 	cs.lvls = func() (levelmap.LevelMap, error) { return levelmap.NewSqliteLevelMap(":memory:") }
-}
-
-func (cs *clientSessionSuite) SetUpTest(c *C) {
-	cs.log = helpers.NewTestLogger(c, "debug")
 }
 
 /****************************************************************
