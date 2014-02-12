@@ -17,7 +17,6 @@
 package acceptance
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
@@ -25,10 +24,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -44,7 +39,7 @@ import (
 func TestAcceptance(t *testing.T) { TestingT(t) }
 
 type acceptanceSuite struct {
-	server       *exec.Cmd
+	serverKill   func()
 	serverAddr   string
 	serverURL    string
 	serverEvents <-chan string
@@ -57,18 +52,9 @@ var serverCmd = flag.String("server", "", "server to test")
 var serverAuxCfg = flag.String("auxcfg", "", "auxiliary config for the server")
 
 func testServerConfig(addr, httpAddr string) map[string]interface{} {
-	cfg := map[string]interface{}{
-		"exchange_timeout":   "0.1s",
-		"ping_interval":      "0.5s",
-		"session_queue_size": 10,
-		"broker_queue_size":  100,
-		"addr":               addr,
-		"key_pem_file":       helpers.SourceRelative("config/testing.key"),
-		"cert_pem_file":      helpers.SourceRelative("config/testing.cert"),
-		"http_addr":          httpAddr,
-		"http_read_timeout":  "1s",
-		"http_write_timeout": "1s",
-	}
+	cfg := make(map[string]interface{})
+	FillServerConfig(cfg, addr)
+	FillHTTPServerConfig(cfg, httpAddr)
 	return cfg
 }
 
@@ -86,109 +72,27 @@ func testClientSession(addr string, deviceId string, reportPings bool) *ClientSe
 	}
 }
 
-const (
-	devListeningOnPat  = "INFO listening for devices on "
-	httpListeningOnPat = "INFO listening for http on "
-	debugPrefix        = "DEBUG "
-)
-
-var rxLineInfo = regexp.MustCompile("^.*? ([[:alpha:]].*)\n")
-
-func extractListeningAddr(c *C, pat, line string) string {
-	if !strings.HasPrefix(line, pat) {
-		c.Fatalf("server: %v", line)
-	}
-	return line[len(pat):]
-}
-
 // start a new server for each test
 func (s *acceptanceSuite) SetUpTest(c *C) {
 	if *serverCmd == "" {
 		c.Skip("executable server not specified")
 	}
 	tmpDir := c.MkDir()
-	cfgFilename := filepath.Join(tmpDir, "config.json")
-	cfgJson, err := json.Marshal(testServerConfig("127.0.0.1:0", "127.0.0.1:0"))
-	if err != nil {
-		c.Fatal(err)
-	}
-	err = ioutil.WriteFile(cfgFilename, cfgJson, os.ModePerm)
-	if err != nil {
-		c.Fatal(err)
-	}
+	cfg := testServerConfig("127.0.0.1:0", "127.0.0.1:0")
+	cfgFilename := WriteConfig(c, tmpDir, "config.json", cfg)
 	cfgs := append(strings.Fields(*serverAuxCfg), cfgFilename)
-	server := exec.Command(*serverCmd, cfgs...)
-	stderr, err := server.StderrPipe()
-	if err != nil {
-		c.Fatal(err)
-	}
-	err = server.Start()
-	if err != nil {
-		c.Fatal(err)
-	}
-	bufErr := bufio.NewReaderSize(stderr, 5000)
-	getLineInfo := func(ignoreDebug bool) (string, error) {
-		for {
-			line, err := bufErr.ReadString('\n')
-			if err != nil {
-				return "", err
-			}
-			extracted := rxLineInfo.FindStringSubmatch(line)
-			if extracted == nil {
-				return "", fmt.Errorf("unexpected server line: %#v", line)
-			}
-			info := extracted[1]
-			if ignoreDebug && strings.HasPrefix(info, debugPrefix) {
-				// don't report DEBUG lines
-				continue
-			}
-			return info, nil
-		}
-	}
-	infoHTTP, err := getLineInfo(true)
-	if err != nil {
-		c.Fatal(err)
-	}
-	serverHTTPAddr := extractListeningAddr(c, httpListeningOnPat, infoHTTP)
+	serverEvents, killServer := RunAndObserve(c, *serverCmd, cfgs...)
+	s.serverKill = killServer
+	serverHTTPAddr := ExtractListeningAddr(c, serverEvents, HTTPListeningOnPat)
 	s.serverURL = fmt.Sprintf("http://%s", serverHTTPAddr)
-	info, err := getLineInfo(true)
-	if err != nil {
-		c.Fatal(err)
-	}
-	s.serverAddr = extractListeningAddr(c, devListeningOnPat, info)
-	s.server = server
-	serverEvents := make(chan string, 5)
+	s.serverAddr = ExtractListeningAddr(c, serverEvents, DevListeningOnPat)
 	s.serverEvents = serverEvents
-	go func() {
-		for {
-			info, err := getLineInfo(false)
-			if err != nil {
-				serverEvents <- fmt.Sprintf("ERROR: %v", err)
-				close(serverEvents)
-				return
-			}
-			serverEvents <- info
-		}
-	}()
 	s.httpClient = &http.Client{}
 }
 
 func (s *acceptanceSuite) TearDownTest(c *C) {
-	if s.server != nil {
-		s.server.Process.Kill()
-		s.server = nil
-	}
-}
-
-// nextEvent receives an event from given channel with a 5s timeout
-func nextEvent(events <-chan string, errCh <-chan error) string {
-	select {
-	case <-time.After(5 * time.Second):
-		panic("too long stuck waiting for next event")
-	case err := <-errCh:
-		return err.Error() // will fail comparison typically
-	case evStr := <-events:
-		return evStr
+	if s.serverKill != nil {
+		s.serverKill()
 	}
 }
 
@@ -256,19 +160,19 @@ func (s *acceptanceSuite) TestConnectPingPing(c *C) {
 	go func() {
 		errCh <- sess.Run(events)
 	}()
-	connectCli := nextEvent(events, errCh)
-	connectSrv := nextEvent(s.serverEvents, nil)
-	registeredSrv := nextEvent(s.serverEvents, nil)
+	connectCli := NextEvent(events, errCh)
+	connectSrv := NextEvent(s.serverEvents, nil)
+	registeredSrv := NextEvent(s.serverEvents, nil)
 	tconnect := time.Now()
 	c.Assert(connectSrv, Matches, ".*session.* connected .*")
 	c.Assert(registeredSrv, Matches, ".*session.* registered DEVA")
 	c.Assert(strings.HasSuffix(connectSrv, connectCli), Equals, true)
-	c.Assert(nextEvent(events, errCh), Equals, "Ping")
+	c.Assert(NextEvent(events, errCh), Equals, "Ping")
 	elapsedOfPing := float64(time.Since(tconnect)) / float64(500*time.Millisecond)
 	c.Check(elapsedOfPing >= 1.0, Equals, true)
 	c.Check(elapsedOfPing < 1.05, Equals, true)
-	c.Assert(nextEvent(events, errCh), Equals, "Ping")
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, ".*session.* ended with: EOF")
+	c.Assert(NextEvent(events, errCh), Equals, "Ping")
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* ended with: EOF")
 	c.Check(len(errCh), Equals, 0)
 }
 
@@ -291,11 +195,11 @@ func (s *acceptanceSuite) TestConnectPingNeverPong(c *C) {
 	go func() {
 		errCh <- sess.Run(events)
 	}()
-	c.Assert(nextEvent(events, errCh), Matches, "connected .*")
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, ".*session.* connected .*")
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, ".*session.* registered .*")
-	c.Assert(nextEvent(events, errCh), Equals, "Ping")
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*timeout`)
+	c.Assert(NextEvent(events, errCh), Matches, "connected .*")
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* connected .*")
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* registered .*")
+	c.Assert(NextEvent(events, errCh), Equals, "Ping")
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*timeout`)
 	c.Check(len(errCh), Equals, 0)
 }
 
@@ -335,9 +239,9 @@ func (s *acceptanceSuite) startClient(c *C, devId string, intercept connIntercep
 	go func() {
 		errCh <- sess.Run(events)
 	}()
-	c.Assert(nextEvent(events, errCh), Matches, "connected .*")
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, ".*session.* connected .*")
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, ".*session.* registered "+devId)
+	c.Assert(NextEvent(events, errCh), Matches, "connected .*")
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* connected .*")
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* registered "+devId)
 	return events, errCh
 }
 
@@ -359,9 +263,9 @@ func (s *acceptanceSuite) TestBroadcastToConnected(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
-	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
 	clientShutdown <- true
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
 
@@ -386,9 +290,9 @@ func (s *acceptanceSuite) TestBroadcastPending(c *C) {
 	}
 	events, errCh := s.startClient(c, "DEVB", intercept, nil)
 	// gettting pending on connect
-	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"b":1}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"b":1}]`)
 	clientShutdown <- true
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
 
@@ -416,10 +320,10 @@ func (s *acceptanceSuite) TestBroadcasLargeNeedsSplitting(c *C) {
 	}
 	events, errCh := s.startClient(c, "DEVC", intercept, nil)
 	// gettting pending on connect
-	c.Check(nextEvent(events, errCh), Matches, `broadcast chan:0 app: topLevel:30 payloads:\[{"b":0,.*`)
-	c.Check(nextEvent(events, errCh), Matches, `broadcast chan:0 app: topLevel:32 payloads:\[.*`)
+	c.Check(NextEvent(events, errCh), Matches, `broadcast chan:0 app: topLevel:30 payloads:\[{"b":0,.*`)
+	c.Check(NextEvent(events, errCh), Matches, `broadcast chan:0 app: topLevel:32 payloads:\[.*`)
 	clientShutdown <- true
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
 
@@ -445,11 +349,11 @@ func (s *acceptanceSuite) TestBroadcastDistribution2(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
-	c.Check(nextEvent(events1, errCh1), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
-	c.Check(nextEvent(events2, errCh2), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
+	c.Check(NextEvent(events1, errCh1), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
+	c.Check(NextEvent(events2, errCh2), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
 	clientShutdown <- true
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh1), Equals, 0)
 	c.Check(len(errCh2), Equals, 0)
 }
@@ -472,9 +376,9 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
-	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"b":1}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"b":1}]`)
 	clientShutdown <- true
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 	// another broadcast
 	got, err = s.postRequest("/broadcast", &api.Broadcast{
@@ -489,9 +393,9 @@ func (s *acceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 	events, errCh = s.startClient(c, "DEVD", intercept, map[string]int64{
 		protocol.SystemChannelId: 1,
 	})
-	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":2}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":2}]`)
 	clientShutdown <- true
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
 
@@ -525,9 +429,9 @@ func (s *acceptanceSuite) TestBroadcastTooAhead(c *C) {
 		protocol.SystemChannelId: 10,
 	})
 	// gettting last one pending on connect
-	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":2}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":2}]`)
 	clientShutdown <- true
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
 
@@ -546,9 +450,9 @@ func (s *acceptanceSuite) TestBroadcastTooAheadOnEmpty(c *C) {
 		protocol.SystemChannelId: 10,
 	})
 	// gettting empty pending on connect
-	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:0 payloads:null`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:0 payloads:null`)
 	clientShutdown <- true
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
 
@@ -582,8 +486,8 @@ func (s *acceptanceSuite) TestBroadcastWayBehind(c *C) {
 		protocol.SystemChannelId: -10,
 	})
 	// gettting pending on connect
-	c.Check(nextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":1},{"b":2}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":1},{"b":2}]`)
 	clientShutdown <- true
-	c.Assert(nextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
