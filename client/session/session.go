@@ -172,7 +172,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to set level: %v", err)
-		sess.proto.WriteMessage(protocol.AckMsg{"nack"})
+		sess.proto.WriteMessage(protocol.AckMsg{"nak"})
 		return err
 	}
 	// the server assumes if we ack the broadcast, we've updated

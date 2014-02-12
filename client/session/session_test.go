@@ -429,7 +429,7 @@ func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
 	c.Check(len(s.sess.MsgCh), Equals, 0)
 	// and nak'ed it
 	c.Check(len(s.downCh), Equals, 1)
-	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"nack"})
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"nak"})
 }
 
 /****************************************************************
