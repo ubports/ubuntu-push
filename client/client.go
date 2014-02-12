@@ -39,7 +39,7 @@ import (
 // ClientConfig holds the client configuration
 type ClientConfig struct {
 	connectivity.ConnectivityConfig // q.v.
-	// A reasonably larg timeout for receive/answer pairs
+	// A reasonably large timeout for receive/answer pairs
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// The server to connect to
 	Addr config.ConfigHostPort
@@ -49,8 +49,9 @@ type ClientConfig struct {
 	LogLevel string `json:"log_level"`
 }
 
-// Client is the Ubuntu Push Notifications client-side daemon.
-type Client struct {
+// pushClient is the Ubuntu Push Notifications client-side daemon.
+type pushClient struct {
+	configPath         string
 	config             ClientConfig
 	log                logger.Logger
 	pem                []byte
@@ -66,9 +67,18 @@ type Client struct {
 	sessionConnectedCh chan uint32
 }
 
-// configure loads the configuration specified in configPath, and sets it up.
-func (client *Client) configure(configPath string) error {
-	f, err := os.Open(configPath)
+// Creates a new Ubuntu Push Notifications client-side daemon that will use
+// the given configuration file.
+func NewPushClient(configPath string) *pushClient {
+	client := new(pushClient)
+	client.configPath = configPath
+
+	return client
+}
+
+// configure loads its configuration, and sets it up.
+func (client *pushClient) configure() error {
+	f, err := os.Open(client.configPath)
 	if err != nil {
 		return fmt.Errorf("opening config: %v", err)
 	}
@@ -104,7 +114,7 @@ func (client *Client) configure(configPath string) error {
 }
 
 // getDeviceId gets the whoopsie identifier for the device
-func (client *Client) getDeviceId() error {
+func (client *pushClient) getDeviceId() error {
 	err := client.idder.Generate()
 	if err != nil {
 		return err
@@ -114,7 +124,7 @@ func (client *Client) getDeviceId() error {
 }
 
 // takeTheBus starts the connection(s) to D-Bus and sets up associated event channels
-func (client *Client) takeTheBus() error {
+func (client *pushClient) takeTheBus() error {
 	go connectivity.ConnectedState(client.connectivityEndp,
 		client.config.ConnectivityConfig, client.log, client.connCh)
 	iniCh := make(chan uint32)
@@ -129,7 +139,7 @@ func (client *Client) takeTheBus() error {
 }
 
 // initSession creates the session object
-func (client *Client) initSession() error {
+func (client *pushClient) initSession() error {
 	sess, err := session.NewSession(string(client.config.Addr), client.pem,
 		client.config.ExchangeTimeout.Duration, client.deviceId, client.log)
 	if err != nil {
@@ -140,7 +150,7 @@ func (client *Client) initSession() error {
 }
 
 // handleConnState deals with connectivity events
-func (client *Client) handleConnState(hasConnectivity bool) {
+func (client *pushClient) handleConnState(hasConnectivity bool) {
 	if client.hasConnectivity == hasConnectivity {
 		// nothing to do!
 		return
@@ -154,7 +164,7 @@ func (client *Client) handleConnState(hasConnectivity bool) {
 }
 
 // handleErr deals with the session erroring out of its loop
-func (client *Client) handleErr(err error) {
+func (client *pushClient) handleErr(err error) {
 	// if we're not connected, we don't really care
 	client.log.Errorf("session exited: %s", err)
 	if client.hasConnectivity {
@@ -163,7 +173,7 @@ func (client *Client) handleErr(err error) {
 }
 
 // handleNotification deals with receiving a notification
-func (client *Client) handleNotification() error {
+func (client *pushClient) handleNotification() error {
 	action_id := "dummy_id"
 	a := []string{action_id, "Go get it!"} // action value not visible on the phone
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
@@ -187,14 +197,14 @@ func (client *Client) handleNotification() error {
 }
 
 // handleClick deals with the user clicking a notification
-func (client *Client) handleClick() error {
+func (client *pushClient) handleClick() error {
 	// it doesn't get much simpler...
 	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
 	return urld.DispatchURL("settings:///system/system-update")
 }
 
 // doLoop connects events with their handlers
-func (client *Client) doLoop(connhandler func(bool), clickhandler, notifhandler func() error, errhandler func(error)) {
+func (client *pushClient) doLoop(connhandler func(bool), clickhandler, notifhandler func() error, errhandler func(error)) {
 	for {
 		select {
 		case state := <-client.connCh:
@@ -213,7 +223,7 @@ func (client *Client) doLoop(connhandler func(bool), clickhandler, notifhandler 
 
 // doStart calls each of its arguments in order, returning the first non-nil
 // error (or nil at the end)
-func (client *Client) doStart(fs ...func() error) error {
+func (client *pushClient) doStart(fs ...func() error) error {
 	for _, f := range fs {
 		if err := f(); err != nil {
 			return err
@@ -223,15 +233,15 @@ func (client *Client) doStart(fs ...func() error) error {
 }
 
 // Loop calls doLoop with the "real" handlers
-func (client *Client) Loop() {
+func (client *pushClient) Loop() {
 	client.doLoop(client.handleConnState, client.handleClick,
 		client.handleNotification, client.handleErr)
 }
 
 // Start calls doStart with the "real" starters
-func (client *Client) Start(configPath string) error {
+func (client *pushClient) Start() error {
 	return client.doStart(
-		func() error { return client.configure(configPath) },
+		client.configure,
 		client.getDeviceId,
 		client.initSession,
 		client.takeTheBus,
