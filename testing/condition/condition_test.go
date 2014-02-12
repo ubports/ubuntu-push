@@ -17,8 +17,9 @@
 package condition
 
 import (
-	"launchpad.net/gocheck" // not into . because we have our own Not
 	"testing"
+
+	"launchpad.net/gocheck" // not into . because we have our own Not
 )
 
 // hook up gocheck

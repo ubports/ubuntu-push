@@ -18,12 +18,13 @@ package server
 
 import (
 	"fmt"
-	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/server/listener"
 	"net"
 	"syscall"
 	"time"
+
+	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/server/listener"
 )
 
 // A DevicesParsedConfig holds and can be used to parse the device server config.

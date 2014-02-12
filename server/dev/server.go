@@ -18,6 +18,10 @@
 package main
 
 import (
+	"net"
+	"os"
+	"path/filepath"
+
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server"
@@ -25,9 +29,6 @@ import (
 	"launchpad.net/ubuntu-push/server/broker/simple"
 	"launchpad.net/ubuntu-push/server/session"
 	"launchpad.net/ubuntu-push/server/store"
-	"net"
-	"os"
-	"path/filepath"
 )
 
 type configuration struct {

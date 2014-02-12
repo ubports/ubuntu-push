@@ -19,12 +19,13 @@ package testing
 
 import (
 	"fmt"
-	"launchpad.net/ubuntu-push/logger"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+
+	"launchpad.net/ubuntu-push/logger"
 )
 
 type captureHelper struct {

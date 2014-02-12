@@ -22,18 +22,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"reflect"
+	stdtesting "testing"
+	"time"
+
 	. "launchpad.net/gocheck"
+
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	helpers "launchpad.net/ubuntu-push/testing"
-	"net"
-	"reflect"
-	gotesting "testing"
-	"time"
 )
 
-func TestSession(t *gotesting.T) { TestingT(t) }
+func TestSession(t *stdtesting.T) { TestingT(t) }
 
 type sessionSuite struct {
 	testlog *helpers.TestLogger
@@ -441,6 +443,11 @@ func (trk *testTracker) EffectivePingInterval(interval time.Duration) {
 	trk.interval <- interval
 }
 
+var cfg50msPingInterval = &testSessionConfig{
+	pingInterval:    50 * time.Millisecond,
+	exchangeTimeout: 10 * time.Millisecond,
+}
+
 func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
 	track := &testTracker{NewTracker(s.testlog), make(chan interface{}, 1)}
 	errCh := make(chan error, 1)
@@ -448,20 +455,20 @@ func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	exchanges := make(chan broker.Exchange, 1)
-	exchanges <- &testExchange{finSleep: 6 * time.Millisecond}
+	exchanges <- &testExchange{finSleep: 15 * time.Millisecond}
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg10msPingInterval5msExchangeTout, track)
+		errCh <- sessionLoop(tp, sess, cfg50msPingInterval, track)
 	}()
-	c.Check(takeNext(down), Equals, "deadline 5ms")
+	c.Check(takeNext(down), Equals, "deadline 10ms")
 	c.Check(takeNext(down), DeepEquals, testMsg{Type: "msg"})
 	up <- nil // no write error
 	up <- testMsg{Type: "ack"}
 	// next ping interval starts around here
 	interval := takeNext(track.interval).(time.Duration)
-	c.Check(takeNext(down), Equals, "deadline 5ms")
+	c.Check(takeNext(down), Equals, "deadline 10ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
-	effectiveOfPing := float64(interval) / float64(10*time.Millisecond)
+	effectiveOfPing := float64(interval) / float64(50*time.Millisecond)
 	comment := Commentf("effectiveOfPing=%f", effectiveOfPing)
 	c.Check(effectiveOfPing > 0.95, Equals, true, comment)
 	c.Check(effectiveOfPing < 1.15, Equals, true, comment)
@@ -506,12 +513,6 @@ func (c *rememberDeadlineConn) SetWriteDeadline(t time.Time) error {
 	c.deadlineKind = append(c.deadlineKind, "write")
 	return c.Conn.SetDeadline(t)
 }
-
-var cfg50msPingInterval = &testSessionConfig{
-	pingInterval:    50 * time.Millisecond,
-	exchangeTimeout: 10 * time.Millisecond,
-}
-
 func (s *sessionSuite) TestSessionWire(c *C) {
 	track := NewTracker(s.testlog)
 	errCh := make(chan error, 1)

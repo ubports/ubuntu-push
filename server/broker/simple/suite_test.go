@@ -18,6 +18,7 @@ package simple
 
 import (
 	. "launchpad.net/gocheck"
+
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testsuite"

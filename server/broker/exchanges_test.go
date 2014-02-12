@@ -18,15 +18,16 @@ package broker_test // use a package test to avoid cyclic imports
 
 import (
 	"encoding/json"
+	stdtesting "testing"
+
 	. "launchpad.net/gocheck"
+
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
-	// "log"
-	gotesting "testing"
 )
 
-func TestBroker(t *gotesting.T) { TestingT(t) }
+func TestBroker(t *stdtesting.T) { TestingT(t) }
 
 type exchangesSuite struct{}
 

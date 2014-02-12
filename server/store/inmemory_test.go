@@ -18,7 +18,8 @@ package store
 
 import (
 	"encoding/json"
-	// "fmt"
+	"time"
+
 	. "launchpad.net/gocheck"
 )
 
@@ -53,10 +54,32 @@ func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshort(c *C) {
 	notification1 := json.RawMessage(`{"a":1}`)
 	notification2 := json.RawMessage(`{"a":2}`)
 
-	sto.AppendToChannel(SystemInternalChannelId, notification1)
-	sto.AppendToChannel(SystemInternalChannelId, notification2)
+	muchLater := time.Now().Add(time.Minute)
+
+	sto.AppendToChannel(SystemInternalChannelId, notification1, muchLater)
+	sto.AppendToChannel(SystemInternalChannelId, notification2, muchLater)
 	top, res, err := sto.GetChannelSnapshot(SystemInternalChannelId)
 	c.Assert(err, IsNil)
 	c.Check(top, Equals, int64(2))
 	c.Check(res, DeepEquals, []json.RawMessage{notification1, notification2})
+}
+
+func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshortWithExpiration(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	notification1 := json.RawMessage(`{"a":1}`)
+	notification2 := json.RawMessage(`{"a":2}`)
+
+	verySoon := time.Now().Add(100 * time.Millisecond)
+	muchLater := time.Now().Add(time.Minute)
+
+	sto.AppendToChannel(SystemInternalChannelId, notification1, muchLater)
+	sto.AppendToChannel(SystemInternalChannelId, notification2, verySoon)
+
+	time.Sleep(200 * time.Millisecond)
+
+	top, res, err := sto.GetChannelSnapshot(SystemInternalChannelId)
+	c.Assert(err, IsNil)
+	c.Check(top, Equals, int64(2))
+	c.Check(res, DeepEquals, []json.RawMessage{notification1})
 }

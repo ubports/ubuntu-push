@@ -21,10 +21,11 @@ import (
 	"encoding/json"
 	// "fmt"
 	"io"
-	. "launchpad.net/gocheck"
 	"net"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
 )
 
 func TestProtocol(t *testing.T) { TestingT(t) }

@@ -22,12 +22,15 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/server/store"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/server/store"
 )
 
 func TestHandlers(t *testing.T) { TestingT(t) }
@@ -63,6 +66,43 @@ func (s *handlersSuite) TestReadyBodyReadError(c *C) {
 	c.Check(err, Equals, ErrCouldNotReadBody)
 }
 
+var future = time.Now().Add(4 * time.Hour).Format(time.RFC3339)
+
+func (s *handlersSuite) TestCheckBroadcast(c *C) {
+	payload := json.RawMessage(`{"foo":"bar"}`)
+	broadcast := &Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     payload,
+	}
+	expire, err := checkBroadcast(broadcast)
+	c.Check(err, IsNil)
+	c.Check(expire.Format(time.RFC3339), Equals, future)
+
+	broadcast = &Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+	}
+	_, err = checkBroadcast(broadcast)
+	c.Check(err, Equals, ErrMissingData)
+
+	broadcast = &Broadcast{
+		Channel:  "system",
+		ExpireOn: "12:00",
+		Data:     payload,
+	}
+	_, err = checkBroadcast(broadcast)
+	c.Check(err, Equals, ErrInvalidExpiration)
+
+	broadcast = &Broadcast{
+		Channel:  "system",
+		ExpireOn: time.Now().Add(-10 * time.Hour).Format(time.RFC3339),
+		Data:     payload,
+	}
+	_, err = checkBroadcast(broadcast)
+	c.Check(err, Equals, ErrPastExpiration)
+}
+
 type checkBrokerSending struct {
 	store    store.PendingStore
 	chanId   store.InternalChannelId
@@ -85,8 +125,9 @@ func (s *handlersSuite) TestDoBroadcast(c *C) {
 	bh := &BroadcastHandler{sto, bsend, nil}
 	payload := json.RawMessage(`{"a": 1}`)
 	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "system",
-		Data:    payload,
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     payload,
 	})
 	c.Check(apiErr, IsNil)
 	c.Check(bsend.err, IsNil)
@@ -99,8 +140,9 @@ func (s *handlersSuite) TestDoBroadcastUnknownChannel(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	bh := &BroadcastHandler{sto, nil, nil}
 	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "unknown",
-		Data:    json.RawMessage(`{"a": 1}`),
+		Channel:  "unknown",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrUnknownChannel)
 }
@@ -115,8 +157,8 @@ func (isto *interceptInMemoryPendingStore) GetInternalChannelId(channel string) 
 	return chanId, isto.intercept("GetInternalChannelId", err)
 }
 
-func (isto *interceptInMemoryPendingStore) AppendToChannel(chanId store.InternalChannelId, payload json.RawMessage) error {
-	err := isto.InMemoryPendingStore.AppendToChannel(chanId, payload)
+func (isto *interceptInMemoryPendingStore) AppendToChannel(chanId store.InternalChannelId, payload json.RawMessage, expiration time.Time) error {
+	err := isto.InMemoryPendingStore.AppendToChannel(chanId, payload, expiration)
 	return isto.intercept("AppendToChannel", err)
 }
 
@@ -129,8 +171,9 @@ func (s *handlersSuite) TestDoBroadcastUnknownError(c *C) {
 	}
 	bh := &BroadcastHandler{sto, nil, nil}
 	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"a": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrUnknown)
 }
@@ -147,8 +190,9 @@ func (s *handlersSuite) TestDoBroadcastCouldNotStoreNotification(c *C) {
 	}
 	bh := &BroadcastHandler{sto, nil, nil}
 	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"a": 1}`),
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrCouldNotStoreNotification)
 }
@@ -201,9 +245,9 @@ func (s *handlersSuite) TestRespondsToBasicSystemBroadcast(c *C) {
 	payload := json.RawMessage(`{"foo":"bar"}`)
 
 	request := newPostRequest("/broadcast", &Broadcast{
-		Channel:     "system",
-		ExpireAfter: 60,
-		Data:        payload,
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     payload,
 	}, testServer)
 
 	response, err := s.client.Do(request)
@@ -232,9 +276,9 @@ func (s *handlersSuite) TestFromBroadcastError(c *C) {
 	payload := json.RawMessage(`{"foo":"bar"}`)
 
 	request := newPostRequest("/broadcast", &Broadcast{
-		Channel:     "unknown",
-		ExpireAfter: 60,
-		Data:        payload,
+		Channel:  "unknown",
+		ExpireOn: future,
+		Data:     payload,
 	}, testServer)
 
 	response, err := s.client.Do(request)
@@ -284,9 +328,9 @@ func (s *handlersSuite) TestCannotBroadcastTooBigMessages(c *C) {
 	dataString := fmt.Sprintf(`"%v"`, bigString)
 
 	request := newPostRequest("/", &Broadcast{
-		Channel:     "some-channel",
-		ExpireAfter: 60,
-		Data:        json.RawMessage([]byte(dataString)),
+		Channel:  "some-channel",
+		ExpireOn: future,
+		Data:     json.RawMessage([]byte(dataString)),
 	}, testServer)
 
 	response, err := s.client.Do(request)
@@ -301,9 +345,9 @@ func (s *handlersSuite) TestCannotBroadcastWithoutContentLength(c *C) {
 	dataString := `{"foo":"bar"}`
 
 	request := newPostRequest("/", &Broadcast{
-		Channel:     "some-channel",
-		ExpireAfter: 60,
-		Data:        json.RawMessage([]byte(dataString)),
+		Channel:  "some-channel",
+		ExpireOn: future,
+		Data:     json.RawMessage([]byte(dataString)),
 	}, testServer)
 	request.ContentLength = -1
 
@@ -336,9 +380,9 @@ func (s *handlersSuite) TestCannotBroadcastNonJSONMessages(c *C) {
 	dataString := `{"foo":"bar"}`
 
 	request := newPostRequest("/", &Broadcast{
-		Channel:     "some-channel",
-		ExpireAfter: 60,
-		Data:        json.RawMessage([]byte(dataString)),
+		Channel:  "some-channel",
+		ExpireOn: future,
+		Data:     json.RawMessage([]byte(dataString)),
 	}, testServer)
 	request.Header.Set("Content-Type", "text/plain")
 
@@ -353,9 +397,9 @@ func (s *handlersSuite) TestCannotBroadcastNonPostMessages(c *C) {
 
 	dataString := `{"foo":"bar"}`
 	packedMessage, err := json.Marshal(&Broadcast{
-		Channel:     "some-channel",
-		ExpireAfter: 60,
-		Data:        json.RawMessage([]byte(dataString)),
+		Channel:  "some-channel",
+		ExpireOn: future,
+		Data:     json.RawMessage([]byte(dataString)),
 	})
 	s.c.Assert(err, IsNil)
 	reader := bytes.NewReader(packedMessage)

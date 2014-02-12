@@ -19,12 +19,14 @@ package listener
 import (
 	"crypto/tls"
 	"crypto/x509"
-	. "launchpad.net/gocheck"
-	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"syscall"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
+
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 func TestListener(t *testing.T) { TestingT(t) }

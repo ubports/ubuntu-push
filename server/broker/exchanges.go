@@ -18,9 +18,9 @@ package broker
 
 import (
 	"encoding/json"
+
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/store"
-	// "log"
 )
 
 // Exchanges
