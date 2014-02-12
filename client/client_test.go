@@ -26,6 +26,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/notifications"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/client/session"
+	"launchpad.net/ubuntu-push/client/session/levelmap"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/util"
@@ -333,7 +334,7 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, cs.log)
+	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
@@ -346,7 +347,7 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := NewPushClient(cs.configPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, cs.log)
+	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)

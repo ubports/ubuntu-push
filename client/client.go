@@ -29,6 +29,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/client/session"
+	"launchpad.net/ubuntu-push/client/session/levelmap"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
@@ -141,7 +142,8 @@ func (client *pushClient) takeTheBus() error {
 // initSession creates the session object
 func (client *pushClient) initSession() error {
 	sess, err := session.NewSession(string(client.config.Addr), client.pem,
-		client.config.ExchangeTimeout.Duration, client.deviceId, client.log)
+		client.config.ExchangeTimeout.Duration, client.deviceId,
+		levelmap.NewLevelMap, client.log)
 	if err != nil {
 		return err
 	}

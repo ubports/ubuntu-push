@@ -78,9 +78,10 @@ type ClientSession struct {
 }
 
 func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
-	deviceId string, log logger.Logger) (*ClientSession, error) {
+	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
+	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
-	levels, err := levelmap.NewLevelMap()
+	levels, err := levelmapFactory()
 	if err != nil {
 		return nil, err
 	}
