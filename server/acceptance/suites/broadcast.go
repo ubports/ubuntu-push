@@ -210,3 +210,31 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastWayBehind(c *C) {
 	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
+
+func (s *BroadcastAcceptanceSuite) TestBroadcastExpiration(c *C) {
+	// send broadcast that will be pending, and one that will expire
+	got, err := s.postRequest("/broadcast", &api.Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"b": 1}`),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
+	got, err = s.postRequest("/broadcast", &api.Broadcast{
+		Channel:  "system",
+		ExpireOn: time.Now().Add(1 * time.Second).Format(time.RFC3339),
+		Data:     json.RawMessage(`{"b": 2}`),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
+
+	time.Sleep(2 * time.Second)
+	// second broadcast is expired
+
+	events, errCh, stop := s.startClient(c, "DEVB", nil)
+	// gettting pending on connect
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":1}]`)
+	stop()
+	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}
