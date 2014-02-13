@@ -56,8 +56,8 @@ func main() {
 	broker.Start()
 	defer broker.Stop()
 	// serve the http api
-	handler := api.MakeHandlersMux(sto, broker, logger)
-	handler = api.PanicTo500Handler(handler, logger)
+	mux := api.MakeHandlersMux(sto, broker, logger)
+	handler := api.PanicTo500Handler(mux, logger)
 	go server.HTTPServeRunner(handler, &cfg.HTTPServeParsedConfig)()
 	// listen for device connections
 	server.DevicesRunner(func(conn net.Conn) error {
