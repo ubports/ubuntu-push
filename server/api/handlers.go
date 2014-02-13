@@ -265,7 +265,7 @@ func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.R
 }
 
 // MakeHandlersMux makes a handler that dispatches for the various API endpoints.
-func MakeHandlersMux(store store.PendingStore, broker broker.BrokerSending, logger logger.Logger) http.Handler {
+func MakeHandlersMux(store store.PendingStore, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/broadcast", &BroadcastHandler{
 		store:  store,
