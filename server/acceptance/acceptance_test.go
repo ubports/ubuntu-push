@@ -19,7 +19,6 @@ package acceptance_test
 import (
 	"flag"
 	"fmt"
-	"strings"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -30,7 +29,6 @@ import (
 func TestAcceptance(t *testing.T) { TestingT(t) }
 
 var serverCmd = flag.String("server", "", "server to test")
-var serverAuxCfg = flag.String("auxcfg", "", "auxiliary config for the server")
 
 func testServerConfig(addr, httpAddr string) map[string]interface{} {
 	cfg := make(map[string]interface{})
@@ -47,8 +45,7 @@ func StartServer(c *C) (<-chan string, func(), string, string) {
 	tmpDir := c.MkDir()
 	cfg := testServerConfig("127.0.0.1:0", "127.0.0.1:0")
 	cfgFilename := suites.WriteConfig(c, tmpDir, "config.json", cfg)
-	cfgs := append(strings.Fields(*serverAuxCfg), cfgFilename)
-	logs, killServer := suites.RunAndObserve(c, *serverCmd, cfgs...)
+	logs, killServer := suites.RunAndObserve(c, *serverCmd, cfgFilename)
 	serverHTTPAddr := suites.ExtractListeningAddr(c, logs, suites.HTTPListeningOnPat)
 	serverURL := fmt.Sprintf("http://%s", serverHTTPAddr)
 	serverAddr := suites.ExtractListeningAddr(c, logs, suites.DevListeningOnPat)
