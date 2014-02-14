@@ -48,7 +48,7 @@ func (s *inMemorySuite) TestGetChannelSnapshotEmpty(c *C) {
 	c.Check(res, DeepEquals, []json.RawMessage(nil))
 }
 
-func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshort(c *C) {
+func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshot(c *C) {
 	sto := NewInMemoryPendingStore()
 
 	notification1 := json.RawMessage(`{"a":1}`)
