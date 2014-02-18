@@ -90,5 +90,8 @@ func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (i
 	return topLevel, res, nil
 }
 
+func (sto *InMemoryPendingStore) Close() {
+}
+
 // sanity check we implement the interface
-var _ PendingStore = &InMemoryPendingStore{}
+var _ PendingStore = (*InMemoryPendingStore)(nil)
