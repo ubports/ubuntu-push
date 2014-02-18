@@ -91,6 +91,7 @@ func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (i
 }
 
 func (sto *InMemoryPendingStore) Close() {
+	// ignored
 }
 
 // sanity check we implement the interface
