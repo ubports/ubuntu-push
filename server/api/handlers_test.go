@@ -31,6 +31,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/server/store"
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 func TestHandlers(t *testing.T) { TestingT(t) }
@@ -40,12 +41,14 @@ type handlersSuite struct {
 	json            string
 	client          *http.Client
 	c               *C
+	testlog         *helpers.TestLogger
 }
 
 var _ = Suite(&handlersSuite{})
 
 func (s *handlersSuite) SetUpTest(c *C) {
 	s.client = &http.Client{}
+	s.testlog = helpers.NewTestLogger(c, "error")
 }
 
 func (s *handlersSuite) TestAPIError(c *C) {
@@ -76,10 +79,11 @@ func (s *handlersSuite) TestGetStore(c *C) {
 
 	ctx = &context{storeForRequest: func(w http.ResponseWriter, r *http.Request) (store.PendingStore, error) {
 		return nil, errors.New("something else")
-	}}
+	}, logger: s.testlog}
 	sto, apiErr = ctx.getStore(nil, nil)
 	c.Check(sto, IsNil)
 	c.Check(apiErr, Equals, ErrUnknown)
+	c.Check(s.testlog.Captured(), Equals, "ERROR failed to get store: something else\n")
 }
 
 var future = time.Now().Add(4 * time.Hour).Format(time.RFC3339)
@@ -204,13 +208,15 @@ func (s *handlersSuite) TestDoBroadcastCouldNotStoreNotification(c *C) {
 			return err
 		},
 	}
-	bh := &BroadcastHandler{}
+	ctx := &context{logger: s.testlog}
+	bh := &BroadcastHandler{ctx}
 	apiErr := bh.doBroadcast(sto, &Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrCouldNotStoreNotification)
+	c.Check(s.testlog.Captured(), Equals, "ERROR could not store notification: fail\n")
 }
 
 func newPostRequest(path string, message interface{}, server *httptest.Server) *http.Request {

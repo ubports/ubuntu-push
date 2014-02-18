@@ -226,6 +226,7 @@ func (ctx *context) getStore(w http.ResponseWriter, request *http.Request) (stor
 		if ok {
 			return nil, apiErr
 		}
+		ctx.logger.Errorf("failed to get store: %v", err)
 		return nil, ErrUnknown
 	}
 	return sto, nil
@@ -251,7 +252,7 @@ func (h *BroadcastHandler) doBroadcast(sto store.PendingStore, bcast *Broadcast)
 	}
 	err = sto.AppendToChannel(chanId, bcast.Data, expire)
 	if err != nil {
-		// assume this for now
+		h.logger.Errorf("could not store notification: %v", err)
 		return ErrCouldNotStoreNotification
 	}
 
