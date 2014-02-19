@@ -118,6 +118,11 @@ var (
 		internalError,
 		"Unknown error",
 	}
+	ErrStoreUnavailable = &APIError{
+		http.StatusServiceUnavailable,
+		unavailable,
+		"Message store unavailable",
+	}
 	ErrCouldNotStoreNotification = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
@@ -205,21 +210,38 @@ func checkBroadcast(bcast *Broadcast) (time.Time, *APIError) {
 	return expire, nil
 }
 
-// state holds the interfaces to delegate to serving requests
-type state struct {
-	store  store.PendingStore
-	broker broker.BrokerSending
-	logger logger.Logger
+type StoreForRequest func(w http.ResponseWriter, request *http.Request) (store.PendingStore, error)
+
+// context holds the interfaces to delegate to serving requests
+type context struct {
+	storeForRequest StoreForRequest
+	broker          broker.BrokerSending
+	logger          logger.Logger
 }
 
-type BroadcastHandler state
+func (ctx *context) getStore(w http.ResponseWriter, request *http.Request) (store.PendingStore, *APIError) {
+	sto, err := ctx.storeForRequest(w, request)
+	if err != nil {
+		apiErr, ok := err.(*APIError)
+		if ok {
+			return nil, apiErr
+		}
+		ctx.logger.Errorf("failed to get store: %v", err)
+		return nil, ErrUnknown
+	}
+	return sto, nil
+}
 
-func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
+type BroadcastHandler struct {
+	*context
+}
+
+func (h *BroadcastHandler) doBroadcast(sto store.PendingStore, bcast *Broadcast) *APIError {
 	expire, apiErr := checkBroadcast(bcast)
 	if apiErr != nil {
 		return apiErr
 	}
-	chanId, err := h.store.GetInternalChannelId(bcast.Channel)
+	chanId, err := sto.GetInternalChannelId(bcast.Channel)
 	if err != nil {
 		switch err {
 		case store.ErrUnknownChannel:
@@ -228,9 +250,9 @@ func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
 			return ErrUnknown
 		}
 	}
-	err = h.store.AppendToChannel(chanId, bcast.Data, expire)
+	err = sto.AppendToChannel(chanId, bcast.Data, expire)
 	if err != nil {
-		// assume this for now
+		h.logger.Errorf("could not store notification: %v", err)
 		return ErrCouldNotStoreNotification
 	}
 
@@ -239,24 +261,33 @@ func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
 }
 
 func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	body, apiErr := readBody(request)
+	var apiErr *APIError
+	defer func() {
+		if apiErr != nil {
+			respondError(writer, apiErr)
+		}
+	}()
 
+	body, apiErr := readBody(request)
 	if apiErr != nil {
-		respondError(writer, apiErr)
 		return
 	}
+
+	sto, apiErr := h.getStore(writer, request)
+	if apiErr != nil {
+		return
+	}
+	defer sto.Close()
 
 	broadcast := &Broadcast{}
 	err := json.Unmarshal(body, broadcast)
-
 	if err != nil {
-		respondError(writer, ErrMalformedJSONObject)
+		apiErr = ErrMalformedJSONObject
 		return
 	}
 
-	apiErr = h.doBroadcast(broadcast)
+	apiErr = h.doBroadcast(sto, broadcast)
 	if apiErr != nil {
-		respondError(writer, apiErr)
 		return
 	}
 
@@ -265,12 +296,13 @@ func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.R
 }
 
 // MakeHandlersMux makes a handler that dispatches for the various API endpoints.
-func MakeHandlersMux(store store.PendingStore, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
+func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
+	ctx := &context{
+		storeForRequest: storeForRequest,
+		broker:          broker,
+		logger:          logger,
+	}
 	mux := http.NewServeMux()
-	mux.Handle("/broadcast", &BroadcastHandler{
-		store:  store,
-		broker: broker,
-		logger: logger,
-	})
+	mux.Handle("/broadcast", &BroadcastHandler{context: ctx})
 	return mux
 }

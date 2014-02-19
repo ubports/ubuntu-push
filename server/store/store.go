@@ -71,4 +71,6 @@ type PendingStore interface {
 	// GetChannelSnapshot gets all the current notifications and
 	// current top level in the channel.
 	GetChannelSnapshot(chanId InternalChannelId) (topLevel int64, payloads []json.RawMessage, err error)
+	// Close is to be called when done with the store.
+	Close()
 }
