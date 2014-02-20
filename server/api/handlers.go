@@ -47,7 +47,7 @@ type APIError struct {
 const (
 	ioError        = "io-error"
 	invalidRequest = "invalid-request"
-	unknownChannel = "unknown channel"
+	unknownChannel = "unknown-channel"
 	unavailable    = "unavailable"
 	internalError  = "internal"
 )
