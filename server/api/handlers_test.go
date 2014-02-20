@@ -59,14 +59,24 @@ func (s *handlersSuite) TestAPIError(c *C) {
 	c.Check(string(wire), Equals, `{"error":"invalid-request","message":"Message"}`)
 }
 
-func (s *handlersSuite) TestReadyBodyReadError(c *C) {
+func (s *handlersSuite) TestReadBodyReadError(c *C) {
 	r := bytes.NewReader([]byte{}) // eof too early
 	req, err := http.NewRequest("POST", "", r)
+	c.Assert(err, IsNil)
 	req.Header.Set("Content-Type", "application/json")
 	req.ContentLength = 1000
-	c.Assert(err, IsNil)
-	_, err = readBody(req)
+	_, err = ReadBody(req, 2000)
 	c.Check(err, Equals, ErrCouldNotReadBody)
+}
+
+func (s *handlersSuite) TestReadBodyTooBig(c *C) {
+	r := bytes.NewReader([]byte{}) // isn't event read
+	req, err := http.NewRequest("POST", "", r)
+	c.Assert(err, IsNil)
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = 3000
+	_, err = ReadBody(req, 2000)
+	c.Check(err, Equals, ErrRequestBodyTooLarge)
 }
 
 func (s *handlersSuite) TestGetStore(c *C) {
