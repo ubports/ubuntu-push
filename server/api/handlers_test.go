@@ -70,7 +70,7 @@ func (s *handlersSuite) TestReadBodyReadError(c *C) {
 }
 
 func (s *handlersSuite) TestReadBodyTooBig(c *C) {
-	r := bytes.NewReader([]byte{}) // isn't event read
+	r := bytes.NewReader([]byte{}) // not read
 	req, err := http.NewRequest("POST", "", r)
 	c.Assert(err, IsNil)
 	req.Header.Set("Content-Type", "application/json")
