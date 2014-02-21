@@ -19,6 +19,7 @@ package main
 
 import (
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -56,7 +57,10 @@ func main() {
 	broker.Start()
 	defer broker.Stop()
 	// serve the http api
-	mux := api.MakeHandlersMux(sto, broker, logger)
+	storeForRequest := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+		return sto, nil
+	}
+	mux := api.MakeHandlersMux(storeForRequest, broker, logger)
 	handler := api.PanicTo500Handler(mux, logger)
 	go server.HTTPServeRunner(handler, &cfg.HTTPServeParsedConfig)()
 	// listen for device connections
