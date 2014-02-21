@@ -92,7 +92,7 @@ func (s *BroadcastAcceptanceSuite) TestBroadcasLargeNeedsSplitting(c *C) {
 }
 
 func (s *BroadcastAcceptanceSuite) TestBroadcastDistribution2(c *C) {
-	// start 1st clinet
+	// start 1st client
 	events1, errCh1, stop1 := s.StartClient(c, "DEV1", nil)
 	// start 2nd client
 	events2, errCh2, stop2 := s.StartClient(c, "DEV2", nil)
