@@ -26,7 +26,8 @@ import (
 	"launchpad.net/ubuntu-push/server/store"
 )
 
-// SimpleBroker implements broker.Broker/BrokerSending for everything in just one process.
+// SimpleBroker implements broker.Broker/BrokerSending for everything
+// in just one process.
 type SimpleBroker struct {
 	sto    store.PendingStore
 	logger logger.Logger
