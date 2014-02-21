@@ -47,7 +47,7 @@ type APIError struct {
 const (
 	ioError        = "io-error"
 	invalidRequest = "invalid-request"
-	unknownChannel = "unknown channel"
+	unknownChannel = "unknown-channel"
 	unavailable    = "unavailable"
 	internalError  = "internal"
 )
@@ -143,7 +143,8 @@ type Broadcast struct {
 	Data     json.RawMessage `json:"data"`
 }
 
-func respondError(writer http.ResponseWriter, apiErr *APIError) {
+// RespondError writes back a JSON error response for a APIError.
+func RespondError(writer http.ResponseWriter, apiErr *APIError) {
 	wireError, err := json.Marshal(apiErr)
 	if err != nil {
 		panic(fmt.Errorf("couldn't marshal our own errors: %v", err))
@@ -153,21 +154,21 @@ func respondError(writer http.ResponseWriter, apiErr *APIError) {
 	writer.Write(wireError)
 }
 
-func checkContentLength(request *http.Request) *APIError {
+func checkContentLength(request *http.Request, maxBodySize int64) *APIError {
 	if request.ContentLength == -1 {
 		return ErrNoContentLengthProvided
 	}
 	if request.ContentLength == 0 {
 		return ErrRequestBodyEmpty
 	}
-	if request.ContentLength > MaxRequestBodyBytes {
+	if request.ContentLength > maxBodySize {
 		return ErrRequestBodyTooLarge
 	}
 	return nil
 }
 
-func checkRequestAsPost(request *http.Request) *APIError {
-	if err := checkContentLength(request); err != nil {
+func checkRequestAsPost(request *http.Request, maxBodySize int64) *APIError {
+	if err := checkContentLength(request, maxBodySize); err != nil {
 		return err
 	}
 	if request.Header.Get("Content-Type") != JSONMediaType {
@@ -179,8 +180,9 @@ func checkRequestAsPost(request *http.Request) *APIError {
 	return nil
 }
 
-func readBody(request *http.Request) ([]byte, *APIError) {
-	if err := checkRequestAsPost(request); err != nil {
+// ReadBody checks that a POST request is well-formed and reads its body.
+func ReadBody(request *http.Request, maxBodySize int64) ([]byte, *APIError) {
+	if err := checkRequestAsPost(request, maxBodySize); err != nil {
 		return nil, err
 	}
 
@@ -264,11 +266,11 @@ func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.R
 	var apiErr *APIError
 	defer func() {
 		if apiErr != nil {
-			respondError(writer, apiErr)
+			RespondError(writer, apiErr)
 		}
 	}()
 
-	body, apiErr := readBody(request)
+	body, apiErr := ReadBody(request, MaxRequestBodyBytes)
 	if apiErr != nil {
 		return
 	}
