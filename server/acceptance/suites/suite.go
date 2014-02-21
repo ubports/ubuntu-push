@@ -38,21 +38,22 @@ import (
 type AcceptanceSuite struct {
 	// hook to start the server(s)
 	StartServer func(c *C) (logs <-chan string, kill func(), serverAddr, apiURL string)
-	// running bits
+	// runtime information
+	ServerAddr   string
+	ServerAPIURL string
+	ServerEvents <-chan string
+	// other state
 	serverKill   func()
-	serverAddr   string
-	serverAPIURL string
-	serverEvents <-chan string
 	httpClient   *http.Client
 }
 
 // Start a new server for each test.
 func (s *AcceptanceSuite) SetUpTest(c *C) {
 	logs, kill, addr, url := s.StartServer(c)
-	s.serverEvents = logs
+	s.ServerEvents = logs
+	s.ServerAddr = addr
+	s.ServerAPIURL = url
 	s.serverKill = kill
-	s.serverAddr = addr
-	s.serverAPIURL = url
 	s.httpClient = &http.Client{}
 }
 
@@ -62,15 +63,15 @@ func (s *AcceptanceSuite) TearDownTest(c *C) {
 	}
 }
 
-// Post a request.
-func (s *AcceptanceSuite) postRequest(path string, message interface{}) (string, error) {
+// Post a API request.
+func (s *AcceptanceSuite) PostRequest(path string, message interface{}) (string, error) {
 	packedMessage, err := json.Marshal(message)
 	if err != nil {
 		panic(err)
 	}
 	reader := bytes.NewReader(packedMessage)
 
-	url := s.serverAPIURL + path
+	url := s.ServerAPIURL + path
 	request, _ := http.NewRequest("POST", url, reader)
 	request.ContentLength = int64(reader.Len())
 	request.Header.Set("Content-Type", "application/json")
@@ -143,10 +144,10 @@ func (ic *interceptingConn) Read(b []byte) (n int, err error) {
 }
 
 // Start a client.
-func (s *AcceptanceSuite) startClient(c *C, devId string, levels map[string]int64) (events <-chan string, errorCh <-chan error, stop func()) {
+func (s *AcceptanceSuite) StartClient(c *C, devId string, levels map[string]int64) (events <-chan string, errorCh <-chan error, stop func()) {
 	errCh := make(chan error, 1)
 	cliEvents := make(chan string, 10)
-	sess := testClientSession(s.serverAddr, devId, false)
+	sess := testClientSession(s.ServerAddr, devId, false)
 	sess.Levels = levels
 	err := sess.Dial()
 	c.Assert(err, IsNil)
@@ -164,7 +165,7 @@ func (s *AcceptanceSuite) startClient(c *C, devId string, levels map[string]int6
 		errCh <- sess.Run(cliEvents)
 	}()
 	c.Assert(NextEvent(cliEvents, errCh), Matches, "connected .*")
-	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* connected .*")
-	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* registered "+devId)
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* connected .*")
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* registered "+devId)
 	return cliEvents, errCh, func() { clientShutdown <- true }
 }
