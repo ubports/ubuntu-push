@@ -34,19 +34,51 @@ import (
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
+// ServerHandle holds the information to attach a client to the test server.
+type ServerHandle struct {
+	ServerAddr   string
+	ServerEvents <-chan string
+}
+
+// Start a client.
+func (h *AcceptanceSuite) StartClient(c *C, devId string, levels map[string]int64) (events <-chan string, errorCh <-chan error, stop func()) {
+	errCh := make(chan error, 1)
+	cliEvents := make(chan string, 10)
+	sess := testClientSession(h.ServerAddr, devId, false)
+	sess.Levels = levels
+	err := sess.Dial()
+	c.Assert(err, IsNil)
+	clientShutdown := make(chan bool, 1) // abused as an atomic flag
+	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
+		// read after ack
+		if op == "read" && len(clientShutdown) > 0 {
+			// exit the sess.Run() goroutine, client will close
+			runtime.Goexit()
+		}
+		return false, 0, nil
+	}
+	sess.Connection = &interceptingConn{sess.Connection, 0, 0, intercept}
+	go func() {
+		errCh <- sess.Run(cliEvents)
+	}()
+	c.Assert(NextEvent(cliEvents, errCh), Matches, "connected .*")
+	c.Assert(NextEvent(h.ServerEvents, nil), Matches, ".*session.* connected .*")
+	c.Assert(NextEvent(h.ServerEvents, nil), Matches, ".*session.* registered "+devId)
+	return cliEvents, errCh, func() { clientShutdown <- true }
+}
+
 // AcceptanceSuite has the basic functionality of the acceptance suites.
 type AcceptanceSuite struct {
 	// hook to start the server(s)
 	StartServer func(c *C, s *AcceptanceSuite) (logs <-chan string, serverAddr, apiURL string)
 	// runtime information
-	ServerAddr   string
+	ServerHandle
 	ServerAPIURL string
-	ServerEvents <-chan string
 	// KillGroup should be populated by StartServer with functions
 	// to kill the server process
-	KillGroup    map[string]func()
+	KillGroup map[string]func()
 	// other state
-	httpClient   *http.Client
+	httpClient *http.Client
 }
 
 // Start a new server for each test.
@@ -143,31 +175,4 @@ func (ic *interceptingConn) Read(b []byte) (n int, err error) {
 		fmt.Printf("R[%v]: %d %#v %v %d\n", ic.Conn.LocalAddr(), before, string(b[:n]), err, ic.totalRead)
 	}
 	return
-}
-
-// Start a client.
-func (s *AcceptanceSuite) StartClient(c *C, devId string, levels map[string]int64) (events <-chan string, errorCh <-chan error, stop func()) {
-	errCh := make(chan error, 1)
-	cliEvents := make(chan string, 10)
-	sess := testClientSession(s.ServerAddr, devId, false)
-	sess.Levels = levels
-	err := sess.Dial()
-	c.Assert(err, IsNil)
-	clientShutdown := make(chan bool, 1) // abused as an atomic flag
-	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
-		// read after ack
-		if op == "read" && len(clientShutdown) > 0 {
-			// exit the sess.Run() goroutine, client will close
-			runtime.Goexit()
-		}
-		return false, 0, nil
-	}
-	sess.Connection = &interceptingConn{sess.Connection, 0, 0, intercept}
-	go func() {
-		errCh <- sess.Run(cliEvents)
-	}()
-	c.Assert(NextEvent(cliEvents, errCh), Matches, "connected .*")
-	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* connected .*")
-	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* registered "+devId)
-	return cliEvents, errCh, func() { clientShutdown <- true }
 }
