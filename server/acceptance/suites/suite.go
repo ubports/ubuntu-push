@@ -37,29 +37,31 @@ import (
 // AcceptanceSuite has the basic functionality of the acceptance suites.
 type AcceptanceSuite struct {
 	// hook to start the server(s)
-	StartServer func(c *C) (logs <-chan string, kill func(), serverAddr, apiURL string)
+	StartServer func(c *C, s *AcceptanceSuite) (logs <-chan string, serverAddr, apiURL string)
 	// runtime information
 	ServerAddr   string
 	ServerAPIURL string
 	ServerEvents <-chan string
+	// KillGroup should be populated by StartServer with functions
+	// to kill the server process
+	KillGroup    map[string]func()
 	// other state
-	serverKill   func()
 	httpClient   *http.Client
 }
 
 // Start a new server for each test.
 func (s *AcceptanceSuite) SetUpTest(c *C) {
-	logs, kill, addr, url := s.StartServer(c)
+	s.KillGroup = make(map[string]func())
+	logs, addr, url := s.StartServer(c, s)
 	s.ServerEvents = logs
 	s.ServerAddr = addr
 	s.ServerAPIURL = url
-	s.serverKill = kill
 	s.httpClient = &http.Client{}
 }
 
 func (s *AcceptanceSuite) TearDownTest(c *C) {
-	if s.serverKill != nil {
-		s.serverKill()
+	for _, f := range s.KillGroup {
+		f()
 	}
 }
 

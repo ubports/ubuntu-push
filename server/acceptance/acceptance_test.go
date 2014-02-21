@@ -38,7 +38,7 @@ func testServerConfig(addr, httpAddr string) map[string]interface{} {
 }
 
 // Start a server.
-func StartServer(c *C) (<-chan string, func(), string, string) {
+func StartServer(c *C, s *suites.AcceptanceSuite) (<-chan string, string, string) {
 	if *serverCmd == "" {
 		c.Skip("executable server not specified")
 	}
@@ -46,10 +46,11 @@ func StartServer(c *C) (<-chan string, func(), string, string) {
 	cfg := testServerConfig("127.0.0.1:0", "127.0.0.1:0")
 	cfgFilename := suites.WriteConfig(c, tmpDir, "config.json", cfg)
 	logs, killServer := suites.RunAndObserve(c, *serverCmd, cfgFilename)
+	s.KillGroup["server"] = killServer
 	serverHTTPAddr := suites.ExtractListeningAddr(c, logs, suites.HTTPListeningOnPat)
 	serverURL := fmt.Sprintf("http://%s", serverHTTPAddr)
 	serverAddr := suites.ExtractListeningAddr(c, logs, suites.DevListeningOnPat)
-	return logs, killServer, serverAddr, serverURL
+	return logs, serverAddr, serverURL
 }
 
 // ping pong/connectivity
