@@ -41,7 +41,7 @@ type ServerHandle struct {
 }
 
 // Start a client.
-func (h *AcceptanceSuite) StartClient(c *C, devId string, levels map[string]int64) (events <-chan string, errorCh <-chan error, stop func()) {
+func (h *ServerHandle) StartClient(c *C, devId string, levels map[string]int64) (events <-chan string, errorCh <-chan error, stop func()) {
 	errCh := make(chan error, 1)
 	cliEvents := make(chan string, 10)
 	sess := testClientSession(h.ServerAddr, devId, false)
