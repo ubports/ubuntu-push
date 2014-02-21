@@ -27,16 +27,16 @@ import (
 
 // Logger is a simple logger interface with logging at levels.
 type Logger interface {
-	// (Re)xpose base Output for logging events.
+	// Re-expose base Output for logging events.
 	Output(calldept int, s string) error
 	// Errorf logs an error.
 	Errorf(format string, v ...interface{})
-	// Fatalf logs an error and exists the program with os.Exit(1).
+	// Fatalf logs an error and exits the program with os.Exit(1).
 	Fatalf(format string, v ...interface{})
-	// PanicStackf logs a error message and a stacktrace, for use
+	// PanicStackf logs an error message and a stacktrace, for use
 	// in panic recovery.
 	PanicStackf(format string, v ...interface{})
-	// Infof logs a info message.
+	// Infof logs an info message.
 	Infof(format string, v ...interface{})
 	// Debugf logs a debug message.
 	Debugf(format string, v ...interface{})
@@ -59,7 +59,7 @@ var levelToNLevel = map[string]int{
 	"debug": lDebug,
 }
 
-// MinimalLogger is the  minimal interface required to build a simple logger on top.
+// MinimalLogger is the  minimal interface required to build a simple logger.
 type MinimalLogger interface {
 	Output(calldepth int, s string) error
 }
@@ -76,7 +76,7 @@ func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger
 }
 
 // NewSimpleLogger creates a logger logging only up to the given
-// level. level can be in order: "error", "info", "debug". It takes a
+// level. level can be in order: "error", "info", "debug". It takes an
 // io.Writer.
 func NewSimpleLogger(w io.Writer, level string) Logger {
 	return NewSimpleLoggerFromMinimalLogger(

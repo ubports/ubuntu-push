@@ -14,8 +14,8 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package connectivity a single, simple stream of booleans
-// to answer the quesiton “are we connected?”.
+// Package connectivity implements a single, simple stream of booleans
+// to answer the question “are we connected?”.
 //
 // It can potentially fire two falses in a row, if a disconnected
 // state is followed by a dbus watch error. Other than that, it's edge
@@ -32,7 +32,7 @@ import (
 	"time"
 )
 
-// the configuration for ConnectedState, with the idea that you'd populate it from a config file.
+// The configuration for ConnectedState, intended to be populated from a config file.
 type ConnectivityConfig struct {
 	// how long to wait after a state change to make sure it's "stable"
 	// before acting on it

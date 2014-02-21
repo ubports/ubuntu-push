@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// levelmap holds implementations of the LevelMap that the client
+// Package levelmap holds implementations of the LevelMap that the client
 // session uses to keep track of what messages it has seen.
 package levelmap
 
