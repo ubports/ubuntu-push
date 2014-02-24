@@ -16,7 +16,7 @@
 
 package protocol
 
-// Struct representing messages.
+// Structs representing messages.
 
 import (
 	"encoding/json"

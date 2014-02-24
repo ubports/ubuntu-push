@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Server is a simple development server.
+// Dev is a simple development server.
 package main
 
 import (
