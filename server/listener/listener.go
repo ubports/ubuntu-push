@@ -14,7 +14,8 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package listener has code to listen for device connections and setup sessions for them.
+// Package listener has code to listen for device connections
+// and setup sessions for them.
 package listener
 
 import (

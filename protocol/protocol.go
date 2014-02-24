@@ -27,7 +27,8 @@ import (
 	"time"
 )
 
-// Protocol is a connection capable of writing and reading the wire format of protocol messages.
+// Protocol is a connection capable of writing and reading the wire format
+// of protocol messages.
 type Protocol interface {
 	SetDeadline(t time.Time)
 	ReadMessage(msg interface{}) error
@@ -71,7 +72,8 @@ func (c *protocol0) SetDeadline(t time.Time) {
 	}
 }
 
-// ReadMessage reads one message made of big endian uint16 length, JSON body of length from the connection.
+// ReadMessage reads one message made of big endian uint16 length, JSON body
+// of length from the connection.
 func (c *protocol0) ReadMessage(msg interface{}) error {
 	c.buffer.Reset()
 	_, err := io.CopyN(c.buffer, c.conn, 2)
@@ -87,7 +89,8 @@ func (c *protocol0) ReadMessage(msg interface{}) error {
 	return json.Unmarshal(c.buffer.Bytes(), msg)
 }
 
-// WriteMessage writes one message made of big endian uint16 length, JSON body of length to the connection.
+// WriteMessage writes one message made of big endian uint16 length, JSON body
+// of length to the connection.
 func (c *protocol0) WriteMessage(msg interface{}) error {
 	c.buffer.Reset()
 	c.buffer.WriteString("\x00\x00") // placeholder for length
