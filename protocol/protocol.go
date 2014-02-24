@@ -64,7 +64,7 @@ func NewProtocol0(conn net.Conn) Protocol {
 		conn:   conn}
 }
 
-// SetDeadline sets deadline for the subsequent WriteMessage/ReadMessage exchange.
+// SetDeadline sets the deadline for the subsequent WriteMessage/ReadMessage exchange.
 func (c *protocol0) SetDeadline(t time.Time) {
 	err := c.conn.SetDeadline(t)
 	if err != nil {
@@ -72,8 +72,8 @@ func (c *protocol0) SetDeadline(t time.Time) {
 	}
 }
 
-// ReadMessage reads one message with big-endian uint16 length and JSON body
-// from the connection.
+// ReadMessage reads from the connection one message with a JSON body
+// preceded by its big-endian uint16 length.
 func (c *protocol0) ReadMessage(msg interface{}) error {
 	c.buffer.Reset()
 	_, err := io.CopyN(c.buffer, c.conn, 2)
@@ -89,8 +89,8 @@ func (c *protocol0) ReadMessage(msg interface{}) error {
 	return json.Unmarshal(c.buffer.Bytes(), msg)
 }
 
-// WriteMessage writes one message with big-endian uint16 length and JSON body
-// to the connection.
+// WriteMessage writes one message to the connection with a JSON body
+// preceding it with its big-endian uint16 length.
 func (c *protocol0) WriteMessage(msg interface{}) error {
 	c.buffer.Reset()
 	c.buffer.WriteString("\x00\x00") // placeholder for length
