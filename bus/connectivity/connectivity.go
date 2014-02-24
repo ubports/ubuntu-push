@@ -15,7 +15,7 @@
 */
 
 // Package connectivity implements a single, simple stream of booleans
-// to answer the question “are we connected?”.
+// to answer the question "are we connected?".
 //
 // It can potentially fire two falses in a row, if a disconnected
 // state is followed by a dbus watch error. Other than that, it's edge

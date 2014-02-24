@@ -65,7 +65,7 @@ type MinimalLogger interface {
 }
 
 // NewSimpleLoggerFromMinimalLogger creates a logger logging only up
-// to the given level. level can be in order: "error", "info",
+// to the given level. The level can be, in order: "error", "info",
 // "debug". It takes a value just implementing stlib Logger.Output().
 func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger {
 	nlevel := levelToNLevel[level]
@@ -76,7 +76,7 @@ func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger
 }
 
 // NewSimpleLogger creates a logger logging only up to the given
-// level. level can be in order: "error", "info", "debug". It takes an
+// level. The level can be, in order: "error", "info", "debug". It takes an
 // io.Writer.
 func NewSimpleLogger(w io.Writer, level string) Logger {
 	return NewSimpleLoggerFromMinimalLogger(

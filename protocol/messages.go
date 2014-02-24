@@ -16,13 +16,13 @@
 
 package protocol
 
-// representative struct for messages
+// Struct representing messages.
 
 import (
 	"encoding/json"
 )
 
-// System channel id using a shortened hex encoded form for the NIL UUID
+// System channel id using a shortened hex-encoded form for the NIL UUID.
 const SystemChannelId = "0"
 
 // CONNECT message
