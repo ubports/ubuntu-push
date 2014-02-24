@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package testing/condition implements a strategy family for use in testing.
+// Package condition implements a strategy family for use in testing.
 package condition
 
 import (

@@ -19,7 +19,6 @@ package protocol
 import (
 	"encoding/binary"
 	"encoding/json"
-	// "fmt"
 	"io"
 	"net"
 	"testing"
