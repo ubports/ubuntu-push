@@ -14,6 +14,5 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package server contains code to start server components hosted
-// by the subpackages.
-package server
+// Package whoopsie wraps libwhoopsie.
+package whoopsie

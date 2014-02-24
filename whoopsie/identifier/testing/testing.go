@@ -14,8 +14,8 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package whoopsie/identifier/testing implements a couple of Ids that
-// are useful for testing things that use whoopsie/identifier.
+// Package testing implements a couple of Ids that are useful
+// for testing things that use whoopsie/identifier.
 package testing
 
 import "errors"

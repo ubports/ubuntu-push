@@ -29,41 +29,41 @@ type IdentifierSuite struct{}
 
 var _ = Suite(&IdentifierSuite{})
 
-// TestSettableDefaultValueVisible tests SettableIdentifier's default
+// TestSettableDefaultValueVisible tests that SettableIdentifier's default
 // value is notable.
 func (s *IdentifierSuite) TestSettableDefaultValueVisible(c *C) {
 	id := Settable()
 	c.Check(id.String(), Equals, "<Settable>")
 }
 
-// TestSettableSets tests SettableIdentifier is settable.
+// TestSettableSets tests that SettableIdentifier is settable.
 func (s *IdentifierSuite) TestSettableSets(c *C) {
 	id := Settable()
 	id.Set("hello")
 	c.Check(id.String(), Equals, "hello")
 }
 
-// TestSettableGenerateDoesNotFail tests SettableIdentifier's Generate
+// TestSettableGenerateDoesNotFail tests that SettableIdentifier's Generate
 // does not fail.
 func (s *IdentifierSuite) TestSettableGenerateDoesNotFail(c *C) {
 	id := Settable()
 	c.Check(id.Generate(), Equals, nil)
 }
 
-// TestFailingFails tests FailingIdentifier fails.
+// TestFailingFails tests that FailingIdentifier fails.
 func (s *IdentifierSuite) TestFailingFails(c *C) {
 	id := Failing()
 	c.Check(id.Generate(), Not(Equals), nil)
 }
 
-// TestFailingStringNotEmpty tests FailingIdentifier still has a
+// TestFailingStringNotEmpty tests that FailingIdentifier still has a
 // non-empty string.
 func (s *IdentifierSuite) TestFailingStringNotEmpty(c *C) {
 	id := Failing()
 	c.Check(id.String(), Equals, "<Failing>")
 }
 
-// TestIdentifierInterface tests FailingIdentifier and
+// TestIdentifierInterface tests that FailingIdentifier and
 // SettableIdentifier implement Id.
 func (s *IdentifierSuite) TestIdentifierInterface(c *C) {
 	_ = []identifier.Id{Failing(), Settable()}

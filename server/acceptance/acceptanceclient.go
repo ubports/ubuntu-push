@@ -14,6 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// Package acceptance contains the acceptance client.
 package acceptance
 
 import (

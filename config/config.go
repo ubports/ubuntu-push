@@ -95,10 +95,10 @@ func fillDestConfig(destValue reflect.Value, p map[string]json.RawMessage) error
 }
 
 // ReadConfig reads a JSON configuration into destConfig which should
-// be a pointer to a structure, it does some more configuration
-// specific error checking than plain JSON decoding and mentions
-// fields in errors . Configuration fields are expected to start with
-// lower case in the JSON object.
+// be a pointer to a structure. It does some more configuration
+// specific error checking than plain JSON decoding, and mentions
+// fields in errors. Configuration fields in the JSON object are
+// expected to start with lower case.
 func ReadConfig(r io.Reader, destConfig interface{}) error {
 	destValue, err := checkDestConfig(destConfig)
 	if err != nil {
@@ -182,7 +182,7 @@ func (cqs ConfigQueueSize) QueueSize() uint {
 	return uint(cqs)
 }
 
-// LoadFile reads  a file possibly relative to a base dir.
+// LoadFile reads a file possibly relative to a base dir.
 func LoadFile(p, baseDir string) ([]byte, error) {
 	if p == "" {
 		return nil, nil

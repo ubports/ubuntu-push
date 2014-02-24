@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// The client package implements the Ubuntu Push Notifications client-side
+// Package client implements the Ubuntu Push Notifications client-side
 // daemon.
 package client
 

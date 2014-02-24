@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// The client/session package handles the minutiae of interacting with
+// Package session handles the minutiae of interacting with
 // the Ubuntu Push Notifications server.
 package session
 

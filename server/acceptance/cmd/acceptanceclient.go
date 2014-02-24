@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// acceptanceclient for playing
+// acceptanceclient command for playing.
 package main
 
 import (
