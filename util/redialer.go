@@ -14,6 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// Package util contains the redialer.
 package util
 
 import (
@@ -22,7 +23,7 @@ import (
 )
 
 // A Dialer is an object that knows how to establish a connection, and
-// where you'd usually want some kind of back off if that connection
+// where you'd usually want some kind of backoff if that connection
 // fails.
 type Dialer interface {
 	Dial() error
@@ -39,16 +40,16 @@ type Jitterer interface {
 var timeouts []time.Duration
 var trwlock sync.RWMutex
 
-// retrieve the list of timeouts used for exponential backoff
+// Retrieve the list of timeouts used for exponential backoff.
 func Timeouts() []time.Duration {
 	trwlock.RLock()
 	defer trwlock.RUnlock()
 	return timeouts
 }
 
-// for testing: change the default timeouts for the provided ones,
+// For testing: change the default timeouts with the provided ones,
 // returning the defaults (the idea being you reset them on test
-// teardown)
+// teardown).
 func SwapTimeouts(newTimeouts []time.Duration) (oldTimeouts []time.Duration) {
 	trwlock.Lock()
 	defer trwlock.Unlock()
@@ -57,8 +58,8 @@ func SwapTimeouts(newTimeouts []time.Duration) (oldTimeouts []time.Duration) {
 }
 
 // An AutoRedialer's Redial() method retries its dialer's Dial() method until
-// it stops returning an error. It does exponential (optionally jitter'ed)
-// backoff.
+// it stops returning an error. It does exponential backoff (optionally
+// jittered).
 type AutoRedialer interface {
 	Redial() uint32 // Redial keeps on calling Dial until it stops returning an error.
 	Stop()          // Stop shuts down the given AutoRedialer, if it is still retrying.
@@ -89,10 +90,10 @@ func (ar *autoRedialer) shutdown() {
 }
 
 // Redial keeps on calling Dial until it stops returning an error.  It does
-// exponential backoff, adding the output of Jitter at each step back.
+// exponential backoff, adding back the output of Jitter at each step.
 func (ar *autoRedialer) Redial() uint32 {
 	if ar == nil {
-		// at least it's better than the segfault...
+		// at least it's better than a segfault...
 		panic("you can't Redial a nil AutoRedialer")
 	}
 	if ar.stop == nil {
@@ -129,7 +130,7 @@ func (ar *autoRedialer) Redial() uint32 {
 	}
 }
 
-// returns a stoppable AutoRedialer using the provided Dialer. If the Dialer
+// Returns a stoppable AutoRedialer using the provided Dialer. If the Dialer
 // is also a Jitterer, the backoff will be jittered.
 func NewAutoRedialer(dialer Dialer) AutoRedialer {
 	ar := &autoRedialer{stop: make(chan bool), dial: dialer.Dial}
