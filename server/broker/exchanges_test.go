@@ -18,6 +18,8 @@ package broker_test // use a package test to avoid cyclic imports
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	stdtesting "testing"
 
 	. "launchpad.net/gocheck"
@@ -56,6 +58,47 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 	err = exchg.Acked(sess, true)
 	c.Assert(err, IsNil)
 	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(3))
+}
+
+func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
+	sess := &testing.TestBrokerSession{
+		LevelsMap: broker.LevelsMap(map[store.InternalChannelId]int64{}),
+	}
+	payloadFmt := fmt.Sprintf(`{"b":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
+	needsSplitting := make([]json.RawMessage, 32)
+	for i := 0; i < 32; i++ {
+		needsSplitting[i] = json.RawMessage(fmt.Sprintf(payloadFmt, i))
+	}
+
+	topLevel := int64(len(needsSplitting))
+	exchg := &broker.BroadcastExchange{
+		ChanId:               store.SystemInternalChannelId,
+		TopLevel:             topLevel,
+		NotificationPayloads: needsSplitting,
+	}
+	outMsg, _, err := exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	parts := 0
+	for {
+		done := outMsg.Split()
+		parts++
+		if done {
+			break
+		}
+	}
+	c.Assert(parts, Equals, 2)
+	exchg = &broker.BroadcastExchange{
+		ChanId:   store.SystemInternalChannelId,
+		TopLevel: topLevel + 2,
+		NotificationPayloads: []json.RawMessage{
+			json.RawMessage(`{"a":"x"}`),
+			json.RawMessage(`{"a":"y"}`),
+		},
+	}
+	outMsg, _, err = exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	done := outMsg.Split() // shouldn't panic
+	c.Check(done, Equals, true)
 }
 
 func (s *exchangesSuite) TestBroadcastExchangeAckMismatch(c *C) {
