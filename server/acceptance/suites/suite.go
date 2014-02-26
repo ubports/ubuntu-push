@@ -36,8 +36,9 @@ import (
 
 // ServerHandle holds the information to attach a client to the test server.
 type ServerHandle struct {
-	ServerAddr   string
-	ServerEvents <-chan string
+	ServerAddr     string
+	ServerHTTPAddr string
+	ServerEvents   <-chan string
 }
 
 // Start a client.
@@ -70,8 +71,8 @@ func (h *ServerHandle) StartClient(c *C, devId string, levels map[string]int64) 
 // AcceptanceSuite has the basic functionality of the acceptance suites.
 type AcceptanceSuite struct {
 	// hook to start the server(s)
-	StartServer func(c *C, s *AcceptanceSuite) (logs <-chan string, serverAddr, apiURL string)
-	// runtime information
+	StartServer func(c *C, s *AcceptanceSuite, handle *ServerHandle)
+	// populated by StartServer
 	ServerHandle
 	ServerAPIURL string
 	// KillGroup should be populated by StartServer with functions
@@ -84,10 +85,10 @@ type AcceptanceSuite struct {
 // Start a new server for each test.
 func (s *AcceptanceSuite) SetUpTest(c *C) {
 	s.KillGroup = make(map[string]func())
-	logs, addr, url := s.StartServer(c, s)
-	s.ServerEvents = logs
-	s.ServerAddr = addr
-	s.ServerAPIURL = url
+	s.StartServer(c, s, &s.ServerHandle)
+	c.Assert(s.ServerHandle.ServerEvents, NotNil)
+	c.Assert(s.ServerHandle.ServerAddr, Not(Equals), "")
+	c.Assert(s.ServerAPIURL, Not(Equals), "")
 	s.httpClient = &http.Client{}
 }
 
