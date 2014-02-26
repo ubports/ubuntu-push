@@ -93,6 +93,12 @@ func (m *BroadcastMsg) Split() bool {
 	return true
 }
 
+// Reset resets the splitting state if the message storage is to be
+// reused.
+func (b *BroadcastMsg) Reset() {
+	b.splitting = 0
+}
+
 // NOTIFICATIONS message
 type NotificationsMsg struct {
 	Type          string `json:"T"`
