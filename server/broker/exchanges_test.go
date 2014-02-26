@@ -45,13 +45,13 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 			json.RawMessage(`{"a":"y"}`),
 		},
 	}
-	inMsg, outMsg, err := exchg.Prepare(sess)
+	outMsg, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	// check
-	marshalled, err := json.Marshal(inMsg)
+	marshalled, err := json.Marshal(outMsg)
 	c.Assert(err, IsNil)
 	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"x"},{"a":"y"}]}`)
-	err = json.Unmarshal([]byte(`{"T":"ack"}`), outMsg)
+	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)
 	c.Assert(err, IsNil)
 	err = exchg.Acked(sess, true)
 	c.Assert(err, IsNil)
@@ -69,13 +69,13 @@ func (s *exchangesSuite) TestBroadcastExchangeAckMismatch(c *C) {
 			json.RawMessage(`{"a":"y"}`),
 		},
 	}
-	inMsg, outMsg, err := exchg.Prepare(sess)
+	outMsg, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	// check
-	marshalled, err := json.Marshal(inMsg)
+	marshalled, err := json.Marshal(outMsg)
 	c.Assert(err, IsNil)
 	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"y"}]}`)
-	err = json.Unmarshal([]byte(`{}`), outMsg)
+	err = json.Unmarshal([]byte(`{}`), inMsg)
 	c.Assert(err, IsNil)
 	err = exchg.Acked(sess, true)
 	c.Assert(err, Not(IsNil))
@@ -96,13 +96,13 @@ func (s *exchangesSuite) TestBroadcastExchangeFilterByLevel(c *C) {
 			json.RawMessage(`{"a":"y"}`),
 		},
 	}
-	inMsg, outMsg, err := exchg.Prepare(sess)
+	outMsg, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	// check
-	marshalled, err := json.Marshal(inMsg)
+	marshalled, err := json.Marshal(outMsg)
 	c.Assert(err, IsNil)
 	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"y"}]}`)
-	err = json.Unmarshal([]byte(`{"T":"ack"}`), outMsg)
+	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)
 	c.Assert(err, IsNil)
 	err = exchg.Acked(sess, true)
 	c.Assert(err, IsNil)
