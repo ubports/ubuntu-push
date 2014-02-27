@@ -61,6 +61,7 @@ func filterByLevel(clientLevel, topLevel int64, payloads []json.RawMessage) []js
 // Prepare session for a BROADCAST.
 func (sbe *BroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
 	scratchArea := sess.ExchangeScratchArea()
+	scratchArea.broadcastMsg.Reset()
 	scratchArea.broadcastMsg.Type = "broadcast"
 	clientLevel := sess.Levels()[sbe.ChanId]
 	payloads := filterByLevel(clientLevel, sbe.TopLevel, sbe.NotificationPayloads)
