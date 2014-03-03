@@ -34,7 +34,7 @@ type PingPongAcceptanceSuite struct {
 func (s *PingPongAcceptanceSuite) TestConnectPingPing(c *C) {
 	errCh := make(chan error, 1)
 	events := make(chan string, 10)
-	sess := testClientSession(s.serverAddr, "DEVA", true)
+	sess := testClientSession(s.ServerAddr, "DEVA", true)
 	err := sess.Dial()
 	c.Assert(err, IsNil)
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
@@ -50,8 +50,8 @@ func (s *PingPongAcceptanceSuite) TestConnectPingPing(c *C) {
 		errCh <- sess.Run(events)
 	}()
 	connectCli := NextEvent(events, errCh)
-	connectSrv := NextEvent(s.serverEvents, nil)
-	registeredSrv := NextEvent(s.serverEvents, nil)
+	connectSrv := NextEvent(s.ServerEvents, nil)
+	registeredSrv := NextEvent(s.ServerEvents, nil)
 	tconnect := time.Now()
 	c.Assert(connectSrv, Matches, ".*session.* connected .*")
 	c.Assert(registeredSrv, Matches, ".*session.* registered DEVA")
@@ -61,14 +61,14 @@ func (s *PingPongAcceptanceSuite) TestConnectPingPing(c *C) {
 	c.Check(elapsedOfPing >= 1.0, Equals, true)
 	c.Check(elapsedOfPing < 1.05, Equals, true)
 	c.Assert(NextEvent(events, errCh), Equals, "Ping")
-	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* ended with: EOF")
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* ended with: EOF")
 	c.Check(len(errCh), Equals, 0)
 }
 
 func (s *PingPongAcceptanceSuite) TestConnectPingNeverPong(c *C) {
 	errCh := make(chan error, 1)
 	events := make(chan string, 10)
-	sess := testClientSession(s.serverAddr, "DEVB", true)
+	sess := testClientSession(s.ServerAddr, "DEVB", true)
 	err := sess.Dial()
 	c.Assert(err, IsNil)
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
@@ -85,9 +85,9 @@ func (s *PingPongAcceptanceSuite) TestConnectPingNeverPong(c *C) {
 		errCh <- sess.Run(events)
 	}()
 	c.Assert(NextEvent(events, errCh), Matches, "connected .*")
-	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* connected .*")
-	c.Assert(NextEvent(s.serverEvents, nil), Matches, ".*session.* registered .*")
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* connected .*")
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* registered .*")
 	c.Assert(NextEvent(events, errCh), Equals, "Ping")
-	c.Assert(NextEvent(s.serverEvents, nil), Matches, `.* ended with:.*timeout`)
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*timeout`)
 	c.Check(len(errCh), Equals, 0)
 }

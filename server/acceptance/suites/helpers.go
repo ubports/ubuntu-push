@@ -92,11 +92,14 @@ func RunAndObserve(c *C, cmdName string, arg ...string) (<-chan string, func()) 
 		c.Fatal(err)
 	}
 	bufErr := bufio.NewReaderSize(stderr, 5000)
-	getLineInfo := func() (string, error) {
+	getLineInfo := func(full bool) (string, error) {
 		for {
 			line, err := bufErr.ReadString('\n')
 			if err != nil {
 				return "", err
+			}
+			if full {
+				return strings.TrimRight(line, "\n"), nil
 			}
 			extracted := rxLineInfo.FindStringSubmatch(line)
 			if extracted == nil {
@@ -108,12 +111,18 @@ func RunAndObserve(c *C, cmdName string, arg ...string) (<-chan string, func()) 
 	}
 	logs := make(chan string, 10)
 	go func() {
+		paniced := false
 		for {
-			info, err := getLineInfo()
+			info, err := getLineInfo(paniced)
 			if err != nil {
 				logs <- fmt.Sprintf("%s capture: %v", cmdName, err)
 				close(logs)
 				return
+			}
+			if paniced || strings.HasPrefix(info, "ERROR(PANIC") {
+				paniced = true
+				c.Log(info)
+				continue
 			}
 			logs <- info
 		}
