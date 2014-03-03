@@ -111,16 +111,16 @@ func RunAndObserve(c *C, cmdName string, arg ...string) (<-chan string, func()) 
 	}
 	logs := make(chan string, 10)
 	go func() {
-		paniced := false
+		panicked := false
 		for {
-			info, err := getLineInfo(paniced)
+			info, err := getLineInfo(panicked)
 			if err != nil {
 				logs <- fmt.Sprintf("%s capture: %v", cmdName, err)
 				close(logs)
 				return
 			}
-			if paniced || strings.HasPrefix(info, "ERROR(PANIC") {
-				paniced = true
+			if panicked || strings.HasPrefix(info, "ERROR(PANIC") {
+				panicked = true
 				c.Log(info)
 				continue
 			}
