@@ -78,6 +78,8 @@ type AcceptanceSuite struct {
 	// KillGroup should be populated by StartServer with functions
 	// to kill the server process
 	KillGroup map[string]func()
+	// hook to adjust requests
+	MassageRequest func(req *http.Request) *http.Request
 	// other state
 	httpClient *http.Client
 }
@@ -110,6 +112,10 @@ func (s *AcceptanceSuite) PostRequest(path string, message interface{}) (string,
 	request, _ := http.NewRequest("POST", url, reader)
 	request.ContentLength = int64(reader.Len())
 	request.Header.Set("Content-Type", "application/json")
+
+	if s.MassageRequest != nil {
+		request = s.MassageRequest(request)
+	}
 
 	resp, err := s.httpClient.Do(request)
 	if err != nil {
