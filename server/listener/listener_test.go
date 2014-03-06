@@ -74,7 +74,7 @@ func (cfg *testDevListenerCfg) CertPEMBlock() []byte {
 }
 
 func (s *listenerSuite) TestDeviceListen(c *C) {
-	lst, err := DeviceListen(&testDevListenerCfg{"127.0.0.1:0"})
+	lst, err := DeviceListen(nil, &testDevListenerCfg{"127.0.0.1:0"})
 	c.Check(err, IsNil)
 	defer lst.Close()
 	c.Check(lst.Addr().String(), Matches, `127.0.0.1:\d{5}`)
@@ -82,7 +82,7 @@ func (s *listenerSuite) TestDeviceListen(c *C) {
 
 func (s *listenerSuite) TestDeviceListenError(c *C) {
 	// assume tests are not running as root
-	_, err := DeviceListen(&testDevListenerCfg{"127.0.0.1:99"})
+	_, err := DeviceListen(nil, &testDevListenerCfg{"127.0.0.1:99"})
 	c.Check(err, ErrorMatches, ".*permission denied.*")
 }
 
@@ -142,7 +142,7 @@ func testReadByte(c *C, conn net.Conn, expected uint32) {
 }
 
 func (s *listenerSuite) TestDeviceAcceptLoop(c *C) {
-	lst, err := DeviceListen(&testDevListenerCfg{"127.0.0.1:0"})
+	lst, err := DeviceListen(nil, &testDevListenerCfg{"127.0.0.1:0"})
 	c.Check(err, IsNil)
 	defer lst.Close()
 	errCh := make(chan error)
@@ -169,7 +169,7 @@ func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
 	// ENFILE is not the temp network error we want to handle this way
 	// but is relatively easy to generate in a controlled way
 	var err error
-	lst, err := DeviceListen(&testDevListenerCfg{"127.0.0.1:0"})
+	lst, err := DeviceListen(nil, &testDevListenerCfg{"127.0.0.1:0"})
 	c.Check(err, IsNil)
 	defer lst.Close()
 	errCh := make(chan error)
@@ -202,7 +202,7 @@ func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
 }
 
 func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
-	lst, err := DeviceListen(&testDevListenerCfg{"127.0.0.1:0"})
+	lst, err := DeviceListen(nil, &testDevListenerCfg{"127.0.0.1:0"})
 	c.Check(err, IsNil)
 	defer lst.Close()
 	errCh := make(chan error)
@@ -218,4 +218,26 @@ func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
 	lst.Close()
 	c.Check(<-errCh, ErrorMatches, ".*use of closed.*")
 	c.Check(s.testlog.Captured(), Matches, "(?s)ERROR\\(PANIC\\) terminating device connection on: session crash:.*AcceptLoop.*")
+}
+
+func (s *listenerSuite) TestForeignListener(c *C) {
+	foreignLst, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Check(err, IsNil)
+	lst, err := DeviceListen(foreignLst, &testDevListenerCfg{"127.0.0.1:0"})
+	c.Check(err, IsNil)
+	defer lst.Close()
+	errCh := make(chan error)
+	go func() {
+		errCh <- lst.AcceptLoop(testSession, s.testlog)
+	}()
+	listenerAddr := lst.Addr().String()
+	c.Check(listenerAddr, Equals, foreignLst.Addr().String())
+	conn1, err := testTlsDial(c, listenerAddr)
+	c.Assert(err, IsNil)
+	defer conn1.Close()
+	testWriteByte(c, conn1, '1')
+	testReadByte(c, conn1, '1')
+	lst.Close()
+	c.Check(<-errCh, ErrorMatches, ".*use of closed.*")
+	c.Check(s.testlog.Captured(), Equals, "")
 }

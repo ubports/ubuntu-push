@@ -41,8 +41,17 @@ type DeviceListener struct {
 	net.Listener
 }
 
-// DeviceListen creates a DeviceListener for device connections based on config.
-func DeviceListen(cfg DeviceListenerConfig) (*DeviceListener, error) {
+// DeviceListen creates a DeviceListener for device connections based
+// on config.  If lst is not nil DeviceListen just wraps it with a TLS
+// layer instead of starting creating a new listener.
+func DeviceListen(lst net.Listener, cfg DeviceListenerConfig) (*DeviceListener, error) {
+	if lst == nil {
+		var err error
+		lst, err = net.Listen("tcp", cfg.Addr())
+		if err != nil {
+			return nil, err
+		}
+	}
 	cert, err := tls.X509KeyPair(cfg.CertPEMBlock(), cfg.KeyPEMBlock())
 	if err != nil {
 		return nil, err
@@ -51,11 +60,7 @@ func DeviceListen(cfg DeviceListenerConfig) (*DeviceListener, error) {
 		Certificates:           []tls.Certificate{cert},
 		SessionTicketsDisabled: true,
 	}
-	lst, err := tls.Listen("tcp", cfg.Addr(), tlsCfg)
-	if err != nil {
-		return nil, err
-	}
-	return &DeviceListener{lst}, err
+	return &DeviceListener{tls.NewListener(lst, tlsCfg)}, err
 }
 
 // handleTemporary checks and handles if the error is just a temporary network
