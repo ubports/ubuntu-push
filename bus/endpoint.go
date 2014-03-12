@@ -101,9 +101,9 @@ func (endp *endpoint) Dial() error {
 	return nil
 }
 
-// WatchSignal() takes a member name and sets up a watch for it (on the name,
+// WatchSignal() takes a member name, sets up a watch for it (on the name,
 // path and interface provided when creating the endpoint), and then calls f()
-// with the unpacked value. If it's unable to set up the watch it'll return an
+// with the unpacked value. If it's unable to set up the watch it returns an
 // error. If the watch fails once established, d() is called. Typically f()
 // sends the values over a channel, and d() would close the channel.
 func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func()) error {

@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package whoopsie/identifier wraps libwhoopsie, and is thus the
+// Package identifier wraps libwhoopsie, and is thus the
 // source of an anonymous and stable system id used by the Ubuntu
 // error tracker and the Ubuntu push notifications service.
 package identifier

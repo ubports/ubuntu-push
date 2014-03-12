@@ -18,10 +18,11 @@
 package session
 
 import (
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/broker"
 	"net"
 	"time"
+
+	"launchpad.net/ubuntu-push/protocol"
+	"launchpad.net/ubuntu-push/server/broker"
 )
 
 // SessionConfig is for carrying the session configuration.

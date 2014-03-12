@@ -17,10 +17,12 @@
 package server
 
 import (
-	. "launchpad.net/gocheck"
-	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"testing"
+
+	. "launchpad.net/gocheck"
+
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 func TestRunners(t *testing.T) { TestingT(t) }

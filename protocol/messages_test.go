@@ -19,8 +19,9 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
-	. "launchpad.net/gocheck"
 	"strings"
+
+	. "launchpad.net/gocheck"
 )
 
 type messagesSuite struct{}
@@ -98,4 +99,7 @@ func (s *messagesSuite) TestSplitBroadcastMsgManyParts(c *C) {
 	n3 := len(b.Payloads)
 	c.Check(b.TopLevel, Equals, int64(n))
 	c.Check(n1+n2+n3, Equals, n)
+	// reset
+	b.Reset()
+	c.Check(b.splitting, Equals, 0)
 }

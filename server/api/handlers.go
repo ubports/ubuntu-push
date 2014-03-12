@@ -22,10 +22,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"time"
+
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/store"
-	"net/http"
 )
 
 const MaxRequestBodyBytes = 4 * 1024
@@ -45,7 +47,7 @@ type APIError struct {
 const (
 	ioError        = "io-error"
 	invalidRequest = "invalid-request"
-	unknownChannel = "unknown channel"
+	unknownChannel = "unknown-channel"
 	unavailable    = "unavailable"
 	internalError  = "internal"
 )
@@ -96,6 +98,16 @@ var (
 		invalidRequest,
 		"Missing data field",
 	}
+	ErrInvalidExpiration = &APIError{
+		http.StatusBadRequest,
+		invalidRequest,
+		"Invalid expiration date",
+	}
+	ErrPastExpiration = &APIError{
+		http.StatusBadRequest,
+		invalidRequest,
+		"Past expiration date",
+	}
 	ErrUnknownChannel = &APIError{
 		http.StatusBadRequest,
 		unknownChannel,
@@ -105,6 +117,11 @@ var (
 		http.StatusInternalServerError,
 		internalError,
 		"Unknown error",
+	}
+	ErrStoreUnavailable = &APIError{
+		http.StatusServiceUnavailable,
+		unavailable,
+		"Message store unavailable",
 	}
 	ErrCouldNotStoreNotification = &APIError{
 		http.StatusServiceUnavailable,
@@ -121,12 +138,13 @@ type Message struct {
 
 // Broadcast request JSON object.
 type Broadcast struct {
-	Channel     string          `json:"channel"`
-	ExpireAfter uint8           `json:"expire_after"`
-	Data        json.RawMessage `json:"data"`
+	Channel  string          `json:"channel"`
+	ExpireOn string          `json:"expire_on"`
+	Data     json.RawMessage `json:"data"`
 }
 
-func respondError(writer http.ResponseWriter, apiErr *APIError) {
+// RespondError writes back a JSON error response for a APIError.
+func RespondError(writer http.ResponseWriter, apiErr *APIError) {
 	wireError, err := json.Marshal(apiErr)
 	if err != nil {
 		panic(fmt.Errorf("couldn't marshal our own errors: %v", err))
@@ -136,21 +154,21 @@ func respondError(writer http.ResponseWriter, apiErr *APIError) {
 	writer.Write(wireError)
 }
 
-func checkContentLength(request *http.Request) *APIError {
+func checkContentLength(request *http.Request, maxBodySize int64) *APIError {
 	if request.ContentLength == -1 {
 		return ErrNoContentLengthProvided
 	}
 	if request.ContentLength == 0 {
 		return ErrRequestBodyEmpty
 	}
-	if request.ContentLength > MaxRequestBodyBytes {
+	if request.ContentLength > maxBodySize {
 		return ErrRequestBodyTooLarge
 	}
 	return nil
 }
 
-func checkRequestAsPost(request *http.Request) *APIError {
-	if err := checkContentLength(request); err != nil {
+func checkRequestAsPost(request *http.Request, maxBodySize int64) *APIError {
+	if err := checkContentLength(request, maxBodySize); err != nil {
 		return err
 	}
 	if request.Header.Get("Content-Type") != JSONMediaType {
@@ -162,8 +180,9 @@ func checkRequestAsPost(request *http.Request) *APIError {
 	return nil
 }
 
-func readBody(request *http.Request) ([]byte, *APIError) {
-	if err := checkRequestAsPost(request); err != nil {
+// ReadBody checks that a POST request is well-formed and reads its body.
+func ReadBody(request *http.Request, maxBodySize int64) ([]byte, *APIError) {
+	if err := checkRequestAsPost(request, maxBodySize); err != nil {
 		return nil, err
 	}
 
@@ -177,28 +196,54 @@ func readBody(request *http.Request) ([]byte, *APIError) {
 	return body, nil
 }
 
-func checkBroadcast(bcast *Broadcast) *APIError {
+var zeroTime = time.Time{}
+
+func checkBroadcast(bcast *Broadcast) (time.Time, *APIError) {
 	if len(bcast.Data) == 0 {
-		return ErrMissingData
+		return zeroTime, ErrMissingData
 	}
-	return nil
+	expire, err := time.Parse(time.RFC3339, bcast.ExpireOn)
+	if err != nil {
+		return zeroTime, ErrInvalidExpiration
+	}
+	if expire.Before(time.Now()) {
+		return zeroTime, ErrPastExpiration
+	}
+	return expire, nil
 }
 
-// state holds the interfaces to delegate to serving requests
-type state struct {
-	store  store.PendingStore
-	broker broker.BrokerSending
-	logger logger.Logger
+type StoreForRequest func(w http.ResponseWriter, request *http.Request) (store.PendingStore, error)
+
+// context holds the interfaces to delegate to serving requests
+type context struct {
+	storeForRequest StoreForRequest
+	broker          broker.BrokerSending
+	logger          logger.Logger
 }
 
-type BroadcastHandler state
+func (ctx *context) getStore(w http.ResponseWriter, request *http.Request) (store.PendingStore, *APIError) {
+	sto, err := ctx.storeForRequest(w, request)
+	if err != nil {
+		apiErr, ok := err.(*APIError)
+		if ok {
+			return nil, apiErr
+		}
+		ctx.logger.Errorf("failed to get store: %v", err)
+		return nil, ErrUnknown
+	}
+	return sto, nil
+}
 
-func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
-	apiErr := checkBroadcast(bcast)
+type BroadcastHandler struct {
+	*context
+}
+
+func (h *BroadcastHandler) doBroadcast(sto store.PendingStore, bcast *Broadcast) *APIError {
+	expire, apiErr := checkBroadcast(bcast)
 	if apiErr != nil {
 		return apiErr
 	}
-	chanId, err := h.store.GetInternalChannelId(bcast.Channel)
+	chanId, err := sto.GetInternalChannelId(bcast.Channel)
 	if err != nil {
 		switch err {
 		case store.ErrUnknownChannel:
@@ -207,10 +252,9 @@ func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
 			return ErrUnknown
 		}
 	}
-	// xxx ignoring expiration for now
-	err = h.store.AppendToChannel(chanId, bcast.Data)
+	err = sto.AppendToChannel(chanId, bcast.Data, expire)
 	if err != nil {
-		// assume this for now
+		h.logger.Errorf("could not store notification: %v", err)
 		return ErrCouldNotStoreNotification
 	}
 
@@ -219,24 +263,33 @@ func (h *BroadcastHandler) doBroadcast(bcast *Broadcast) *APIError {
 }
 
 func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	body, apiErr := readBody(request)
+	var apiErr *APIError
+	defer func() {
+		if apiErr != nil {
+			RespondError(writer, apiErr)
+		}
+	}()
 
+	body, apiErr := ReadBody(request, MaxRequestBodyBytes)
 	if apiErr != nil {
-		respondError(writer, apiErr)
 		return
 	}
+
+	sto, apiErr := h.getStore(writer, request)
+	if apiErr != nil {
+		return
+	}
+	defer sto.Close()
 
 	broadcast := &Broadcast{}
 	err := json.Unmarshal(body, broadcast)
-
 	if err != nil {
-		respondError(writer, ErrMalformedJSONObject)
+		apiErr = ErrMalformedJSONObject
 		return
 	}
 
-	apiErr = h.doBroadcast(broadcast)
+	apiErr = h.doBroadcast(sto, broadcast)
 	if apiErr != nil {
-		respondError(writer, apiErr)
 		return
 	}
 
@@ -245,12 +298,13 @@ func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.R
 }
 
 // MakeHandlersMux makes a handler that dispatches for the various API endpoints.
-func MakeHandlersMux(store store.PendingStore, broker broker.BrokerSending, logger logger.Logger) http.Handler {
+func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
+	ctx := &context{
+		storeForRequest: storeForRequest,
+		broker:          broker,
+		logger:          logger,
+	}
 	mux := http.NewServeMux()
-	mux.Handle("/broadcast", &BroadcastHandler{
-		store:  store,
-		broker: broker,
-		logger: logger,
-	})
+	mux.Handle("/broadcast", &BroadcastHandler{context: ctx})
 	return mux
 }

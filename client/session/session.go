@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// The client/session package handles the minutiae of interacting with
+// Package session handles the minutiae of interacting with
 // the Ubuntu Push Notifications server.
 package session
 
@@ -173,7 +173,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to set level: %v", err)
-		sess.proto.WriteMessage(protocol.AckMsg{"nack"})
+		sess.proto.WriteMessage(protocol.AckMsg{"nak"})
 		return err
 	}
 	// the server assumes if we ack the broadcast, we've updated

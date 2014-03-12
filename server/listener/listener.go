@@ -14,14 +14,16 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package listener has code to listen for device connections and setup sessions for them.
+// Package listener has code to listen for device connections
+// and setup sessions for them.
 package listener
 
 import (
 	"crypto/tls"
-	"launchpad.net/ubuntu-push/logger"
 	"net"
 	"time"
+
+	"launchpad.net/ubuntu-push/logger"
 )
 
 // A DeviceListenerConfig offers the DeviceListener configuration.

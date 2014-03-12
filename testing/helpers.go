@@ -19,12 +19,13 @@ package testing
 
 import (
 	"fmt"
-	"launchpad.net/ubuntu-push/logger"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+
+	"launchpad.net/ubuntu-push/logger"
 )
 
 type captureHelper struct {
@@ -72,7 +73,8 @@ type TestLogger struct {
 	helper *captureHelper
 }
 
-// NewTestLogger can be used in tests instead of NewSimpleLogger(FromMinimalLogger).
+// NewTestLogger can be used in tests instead of
+// NewSimpleLogger(FromMinimalLogger).
 func NewTestLogger(minLog logger.MinimalLogger, level string) *TestLogger {
 	h := &captureHelper{outputFunc: minLog.Output}
 	log := &TestLogger{
