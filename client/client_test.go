@@ -52,9 +52,10 @@ func takeNextBool(ch <-chan bool) bool {
 }
 
 type clientSuite struct {
-	timeouts   []time.Duration
-	configPath string
-	log        *helpers.TestLogger
+	timeouts    []time.Duration
+	configPath  string
+	leveldbPath string
+	log         *helpers.TestLogger
 }
 
 var _ = Suite(&clientSuite{})
@@ -74,6 +75,7 @@ func mkHandler(text string) http.HandlerFunc {
 
 func (cs *clientSuite) SetUpSuite(c *C) {
 	cs.timeouts = util.SwapTimeouts([]time.Duration{0})
+	cs.leveldbPath = ""
 }
 
 func (cs *clientSuite) TearDownSuite(c *C) {
@@ -99,12 +101,21 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	ioutil.WriteFile(cs.configPath, []byte(cfg), 0600)
 }
 
+type sqlientSuite struct{ clientSuite }
+
+func (s *sqlientSuite) SetUpSuite(c *C) {
+	s.clientSuite.SetUpSuite(c)
+	s.leveldbPath = ":memory:"
+}
+
+var _ = Suite(&sqlientSuite{})
+
 /*****************************************************************
     configure tests
 ******************************************************************/
 
 func (cs *clientSuite) TestConfigureWorks(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.config, NotNil)
@@ -112,7 +123,7 @@ func (cs *clientSuite) TestConfigureWorks(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.log, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -120,7 +131,7 @@ func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.pem, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -128,7 +139,7 @@ func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.idder, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -136,7 +147,7 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.notificationsEndp, IsNil)
 	c.Check(cli.urlDispatcherEndp, IsNil)
 	c.Check(cli.connectivityEndp, IsNil)
@@ -148,7 +159,7 @@ func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.connCh, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -156,13 +167,13 @@ func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
-	cli := NewPushClient("/does/not/exist")
+	cli := NewPushClient("/does/not/exist", cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadConfig(c *C) {
-	cli := NewPushClient("/etc/passwd")
+	cli := NewPushClient("/etc/passwd", cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, NotNil)
 }
@@ -180,7 +191,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEMFilename(c *C) {
     "recheck_timeout": "3h"
 }`), 0600)
 
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "reading PEM file: .*")
 }
@@ -198,7 +209,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
     "recheck_timeout": "3h"
 }`), 0600)
 
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "no PEM found.*")
 }
@@ -208,7 +219,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.idder = identifier.New()
 	c.Check(cli.deviceId, Equals, "")
@@ -217,7 +228,7 @@ func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 }
 
 func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.idder = idtesting.Failing()
 	c.Check(cli.deviceId, Equals, "")
@@ -245,7 +256,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	)
 	testibus.SetWatchTicker(cEndp, make(chan bool))
 	// ok, create the thing
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -273,7 +284,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 
 // takeTheBus can, in fact, fail
 func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	cli.log = cs.log
 	c.Assert(err, IsNil)
@@ -294,7 +305,7 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleErr(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 	cli.hasConnectivity = true
@@ -303,11 +314,29 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 }
 
 /*****************************************************************
+    levelmapFactory tests
+******************************************************************/
+
+func (cs *clientSuite) TestLevelMapFactoryNoDbPath(c *C) {
+	cli := NewPushClient(cs.configPath, "")
+	ln, err := cli.levelMapFactory()
+	c.Assert(err, IsNil)
+	c.Check(fmt.Sprintf("%T", ln), Equals, "*levelmap.mapLevelMap")
+}
+
+func (cs *clientSuite) TestLevelMapFactoryWithDbPath(c *C) {
+	cli := NewPushClient(cs.configPath, ":memory:")
+	ln, err := cli.levelMapFactory()
+	c.Assert(err, IsNil)
+	c.Check(fmt.Sprintf("%T", ln), Equals, "*levelmap.sqliteLevelMap")
+}
+
+/*****************************************************************
     handleConnState tests
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 
@@ -318,7 +347,7 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 }
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	// here we want to check that we don't do anything
 	c.Assert(cli.session, IsNil)
@@ -332,7 +361,7 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 }
 
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.session.Dial()
@@ -345,7 +374,7 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 }
 
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.hasConnectivity = true
@@ -359,7 +388,7 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleNotification(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
@@ -372,7 +401,7 @@ func (cs *clientSuite) TestHandleNotification(c *C) {
 }
 
 func (cs *clientSuite) TestHandleNotificationFail(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
@@ -384,7 +413,7 @@ func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleClick(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), nil)
 	cli.urlDispatcherEndp = endp
@@ -401,7 +430,7 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDoLoopConn(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.connCh = make(chan bool, 1)
 	cli.connCh <- true
@@ -413,7 +442,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 }
 
 func (cs *clientSuite) TestDoLoopClick(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 	aCh := make(chan notifications.RawActionReply, 1)
@@ -426,7 +455,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 }
 
 func (cs *clientSuite) TestDoLoopNotif(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 	cli.session.MsgCh = make(chan *session.Notification, 1)
@@ -438,7 +467,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 }
 
 func (cs *clientSuite) TestDoLoopErr(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
 	cli.session.ErrCh = make(chan error, 1)
@@ -454,7 +483,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDoStartWorks(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	one_called := false
 	two_called := false
 	one := func() error { one_called = true; return nil }
@@ -465,7 +494,7 @@ func (cs *clientSuite) TestDoStartWorks(c *C) {
 }
 
 func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	one_called := false
 	two_called := false
 	failure := errors.New("Failure")
@@ -481,7 +510,7 @@ func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestLoop(c *C) {
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.connCh = make(chan bool)
 	cli.sessionConnectedCh = make(chan uint32)
 	aCh := make(chan notifications.RawActionReply, 1)
@@ -559,7 +588,7 @@ func (cs *clientSuite) TestStart(c *C) {
 		c.Skip("no dbus")
 	}
 
-	cli := NewPushClient(cs.configPath)
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	// before start, everything sucks:
 	// no config,
 	c.Check(string(cli.config.Addr), Equals, "")
@@ -588,7 +617,7 @@ func (cs *clientSuite) TestStart(c *C) {
 }
 
 func (cs *clientSuite) TestStartCanFail(c *C) {
-	cli := NewPushClient("/does/not/exist")
+	cli := NewPushClient("/does/not/exist", cs.leveldbPath)
 	// easiest way for it to fail is to feed it a bad config
 	err := cli.Start()
 	// and it works. Err. Doesn't.

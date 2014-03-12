@@ -50,8 +50,9 @@ type ClientConfig struct {
 	LogLevel string `json:"log_level"`
 }
 
-// pushClient is the Ubuntu Push Notifications client-side daemon.
-type pushClient struct {
+// PushClient is the Ubuntu Push Notifications client-side daemon.
+type PushClient struct {
+	leveldbPath        string
 	configPath         string
 	config             ClientConfig
 	log                logger.Logger
@@ -70,15 +71,16 @@ type pushClient struct {
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
-func NewPushClient(configPath string) *pushClient {
-	client := new(pushClient)
+func NewPushClient(configPath string, leveldbPath string) *PushClient {
+	client := new(PushClient)
 	client.configPath = configPath
+	client.leveldbPath = leveldbPath
 
 	return client
 }
 
 // configure loads its configuration, and sets it up.
-func (client *pushClient) configure() error {
+func (client *PushClient) configure() error {
 	f, err := os.Open(client.configPath)
 	if err != nil {
 		return fmt.Errorf("opening config: %v", err)
@@ -115,7 +117,7 @@ func (client *pushClient) configure() error {
 }
 
 // getDeviceId gets the whoopsie identifier for the device
-func (client *pushClient) getDeviceId() error {
+func (client *PushClient) getDeviceId() error {
 	err := client.idder.Generate()
 	if err != nil {
 		return err
@@ -125,7 +127,7 @@ func (client *pushClient) getDeviceId() error {
 }
 
 // takeTheBus starts the connection(s) to D-Bus and sets up associated event channels
-func (client *pushClient) takeTheBus() error {
+func (client *PushClient) takeTheBus() error {
 	go connectivity.ConnectedState(client.connectivityEndp,
 		client.config.ConnectivityConfig, client.log, client.connCh)
 	iniCh := make(chan uint32)
@@ -140,10 +142,10 @@ func (client *pushClient) takeTheBus() error {
 }
 
 // initSession creates the session object
-func (client *pushClient) initSession() error {
+func (client *PushClient) initSession() error {
 	sess, err := session.NewSession(string(client.config.Addr), client.pem,
 		client.config.ExchangeTimeout.Duration, client.deviceId,
-		levelmap.NewLevelMap, client.log)
+		client.levelMapFactory, client.log)
 	if err != nil {
 		return err
 	}
@@ -151,8 +153,17 @@ func (client *pushClient) initSession() error {
 	return nil
 }
 
+// levelmapFactory returns a levelMap for the session
+func (client *PushClient) levelMapFactory() (levelmap.LevelMap, error) {
+	if client.leveldbPath == "" {
+		return levelmap.NewLevelMap()
+	} else {
+		return levelmap.NewSqliteLevelMap(client.leveldbPath)
+	}
+}
+
 // handleConnState deals with connectivity events
-func (client *pushClient) handleConnState(hasConnectivity bool) {
+func (client *PushClient) handleConnState(hasConnectivity bool) {
 	if client.hasConnectivity == hasConnectivity {
 		// nothing to do!
 		return
@@ -166,7 +177,7 @@ func (client *pushClient) handleConnState(hasConnectivity bool) {
 }
 
 // handleErr deals with the session erroring out of its loop
-func (client *pushClient) handleErr(err error) {
+func (client *PushClient) handleErr(err error) {
 	// if we're not connected, we don't really care
 	client.log.Errorf("session exited: %s", err)
 	if client.hasConnectivity {
@@ -175,7 +186,7 @@ func (client *pushClient) handleErr(err error) {
 }
 
 // handleNotification deals with receiving a notification
-func (client *pushClient) handleNotification() error {
+func (client *PushClient) handleNotification() error {
 	action_id := "dummy_id"
 	a := []string{action_id, "Go get it!"} // action value not visible on the phone
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
@@ -199,14 +210,14 @@ func (client *pushClient) handleNotification() error {
 }
 
 // handleClick deals with the user clicking a notification
-func (client *pushClient) handleClick() error {
+func (client *PushClient) handleClick() error {
 	// it doesn't get much simpler...
 	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
 	return urld.DispatchURL("settings:///system/system-update")
 }
 
 // doLoop connects events with their handlers
-func (client *pushClient) doLoop(connhandler func(bool), clickhandler, notifhandler func() error, errhandler func(error)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler, notifhandler func() error, errhandler func(error)) {
 	for {
 		select {
 		case state := <-client.connCh:
@@ -225,7 +236,7 @@ func (client *pushClient) doLoop(connhandler func(bool), clickhandler, notifhand
 
 // doStart calls each of its arguments in order, returning the first non-nil
 // error (or nil at the end)
-func (client *pushClient) doStart(fs ...func() error) error {
+func (client *PushClient) doStart(fs ...func() error) error {
 	for _, f := range fs {
 		if err := f(); err != nil {
 			return err
@@ -235,13 +246,13 @@ func (client *pushClient) doStart(fs ...func() error) error {
 }
 
 // Loop calls doLoop with the "real" handlers
-func (client *pushClient) Loop() {
+func (client *PushClient) Loop() {
 	client.doLoop(client.handleConnState, client.handleClick,
 		client.handleNotification, client.handleErr)
 }
 
 // Start calls doStart with the "real" starters
-func (client *pushClient) Start() error {
+func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
 		client.getDeviceId,
