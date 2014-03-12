@@ -64,7 +64,7 @@ func main() {
 	handler := api.PanicTo500Handler(mux, logger)
 	go server.HTTPServeRunner(handler, &cfg.HTTPServeParsedConfig)()
 	// listen for device connections
-	server.DevicesRunner(func(conn net.Conn) error {
+	server.DevicesRunner(nil, func(conn net.Conn) error {
 		track := session.NewTracker(logger)
 		return session.Session(conn, broker, cfg, track)
 	}, logger, &cfg.DevicesParsedConfig)()
