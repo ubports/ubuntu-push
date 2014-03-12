@@ -20,6 +20,7 @@ import (
 	"log"
 
 	"launchpad.net/go-xdg/v0"
+
 	"launchpad.net/ubuntu-push/client"
 )
 
