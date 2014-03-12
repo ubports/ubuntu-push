@@ -86,8 +86,8 @@ func (cfg *DevicesParsedConfig) CertPEMBlock() []byte {
 	return cfg.certPEMBlock
 }
 
-// DevicesRunner returns a function to accept device connections. If
-// adoptLst is not nil it will be used as the underlying listener, instead
+// DevicesRunner returns a function to accept device connections.
+// If adoptLst is not nil it will be used as the underlying listener, instead
 // of creating one, wrapped in a TLS layer.
 func DevicesRunner(adoptLst net.Listener, session func(net.Conn) error, logger logger.Logger, parsedCfg *DevicesParsedConfig) func() {
 	BootLogger.Debugf("PingInterval: %s, ExchangeTimeout %s", parsedCfg.PingInterval(), parsedCfg.ExchangeTimeout())
