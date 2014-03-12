@@ -17,23 +17,24 @@
 package main
 
 import (
-	"fmt"
 	"launchpad.net/go-xdg/v0"
 	"launchpad.net/ubuntu-push/client"
-	"os"
+	"log"
 )
 
 func main() {
 	cfg, err := xdg.Config.Find("ubuntu-push-client/config.json")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to find a configuration file: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("unable to find a configuration file: %v", err)
 	}
-	cli := new(client.Client)
-	err = cli.Start(cfg)
+	lvl, err := xdg.Data.Ensure("ubuntu-push-client/levels.db")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to start: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("unable to open the levels database: %v", err)
+	}
+	cli := client.NewPushClient(cfg, lvl)
+	err = cli.Start()
+	if err != nil {
+		log.Fatalf("unable to start: %v", err)
 	}
 	cli.Loop()
 }
