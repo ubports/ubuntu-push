@@ -1,0 +1,46 @@
+--- a/serve_test.go	2014-03-19 20:14:01.831371373 +0000
++++ b/serve_test.go	2014-03-19 20:14:47.518205363 +0000
+@@ -2474,43 +2474,6 @@
+ 	b.StopTimer()
+ }
+ 
+-func BenchmarkClientServerParallel4(b *testing.B) {
+-	benchmarkClientServerParallel(b, 4)
+-}
+-
+-func BenchmarkClientServerParallel64(b *testing.B) {
+-	benchmarkClientServerParallel(b, 64)
+-}
+-
+-func benchmarkClientServerParallel(b *testing.B, parallelism int) {
+-	b.ReportAllocs()
+-	ts := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, r *Request) {
+-		fmt.Fprintf(rw, "Hello world.\n")
+-	}))
+-	defer ts.Close()
+-	b.ResetTimer()
+-	b.SetParallelism(parallelism)
+-	b.RunParallel(func(pb *testing.PB) {
+-		for pb.Next() {
+-			res, err := Get(ts.URL)
+-			if err != nil {
+-				b.Logf("Get: %v", err)
+-				continue
+-			}
+-			all, err := ioutil.ReadAll(res.Body)
+-			res.Body.Close()
+-			if err != nil {
+-				b.Logf("ReadAll: %v", err)
+-				continue
+-			}
+-			body := string(all)
+-			if body != "Hello world.\n" {
+-				panic("Got body: " + body)
+-			}
+-		}
+-	})
+-}
+-
+ // A benchmark for profiling the server without the HTTP client code.
+ // The client code runs in a subprocess.
+ //
