@@ -11,7 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	. "launchpad.net/ubuntu-push/http13client"
-	"launchpad.net/ubuntu-push/http13client/httptest"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )

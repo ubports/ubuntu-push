@@ -12,7 +12,7 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	. "launchpad.net/ubuntu-push/http13client"
-	"launchpad.net/ubuntu-push/http13client/httptest"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"reflect"

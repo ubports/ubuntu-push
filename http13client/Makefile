@@ -17,6 +17,10 @@ full-prepare:
 	sed -i -e 's+"net/http/+"launchpad.net/ubuntu-push/http13client/+' *.go httptest/*.go httputil/*.go
 	patch -p1 < _patches/no_serve_test_unsupported_bench.patch
 
+prune:
+	rm -rf example_test.go filetransport*.go fs*.go race.go range_test.go \
+	sniff*.go httptest httputil testdata triv.go
+	sed -i -e 's+"launchpad.net/ubuntu-push/http13client/+"net/http/+' *.go
 
 clean:
 	rm -rf *.go httptest httputil testdata
