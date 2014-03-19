@@ -152,7 +152,7 @@ func (s *sessionSuite) TestSessionStart(c *C) {
 		errCh <- err
 	}()
 	c.Check(takeNext(down), Equals, "deadline 5ms")
-	up <- protocol.ConnectMsg{Type: "connect", ClientVer: "1", DeviceId: "dev-1"}
+	up <- protocol.ConnectMsg{Type: "connect", ClientVer: "1", DeviceId: "dev-1", Authorization: ""}
 	c.Check(takeNext(down), Equals, protocol.ConnAckMsg{
 		Type:   "connack",
 		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
@@ -178,7 +178,7 @@ func (s *sessionSuite) TestSessionRegisterError(c *C) {
 		sess, err = sessionStart(tp, brkr, cfg10msPingInterval5msExchangeTout)
 		errCh <- err
 	}()
-	up <- protocol.ConnectMsg{Type: "connect", ClientVer: "1", DeviceId: "dev-1"}
+	up <- protocol.ConnectMsg{Type: "connect", ClientVer: "1", DeviceId: "dev-1", Authorization: ""}
 	takeNext(down) // CONNACK
 	up <- nil      // no write error
 	err := <-errCh

@@ -574,9 +574,10 @@ func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
 
 	c.Check(takeNext(downCh), Equals, "deadline 0")
 	c.Check(takeNext(downCh), DeepEquals, protocol.ConnectMsg{
-		Type:     "connect",
-		DeviceId: sess.DeviceId,
-		Levels:   map[string]int64{},
+		Type:          "connect",
+		DeviceId:      sess.DeviceId,
+		Authorization: "",
+		Levels:        map[string]int64{},
 	})
 	upCh <- errors.New("Overflow error in /dev/null")
 	err = <-errCh

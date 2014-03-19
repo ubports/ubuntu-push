@@ -27,10 +27,11 @@ const SystemChannelId = "0"
 
 // CONNECT message
 type ConnectMsg struct {
-	Type      string `json:"T"`
-	ClientVer string
-	DeviceId  string
-	Info      map[string]interface{} `json:",omitempty"` // platform etc...
+	Type          string `json:"T"`
+	ClientVer     string
+	DeviceId      string
+	Authorization string
+	Info          map[string]interface{} `json:",omitempty"` // platform etc...
 	// maps channel ids (hex encoded UUIDs) to known client channel levels
 	Levels map[string]int64
 }
