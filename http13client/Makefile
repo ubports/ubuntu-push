@@ -30,4 +30,4 @@ fix:
 clean:
 	rm -rf *.go httptest httputil testdata
 
-.PHONY: grab full-prepare clean
+.PHONY: grab full-prepare prune fix clean
