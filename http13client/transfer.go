@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/textproto"
 	"strconv"
 	"strings"
@@ -36,7 +37,7 @@ type transferWriter struct {
 	ContentLength    int64 // -1 means unknown, 0 means exactly none
 	Close            bool
 	TransferEncoding []string
-	Trailer          Header
+	Trailer          http.Header
 }
 
 func newTransferWriter(r interface{}) (t *transferWriter, err error) {
@@ -174,7 +175,7 @@ func (t *transferWriter) WriteHeader(w io.Writer) (err error) {
 		io.WriteString(w, "Trailer: ")
 		needComma := false
 		for k := range t.Trailer {
-			k = CanonicalHeaderKey(k)
+			k = http.CanonicalHeaderKey(k)
 			switch k {
 			case "Transfer-Encoding", "Trailer", "Content-Length":
 				return &badStringError{"invalid Trailer key", k}
@@ -237,7 +238,7 @@ func (t *transferWriter) WriteBody(w io.Writer) (err error) {
 
 type transferReader struct {
 	// Input
-	Header        Header
+	Header        http.Header
 	StatusCode    int
 	RequestMethod string
 	ProtoMajor    int
@@ -247,7 +248,7 @@ type transferReader struct {
 	ContentLength    int64
 	TransferEncoding []string
 	Close            bool
-	Trailer          Header
+	Trailer          http.Header
 }
 
 // bodyAllowedForStatus reports whether a given response status code
@@ -308,7 +309,7 @@ func readTransfer(msg interface{}, r *bufio.Reader) (err error) {
 		return err
 	}
 	if isResponse && t.RequestMethod == "HEAD" {
-		if n, err := parseContentLength(t.Header.get("Content-Length")); err != nil {
+		if n, err := parseContentLength(t.Header.Get("Content-Length")); err != nil {
 			return err
 		} else {
 			t.ContentLength = n
@@ -386,7 +387,7 @@ func chunked(te []string) bool { return len(te) > 0 && te[0] == "chunked" }
 func isIdentity(te []string) bool { return len(te) == 1 && te[0] == "identity" }
 
 // Sanitize transfer encoding
-func fixTransferEncoding(requestMethod string, header Header) ([]string, error) {
+func fixTransferEncoding(requestMethod string, header http.Header) ([]string, error) {
 	raw, present := header["Transfer-Encoding"]
 	if !present {
 		return nil, nil
@@ -429,7 +430,7 @@ func fixTransferEncoding(requestMethod string, header Header) ([]string, error) 
 // Determine the expected body length, using RFC 2616 Section 4.4. This
 // function is not a method, because ultimately it should be shared by
 // ReadResponse and ReadRequest.
-func fixLength(isResponse bool, status int, requestMethod string, header Header, te []string) (int64, error) {
+func fixLength(isResponse bool, status int, requestMethod string, header http.Header, te []string) (int64, error) {
 
 	// Logic based on response type or status
 	if noBodyExpected(requestMethod) {
@@ -449,7 +450,7 @@ func fixLength(isResponse bool, status int, requestMethod string, header Header,
 	}
 
 	// Logic based on Content-Length
-	cl := strings.TrimSpace(header.get("Content-Length"))
+	cl := strings.TrimSpace(header.Get("Content-Length"))
 	if cl != "" {
 		n, err := parseContentLength(cl)
 		if err != nil {
@@ -475,18 +476,18 @@ func fixLength(isResponse bool, status int, requestMethod string, header Header,
 // Determine whether to hang up after sending a request and body, or
 // receiving a response and body
 // 'header' is the request headers
-func shouldClose(major, minor int, header Header) bool {
+func shouldClose(major, minor int, header http.Header) bool {
 	if major < 1 {
 		return true
 	} else if major == 1 && minor == 0 {
-		if !strings.Contains(strings.ToLower(header.get("Connection")), "keep-alive") {
+		if !strings.Contains(strings.ToLower(header.Get("Connection")), "keep-alive") {
 			return true
 		}
 		return false
 	} else {
 		// TODO: Should split on commas, toss surrounding white space,
 		// and check each field.
-		if strings.ToLower(header.get("Connection")) == "close" {
+		if strings.ToLower(header.Get("Connection")) == "close" {
 			header.Del("Connection")
 			return true
 		}
@@ -495,17 +496,17 @@ func shouldClose(major, minor int, header Header) bool {
 }
 
 // Parse the trailer header
-func fixTrailer(header Header, te []string) (Header, error) {
-	raw := header.get("Trailer")
+func fixTrailer(header http.Header, te []string) (http.Header, error) {
+	raw := header.Get("Trailer")
 	if raw == "" {
 		return nil, nil
 	}
 
 	header.Del("Trailer")
-	trailer := make(Header)
+	trailer := make(http.Header)
 	keys := strings.Split(raw, ",")
 	for _, key := range keys {
-		key = CanonicalHeaderKey(strings.TrimSpace(key))
+		key = http.CanonicalHeaderKey(strings.TrimSpace(key))
 		switch key {
 		case "Transfer-Encoding", "Trailer", "Content-Length":
 			return nil, &badStringError{"bad trailer key", key}
@@ -642,9 +643,9 @@ func (b *body) readTrailer() error {
 	}
 	switch rr := b.hdr.(type) {
 	case *Request:
-		rr.Trailer = Header(hdr)
+		rr.Trailer = http.Header(hdr)
 	case *Response:
-		rr.Trailer = Header(hdr)
+		rr.Trailer = http.Header(hdr)
 	}
 	return nil
 }

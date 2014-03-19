@@ -18,6 +18,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -144,12 +145,12 @@ func ProxyURL(fixedURL *url.URL) func(*Request) (*url.URL, error) {
 // optional extra headers to write.
 type transportRequest struct {
 	*Request        // original request, not to be mutated
-	extra    Header // extra headers to write, or nil
+	extra    http.Header // extra headers to write, or nil
 }
 
-func (tr *transportRequest) extraHeaders() Header {
+func (tr *transportRequest) extraHeaders() http.Header {
 	if tr.extra == nil {
-		tr.extra = make(Header)
+		tr.extra = make(http.Header)
 	}
 	return tr.extra
 }
@@ -512,7 +513,7 @@ func (t *Transport) dialConn(cm connectMethod) (*persistConn, error) {
 	case cm.targetScheme == "http":
 		pconn.isProxy = true
 		if pa != "" {
-			pconn.mutateHeaderFunc = func(h Header) {
+			pconn.mutateHeaderFunc = func(h http.Header) {
 				h.Set("Proxy-Authorization", pa)
 			}
 		}
@@ -521,7 +522,7 @@ func (t *Transport) dialConn(cm connectMethod) (*persistConn, error) {
 			Method: "CONNECT",
 			URL:    &url.URL{Opaque: cm.targetAddr},
 			Host:   cm.targetAddr,
-			Header: make(Header),
+			Header: make(http.Header),
 		}
 		if pa != "" {
 			connectReq.Header.Set("Proxy-Authorization", pa)
@@ -735,7 +736,7 @@ type persistConn struct {
 	// mutateHeaderFunc is an optional func to modify extra
 	// headers on each outbound request before it's written. (the
 	// original Request given to RoundTrip is not modified)
-	mutateHeaderFunc func(Header)
+	mutateHeaderFunc func(http.Header)
 }
 
 func (pc *persistConn) isBroken() bool {

@@ -6,19 +6,20 @@ package http
 
 import (
 	"bytes"
+	"net/http"
 	"runtime"
 	"testing"
 	"time"
 )
 
 var headerWriteTests = []struct {
-	h        Header
+	h        http.Header
 	exclude  map[string]bool
 	expected string
 }{
-	{Header{}, nil, ""},
+	{http.Header{}, nil, ""},
 	{
-		Header{
+		http.Header{
 			"Content-Type":   {"text/html; charset=UTF-8"},
 			"Content-Length": {"0"},
 		},
@@ -26,14 +27,14 @@ var headerWriteTests = []struct {
 		"Content-Length: 0\r\nContent-Type: text/html; charset=UTF-8\r\n",
 	},
 	{
-		Header{
+		http.Header{
 			"Content-Length": {"0", "1", "2"},
 		},
 		nil,
 		"Content-Length: 0\r\nContent-Length: 1\r\nContent-Length: 2\r\n",
 	},
 	{
-		Header{
+		http.Header{
 			"Expires":          {"-1"},
 			"Content-Length":   {"0"},
 			"Content-Encoding": {"gzip"},
@@ -42,7 +43,7 @@ var headerWriteTests = []struct {
 		"Content-Encoding: gzip\r\nExpires: -1\r\n",
 	},
 	{
-		Header{
+		http.Header{
 			"Expires":          {"-1"},
 			"Content-Length":   {"0", "1", "2"},
 			"Content-Encoding": {"gzip"},
@@ -51,7 +52,7 @@ var headerWriteTests = []struct {
 		"Content-Encoding: gzip\r\nExpires: -1\r\n",
 	},
 	{
-		Header{
+		http.Header{
 			"Expires":          {"-1"},
 			"Content-Length":   {"0"},
 			"Content-Encoding": {"gzip"},
@@ -60,7 +61,7 @@ var headerWriteTests = []struct {
 		"",
 	},
 	{
-		Header{
+		http.Header{
 			"Nil":          nil,
 			"Empty":        {},
 			"Blank":        {""},
@@ -71,7 +72,7 @@ var headerWriteTests = []struct {
 	},
 	// Tests header sorting when over the insertion sort threshold side:
 	{
-		Header{
+		http.Header{
 			"k1": {"1a", "1b"},
 			"k2": {"2a", "2b"},
 			"k3": {"3a", "3b"},
@@ -101,21 +102,21 @@ func TestHeaderWrite(t *testing.T) {
 }
 
 var parseTimeTests = []struct {
-	h   Header
+	h   http.Header
 	err bool
 }{
-	{Header{"Date": {""}}, true},
-	{Header{"Date": {"invalid"}}, true},
-	{Header{"Date": {"1994-11-06T08:49:37Z00:00"}}, true},
-	{Header{"Date": {"Sun, 06 Nov 1994 08:49:37 GMT"}}, false},
-	{Header{"Date": {"Sunday, 06-Nov-94 08:49:37 GMT"}}, false},
-	{Header{"Date": {"Sun Nov  6 08:49:37 1994"}}, false},
+	{http.Header{"Date": {""}}, true},
+	{http.Header{"Date": {"invalid"}}, true},
+	{http.Header{"Date": {"1994-11-06T08:49:37Z00:00"}}, true},
+	{http.Header{"Date": {"Sun, 06 Nov 1994 08:49:37 GMT"}}, false},
+	{http.Header{"Date": {"Sunday, 06-Nov-94 08:49:37 GMT"}}, false},
+	{http.Header{"Date": {"Sun Nov  6 08:49:37 1994"}}, false},
 }
 
 func TestParseTime(t *testing.T) {
 	expect := time.Date(1994, 11, 6, 8, 49, 37, 0, time.UTC)
 	for i, test := range parseTimeTests {
-		d, err := ParseTime(test.h.Get("Date"))
+		d, err := http.ParseTime(test.h.Get("Date"))
 		if err != nil {
 			if !test.err {
 				t.Errorf("#%d:\n got err: %v", i, err)
@@ -175,7 +176,7 @@ func TestHasToken(t *testing.T) {
 	}
 }
 
-var testHeader = Header{
+var testHeader = http.Header{
 	"Content-Length": {"123"},
 	"Content-Type":   {"text/plain"},
 	"Date":           {"some date at some time Z"},
@@ -196,9 +197,9 @@ func TestHeaderWriteSubsetAllocs(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping alloc test in short mode")
 	}
-	if raceEnabled {
+	/*if raceEnabled {
 		t.Skip("skipping test under race detector")
-	}
+	}*/
 	if runtime.GOMAXPROCS(0) > 1 {
 		t.Skip("skipping; GOMAXPROCS>1")
 	}

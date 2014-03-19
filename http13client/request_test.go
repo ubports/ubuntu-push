@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	. "launchpad.net/ubuntu-push/http13client"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -110,7 +111,7 @@ func TestParseFormUnknownContentType(t *testing.T) {
 	for i, test := range parseContentTypeTests {
 		req := &Request{
 			Method: "POST",
-			Header: Header(test.contentType),
+			Header: http.Header(test.contentType),
 			Body:   ioutil.NopCloser(strings.NewReader("body")),
 		}
 		err := req.ParseForm()
@@ -143,7 +144,7 @@ func TestParseFormInitializeOnError(t *testing.T) {
 func TestMultipartReader(t *testing.T) {
 	req := &Request{
 		Method: "POST",
-		Header: Header{"Content-Type": {`multipart/form-data; boundary="foo123"`}},
+		Header: http.Header{"Content-Type": {`multipart/form-data; boundary="foo123"`}},
 		Body:   ioutil.NopCloser(new(bytes.Buffer)),
 	}
 	multipart, err := req.MultipartReader()
@@ -151,7 +152,7 @@ func TestMultipartReader(t *testing.T) {
 		t.Errorf("expected multipart; error: %v", err)
 	}
 
-	req.Header = Header{"Content-Type": {"text/plain"}}
+	req.Header = http.Header{"Content-Type": {"text/plain"}}
 	multipart, err = req.MultipartReader()
 	if multipart != nil {
 		t.Errorf("unexpected multipart for text/plain")
@@ -159,7 +160,7 @@ func TestMultipartReader(t *testing.T) {
 }
 
 func TestRedirect(t *testing.T) {
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/":
 			w.Header().Set("Location", "/foo/")

@@ -5,10 +5,9 @@
 package http
 
 import (
-	"bytes"
-	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -18,30 +17,10 @@ import (
 //
 //    http://tools.ietf.org/html/rfc6265
 
-// A Cookie represents an HTTP cookie as sent in the Set-Cookie header of an
-// HTTP response or the Cookie header of an HTTP request.
-type Cookie struct {
-	Name       string
-	Value      string
-	Path       string
-	Domain     string
-	Expires    time.Time
-	RawExpires string
-
-	// MaxAge=0 means no 'Max-Age' attribute specified.
-	// MaxAge<0 means delete cookie now, equivalently 'Max-Age: 0'
-	// MaxAge>0 means Max-Age attribute present and given in seconds
-	MaxAge   int
-	Secure   bool
-	HttpOnly bool
-	Raw      string
-	Unparsed []string // Raw text of unparsed attribute-value pairs
-}
-
 // readSetCookies parses all "Set-Cookie" values from
 // the header h and returns the successfully parsed Cookies.
-func readSetCookies(h Header) []*Cookie {
-	cookies := []*Cookie{}
+func readSetCookies(h http.Header) []*http.Cookie {
+	cookies := []*http.Cookie{}
 	for _, line := range h["Set-Cookie"] {
 		parts := strings.Split(strings.TrimSpace(line), ";")
 		if len(parts) == 1 && parts[0] == "" {
@@ -60,7 +39,7 @@ func readSetCookies(h Header) []*Cookie {
 		if !success {
 			continue
 		}
-		c := &Cookie{
+		c := &http.Cookie{
 			Name:  name,
 			Value: value,
 			Raw:   line,
@@ -129,59 +108,12 @@ func readSetCookies(h Header) []*Cookie {
 	return cookies
 }
 
-// SetCookie adds a Set-Cookie header to the provided ResponseWriter's headers.
-func SetCookie(w ResponseWriter, cookie *Cookie) {
-	w.Header().Add("Set-Cookie", cookie.String())
-}
-
-// String returns the serialization of the cookie for use in a Cookie
-// header (if only Name and Value are set) or a Set-Cookie response
-// header (if other fields are set).
-func (c *Cookie) String() string {
-	var b bytes.Buffer
-	fmt.Fprintf(&b, "%s=%s", sanitizeCookieName(c.Name), sanitizeCookieValue(c.Value))
-	if len(c.Path) > 0 {
-		fmt.Fprintf(&b, "; Path=%s", sanitizeCookiePath(c.Path))
-	}
-	if len(c.Domain) > 0 {
-		if validCookieDomain(c.Domain) {
-			// A c.Domain containing illegal characters is not
-			// sanitized but simply dropped which turns the cookie
-			// into a host-only cookie. A leading dot is okay
-			// but won't be sent.
-			d := c.Domain
-			if d[0] == '.' {
-				d = d[1:]
-			}
-			fmt.Fprintf(&b, "; Domain=%s", d)
-		} else {
-			log.Printf("net/http: invalid Cookie.Domain %q; dropping domain attribute",
-				c.Domain)
-		}
-	}
-	if c.Expires.Unix() > 0 {
-		fmt.Fprintf(&b, "; Expires=%s", c.Expires.UTC().Format(time.RFC1123))
-	}
-	if c.MaxAge > 0 {
-		fmt.Fprintf(&b, "; Max-Age=%d", c.MaxAge)
-	} else if c.MaxAge < 0 {
-		fmt.Fprintf(&b, "; Max-Age=0")
-	}
-	if c.HttpOnly {
-		fmt.Fprintf(&b, "; HttpOnly")
-	}
-	if c.Secure {
-		fmt.Fprintf(&b, "; Secure")
-	}
-	return b.String()
-}
-
 // readCookies parses all "Cookie" values from the header h and
 // returns the successfully parsed Cookies.
 //
 // if filter isn't empty, only cookies of that name are returned
-func readCookies(h Header, filter string) []*Cookie {
-	cookies := []*Cookie{}
+func readCookies(h http.Header, filter string) []*http.Cookie {
+	cookies := []*http.Cookie{}
 	lines, ok := h["Cookie"]
 	if !ok {
 		return cookies
@@ -213,7 +145,7 @@ func readCookies(h Header, filter string) []*Cookie {
 			if !success {
 				continue
 			}
-			cookies = append(cookies, &Cookie{Name: name, Value: val})
+			cookies = append(cookies, &http.Cookie{Name: name, Value: val})
 			parsedPairs++
 		}
 	}

@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/url"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -54,7 +55,7 @@ type Client struct {
 	// Jar specifies the cookie jar.
 	// If Jar is nil, cookies are not sent in requests and ignored
 	// in responses.
-	Jar CookieJar
+	Jar http.CookieJar
 
 	// Timeout specifies a time limit for requests made by this
 	// Client. The timeout includes connection time, any
@@ -177,7 +178,7 @@ func send(req *Request, t RoundTripper) (resp *Response, err error) {
 	// Headers, leaving it uninitialized.  We guarantee to the
 	// Transport that this has been initialized, though.
 	if req.Header == nil {
-		req.Header = make(Header)
+		req.Header = make(http.Header)
 	}
 
 	if u := req.URL.User; u != nil {
@@ -308,7 +309,7 @@ func (c *Client) doFollowingRedirects(ireq *Request, shouldRedirect func(int) bo
 			if ireq.Method == "POST" || ireq.Method == "PUT" {
 				nreq.Method = "GET"
 			}
-			nreq.Header = make(Header)
+			nreq.Header = make(http.Header)
 			nreq.URL, err = base.Parse(urlStr)
 			if err != nil {
 				break

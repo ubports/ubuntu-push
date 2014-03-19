@@ -1,0 +1,739 @@
+=== modified file 'http13client/client.go'
+--- http13client/client.go	2014-03-19 20:20:19 +0000
++++ http13client/client.go	2014-03-19 22:27:37 +0000
+@@ -17,6 +17,7 @@
+ 	"io/ioutil"
+ 	"log"
+ 	"net/url"
++	"net/http"
+ 	"strings"
+ 	"sync"
+ 	"time"
+@@ -54,7 +55,7 @@
+ 	// Jar specifies the cookie jar.
+ 	// If Jar is nil, cookies are not sent in requests and ignored
+ 	// in responses.
+-	Jar CookieJar
++	Jar http.CookieJar
+ 
+ 	// Timeout specifies a time limit for requests made by this
+ 	// Client. The timeout includes connection time, any
+@@ -177,7 +178,7 @@
+ 	// Headers, leaving it uninitialized.  We guarantee to the
+ 	// Transport that this has been initialized, though.
+ 	if req.Header == nil {
+-		req.Header = make(Header)
++		req.Header = make(http.Header)
+ 	}
+ 
+ 	if u := req.URL.User; u != nil {
+@@ -308,7 +309,7 @@
+ 			if ireq.Method == "POST" || ireq.Method == "PUT" {
+ 				nreq.Method = "GET"
+ 			}
+-			nreq.Header = make(Header)
++			nreq.Header = make(http.Header)
+ 			nreq.URL, err = base.Parse(urlStr)
+ 			if err != nil {
+ 				break
+
+=== modified file 'http13client/cookie.go'
+--- http13client/cookie.go	2014-03-19 20:20:19 +0000
++++ http13client/cookie.go	2014-03-19 22:27:37 +0000
+@@ -5,10 +5,9 @@
+ package http
+ 
+ import (
+-	"bytes"
+-	"fmt"
+ 	"log"
+ 	"net"
++	"net/http"
+ 	"strconv"
+ 	"strings"
+ 	"time"
+@@ -18,30 +17,10 @@
+ //
+ //    http://tools.ietf.org/html/rfc6265
+ 
+-// A Cookie represents an HTTP cookie as sent in the Set-Cookie header of an
+-// HTTP response or the Cookie header of an HTTP request.
+-type Cookie struct {
+-	Name       string
+-	Value      string
+-	Path       string
+-	Domain     string
+-	Expires    time.Time
+-	RawExpires string
+-
+-	// MaxAge=0 means no 'Max-Age' attribute specified.
+-	// MaxAge<0 means delete cookie now, equivalently 'Max-Age: 0'
+-	// MaxAge>0 means Max-Age attribute present and given in seconds
+-	MaxAge   int
+-	Secure   bool
+-	HttpOnly bool
+-	Raw      string
+-	Unparsed []string // Raw text of unparsed attribute-value pairs
+-}
+-
+ // readSetCookies parses all "Set-Cookie" values from
+ // the header h and returns the successfully parsed Cookies.
+-func readSetCookies(h Header) []*Cookie {
+-	cookies := []*Cookie{}
++func readSetCookies(h http.Header) []*http.Cookie {
++	cookies := []*http.Cookie{}
+ 	for _, line := range h["Set-Cookie"] {
+ 		parts := strings.Split(strings.TrimSpace(line), ";")
+ 		if len(parts) == 1 && parts[0] == "" {
+@@ -60,7 +39,7 @@
+ 		if !success {
+ 			continue
+ 		}
+-		c := &Cookie{
++		c := &http.Cookie{
+ 			Name:  name,
+ 			Value: value,
+ 			Raw:   line,
+@@ -129,59 +108,12 @@
+ 	return cookies
+ }
+ 
+-// SetCookie adds a Set-Cookie header to the provided ResponseWriter's headers.
+-func SetCookie(w ResponseWriter, cookie *Cookie) {
+-	w.Header().Add("Set-Cookie", cookie.String())
+-}
+-
+-// String returns the serialization of the cookie for use in a Cookie
+-// header (if only Name and Value are set) or a Set-Cookie response
+-// header (if other fields are set).
+-func (c *Cookie) String() string {
+-	var b bytes.Buffer
+-	fmt.Fprintf(&b, "%s=%s", sanitizeCookieName(c.Name), sanitizeCookieValue(c.Value))
+-	if len(c.Path) > 0 {
+-		fmt.Fprintf(&b, "; Path=%s", sanitizeCookiePath(c.Path))
+-	}
+-	if len(c.Domain) > 0 {
+-		if validCookieDomain(c.Domain) {
+-			// A c.Domain containing illegal characters is not
+-			// sanitized but simply dropped which turns the cookie
+-			// into a host-only cookie. A leading dot is okay
+-			// but won't be sent.
+-			d := c.Domain
+-			if d[0] == '.' {
+-				d = d[1:]
+-			}
+-			fmt.Fprintf(&b, "; Domain=%s", d)
+-		} else {
+-			log.Printf("net/http: invalid Cookie.Domain %q; dropping domain attribute",
+-				c.Domain)
+-		}
+-	}
+-	if c.Expires.Unix() > 0 {
+-		fmt.Fprintf(&b, "; Expires=%s", c.Expires.UTC().Format(time.RFC1123))
+-	}
+-	if c.MaxAge > 0 {
+-		fmt.Fprintf(&b, "; Max-Age=%d", c.MaxAge)
+-	} else if c.MaxAge < 0 {
+-		fmt.Fprintf(&b, "; Max-Age=0")
+-	}
+-	if c.HttpOnly {
+-		fmt.Fprintf(&b, "; HttpOnly")
+-	}
+-	if c.Secure {
+-		fmt.Fprintf(&b, "; Secure")
+-	}
+-	return b.String()
+-}
+-
+ // readCookies parses all "Cookie" values from the header h and
+ // returns the successfully parsed Cookies.
+ //
+ // if filter isn't empty, only cookies of that name are returned
+-func readCookies(h Header, filter string) []*Cookie {
+-	cookies := []*Cookie{}
++func readCookies(h http.Header, filter string) []*http.Cookie {
++	cookies := []*http.Cookie{}
+ 	lines, ok := h["Cookie"]
+ 	if !ok {
+ 		return cookies
+@@ -213,7 +145,7 @@
+ 			if !success {
+ 				continue
+ 			}
+-			cookies = append(cookies, &Cookie{Name: name, Value: val})
++			cookies = append(cookies, &http.Cookie{Name: name, Value: val})
+ 			parsedPairs++
+ 		}
+ 	}
+
+=== modified file 'http13client/header.go'
+--- http13client/header.go	2014-03-19 20:20:19 +0000
++++ http13client/header.go	2014-03-19 22:27:37 +0000
+@@ -5,176 +5,9 @@
+ package http
+ 
+ import (
+-	"io"
+-	"net/textproto"
+-	"sort"
+ 	"strings"
+-	"time"
+ )
+ 
+-var raceEnabled = false // set by race.go
+-
+-// A Header represents the key-value pairs in an HTTP header.
+-type Header map[string][]string
+-
+-// Add adds the key, value pair to the header.
+-// It appends to any existing values associated with key.
+-func (h Header) Add(key, value string) {
+-	textproto.MIMEHeader(h).Add(key, value)
+-}
+-
+-// Set sets the header entries associated with key to
+-// the single element value.  It replaces any existing
+-// values associated with key.
+-func (h Header) Set(key, value string) {
+-	textproto.MIMEHeader(h).Set(key, value)
+-}
+-
+-// Get gets the first value associated with the given key.
+-// If there are no values associated with the key, Get returns "".
+-// To access multiple values of a key, access the map directly
+-// with CanonicalHeaderKey.
+-func (h Header) Get(key string) string {
+-	return textproto.MIMEHeader(h).Get(key)
+-}
+-
+-// get is like Get, but key must already be in CanonicalHeaderKey form.
+-func (h Header) get(key string) string {
+-	if v := h[key]; len(v) > 0 {
+-		return v[0]
+-	}
+-	return ""
+-}
+-
+-// Del deletes the values associated with key.
+-func (h Header) Del(key string) {
+-	textproto.MIMEHeader(h).Del(key)
+-}
+-
+-// Write writes a header in wire format.
+-func (h Header) Write(w io.Writer) error {
+-	return h.WriteSubset(w, nil)
+-}
+-
+-func (h Header) clone() Header {
+-	h2 := make(Header, len(h))
+-	for k, vv := range h {
+-		vv2 := make([]string, len(vv))
+-		copy(vv2, vv)
+-		h2[k] = vv2
+-	}
+-	return h2
+-}
+-
+-var timeFormats = []string{
+-	TimeFormat,
+-	time.RFC850,
+-	time.ANSIC,
+-}
+-
+-// ParseTime parses a time header (such as the Date: header),
+-// trying each of the three formats allowed by HTTP/1.1:
+-// TimeFormat, time.RFC850, and time.ANSIC.
+-func ParseTime(text string) (t time.Time, err error) {
+-	for _, layout := range timeFormats {
+-		t, err = time.Parse(layout, text)
+-		if err == nil {
+-			return
+-		}
+-	}
+-	return
+-}
+-
+-var headerNewlineToSpace = strings.NewReplacer("\n", " ", "\r", " ")
+-
+-type writeStringer interface {
+-	WriteString(string) (int, error)
+-}
+-
+-// stringWriter implements WriteString on a Writer.
+-type stringWriter struct {
+-	w io.Writer
+-}
+-
+-func (w stringWriter) WriteString(s string) (n int, err error) {
+-	return w.w.Write([]byte(s))
+-}
+-
+-type keyValues struct {
+-	key    string
+-	values []string
+-}
+-
+-// A headerSorter implements sort.Interface by sorting a []keyValues
+-// by key. It's used as a pointer, so it can fit in a sort.Interface
+-// interface value without allocation.
+-type headerSorter struct {
+-	kvs []keyValues
+-}
+-
+-func (s *headerSorter) Len() int           { return len(s.kvs) }
+-func (s *headerSorter) Swap(i, j int)      { s.kvs[i], s.kvs[j] = s.kvs[j], s.kvs[i] }
+-func (s *headerSorter) Less(i, j int) bool { return s.kvs[i].key < s.kvs[j].key }
+-
+-// TODO: convert this to a sync.Cache (issue 4720)
+-var headerSorterCache = make(chan *headerSorter, 8)
+-
+-// sortedKeyValues returns h's keys sorted in the returned kvs
+-// slice. The headerSorter used to sort is also returned, for possible
+-// return to headerSorterCache.
+-func (h Header) sortedKeyValues(exclude map[string]bool) (kvs []keyValues, hs *headerSorter) {
+-	select {
+-	case hs = <-headerSorterCache:
+-	default:
+-		hs = new(headerSorter)
+-	}
+-	if cap(hs.kvs) < len(h) {
+-		hs.kvs = make([]keyValues, 0, len(h))
+-	}
+-	kvs = hs.kvs[:0]
+-	for k, vv := range h {
+-		if !exclude[k] {
+-			kvs = append(kvs, keyValues{k, vv})
+-		}
+-	}
+-	hs.kvs = kvs
+-	sort.Sort(hs)
+-	return kvs, hs
+-}
+-
+-// WriteSubset writes a header in wire format.
+-// If exclude is not nil, keys where exclude[key] == true are not written.
+-func (h Header) WriteSubset(w io.Writer, exclude map[string]bool) error {
+-	ws, ok := w.(writeStringer)
+-	if !ok {
+-		ws = stringWriter{w}
+-	}
+-	kvs, sorter := h.sortedKeyValues(exclude)
+-	for _, kv := range kvs {
+-		for _, v := range kv.values {
+-			v = headerNewlineToSpace.Replace(v)
+-			v = textproto.TrimString(v)
+-			for _, s := range []string{kv.key, ": ", v, "\r\n"} {
+-				if _, err := ws.WriteString(s); err != nil {
+-					return err
+-				}
+-			}
+-		}
+-	}
+-	select {
+-	case headerSorterCache <- sorter:
+-	default:
+-	}
+-	return nil
+-}
+-
+-// CanonicalHeaderKey returns the canonical format of the
+-// header key s.  The canonicalization converts the first
+-// letter and any letter following a hyphen to upper case;
+-// the rest are converted to lowercase.  For example, the
+-// canonical key for "accept-encoding" is "Accept-Encoding".
+-func CanonicalHeaderKey(s string) string { return textproto.CanonicalMIMEHeaderKey(s) }
+-
+ // hasToken reports whether token appears with v, ASCII
+ // case-insensitive, with space or comma boundaries.
+ // token must be all lowercase.
+
+=== modified file 'http13client/request.go'
+--- http13client/request.go	2014-03-19 20:20:19 +0000
++++ http13client/request.go	2014-03-19 22:27:37 +0000
+@@ -16,6 +16,7 @@
+ 	"io/ioutil"
+ 	"mime"
+ 	"mime/multipart"
++	"net/http"
+ 	"net/textproto"
+ 	"net/url"
+ 	"strconv"
+@@ -103,7 +104,7 @@
+ 	// The request parser implements this by canonicalizing the
+ 	// name, making the first character and any characters
+ 	// following a hyphen uppercase and the rest lowercase.
+-	Header Header
++	Header http.Header
+ 
+ 	// Body is the request's body.
+ 	//
+@@ -164,7 +165,7 @@
+ 	// For server requests, Trailer is only populated after Body has been
+ 	// closed or fully consumed.
+ 	// Trailer support is only partially complete.
+-	Trailer Header
++	Trailer http.Header
+ 
+ 	// RemoteAddr allows HTTP servers and other software to record
+ 	// the network address that sent the request, usually for
+@@ -204,7 +205,7 @@
+ }
+ 
+ // Cookies parses and returns the HTTP cookies sent with the request.
+-func (r *Request) Cookies() []*Cookie {
++func (r *Request) Cookies() []*http.Cookie {
+ 	return readCookies(r.Header, "")
+ }
+ 
+@@ -212,7 +213,7 @@
+ 
+ // Cookie returns the named cookie provided in the request or
+ // ErrNoCookie if not found.
+-func (r *Request) Cookie(name string) (*Cookie, error) {
++func (r *Request) Cookie(name string) (*http.Cookie, error) {
+ 	for _, c := range readCookies(r.Header, name) {
+ 		return c, nil
+ 	}
+@@ -223,7 +224,7 @@
+ // AddCookie does not attach more than one Cookie header field.  That
+ // means all cookies, if any, are written into the same line,
+ // separated by semicolon.
+-func (r *Request) AddCookie(c *Cookie) {
++func (r *Request) AddCookie(c *http.Cookie) {
+ 	s := fmt.Sprintf("%s=%s", sanitizeCookieName(c.Name), sanitizeCookieValue(c.Value))
+ 	if c := r.Header.Get("Cookie"); c != "" {
+ 		r.Header.Set("Cookie", c+"; "+s)
+@@ -326,7 +327,7 @@
+ }
+ 
+ // extraHeaders may be nil
+-func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header) error {
++func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders http.Header) error {
+ 	host := req.Host
+ 	if host == "" {
+ 		if req.URL == nil {
+@@ -456,7 +457,7 @@
+ 		Proto:      "HTTP/1.1",
+ 		ProtoMajor: 1,
+ 		ProtoMinor: 1,
+-		Header:     make(Header),
++		Header:     make(http.Header),
+ 		Body:       rc,
+ 		Host:       u.Host,
+ 	}
+@@ -571,7 +572,7 @@
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	req.Header = Header(mimeHeader)
++	req.Header = http.Header(mimeHeader)
+ 
+ 	// RFC2616: Must treat
+ 	//	GET /index.html HTTP/1.1
+@@ -582,7 +583,7 @@
+ 	// the same.  In the second case, any Host line is ignored.
+ 	req.Host = req.URL.Host
+ 	if req.Host == "" {
+-		req.Host = req.Header.get("Host")
++		req.Host = req.Header.Get("Host")
+ 	}
+ 	delete(req.Header, "Host")
+ 
+@@ -630,12 +631,12 @@
+ //
+ // MaxBytesReader prevents clients from accidentally or maliciously
+ // sending a large request and wasting server resources.
+-func MaxBytesReader(w ResponseWriter, r io.ReadCloser, n int64) io.ReadCloser {
++func MaxBytesReader(w http.ResponseWriter, r io.ReadCloser, n int64) io.ReadCloser {
+ 	return &maxBytesReader{w: w, r: r, n: n}
+ }
+ 
+ type maxBytesReader struct {
+-	w       ResponseWriter
++	w       http.ResponseWriter
+ 	r       io.ReadCloser // underlying reader
+ 	n       int64         // max bytes remaining
+ 	stopped bool
+@@ -645,9 +646,6 @@
+ 	if l.n <= 0 {
+ 		if !l.stopped {
+ 			l.stopped = true
+-			if res, ok := l.w.(*response); ok {
+-				res.requestTooLarge()
+-			}
+ 		}
+ 		return 0, errors.New("http: request body too large")
+ 	}
+@@ -852,16 +850,16 @@
+ }
+ 
+ func (r *Request) expectsContinue() bool {
+-	return hasToken(r.Header.get("Expect"), "100-continue")
++	return hasToken(r.Header.Get("Expect"), "100-continue")
+ }
+ 
+ func (r *Request) wantsHttp10KeepAlive() bool {
+ 	if r.ProtoMajor != 1 || r.ProtoMinor != 0 {
+ 		return false
+ 	}
+-	return hasToken(r.Header.get("Connection"), "keep-alive")
++	return hasToken(r.Header.Get("Connection"), "keep-alive")
+ }
+ 
+ func (r *Request) wantsClose() bool {
+-	return hasToken(r.Header.get("Connection"), "close")
++	return hasToken(r.Header.Get("Connection"), "close")
+ }
+
+=== modified file 'http13client/response.go'
+--- http13client/response.go	2014-03-19 20:20:19 +0000
++++ http13client/response.go	2014-03-19 22:27:37 +0000
+@@ -11,6 +11,7 @@
+ 	"crypto/tls"
+ 	"errors"
+ 	"io"
++	"net/http"
+ 	"net/textproto"
+ 	"net/url"
+ 	"strconv"
+@@ -40,7 +41,7 @@
+ 	// omitted from Header.
+ 	//
+ 	// Keys in the map are canonicalized (see CanonicalHeaderKey).
+-	Header Header
++	Header http.Header
+ 
+ 	// Body represents the response body.
+ 	//
+@@ -69,7 +70,7 @@
+ 
+ 	// Trailer maps trailer keys to values, in the same
+ 	// format as the header.
+-	Trailer Header
++	Trailer http.Header
+ 
+ 	// The Request that was sent to obtain this Response.
+ 	// Request's Body is nil (having already been consumed).
+@@ -84,7 +85,7 @@
+ }
+ 
+ // Cookies parses and returns the cookies set in the Set-Cookie headers.
+-func (r *Response) Cookies() []*Cookie {
++func (r *Response) Cookies() []*http.Cookie {
+ 	return readSetCookies(r.Header)
+ }
+ 
+@@ -153,7 +154,7 @@
+ 		}
+ 		return nil, err
+ 	}
+-	resp.Header = Header(mimeHeader)
++	resp.Header = http.Header(mimeHeader)
+ 
+ 	fixPragmaCacheControl(resp.Header)
+ 
+@@ -169,7 +170,7 @@
+ //	Pragma: no-cache
+ // like
+ //	Cache-Control: no-cache
+-func fixPragmaCacheControl(header Header) {
++func fixPragmaCacheControl(header http.Header) {
+ 	if hp, ok := header["Pragma"]; ok && len(hp) > 0 && hp[0] == "no-cache" {
+ 		if _, presentcc := header["Cache-Control"]; !presentcc {
+ 			header["Cache-Control"] = []string{"no-cache"}
+
+=== modified file 'http13client/transfer.go'
+--- http13client/transfer.go	2014-03-19 20:20:19 +0000
++++ http13client/transfer.go	2014-03-19 22:27:37 +0000
+@@ -11,6 +11,7 @@
+ 	"fmt"
+ 	"io"
+ 	"io/ioutil"
++	"net/http"
+ 	"net/textproto"
+ 	"strconv"
+ 	"strings"
+@@ -36,7 +37,7 @@
+ 	ContentLength    int64 // -1 means unknown, 0 means exactly none
+ 	Close            bool
+ 	TransferEncoding []string
+-	Trailer          Header
++	Trailer          http.Header
+ }
+ 
+ func newTransferWriter(r interface{}) (t *transferWriter, err error) {
+@@ -174,7 +175,7 @@
+ 		io.WriteString(w, "Trailer: ")
+ 		needComma := false
+ 		for k := range t.Trailer {
+-			k = CanonicalHeaderKey(k)
++			k = http.CanonicalHeaderKey(k)
+ 			switch k {
+ 			case "Transfer-Encoding", "Trailer", "Content-Length":
+ 				return &badStringError{"invalid Trailer key", k}
+@@ -237,7 +238,7 @@
+ 
+ type transferReader struct {
+ 	// Input
+-	Header        Header
++	Header        http.Header
+ 	StatusCode    int
+ 	RequestMethod string
+ 	ProtoMajor    int
+@@ -247,7 +248,7 @@
+ 	ContentLength    int64
+ 	TransferEncoding []string
+ 	Close            bool
+-	Trailer          Header
++	Trailer          http.Header
+ }
+ 
+ // bodyAllowedForStatus reports whether a given response status code
+@@ -308,7 +309,7 @@
+ 		return err
+ 	}
+ 	if isResponse && t.RequestMethod == "HEAD" {
+-		if n, err := parseContentLength(t.Header.get("Content-Length")); err != nil {
++		if n, err := parseContentLength(t.Header.Get("Content-Length")); err != nil {
+ 			return err
+ 		} else {
+ 			t.ContentLength = n
+@@ -386,7 +387,7 @@
+ func isIdentity(te []string) bool { return len(te) == 1 && te[0] == "identity" }
+ 
+ // Sanitize transfer encoding
+-func fixTransferEncoding(requestMethod string, header Header) ([]string, error) {
++func fixTransferEncoding(requestMethod string, header http.Header) ([]string, error) {
+ 	raw, present := header["Transfer-Encoding"]
+ 	if !present {
+ 		return nil, nil
+@@ -429,7 +430,7 @@
+ // Determine the expected body length, using RFC 2616 Section 4.4. This
+ // function is not a method, because ultimately it should be shared by
+ // ReadResponse and ReadRequest.
+-func fixLength(isResponse bool, status int, requestMethod string, header Header, te []string) (int64, error) {
++func fixLength(isResponse bool, status int, requestMethod string, header http.Header, te []string) (int64, error) {
+ 
+ 	// Logic based on response type or status
+ 	if noBodyExpected(requestMethod) {
+@@ -449,7 +450,7 @@
+ 	}
+ 
+ 	// Logic based on Content-Length
+-	cl := strings.TrimSpace(header.get("Content-Length"))
++	cl := strings.TrimSpace(header.Get("Content-Length"))
+ 	if cl != "" {
+ 		n, err := parseContentLength(cl)
+ 		if err != nil {
+@@ -475,18 +476,18 @@
+ // Determine whether to hang up after sending a request and body, or
+ // receiving a response and body
+ // 'header' is the request headers
+-func shouldClose(major, minor int, header Header) bool {
++func shouldClose(major, minor int, header http.Header) bool {
+ 	if major < 1 {
+ 		return true
+ 	} else if major == 1 && minor == 0 {
+-		if !strings.Contains(strings.ToLower(header.get("Connection")), "keep-alive") {
++		if !strings.Contains(strings.ToLower(header.Get("Connection")), "keep-alive") {
+ 			return true
+ 		}
+ 		return false
+ 	} else {
+ 		// TODO: Should split on commas, toss surrounding white space,
+ 		// and check each field.
+-		if strings.ToLower(header.get("Connection")) == "close" {
++		if strings.ToLower(header.Get("Connection")) == "close" {
+ 			header.Del("Connection")
+ 			return true
+ 		}
+@@ -495,17 +496,17 @@
+ }
+ 
+ // Parse the trailer header
+-func fixTrailer(header Header, te []string) (Header, error) {
+-	raw := header.get("Trailer")
++func fixTrailer(header http.Header, te []string) (http.Header, error) {
++	raw := header.Get("Trailer")
+ 	if raw == "" {
+ 		return nil, nil
+ 	}
+ 
+ 	header.Del("Trailer")
+-	trailer := make(Header)
++	trailer := make(http.Header)
+ 	keys := strings.Split(raw, ",")
+ 	for _, key := range keys {
+-		key = CanonicalHeaderKey(strings.TrimSpace(key))
++		key = http.CanonicalHeaderKey(strings.TrimSpace(key))
+ 		switch key {
+ 		case "Transfer-Encoding", "Trailer", "Content-Length":
+ 			return nil, &badStringError{"bad trailer key", key}
+@@ -642,9 +643,9 @@
+ 	}
+ 	switch rr := b.hdr.(type) {
+ 	case *Request:
+-		rr.Trailer = Header(hdr)
++		rr.Trailer = http.Header(hdr)
+ 	case *Response:
+-		rr.Trailer = Header(hdr)
++		rr.Trailer = http.Header(hdr)
+ 	}
+ 	return nil
+ }
+
+=== modified file 'http13client/transport.go'
+--- http13client/transport.go	2014-03-19 20:20:19 +0000
++++ http13client/transport.go	2014-03-19 22:27:37 +0000
+@@ -18,6 +18,7 @@
+ 	"io"
+ 	"log"
+ 	"net"
++	"net/http"
+ 	"net/url"
+ 	"os"
+ 	"strings"
+@@ -144,12 +145,12 @@
+ // optional extra headers to write.
+ type transportRequest struct {
+ 	*Request        // original request, not to be mutated
+-	extra    Header // extra headers to write, or nil
++	extra    http.Header // extra headers to write, or nil
+ }
+ 
+-func (tr *transportRequest) extraHeaders() Header {
++func (tr *transportRequest) extraHeaders() http.Header {
+ 	if tr.extra == nil {
+-		tr.extra = make(Header)
++		tr.extra = make(http.Header)
+ 	}
+ 	return tr.extra
+ }
+@@ -512,7 +513,7 @@
+ 	case cm.targetScheme == "http":
+ 		pconn.isProxy = true
+ 		if pa != "" {
+-			pconn.mutateHeaderFunc = func(h Header) {
++			pconn.mutateHeaderFunc = func(h http.Header) {
+ 				h.Set("Proxy-Authorization", pa)
+ 			}
+ 		}
+@@ -521,7 +522,7 @@
+ 			Method: "CONNECT",
+ 			URL:    &url.URL{Opaque: cm.targetAddr},
+ 			Host:   cm.targetAddr,
+-			Header: make(Header),
++			Header: make(http.Header),
+ 		}
+ 		if pa != "" {
+ 			connectReq.Header.Set("Proxy-Authorization", pa)
+@@ -735,7 +736,7 @@
+ 	// mutateHeaderFunc is an optional func to modify extra
+ 	// headers on each outbound request before it's written. (the
+ 	// original Request given to RoundTrip is not modified)
+-	mutateHeaderFunc func(Header)
++	mutateHeaderFunc func(http.Header)
+ }
+ 
+ func (pc *persistConn) isBroken() bool {
+

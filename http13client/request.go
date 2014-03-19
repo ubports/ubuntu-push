@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
+	"net/http"
 	"net/textproto"
 	"net/url"
 	"strconv"
@@ -103,7 +104,7 @@ type Request struct {
 	// The request parser implements this by canonicalizing the
 	// name, making the first character and any characters
 	// following a hyphen uppercase and the rest lowercase.
-	Header Header
+	Header http.Header
 
 	// Body is the request's body.
 	//
@@ -164,7 +165,7 @@ type Request struct {
 	// For server requests, Trailer is only populated after Body has been
 	// closed or fully consumed.
 	// Trailer support is only partially complete.
-	Trailer Header
+	Trailer http.Header
 
 	// RemoteAddr allows HTTP servers and other software to record
 	// the network address that sent the request, usually for
@@ -204,7 +205,7 @@ func (r *Request) UserAgent() string {
 }
 
 // Cookies parses and returns the HTTP cookies sent with the request.
-func (r *Request) Cookies() []*Cookie {
+func (r *Request) Cookies() []*http.Cookie {
 	return readCookies(r.Header, "")
 }
 
@@ -212,7 +213,7 @@ var ErrNoCookie = errors.New("http: named cookie not present")
 
 // Cookie returns the named cookie provided in the request or
 // ErrNoCookie if not found.
-func (r *Request) Cookie(name string) (*Cookie, error) {
+func (r *Request) Cookie(name string) (*http.Cookie, error) {
 	for _, c := range readCookies(r.Header, name) {
 		return c, nil
 	}
@@ -223,7 +224,7 @@ func (r *Request) Cookie(name string) (*Cookie, error) {
 // AddCookie does not attach more than one Cookie header field.  That
 // means all cookies, if any, are written into the same line,
 // separated by semicolon.
-func (r *Request) AddCookie(c *Cookie) {
+func (r *Request) AddCookie(c *http.Cookie) {
 	s := fmt.Sprintf("%s=%s", sanitizeCookieName(c.Name), sanitizeCookieValue(c.Value))
 	if c := r.Header.Get("Cookie"); c != "" {
 		r.Header.Set("Cookie", c+"; "+s)
@@ -326,7 +327,7 @@ func (r *Request) WriteProxy(w io.Writer) error {
 }
 
 // extraHeaders may be nil
-func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header) error {
+func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders http.Header) error {
 	host := req.Host
 	if host == "" {
 		if req.URL == nil {
@@ -456,7 +457,7 @@ func NewRequest(method, urlStr string, body io.Reader) (*Request, error) {
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
-		Header:     make(Header),
+		Header:     make(http.Header),
 		Body:       rc,
 		Host:       u.Host,
 	}
@@ -571,7 +572,7 @@ func ReadRequest(b *bufio.Reader) (req *Request, err error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header = Header(mimeHeader)
+	req.Header = http.Header(mimeHeader)
 
 	// RFC2616: Must treat
 	//	GET /index.html HTTP/1.1
@@ -582,7 +583,7 @@ func ReadRequest(b *bufio.Reader) (req *Request, err error) {
 	// the same.  In the second case, any Host line is ignored.
 	req.Host = req.URL.Host
 	if req.Host == "" {
-		req.Host = req.Header.get("Host")
+		req.Host = req.Header.Get("Host")
 	}
 	delete(req.Header, "Host")
 
@@ -630,12 +631,12 @@ func ReadRequest(b *bufio.Reader) (req *Request, err error) {
 //
 // MaxBytesReader prevents clients from accidentally or maliciously
 // sending a large request and wasting server resources.
-func MaxBytesReader(w ResponseWriter, r io.ReadCloser, n int64) io.ReadCloser {
+func MaxBytesReader(w http.ResponseWriter, r io.ReadCloser, n int64) io.ReadCloser {
 	return &maxBytesReader{w: w, r: r, n: n}
 }
 
 type maxBytesReader struct {
-	w       ResponseWriter
+	w       http.ResponseWriter
 	r       io.ReadCloser // underlying reader
 	n       int64         // max bytes remaining
 	stopped bool
@@ -645,9 +646,6 @@ func (l *maxBytesReader) Read(p []byte) (n int, err error) {
 	if l.n <= 0 {
 		if !l.stopped {
 			l.stopped = true
-			if res, ok := l.w.(*response); ok {
-				res.requestTooLarge()
-			}
 		}
 		return 0, errors.New("http: request body too large")
 	}
@@ -852,16 +850,16 @@ func (r *Request) FormFile(key string) (multipart.File, *multipart.FileHeader, e
 }
 
 func (r *Request) expectsContinue() bool {
-	return hasToken(r.Header.get("Expect"), "100-continue")
+	return hasToken(r.Header.Get("Expect"), "100-continue")
 }
 
 func (r *Request) wantsHttp10KeepAlive() bool {
 	if r.ProtoMajor != 1 || r.ProtoMinor != 0 {
 		return false
 	}
-	return hasToken(r.Header.get("Connection"), "keep-alive")
+	return hasToken(r.Header.Get("Connection"), "keep-alive")
 }
 
 func (r *Request) wantsClose() bool {
-	return hasToken(r.Header.get("Connection"), "close")
+	return hasToken(r.Header.Get("Connection"), "close")
 }

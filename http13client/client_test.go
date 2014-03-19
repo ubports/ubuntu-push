@@ -15,8 +15,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
+	"net/http"
 	. "launchpad.net/ubuntu-push/http13client"
 	"net/http/httptest"
 	"net/url"
@@ -27,7 +27,7 @@ import (
 	"time"
 )
 
-var robotsTxtHandler = HandlerFunc(func(w ResponseWriter, r *Request) {
+var robotsTxtHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Last-Modified", "sometime")
 	fmt.Fprintf(w, "User-agent: go\nDisallow: /something/")
 })
@@ -193,7 +193,7 @@ func TestPostFormRequestFormat(t *testing.T) {
 func TestClientRedirects(t *testing.T) {
 	defer afterTest(t)
 	var ts *httptest.Server
-	ts = httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n, _ := strconv.Atoi(r.FormValue("n"))
 		// Test Referer header. (7 is arbitrary position to test at)
 		if n == 7 {
@@ -202,7 +202,7 @@ func TestClientRedirects(t *testing.T) {
 			}
 		}
 		if n < 15 {
-			Redirect(w, r, fmt.Sprintf("/?n=%d", n+1), StatusFound)
+			http.Redirect(w, r, fmt.Sprintf("/?n=%d", n+1), StatusFound)
 			return
 		}
 		fmt.Fprintf(w, "n=%d", n)
@@ -271,7 +271,7 @@ func TestPostRedirects(t *testing.T) {
 		bytes.Buffer
 	}
 	var ts *httptest.Server
-	ts = httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Lock()
 		fmt.Fprintf(&log.Buffer, "%s %s ", r.Method, r.RequestURI)
 		log.Unlock()
@@ -312,21 +312,21 @@ func TestPostRedirects(t *testing.T) {
 	}
 }
 
-var expectedCookies = []*Cookie{
+var expectedCookies = []*http.Cookie{
 	{Name: "ChocolateChip", Value: "tasty"},
 	{Name: "First", Value: "Hit"},
 	{Name: "Second", Value: "Hit"},
 }
 
-var echoCookiesRedirectHandler = HandlerFunc(func(w ResponseWriter, r *Request) {
+var echoCookiesRedirectHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	for _, cookie := range r.Cookies() {
-		SetCookie(w, cookie)
+		http.SetCookie(w, cookie)
 	}
 	if r.URL.Path == "/" {
-		SetCookie(w, expectedCookies[1])
-		Redirect(w, r, "/second", StatusMovedPermanently)
+		http.SetCookie(w, expectedCookies[1])
+		http.Redirect(w, r, "/second", StatusMovedPermanently)
 	} else {
-		SetCookie(w, expectedCookies[2])
+		http.SetCookie(w, expectedCookies[2])
 		w.Write([]byte("hello"))
 	}
 })
@@ -334,7 +334,7 @@ var echoCookiesRedirectHandler = HandlerFunc(func(w ResponseWriter, r *Request) 
 func TestClientSendsCookieFromJar(t *testing.T) {
 	tr := &recordingTransport{}
 	client := &Client{Transport: tr}
-	client.Jar = &TestJar{perURL: make(map[string][]*Cookie)}
+	client.Jar = &TestJar{perURL: make(map[string][]*http.Cookie)}
 	us := "http://dummy.faketld/"
 	u, _ := url.Parse(us)
 	client.Jar.SetCookies(u, expectedCookies)
@@ -364,19 +364,19 @@ func TestClientSendsCookieFromJar(t *testing.T) {
 // scope of all cookies.
 type TestJar struct {
 	m      sync.Mutex
-	perURL map[string][]*Cookie
+	perURL map[string][]*http.Cookie
 }
 
-func (j *TestJar) SetCookies(u *url.URL, cookies []*Cookie) {
+func (j *TestJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 	j.m.Lock()
 	defer j.m.Unlock()
 	if j.perURL == nil {
-		j.perURL = make(map[string][]*Cookie)
+		j.perURL = make(map[string][]*http.Cookie)
 	}
 	j.perURL[u.Host] = cookies
 }
 
-func (j *TestJar) Cookies(u *url.URL) []*Cookie {
+func (j *TestJar) Cookies(u *url.URL) []*http.Cookie {
 	j.m.Lock()
 	defer j.m.Unlock()
 	return j.perURL[u.Host]
@@ -391,7 +391,7 @@ func TestRedirectCookiesJar(t *testing.T) {
 		Jar: new(TestJar),
 	}
 	u, _ := url.Parse(ts.URL)
-	c.Jar.SetCookies(u, []*Cookie{expectedCookies[0]})
+	c.Jar.SetCookies(u, []*http.Cookie{expectedCookies[0]})
 	resp, err := c.Get(ts.URL)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
@@ -400,7 +400,7 @@ func TestRedirectCookiesJar(t *testing.T) {
 	matchReturnedCookies(t, expectedCookies, resp.Cookies())
 }
 
-func matchReturnedCookies(t *testing.T, expected, given []*Cookie) {
+func matchReturnedCookies(t *testing.T, expected, given []*http.Cookie) {
 	if len(given) != len(expected) {
 		t.Logf("Received cookies: %v", given)
 		t.Errorf("Expected %d cookies, got %d", len(expected), len(given))
@@ -421,14 +421,14 @@ func matchReturnedCookies(t *testing.T, expected, given []*Cookie) {
 
 func TestJarCalls(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pathSuffix := r.RequestURI[1:]
 		if r.RequestURI == "/nosetcookie" {
 			return // dont set cookies for this path
 		}
-		SetCookie(w, &Cookie{Name: "name" + pathSuffix, Value: "val" + pathSuffix})
+		http.SetCookie(w, &http.Cookie{Name: "name" + pathSuffix, Value: "val" + pathSuffix})
 		if r.RequestURI == "/" {
-			Redirect(w, r, "http://secondhost.fake/secondpath", 302)
+			http.Redirect(w, r, "http://secondhost.fake/secondpath", 302)
 		}
 	}))
 	defer ts.Close()
@@ -468,11 +468,11 @@ type RecordingJar struct {
 	log bytes.Buffer
 }
 
-func (j *RecordingJar) SetCookies(u *url.URL, cookies []*Cookie) {
+func (j *RecordingJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 	j.logf("SetCookie(%q, %v)\n", u, cookies)
 }
 
-func (j *RecordingJar) Cookies(u *url.URL) []*Cookie {
+func (j *RecordingJar) Cookies(u *url.URL) []*http.Cookie {
 	j.logf("Cookies(%q)\n", u)
 	return nil
 }
@@ -486,11 +486,11 @@ func (j *RecordingJar) logf(format string, args ...interface{}) {
 func TestStreamingGet(t *testing.T) {
 	defer afterTest(t)
 	say := make(chan string)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
-		w.(Flusher).Flush()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.(http.Flusher).Flush()
 		for str := range say {
 			w.Write([]byte(str))
-			w.(Flusher).Flush()
+			w.(http.Flusher).Flush()
 		}
 	}))
 	defer ts.Close()
@@ -536,7 +536,7 @@ func (c *writeCountingConn) Write(p []byte) (int, error) {
 // don't send a TCP packet per line of the http request + body.
 func TestClientWrites(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	}))
 	defer ts.Close()
 
@@ -566,46 +566,6 @@ func TestClientWrites(t *testing.T) {
 	if writes != 1 {
 		t.Errorf("Post request did %d Write calls, want 1", writes)
 	}
-}
-
-func TestClientInsecureTransport(t *testing.T) {
-	defer afterTest(t)
-	ts := httptest.NewTLSServer(HandlerFunc(func(w ResponseWriter, r *Request) {
-		w.Write([]byte("Hello"))
-	}))
-	errc := make(chanWriter, 10) // but only expecting 1
-	ts.Config.ErrorLog = log.New(errc, "", 0)
-	defer ts.Close()
-
-	// TODO(bradfitz): add tests for skipping hostname checks too?
-	// would require a new cert for testing, and probably
-	// redundant with these tests.
-	for _, insecure := range []bool{true, false} {
-		tr := &Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: insecure,
-			},
-		}
-		defer tr.CloseIdleConnections()
-		c := &Client{Transport: tr}
-		res, err := c.Get(ts.URL)
-		if (err == nil) != insecure {
-			t.Errorf("insecure=%v: got unexpected err=%v", insecure, err)
-		}
-		if res != nil {
-			res.Body.Close()
-		}
-	}
-
-	select {
-	case v := <-errc:
-		if !strings.Contains(v, "TLS handshake error") {
-			t.Errorf("expected an error log message containing 'TLS handshake error'; got %q", v)
-		}
-	case <-time.After(5 * time.Second):
-		t.Errorf("timeout waiting for logged error")
-	}
-
 }
 
 func TestClientErrorWithRequestURI(t *testing.T) {
@@ -639,7 +599,7 @@ func newTLSTransport(t *testing.T, ts *httptest.Server) *Transport {
 
 func TestClientWithCorrectTLSServerName(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewTLSServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS.ServerName != "127.0.0.1" {
 			t.Errorf("expected client to set ServerName 127.0.0.1, got: %q", r.TLS.ServerName)
 		}
@@ -649,33 +609,6 @@ func TestClientWithCorrectTLSServerName(t *testing.T) {
 	c := &Client{Transport: newTLSTransport(t, ts)}
 	if _, err := c.Get(ts.URL); err != nil {
 		t.Fatalf("expected successful TLS connection, got error: %v", err)
-	}
-}
-
-func TestClientWithIncorrectTLSServerName(t *testing.T) {
-	defer afterTest(t)
-	ts := httptest.NewTLSServer(HandlerFunc(func(w ResponseWriter, r *Request) {}))
-	defer ts.Close()
-	errc := make(chanWriter, 10) // but only expecting 1
-	ts.Config.ErrorLog = log.New(errc, "", 0)
-
-	trans := newTLSTransport(t, ts)
-	trans.TLSClientConfig.ServerName = "badserver"
-	c := &Client{Transport: trans}
-	_, err := c.Get(ts.URL)
-	if err == nil {
-		t.Fatalf("expected an error")
-	}
-	if !strings.Contains(err.Error(), "127.0.0.1") || !strings.Contains(err.Error(), "badserver") {
-		t.Errorf("wanted error mentioning 127.0.0.1 and badserver; got error: %v", err)
-	}
-	select {
-	case v := <-errc:
-		if !strings.Contains(v, "TLS handshake error") {
-			t.Errorf("expected an error log message containing 'TLS handshake error'; got %q", v)
-		}
-	case <-time.After(5 * time.Second):
-		t.Errorf("timeout waiting for logged error")
 	}
 }
 
@@ -690,7 +623,7 @@ func TestClientWithIncorrectTLSServerName(t *testing.T) {
 // The httptest.Server has a cert with "example.com" as its name.
 func TestTransportUsesTLSConfigServerName(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewTLSServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello"))
 	}))
 	defer ts.Close()
@@ -711,7 +644,7 @@ func TestTransportUsesTLSConfigServerName(t *testing.T) {
 
 func TestResponseSetsTLSConnectionState(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewTLSServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello"))
 	}))
 	defer ts.Close()
@@ -739,7 +672,7 @@ func TestResponseSetsTLSConnectionState(t *testing.T) {
 // Verify Response.ContentLength is populated. http://golang.org/issue/4126
 func TestClientHeadContentLength(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if v := r.FormValue("cl"); v != "" {
 			w.Header().Set("Content-Length", v)
 		}
@@ -775,7 +708,7 @@ func TestClientHeadContentLength(t *testing.T) {
 func TestEmptyPasswordAuth(t *testing.T) {
 	defer afterTest(t)
 	gopher := "gopher"
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		if strings.HasPrefix(auth, "Basic ") {
 			encoded := auth[6:]
@@ -847,15 +780,15 @@ func TestClientTimeout(t *testing.T) {
 	defer afterTest(t)
 	sawRoot := make(chan bool, 1)
 	sawSlow := make(chan bool, 1)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			sawRoot <- true
-			Redirect(w, r, "/slow", StatusFound)
+			http.Redirect(w, r, "/slow", StatusFound)
 			return
 		}
 		if r.URL.Path == "/slow" {
 			w.Write([]byte("Hello"))
-			w.(Flusher).Flush()
+			w.(http.Flusher).Flush()
 			sawSlow <- true
 			time.Sleep(2 * time.Second)
 			return
@@ -908,10 +841,10 @@ func TestClientTimeout(t *testing.T) {
 func TestClientRedirectEatsBody(t *testing.T) {
 	defer afterTest(t)
 	saw := make(chan string, 2)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		saw <- r.RemoteAddr
 		if r.URL.Path == "/" {
-			Redirect(w, r, "/foo", StatusFound) // which includes a body
+			http.Redirect(w, r, "/foo", StatusFound) // which includes a body
 		}
 	}))
 	defer ts.Close()

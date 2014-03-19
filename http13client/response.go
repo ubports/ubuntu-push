@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"io"
+	"net/http"
 	"net/textproto"
 	"net/url"
 	"strconv"
@@ -40,7 +41,7 @@ type Response struct {
 	// omitted from Header.
 	//
 	// Keys in the map are canonicalized (see CanonicalHeaderKey).
-	Header Header
+	Header http.Header
 
 	// Body represents the response body.
 	//
@@ -69,7 +70,7 @@ type Response struct {
 
 	// Trailer maps trailer keys to values, in the same
 	// format as the header.
-	Trailer Header
+	Trailer http.Header
 
 	// The Request that was sent to obtain this Response.
 	// Request's Body is nil (having already been consumed).
@@ -84,7 +85,7 @@ type Response struct {
 }
 
 // Cookies parses and returns the cookies set in the Set-Cookie headers.
-func (r *Response) Cookies() []*Cookie {
+func (r *Response) Cookies() []*http.Cookie {
 	return readSetCookies(r.Header)
 }
 
@@ -153,7 +154,7 @@ func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {
 		}
 		return nil, err
 	}
-	resp.Header = Header(mimeHeader)
+	resp.Header = http.Header(mimeHeader)
 
 	fixPragmaCacheControl(resp.Header)
 
@@ -169,7 +170,7 @@ func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {
 //	Pragma: no-cache
 // like
 //	Cache-Control: no-cache
-func fixPragmaCacheControl(header Header) {
+func fixPragmaCacheControl(header http.Header) {
 	if hp, ok := header["Pragma"]; ok && len(hp) > 0 && hp[0] == "no-cache" {
 		if _, presentcc := header["Cache-Control"]; !presentcc {
 			header["Cache-Control"] = []string{"no-cache"}

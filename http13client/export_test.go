@@ -9,14 +9,11 @@ package http
 
 import (
 	"net"
-	"time"
 )
 
 func NewLoggingConn(baseName string, c net.Conn) net.Conn {
 	return newLoggingConn(baseName, c)
 }
-
-var ExportAppendTime = appendTime
 
 func (t *Transport) NumPendingRequestsForTesting() int {
 	t.reqMu.Lock()
@@ -55,13 +52,6 @@ func (t *Transport) IdleConnChMapSizeForTesting() int {
 	t.idleMu.Lock()
 	defer t.idleMu.Unlock()
 	return len(t.idleConnCh)
-}
-
-func NewTestTimeoutHandler(handler Handler, ch <-chan time.Time) Handler {
-	f := func() <-chan time.Time {
-		return ch
-	}
-	return &timeoutHandler{handler, f, ""}
 }
 
 func ResetCachedEnvironment() {

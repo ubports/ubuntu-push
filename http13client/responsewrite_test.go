@@ -7,6 +7,7 @@ package http
 import (
 	"bytes"
 	"io/ioutil"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -25,7 +26,7 @@ func TestResponseWrite(t *testing.T) {
 				ProtoMajor:    1,
 				ProtoMinor:    0,
 				Request:       dummyReq("GET"),
-				Header:        Header{},
+				Header:        http.Header{},
 				Body:          ioutil.NopCloser(bytes.NewBufferString("abcdef")),
 				ContentLength: 6,
 			},
@@ -41,7 +42,7 @@ func TestResponseWrite(t *testing.T) {
 				ProtoMajor:    1,
 				ProtoMinor:    0,
 				Request:       dummyReq("GET"),
-				Header:        Header{},
+				Header:        http.Header{},
 				Body:          ioutil.NopCloser(strings.NewReader("abcdef")),
 				ContentLength: -1,
 			},
@@ -56,7 +57,7 @@ func TestResponseWrite(t *testing.T) {
 				ProtoMajor:       1,
 				ProtoMinor:       1,
 				Request:          dummyReq("GET"),
-				Header:           Header{},
+				Header:           http.Header{},
 				Body:             ioutil.NopCloser(strings.NewReader("abcdef")),
 				ContentLength:    6,
 				TransferEncoding: []string{"chunked"},
@@ -77,7 +78,7 @@ func TestResponseWrite(t *testing.T) {
 				ProtoMajor: 1,
 				ProtoMinor: 1,
 				Request:    dummyReq("GET"),
-				Header: Header{
+				Header: http.Header{
 					"Foo": []string{" Bar\nBaz "},
 				},
 				Body:             nil,

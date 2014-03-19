@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"reflect"
 	"regexp"
@@ -44,7 +45,7 @@ var respTests = []respTest{
 			ProtoMajor: 1,
 			ProtoMinor: 0,
 			Request:    dummyReq("GET"),
-			Header: Header{
+			Header: http.Header{
 				"Connection": {"close"}, // TODO(rsc): Delete?
 			},
 			Close:         true,
@@ -67,7 +68,7 @@ var respTests = []respTest{
 			Proto:         "HTTP/1.1",
 			ProtoMajor:    1,
 			ProtoMinor:    1,
-			Header:        Header{},
+			Header:        http.Header{},
 			Request:       dummyReq("GET"),
 			Close:         true,
 			ContentLength: -1,
@@ -88,7 +89,7 @@ var respTests = []respTest{
 			Proto:         "HTTP/1.1",
 			ProtoMajor:    1,
 			ProtoMinor:    1,
-			Header:        Header{},
+			Header:        http.Header{},
 			Request:       dummyReq("GET"),
 			Close:         false,
 			ContentLength: 0,
@@ -112,7 +113,7 @@ var respTests = []respTest{
 			ProtoMajor: 1,
 			ProtoMinor: 0,
 			Request:    dummyReq("GET"),
-			Header: Header{
+			Header: http.Header{
 				"Connection":     {"close"},
 				"Content-Length": {"10"},
 			},
@@ -142,7 +143,7 @@ var respTests = []respTest{
 			ProtoMajor:       1,
 			ProtoMinor:       1,
 			Request:          dummyReq("GET"),
-			Header:           Header{},
+			Header:           http.Header{},
 			Close:            false,
 			ContentLength:    -1,
 			TransferEncoding: []string{"chunked"},
@@ -169,7 +170,7 @@ var respTests = []respTest{
 			ProtoMajor:       1,
 			ProtoMinor:       1,
 			Request:          dummyReq("GET"),
-			Header:           Header{},
+			Header:           http.Header{},
 			Close:            false,
 			ContentLength:    -1,
 			TransferEncoding: []string{"chunked"},
@@ -191,7 +192,7 @@ var respTests = []respTest{
 			ProtoMajor:       1,
 			ProtoMinor:       1,
 			Request:          dummyReq("HEAD"),
-			Header:           Header{},
+			Header:           http.Header{},
 			TransferEncoding: []string{"chunked"},
 			Close:            false,
 			ContentLength:    -1,
@@ -213,7 +214,7 @@ var respTests = []respTest{
 			ProtoMajor:       1,
 			ProtoMinor:       0,
 			Request:          dummyReq("HEAD"),
-			Header:           Header{"Content-Length": {"256"}},
+			Header:           http.Header{"Content-Length": {"256"}},
 			TransferEncoding: nil,
 			Close:            true,
 			ContentLength:    256,
@@ -235,7 +236,7 @@ var respTests = []respTest{
 			ProtoMajor:       1,
 			ProtoMinor:       1,
 			Request:          dummyReq("HEAD"),
-			Header:           Header{"Content-Length": {"256"}},
+			Header:           http.Header{"Content-Length": {"256"}},
 			TransferEncoding: nil,
 			Close:            false,
 			ContentLength:    256,
@@ -256,7 +257,7 @@ var respTests = []respTest{
 			ProtoMajor:       1,
 			ProtoMinor:       0,
 			Request:          dummyReq("HEAD"),
-			Header:           Header{},
+			Header:           http.Header{},
 			TransferEncoding: nil,
 			Close:            true,
 			ContentLength:    -1,
@@ -278,7 +279,7 @@ var respTests = []respTest{
 			ProtoMajor: 1,
 			ProtoMinor: 1,
 			Request:    dummyReq("GET"),
-			Header: Header{
+			Header: http.Header{
 				"Content-Length": {"0"},
 			},
 			Close:         false,
@@ -299,7 +300,7 @@ var respTests = []respTest{
 			ProtoMajor:    1,
 			ProtoMinor:    0,
 			Request:       dummyReq("GET"),
-			Header:        Header{},
+			Header:        http.Header{},
 			Close:         true,
 			ContentLength: -1,
 		},
@@ -318,7 +319,7 @@ var respTests = []respTest{
 			ProtoMajor:    1,
 			ProtoMinor:    0,
 			Request:       dummyReq("GET"),
-			Header:        Header{},
+			Header:        http.Header{},
 			Close:         true,
 			ContentLength: -1,
 		},
@@ -340,7 +341,7 @@ some body`,
 			ProtoMajor: 1,
 			ProtoMinor: 1,
 			Request:    dummyReq("GET"),
-			Header: Header{
+			Header: http.Header{
 				"Content-Type": []string{"multipart/byteranges; boundary=18a75608c8f47cef"},
 			},
 			Close:         true,
@@ -363,7 +364,7 @@ some body`,
 			Proto:      "HTTP/1.0",
 			ProtoMajor: 1,
 			ProtoMinor: 0,
-			Header: Header{
+			Header: http.Header{
 				"Connection": {"close"}, // TODO(rsc): Delete?
 			},
 			Close:         true,
@@ -545,7 +546,7 @@ var responseLocationTests = []responseLocationTest{
 func TestLocationResponse(t *testing.T) {
 	for i, tt := range responseLocationTests {
 		res := new(Response)
-		res.Header = make(Header)
+		res.Header = make(http.Header)
 		res.Header.Set("Location", tt.location)
 		if tt.requrl != "" {
 			res.Request = &Request{}
@@ -624,18 +625,5 @@ func TestReadResponseUnexpectedEOF(t *testing.T) {
 	_, err := ReadResponse(br, nil)
 	if err != io.ErrUnexpectedEOF {
 		t.Errorf("ReadResponse = %v; want io.ErrUnexpectedEOF", err)
-	}
-}
-
-func TestNeedsSniff(t *testing.T) {
-	// needsSniff returns true with an empty response.
-	r := &response{}
-	if got, want := r.needsSniff(), true; got != want {
-		t.Errorf("needsSniff = %t; want %t", got, want)
-	}
-	// needsSniff returns false when Content-Type = nil.
-	r.handlerHeader = Header{"Content-Type": nil}
-	if got, want := r.needsSniff(), false; got != want {
-		t.Errorf("needsSniff empty Content-Type = %t; want %t", got, want)
 	}
 }

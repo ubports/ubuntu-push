@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"reflect"
 	"testing"
@@ -18,13 +19,13 @@ type reqTest struct {
 	Raw     string
 	Req     *Request
 	Body    string
-	Trailer Header
+	Trailer http.Header
 	Error   string
 }
 
 var noError = ""
 var noBody = ""
-var noTrailer Header = nil
+var noTrailer http.Header = nil
 
 var reqTests = []reqTest{
 	// Baseline test; All Request fields included for template use
@@ -51,7 +52,7 @@ var reqTests = []reqTest{
 			Proto:      "HTTP/1.1",
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Header: Header{
+			Header: http.Header{
 				"Accept":           {"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
 				"Accept-Language":  {"en-us,en;q=0.5"},
 				"Accept-Encoding":  {"gzip,deflate"},
@@ -86,7 +87,7 @@ var reqTests = []reqTest{
 			Proto:         "HTTP/1.1",
 			ProtoMajor:    1,
 			ProtoMinor:    1,
-			Header:        Header{},
+			Header:        http.Header{},
 			Close:         false,
 			ContentLength: 0,
 			Host:          "foo.com",
@@ -112,7 +113,7 @@ var reqTests = []reqTest{
 			Proto:         "HTTP/1.1",
 			ProtoMajor:    1,
 			ProtoMinor:    1,
-			Header:        Header{},
+			Header:        http.Header{},
 			Close:         false,
 			ContentLength: 0,
 			Host:          "test",
@@ -163,14 +164,14 @@ var reqTests = []reqTest{
 			Proto:            "HTTP/1.1",
 			ProtoMajor:       1,
 			ProtoMinor:       1,
-			Header:           Header{},
+			Header:           http.Header{},
 			ContentLength:    -1,
 			Host:             "foo.com",
 			RequestURI:       "/",
 		},
 
 		"foobar",
-		Header{
+		http.Header{
 			"Trailer-Key": {"Trailer-Value"},
 		},
 		noError,
@@ -188,7 +189,7 @@ var reqTests = []reqTest{
 			Proto:         "HTTP/1.1",
 			ProtoMajor:    1,
 			ProtoMinor:    1,
-			Header:        Header{},
+			Header:        http.Header{},
 			Close:         false,
 			ContentLength: 0,
 			Host:          "www.google.com:443",
@@ -212,7 +213,7 @@ var reqTests = []reqTest{
 			Proto:         "HTTP/1.1",
 			ProtoMajor:    1,
 			ProtoMinor:    1,
-			Header:        Header{},
+			Header:        http.Header{},
 			Close:         false,
 			ContentLength: 0,
 			Host:          "127.0.0.1:6060",
@@ -236,7 +237,7 @@ var reqTests = []reqTest{
 			Proto:         "HTTP/1.1",
 			ProtoMajor:    1,
 			ProtoMinor:    1,
-			Header:        Header{},
+			Header:        http.Header{},
 			Close:         false,
 			ContentLength: 0,
 			Host:          "",
@@ -259,7 +260,7 @@ var reqTests = []reqTest{
 			Proto:      "HTTP/1.1",
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Header: Header{
+			Header: http.Header{
 				"Server": []string{"foo"},
 			},
 			Close:         false,
@@ -283,7 +284,7 @@ var reqTests = []reqTest{
 			Proto:      "HTTP/1.1",
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Header: Header{
+			Header: http.Header{
 				"Server": []string{"foo"},
 			},
 			Close:         false,

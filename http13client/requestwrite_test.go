@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -39,7 +40,7 @@ var reqWriteTests = []reqWriteTest{
 			Proto:      "HTTP/1.1",
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Header: Header{
+			Header: http.Header{
 				"Accept":           {"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
 				"Accept-Charset":   {"ISO-8859-1,utf-8;q=0.7,*;q=0.7"},
 				"Accept-Encoding":  {"gzip,deflate"},
@@ -85,7 +86,7 @@ var reqWriteTests = []reqWriteTest{
 			},
 			ProtoMajor:       1,
 			ProtoMinor:       1,
-			Header:           Header{},
+			Header:           http.Header{},
 			TransferEncoding: []string{"chunked"},
 		},
 
@@ -114,7 +115,7 @@ var reqWriteTests = []reqWriteTest{
 			},
 			ProtoMajor:       1,
 			ProtoMinor:       1,
-			Header:           Header{},
+			Header:           http.Header{},
 			Close:            true,
 			TransferEncoding: []string{"chunked"},
 		},
@@ -147,7 +148,7 @@ var reqWriteTests = []reqWriteTest{
 			},
 			ProtoMajor:    1,
 			ProtoMinor:    1,
-			Header:        Header{},
+			Header:        http.Header{},
 			Close:         true,
 			ContentLength: 6,
 		},
@@ -177,7 +178,7 @@ var reqWriteTests = []reqWriteTest{
 			Method: "POST",
 			URL:    mustParseURL("http://example.com/"),
 			Host:   "example.com",
-			Header: Header{
+			Header: http.Header{
 				"Content-Length": []string{"10"}, // ignored
 			},
 			ContentLength: 6,
@@ -358,7 +359,7 @@ var reqWriteTests = []reqWriteTest{
 			URL:        mustParseURL("/foo"),
 			ProtoMajor: 1,
 			ProtoMinor: 0,
-			Header: Header{
+			Header: http.Header{
 				"X-Foo": []string{"X-Bar"},
 			},
 		},
@@ -384,7 +385,7 @@ var reqWriteTests = []reqWriteTest{
 			},
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Header: Header{
+			Header: http.Header{
 				"Host": []string{"bad.example.com"},
 			},
 		},
@@ -405,7 +406,7 @@ var reqWriteTests = []reqWriteTest{
 			},
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Header:     Header{},
+			Header:     http.Header{},
 		},
 
 		WantWrite: "GET /%2F/%2F/ HTTP/1.1\r\n" +
@@ -424,7 +425,7 @@ var reqWriteTests = []reqWriteTest{
 			},
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Header:     Header{},
+			Header:     http.Header{},
 		},
 
 		WantWrite: "GET http://y.google.com/%2F/%2F/ HTTP/1.1\r\n" +
@@ -444,7 +445,7 @@ var reqWriteTests = []reqWriteTest{
 			Proto:      "HTTP/1.1",
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Header: Header{
+			Header: http.Header{
 				"ALL-CAPS": {"x"},
 			},
 		},
@@ -474,7 +475,7 @@ func TestRequestWrite(t *testing.T) {
 		}
 		setBody()
 		if tt.Req.Header == nil {
-			tt.Req.Header = make(Header)
+			tt.Req.Header = make(http.Header)
 		}
 
 		var braw bytes.Buffer

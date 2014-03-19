@@ -17,8 +17,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
-	"launchpad.net/ubuntu-push/http13client"
 	. "launchpad.net/ubuntu-push/http13client"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -34,7 +34,7 @@ import (
 //       and then verify that the final 2 responses get errors back.
 
 // hostPortHandler writes back the client's "host:port".
-var hostPortHandler = HandlerFunc(func(w ResponseWriter, r *Request) {
+var hostPortHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("close") == "true" {
 		w.Header().Set("Connection", "close")
 	}
@@ -280,7 +280,7 @@ func TestTransportReadToEndReusesConn(t *testing.T) {
 	const msg = "foobar"
 
 	var addrSeen map[string]int
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		addrSeen[r.RemoteAddr]++
 		if r.URL.Path == "/chunked/" {
 			w.WriteHeader(200)
@@ -299,7 +299,7 @@ func TestTransportReadToEndReusesConn(t *testing.T) {
 		wantLen := []int{len(msg), -1}[pi]
 		addrSeen = make(map[string]int)
 		for i := 0; i < 3; i++ {
-			res, err := http.Get(ts.URL + path)
+			res, err := Get(ts.URL + path)
 			if err != nil {
 				t.Errorf("Get %s: %v", path, err)
 				continue
@@ -329,7 +329,7 @@ func TestTransportMaxPerHostIdleConns(t *testing.T) {
 	defer afterTest(t)
 	resch := make(chan string)
 	gotReq := make(chan bool)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotReq <- true
 		msg := <-resch
 		_, err := w.Write([]byte(msg))
@@ -457,12 +457,12 @@ func TestStressSurpriseServerCloses(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode")
 	}
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", "5")
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write([]byte("Hello"))
-		w.(Flusher).Flush()
-		conn, buf, _ := w.(Hijacker).Hijack()
+		w.(http.Flusher).Flush()
+		conn, buf, _ := w.(http.Hijacker).Hijack()
 		buf.Flush()
 		conn.Close()
 	}))
@@ -510,7 +510,7 @@ func TestStressSurpriseServerCloses(t *testing.T) {
 // with no bodies properly
 func TestTransportHeadResponses(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "HEAD" {
 			panic("expected HEAD; got " + r.Method)
 		}
@@ -545,7 +545,7 @@ func TestTransportHeadResponses(t *testing.T) {
 // on responses to HEAD requests.
 func TestTransportHeadChunkedResponse(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "HEAD" {
 			panic("expected HEAD; got " + r.Method)
 		}
@@ -588,7 +588,7 @@ var roundTripTests = []struct {
 func TestRoundTripGzip(t *testing.T) {
 	defer afterTest(t)
 	const responseBody = "test response body"
-	ts := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, req *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		accept := req.Header.Get("Accept-Encoding")
 		if expect := req.FormValue("expect_accept"); accept != expect {
 			t.Errorf("in handler, test %v: Accept-Encoding = %q, want %q",
@@ -647,7 +647,7 @@ func TestTransportGzip(t *testing.T) {
 	defer afterTest(t)
 	const testString = "The test string aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	const nRandBytes = 1024 * 1024
-	ts := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, req *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if req.Method == "HEAD" {
 			if g := req.Header.Get("Accept-Encoding"); g != "" {
 				t.Errorf("HEAD request sent with Accept-Encoding of %q; want none", g)
@@ -742,11 +742,11 @@ func TestTransportGzip(t *testing.T) {
 func TestTransportProxy(t *testing.T) {
 	defer afterTest(t)
 	ch := make(chan string, 1)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ch <- "real server"
 	}))
 	defer ts.Close()
-	proxy := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ch <- "proxy for " + r.URL.String()
 	}))
 	defer proxy.Close()
@@ -770,7 +770,7 @@ func TestTransportProxy(t *testing.T) {
 // Content-Encoding is removed.
 func TestTransportGzipRecursive(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Write(rgz)
 	}))
@@ -802,7 +802,7 @@ func TestTransportPersistConnLeak(t *testing.T) {
 	defer afterTest(t)
 	gotReqCh := make(chan bool)
 	unblockCh := make(chan bool)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotReqCh <- true
 		<-unblockCh
 		w.Header().Set("Content-Length", "0")
@@ -869,7 +869,7 @@ func TestTransportPersistConnLeakShortBody(t *testing.T) {
 		t.Skip("skipping test; see http://golang.org/issue/7237")
 	}
 	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	}))
 	defer ts.Close()
 
@@ -912,7 +912,7 @@ func TestTransportIdleConnCrash(t *testing.T) {
 	c := &Client{Transport: tr}
 
 	unblockCh := make(chan bool, 1)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-unblockCh
 		tr.CloseIdleConnections()
 	}))
@@ -939,7 +939,7 @@ func TestTransportIdleConnCrash(t *testing.T) {
 func TestIssue3644(t *testing.T) {
 	defer afterTest(t)
 	const numFoos = 5000
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Connection", "close")
 		for i := 0; i < numFoos; i++ {
 			w.Write([]byte("foo "))
@@ -967,8 +967,8 @@ func TestIssue3644(t *testing.T) {
 func TestIssue3595(t *testing.T) {
 	defer afterTest(t)
 	const deniedMsg = "sorry, denied."
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
-		Error(w, deniedMsg, StatusUnauthorized)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, deniedMsg, StatusUnauthorized)
 	}))
 	defer ts.Close()
 	tr := &Transport{}
@@ -991,7 +991,7 @@ func TestIssue3595(t *testing.T) {
 // "client fails to handle requests with no body and chunked encoding"
 func TestChunkedNoContent(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(StatusNoContent)
 	}))
 	defer ts.Close()
@@ -1019,7 +1019,7 @@ func TestTransportConcurrency(t *testing.T) {
 		maxProcs, numReqs = 4, 50
 	}
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(maxProcs))
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%v", r.FormValue("echo"))
 	}))
 	defer ts.Close()
@@ -1080,8 +1080,8 @@ func TestIssue4191_InfiniteGetTimeout(t *testing.T) {
 	}
 	defer afterTest(t)
 	const debug = false
-	mux := NewServeMux()
-	mux.HandleFunc("/get", func(w ResponseWriter, r *Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/get", func(w http.ResponseWriter, r *http.Request) {
 		io.Copy(w, neverEnding('a'))
 	})
 	ts := httptest.NewServer(mux)
@@ -1144,11 +1144,11 @@ func TestIssue4191_InfiniteGetToPutTimeout(t *testing.T) {
 	}
 	defer afterTest(t)
 	const debug = false
-	mux := NewServeMux()
-	mux.HandleFunc("/get", func(w ResponseWriter, r *Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/get", func(w http.ResponseWriter, r *http.Request) {
 		io.Copy(w, neverEnding('a'))
 	})
-	mux.HandleFunc("/put", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("/put", func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		io.Copy(ioutil.Discard, r.Body)
 	})
@@ -1214,9 +1214,9 @@ func TestTransportResponseHeaderTimeout(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping timeout test in -short mode")
 	}
-	mux := NewServeMux()
-	mux.HandleFunc("/fast", func(w ResponseWriter, r *Request) {})
-	mux.HandleFunc("/slow", func(w ResponseWriter, r *Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/fast", func(w http.ResponseWriter, r *http.Request) {})
+	mux.HandleFunc("/slow", func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(2 * time.Second)
 	})
 	ts := httptest.NewServer(mux)
@@ -1276,9 +1276,9 @@ func TestTransportCancelRequest(t *testing.T) {
 		t.Skip("skipping test in -short mode")
 	}
 	unblockc := make(chan bool)
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Hello")
-		w.(Flusher).Flush() // send headers and some body
+		w.(http.Flusher).Flush() // send headers and some body
 		<-unblockc
 	}))
 	defer ts.Close()
@@ -1386,14 +1386,14 @@ func TestTransportCloseResponseBody(t *testing.T) {
 	defer afterTest(t)
 	writeErr := make(chan error, 1)
 	msg := []byte("young\n")
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for {
 			_, err := w.Write(msg)
 			if err != nil {
 				writeErr <- err
 				return
 			}
-			w.(Flusher).Flush()
+			w.(http.Flusher).Flush()
 		}
 	}))
 	defer ts.Close()
@@ -1449,7 +1449,7 @@ func (fooProto) RoundTrip(req *Request) (*Response, error) {
 	res := &Response{
 		Status:     "200 OK",
 		StatusCode: 200,
-		Header:     make(Header),
+		Header:     make(http.Header),
 		Body:       ioutil.NopCloser(strings.NewReader("You wanted " + req.URL.String())),
 	}
 	return res, nil
@@ -1478,7 +1478,7 @@ func TestTransportNoHost(t *testing.T) {
 	defer afterTest(t)
 	tr := &Transport{}
 	_, err := tr.RoundTrip(&Request{
-		Header: make(Header),
+		Header: make(http.Header),
 		URL: &url.URL{
 			Scheme: "http",
 		},
@@ -1492,14 +1492,14 @@ func TestTransportNoHost(t *testing.T) {
 func TestTransportSocketLateBinding(t *testing.T) {
 	defer afterTest(t)
 
-	mux := NewServeMux()
+	mux := http.NewServeMux()
 	fooGate := make(chan bool, 1)
-	mux.HandleFunc("/foo", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("/foo", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("foo-ipport", r.RemoteAddr)
-		w.(Flusher).Flush()
+		w.(http.Flusher).Flush()
 		<-fooGate
 	})
-	mux.HandleFunc("/bar", func(w ResponseWriter, r *Request) {
+	mux.HandleFunc("/bar", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("bar-ipport", r.RemoteAddr)
 	})
 	ts := httptest.NewServer(mux)
@@ -1720,7 +1720,7 @@ func TestIdleConnChannelLeak(t *testing.T) {
 	var mu sync.Mutex
 	var n int
 
-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		n++
 		mu.Unlock()
@@ -1756,7 +1756,7 @@ func TestIdleConnChannelLeak(t *testing.T) {
 // then closes it.
 func TestTransportClosesRequestBody(t *testing.T) {
 	defer afterTest(t)
-	ts := httptest.NewServer(http.HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.Copy(ioutil.Discard, r.Body)
 	}))
 	defer ts.Close()

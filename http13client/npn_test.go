@@ -11,13 +11,14 @@ import (
 	"io"
 	"io/ioutil"
 	. "launchpad.net/ubuntu-push/http13client"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
 
 func TestNextProtoUpgrade(t *testing.T) {
-	ts := httptest.NewUnstartedServer(HandlerFunc(func(w ResponseWriter, r *Request) {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "path=%s,proto=", r.URL.Path)
 		if r.TLS != nil {
 			w.Write([]byte(r.TLS.NegotiatedProtocol))
@@ -32,7 +33,7 @@ func TestNextProtoUpgrade(t *testing.T) {
 	ts.TLS = &tls.Config{
 		NextProtos: []string{"unhandled-proto", "tls-0.9"},
 	}
-	ts.Config.TLSNextProto = map[string]func(*Server, *tls.Conn, Handler){
+	ts.Config.TLSNextProto = map[string]func(*http.Server, *tls.Conn, http.Handler){
 		"tls-0.9": handleTLSProtocol09,
 	}
 	ts.StartTLS()
@@ -90,7 +91,7 @@ func TestNextProtoUpgrade(t *testing.T) {
 
 // handleTLSProtocol09 implements the HTTP/0.9 protocol over TLS, for the
 // TestNextProtoUpgrade test.
-func handleTLSProtocol09(srv *Server, conn *tls.Conn, h Handler) {
+func handleTLSProtocol09(srv *http.Server, conn *tls.Conn, h http.Handler) {
 	br := bufio.NewReader(conn)
 	line, err := br.ReadString('\n')
 	if err != nil {
@@ -101,18 +102,18 @@ func handleTLSProtocol09(srv *Server, conn *tls.Conn, h Handler) {
 	if path == line {
 		return
 	}
-	req, _ := NewRequest("GET", path, nil)
+	req, _ := http.NewRequest("GET", path, nil)
 	req.Proto = "HTTP/0.9"
 	req.ProtoMajor = 0
 	req.ProtoMinor = 9
-	rw := &http09Writer{conn, make(Header)}
+	rw := &http09Writer{conn, make(http.Header)}
 	h.ServeHTTP(rw, req)
 }
 
 type http09Writer struct {
 	io.Writer
-	h Header
+	h http.Header
 }
 
-func (w http09Writer) Header() Header  { return w.h }
+func (w http09Writer) Header() http.Header  { return w.h }
 func (w http09Writer) WriteHeader(int) {} // no headers

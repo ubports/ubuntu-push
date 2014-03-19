@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"reflect"
 	"strings"
@@ -17,39 +18,39 @@ import (
 )
 
 var writeSetCookiesTests = []struct {
-	Cookie *Cookie
+	Cookie *http.Cookie
 	Raw    string
 }{
 	{
-		&Cookie{Name: "cookie-1", Value: "v$1"},
+		&http.Cookie{Name: "cookie-1", Value: "v$1"},
 		"cookie-1=v$1",
 	},
 	{
-		&Cookie{Name: "cookie-2", Value: "two", MaxAge: 3600},
+		&http.Cookie{Name: "cookie-2", Value: "two", MaxAge: 3600},
 		"cookie-2=two; Max-Age=3600",
 	},
 	{
-		&Cookie{Name: "cookie-3", Value: "three", Domain: ".example.com"},
+		&http.Cookie{Name: "cookie-3", Value: "three", Domain: ".example.com"},
 		"cookie-3=three; Domain=example.com",
 	},
 	{
-		&Cookie{Name: "cookie-4", Value: "four", Path: "/restricted/"},
+		&http.Cookie{Name: "cookie-4", Value: "four", Path: "/restricted/"},
 		"cookie-4=four; Path=/restricted/",
 	},
 	{
-		&Cookie{Name: "cookie-5", Value: "five", Domain: "wrong;bad.abc"},
+		&http.Cookie{Name: "cookie-5", Value: "five", Domain: "wrong;bad.abc"},
 		"cookie-5=five",
 	},
 	{
-		&Cookie{Name: "cookie-6", Value: "six", Domain: "bad-.abc"},
+		&http.Cookie{Name: "cookie-6", Value: "six", Domain: "bad-.abc"},
 		"cookie-6=six",
 	},
 	{
-		&Cookie{Name: "cookie-7", Value: "seven", Domain: "127.0.0.1"},
+		&http.Cookie{Name: "cookie-7", Value: "seven", Domain: "127.0.0.1"},
 		"cookie-7=seven; Domain=127.0.0.1",
 	},
 	{
-		&Cookie{Name: "cookie-8", Value: "eight", Domain: "::1"},
+		&http.Cookie{Name: "cookie-8", Value: "eight", Domain: "::1"},
 		"cookie-8=eight",
 	},
 }
@@ -71,10 +72,10 @@ func TestWriteSetCookies(t *testing.T) {
 	}
 }
 
-type headerOnlyResponseWriter Header
+type headerOnlyResponseWriter http.Header
 
-func (ho headerOnlyResponseWriter) Header() Header {
-	return Header(ho)
+func (ho headerOnlyResponseWriter) Header() http.Header {
+	return http.Header(ho)
 }
 
 func (ho headerOnlyResponseWriter) Write([]byte) (int, error) {
@@ -86,9 +87,9 @@ func (ho headerOnlyResponseWriter) WriteHeader(int) {
 }
 
 func TestSetCookie(t *testing.T) {
-	m := make(Header)
-	SetCookie(headerOnlyResponseWriter(m), &Cookie{Name: "cookie-1", Value: "one", Path: "/restricted/"})
-	SetCookie(headerOnlyResponseWriter(m), &Cookie{Name: "cookie-2", Value: "two", MaxAge: 3600})
+	m := make(http.Header)
+	http.SetCookie(headerOnlyResponseWriter(m), &http.Cookie{Name: "cookie-1", Value: "one", Path: "/restricted/"})
+	http.SetCookie(headerOnlyResponseWriter(m), &http.Cookie{Name: "cookie-2", Value: "two", MaxAge: 3600})
 	if l := len(m["Set-Cookie"]); l != 2 {
 		t.Fatalf("expected %d cookies, got %d", 2, l)
 	}
@@ -101,19 +102,19 @@ func TestSetCookie(t *testing.T) {
 }
 
 var addCookieTests = []struct {
-	Cookies []*Cookie
+	Cookies []*http.Cookie
 	Raw     string
 }{
 	{
-		[]*Cookie{},
+		[]*http.Cookie{},
 		"",
 	},
 	{
-		[]*Cookie{{Name: "cookie-1", Value: "v$1"}},
+		[]*http.Cookie{{Name: "cookie-1", Value: "v$1"}},
 		"cookie-1=v$1",
 	},
 	{
-		[]*Cookie{
+		[]*http.Cookie{
 			{Name: "cookie-1", Value: "v$1"},
 			{Name: "cookie-2", Value: "v$2"},
 			{Name: "cookie-3", Value: "v$3"},
@@ -136,16 +137,16 @@ func TestAddCookie(t *testing.T) {
 }
 
 var readSetCookiesTests = []struct {
-	Header  Header
-	Cookies []*Cookie
+	Header  http.Header
+	Cookies []*http.Cookie
 }{
 	{
-		Header{"Set-Cookie": {"Cookie-1=v$1"}},
-		[]*Cookie{{Name: "Cookie-1", Value: "v$1", Raw: "Cookie-1=v$1"}},
+		http.Header{"Set-Cookie": {"Cookie-1=v$1"}},
+		[]*http.Cookie{{Name: "Cookie-1", Value: "v$1", Raw: "Cookie-1=v$1"}},
 	},
 	{
-		Header{"Set-Cookie": {"NID=99=YsDT5i3E-CXax-; expires=Wed, 23-Nov-2011 01:05:03 GMT; path=/; domain=.google.ch; HttpOnly"}},
-		[]*Cookie{{
+		http.Header{"Set-Cookie": {"NID=99=YsDT5i3E-CXax-; expires=Wed, 23-Nov-2011 01:05:03 GMT; path=/; domain=.google.ch; HttpOnly"}},
+		[]*http.Cookie{{
 			Name:       "NID",
 			Value:      "99=YsDT5i3E-CXax-",
 			Path:       "/",
@@ -157,8 +158,8 @@ var readSetCookiesTests = []struct {
 		}},
 	},
 	{
-		Header{"Set-Cookie": {".ASPXAUTH=7E3AA; expires=Wed, 07-Mar-2012 14:25:06 GMT; path=/; HttpOnly"}},
-		[]*Cookie{{
+		http.Header{"Set-Cookie": {".ASPXAUTH=7E3AA; expires=Wed, 07-Mar-2012 14:25:06 GMT; path=/; HttpOnly"}},
+		[]*http.Cookie{{
 			Name:       ".ASPXAUTH",
 			Value:      "7E3AA",
 			Path:       "/",
@@ -169,8 +170,8 @@ var readSetCookiesTests = []struct {
 		}},
 	},
 	{
-		Header{"Set-Cookie": {"ASP.NET_SessionId=foo; path=/; HttpOnly"}},
-		[]*Cookie{{
+		http.Header{"Set-Cookie": {"ASP.NET_SessionId=foo; path=/; HttpOnly"}},
+		[]*http.Cookie{{
 			Name:     "ASP.NET_SessionId",
 			Value:    "foo",
 			Path:     "/",
@@ -207,37 +208,37 @@ func TestReadSetCookies(t *testing.T) {
 }
 
 var readCookiesTests = []struct {
-	Header  Header
+	Header  http.Header
 	Filter  string
-	Cookies []*Cookie
+	Cookies []*http.Cookie
 }{
 	{
-		Header{"Cookie": {"Cookie-1=v$1", "c2=v2"}},
+		http.Header{"Cookie": {"Cookie-1=v$1", "c2=v2"}},
 		"",
-		[]*Cookie{
+		[]*http.Cookie{
 			{Name: "Cookie-1", Value: "v$1"},
 			{Name: "c2", Value: "v2"},
 		},
 	},
 	{
-		Header{"Cookie": {"Cookie-1=v$1", "c2=v2"}},
+		http.Header{"Cookie": {"Cookie-1=v$1", "c2=v2"}},
 		"c2",
-		[]*Cookie{
+		[]*http.Cookie{
 			{Name: "c2", Value: "v2"},
 		},
 	},
 	{
-		Header{"Cookie": {"Cookie-1=v$1; c2=v2"}},
+		http.Header{"Cookie": {"Cookie-1=v$1; c2=v2"}},
 		"",
-		[]*Cookie{
+		[]*http.Cookie{
 			{Name: "Cookie-1", Value: "v$1"},
 			{Name: "c2", Value: "v2"},
 		},
 	},
 	{
-		Header{"Cookie": {"Cookie-1=v$1; c2=v2"}},
+		http.Header{"Cookie": {"Cookie-1=v$1; c2=v2"}},
 		"c2",
-		[]*Cookie{
+		[]*http.Cookie{
 			{Name: "c2", Value: "v2"},
 		},
 	},
