@@ -204,9 +204,8 @@ func (r *Response) Write(w io.Writer) error {
 	// Status line
 	text := r.Status
 	if text == "" {
-		var ok bool
-		text, ok = statusText[r.StatusCode]
-		if !ok {
+		text = http.StatusText(r.StatusCode)
+		if text == "" {
 			text = "status code " + strconv.Itoa(r.StatusCode)
 		}
 	}

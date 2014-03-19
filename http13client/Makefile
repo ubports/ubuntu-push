@@ -26,6 +26,7 @@ fix:
 	patch -p1 < _patches/empty_server.patch
 	patch -p1 < _patches/fix_tests.patch
 	patch -p1 < _patches/fix_code.patch
+	patch -p1 < _patches/fix_status.patch
 
 clean:
 	rm -rf *.go httptest httputil testdata

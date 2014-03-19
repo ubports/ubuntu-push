@@ -210,7 +210,7 @@ func basicAuth(username, password string) string {
 // automatically redirect.
 func shouldRedirectGet(statusCode int) bool {
 	switch statusCode {
-	case StatusMovedPermanently, StatusFound, StatusSeeOther, StatusTemporaryRedirect:
+	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect:
 		return true
 	}
 	return false
@@ -220,7 +220,7 @@ func shouldRedirectGet(statusCode int) bool {
 // automatically redirect.
 func shouldRedirectPost(statusCode int) bool {
 	switch statusCode {
-	case StatusFound, StatusSeeOther:
+	case http.StatusFound, http.StatusSeeOther:
 		return true
 	}
 	return false

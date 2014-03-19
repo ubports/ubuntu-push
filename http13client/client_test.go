@@ -202,7 +202,7 @@ func TestClientRedirects(t *testing.T) {
 			}
 		}
 		if n < 15 {
-			http.Redirect(w, r, fmt.Sprintf("/?n=%d", n+1), StatusFound)
+			http.Redirect(w, r, fmt.Sprintf("/?n=%d", n+1), http.StatusFound)
 			return
 		}
 		fmt.Fprintf(w, "n=%d", n)
@@ -324,7 +324,7 @@ var echoCookiesRedirectHandler = http.HandlerFunc(func(w http.ResponseWriter, r 
 	}
 	if r.URL.Path == "/" {
 		http.SetCookie(w, expectedCookies[1])
-		http.Redirect(w, r, "/second", StatusMovedPermanently)
+		http.Redirect(w, r, "/second", http.StatusMovedPermanently)
 	} else {
 		http.SetCookie(w, expectedCookies[2])
 		w.Write([]byte("hello"))
@@ -783,7 +783,7 @@ func TestClientTimeout(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			sawRoot <- true
-			http.Redirect(w, r, "/slow", StatusFound)
+			http.Redirect(w, r, "/slow", http.StatusFound)
 			return
 		}
 		if r.URL.Path == "/slow" {
@@ -844,7 +844,7 @@ func TestClientRedirectEatsBody(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		saw <- r.RemoteAddr
 		if r.URL.Path == "/" {
-			http.Redirect(w, r, "/foo", StatusFound) // which includes a body
+			http.Redirect(w, r, "/foo", http.StatusFound) // which includes a body
 		}
 	}))
 	defer ts.Close()

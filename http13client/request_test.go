@@ -164,11 +164,11 @@ func TestRedirect(t *testing.T) {
 		switch r.URL.Path {
 		case "/":
 			w.Header().Set("Location", "/foo/")
-			w.WriteHeader(StatusSeeOther)
+			w.WriteHeader(http.StatusSeeOther)
 		case "/foo/":
 			fmt.Fprintf(w, "foo")
 		default:
-			w.WriteHeader(StatusBadRequest)
+			w.WriteHeader(http.StatusBadRequest)
 		}
 	}))
 	defer ts.Close()

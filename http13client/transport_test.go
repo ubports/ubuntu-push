@@ -968,7 +968,7 @@ func TestIssue3595(t *testing.T) {
 	defer afterTest(t)
 	const deniedMsg = "sorry, denied."
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, deniedMsg, StatusUnauthorized)
+		http.Error(w, deniedMsg, http.StatusUnauthorized)
 	}))
 	defer ts.Close()
 	tr := &Transport{}
@@ -992,7 +992,7 @@ func TestIssue3595(t *testing.T) {
 func TestChunkedNoContent(t *testing.T) {
 	defer afterTest(t)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(StatusNoContent)
+		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer ts.Close()
 
