@@ -34,7 +34,7 @@ import (
 var DefaultTransport RoundTripper = &Transport{
 	Proxy: ProxyFromEnvironment,
 	Dial: (&net.Dialer{
-		Timeout:   30 * time.Second,
+		Timeout: 30 * time.Second,
 		// KeepAlive: 30 * time.Second,
 	}).Dial,
 	TLSHandshakeTimeout: 10 * time.Second,
@@ -144,7 +144,7 @@ func ProxyURL(fixedURL *url.URL) func(*Request) (*url.URL, error) {
 // transportRequest is a wrapper around a *Request that adds
 // optional extra headers to write.
 type transportRequest struct {
-	*Request        // original request, not to be mutated
+	*Request             // original request, not to be mutated
 	extra    http.Header // extra headers to write, or nil
 }
 

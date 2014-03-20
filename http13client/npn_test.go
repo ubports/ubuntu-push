@@ -115,5 +115,5 @@ type http09Writer struct {
 	h http.Header
 }
 
-func (w http09Writer) Header() http.Header  { return w.h }
-func (w http09Writer) WriteHeader(int) {} // no headers
+func (w http09Writer) Header() http.Header { return w.h }
+func (w http09Writer) WriteHeader(int)     {} // no headers
