@@ -1,7 +1,8 @@
 Source: ubuntu-push
 Section: net
 Priority: optional
-Maintainer: John Lenton <john.lenton@canonical.com>
+X-Original-Maintainer: John Lenton <john.lenton@canonical.com>
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: debhelper (>= 9),
                dh-golang,
                dh-exec (>= 0.3),
@@ -12,6 +13,7 @@ Build-Depends: debhelper (>= 9),
                golang-gocheck-dev,
                golang-go-dbus-dev,
                golang-go-xdg-dev,
+               golang-gosqlite-dev,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push
 Vcs-Bzr: lp:ubuntu-push
