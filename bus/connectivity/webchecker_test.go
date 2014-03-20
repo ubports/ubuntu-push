@@ -81,7 +81,7 @@ func (s *WebcheckerSuite) TestWorks(c *C) {
 	ts := httptest.NewServer(mkHandler(staticText))
 	defer ts.Close()
 
-	ck := NewWebchecker(ts.URL, staticHash, s.log)
+	ck := NewWebchecker(ts.URL, staticHash, 5*time.Second, s.log)
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, true)
@@ -89,7 +89,7 @@ func (s *WebcheckerSuite) TestWorks(c *C) {
 
 // Webchecker sends false if the download fails.
 func (s *WebcheckerSuite) TestActualFails(c *C) {
-	ck := NewWebchecker("garbage://", "", s.log)
+	ck := NewWebchecker("garbage://", "", 5*time.Second, s.log)
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
@@ -100,7 +100,7 @@ func (s *WebcheckerSuite) TestHashFails(c *C) {
 	ts := httptest.NewServer(mkHandler(""))
 	defer ts.Close()
 
-	ck := NewWebchecker(ts.URL, staticHash, s.log)
+	ck := NewWebchecker(ts.URL, staticHash, 5*time.Second, s.log)
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
@@ -111,7 +111,25 @@ func (s *WebcheckerSuite) TestTooBigFails(c *C) {
 	ts := httptest.NewServer(mkHandler(bigText))
 	defer ts.Close()
 
-	ck := NewWebchecker(ts.URL, bigHash, s.log)
+	ck := NewWebchecker(ts.URL, bigHash, 5*time.Second, s.log)
+	ch := make(chan bool, 1)
+	ck.Webcheck(ch)
+	c.Check(<-ch, Equals, false)
+}
+
+// Webchecker sends false if the request timeouts
+func (s *WebcheckerSuite) TestTooSlowFails(c *C) {
+	finish := make(chan bool)
+	handler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-finish // get stuck
+	})
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+	defer func() {
+		finish <- true
+	}()
+
+	ck := NewWebchecker(ts.URL, bigHash, time.Second, s.log)
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
