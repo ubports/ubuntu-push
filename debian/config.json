@@ -1,6 +1,6 @@
 {
     "exchange_timeout": "30s",
-    "addr": "push.staging.ubuntu.com:9090",
+    "addr": "push-delivery.ubuntu.com:443",
     "cert_pem_file": "",
     "stabilizing_timeout": "2s",
     "recheck_timeout": "10m",
