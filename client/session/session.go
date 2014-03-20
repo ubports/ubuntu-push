@@ -250,7 +250,9 @@ func (sess *ClientSession) start() error {
 	err = proto.WriteMessage(protocol.ConnectMsg{
 		Type:     "connect",
 		DeviceId: sess.DeviceId,
-		Levels:   levels,
+		// xxx get the SSO Authorization string from the phone
+		Authorization: "",
+		Levels:        levels,
 	})
 	if err != nil {
 		sess.setState(Error)
