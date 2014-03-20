@@ -1,0 +1,10 @@
+{
+    "exchange_timeout": "30s",
+    "addr": "push-delivery.ubuntu.com:443",
+    "cert_pem_file": "",
+    "stabilizing_timeout": "2s",
+    "recheck_timeout": "10m",
+    "connectivity_check_url": "http://start.ubuntu.com/connectivity-check.html",
+    "connectivity_check_md5": "4589f42e1546aa47ca181e5d949d310b",
+    "log_level": "debug"
+}

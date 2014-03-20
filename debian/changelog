@@ -1,0 +1,29 @@
+ubuntu-push (0.1-0ubuntu1) trusty; urgency=medium
+
+  * Getting ready for CI train.
+
+ -- John Lenton <john.lenton@canonical.com>  Thu, 20 Mar 2014 12:20:13 +0000
+
+ubuntu-push (0.1-0pre4) trusty; urgency=medium
+
+  * Pointing it to staging. Building a source package.
+
+ -- John Lenton <john.lenton@canonical.com>  Fri, 07 Feb 2014 19:35:50 +0000
+
+ubuntu-push (0.1-0pre3) trusty; urgency=medium
+
+  * first one with a config file and upstart thingie!
+
+ -- John Lenton <john.lenton@canonical.com>  Fri, 07 Feb 2014 11:29:36 +0000
+
+ubuntu-push (0.1-0pre2) trusty; urgency=medium
+
+  * A lot closer!
+
+ -- John Lenton <jlenton@gmail.com>  Thu, 06 Feb 2014 17:31:39 +0000
+
+ubuntu-push (0.1-0pre1) trusty; urgency=low
+
+  * Initial release
+
+ -- John Lenton <john.lenton@canonical.com>  Sun, 26 Jan 2014 22:53:09 +0000
