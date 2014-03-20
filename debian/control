@@ -1,4 +1,4 @@
-Source: ubuntu-push-client
+Source: ubuntu-push
 Section: net
 Priority: optional
 Maintainer: John Lenton <john.lenton@canonical.com>
