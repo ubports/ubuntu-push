@@ -1,0 +1,5 @@
+parent: 19512:32c32aef2a41 tip
+ test: enable bug385_32 test on amd64p32.
+branch: default
+commit: (clean)
+update: (current)

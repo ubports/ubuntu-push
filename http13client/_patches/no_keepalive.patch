@@ -1,0 +1,11 @@
+--- a/transport.go	2014-03-19 19:53:49.401406590 +0000
++++ b/transport.go	2014-03-19 19:54:05.817611304 +0000
+@@ -34,7 +34,7 @@
+ 	Proxy: ProxyFromEnvironment,
+ 	Dial: (&net.Dialer{
+ 		Timeout:   30 * time.Second,
+-		KeepAlive: 30 * time.Second,
++		// KeepAlive: 30 * time.Second,
+ 	}).Dial,
+ 	TLSHandshakeTimeout: 10 * time.Second,
+ }
