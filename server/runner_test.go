@@ -19,12 +19,14 @@ package server
 import (
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/config"
-	helpers "launchpad.net/ubuntu-push/testing"
 	"net"
 	"net/http"
 	"time"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/config"
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 type runnerSuite struct {
@@ -106,9 +108,25 @@ func (s *runnerSuite) TestDevicesRunner(c *C) {
 	defer func() {
 		BootLogger = prevBootLogger
 	}()
-	runner := DevicesRunner(func(conn net.Conn) error { return nil }, BootLogger, &testDevicesParsedConfig)
+	runner := DevicesRunner(nil, func(conn net.Conn) error { return nil }, BootLogger, &testDevicesParsedConfig)
 	c.Assert(s.lst, Not(IsNil))
 	s.lst.Close()
 	c.Check(s.kind, Equals, "devices")
 	c.Check(runner, PanicMatches, "accepting device connections:.*closed.*")
+}
+
+func (s *runnerSuite) TestDevicesRunnerAdoptListener(c *C) {
+	prevBootLogger := BootLogger
+	testlog := helpers.NewTestLogger(c, "debug")
+	BootLogger = testlog
+	defer func() {
+		BootLogger = prevBootLogger
+	}()
+	lst0, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, IsNil)
+	defer lst0.Close()
+	DevicesRunner(lst0, func(conn net.Conn) error { return nil }, BootLogger, &testDevicesParsedConfig)
+	c.Assert(s.lst, Not(IsNil))
+	c.Check(s.lst.Addr().String(), Equals, lst0.Addr().String())
+	s.lst.Close()
 }

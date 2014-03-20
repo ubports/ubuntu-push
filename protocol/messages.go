@@ -16,14 +16,13 @@
 
 package protocol
 
-// representative struct for messages
+// Structs representing messages.
 
 import (
 	"encoding/json"
-	// "log"
 )
 
-//  System channel id using a shortened hex encoded form for the NIL UUID
+// System channel id using a shortened hex-encoded form for the NIL UUID.
 const SystemChannelId = "0"
 
 // CONNECT message
@@ -43,7 +42,7 @@ type ConnAckMsg struct {
 }
 
 // ConnAckParams carries the connection parameters from the server on
-// connection acknowledment.
+// connection acknowledgement.
 type ConnAckParams struct {
 	// ping interval formatted time.Duration
 	PingInterval string
@@ -94,6 +93,12 @@ func (m *BroadcastMsg) Split() bool {
 	return true
 }
 
+// Reset resets the splitting state if the message storage is to be
+// reused.
+func (b *BroadcastMsg) Reset() {
+	b.splitting = 0
+}
+
 // NOTIFICATIONS message
 type NotificationsMsg struct {
 	Type          string `json:"T"`
@@ -108,7 +113,7 @@ type Notification struct {
 	Payload json.RawMessage `json:"P"`
 }
 
-// ACKnowelgement message
+// ACKnowledgement message
 type AckMsg struct {
 	Type string `json:"T"`
 }

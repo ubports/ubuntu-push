@@ -23,19 +23,33 @@ import (
 
 func TestLevelMap(t *testing.T) { TestingT(t) }
 
-type lmSuite struct{}
+type lmSuite struct {
+	constructor func() (LevelMap, error)
+}
 
 var _ = Suite(&lmSuite{})
 
-func (cs *lmSuite) TestAllTheThings(c *C) {
+func (s *lmSuite) SetUpSuite(c *C) {
+	s.constructor = NewLevelMap
+}
+
+func (s *lmSuite) TestAllTheThings(c *C) {
+	var err error
+	var lm LevelMap
 	// checks NewLevelMap returns a LevelMap
-	var lm LevelMap = NewLevelMap()
+	lm, err = s.constructor()
+	// and that it works
+	c.Assert(err, IsNil)
 	// setting a couple of things, sets them
-	lm.Set("this", 12)
-	lm.Set("that", 42)
-	c.Check(lm.GetAll(), DeepEquals, map[string]int64{"this": 12, "that": 42})
+	c.Check(lm.Set("this", 12), IsNil)
+	c.Check(lm.Set("that", 42), IsNil)
+	all, err := lm.GetAll()
+	c.Check(err, IsNil)
+	c.Check(all, DeepEquals, map[string]int64{"this": 12, "that": 42})
 	// re-setting one of them, resets it
-	lm.Set("this", 999)
-	c.Check(lm.GetAll(), DeepEquals, map[string]int64{"this": 999, "that": 42})
+	c.Check(lm.Set("this", 999), IsNil)
+	all, err = lm.GetAll()
+	c.Check(err, IsNil)
+	c.Check(all, DeepEquals, map[string]int64{"this": 999, "that": 42})
 	// huzzah
 }

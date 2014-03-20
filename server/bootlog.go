@@ -17,9 +17,10 @@
 package server
 
 import (
-	"launchpad.net/ubuntu-push/logger"
 	"net"
 	"os"
+
+	"launchpad.net/ubuntu-push/logger"
 )
 
 // boot logging and hooks

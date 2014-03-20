@@ -20,11 +20,13 @@ package broker
 
 import (
 	"fmt"
+
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/store"
 )
 
-// Broker is responsible for registring sessions and delivering messages through them.
+// Broker is responsible for registring sessions and delivering messages
+// through them.
 type Broker interface {
 	// Register the session.
 	Register(*protocol.ConnectMsg) (BrokerSession, error)

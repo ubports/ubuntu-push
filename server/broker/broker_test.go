@@ -18,6 +18,7 @@ package broker
 
 import (
 	"fmt"
+
 	. "launchpad.net/gocheck"
 )
 

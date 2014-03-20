@@ -22,12 +22,16 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/server/store"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/server/store"
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 func TestHandlers(t *testing.T) { TestingT(t) }
@@ -37,12 +41,14 @@ type handlersSuite struct {
 	json            string
 	client          *http.Client
 	c               *C
+	testlog         *helpers.TestLogger
 }
 
 var _ = Suite(&handlersSuite{})
 
 func (s *handlersSuite) SetUpTest(c *C) {
 	s.client = &http.Client{}
+	s.testlog = helpers.NewTestLogger(c, "error")
 }
 
 func (s *handlersSuite) TestAPIError(c *C) {
@@ -53,14 +59,78 @@ func (s *handlersSuite) TestAPIError(c *C) {
 	c.Check(string(wire), Equals, `{"error":"invalid-request","message":"Message"}`)
 }
 
-func (s *handlersSuite) TestReadyBodyReadError(c *C) {
+func (s *handlersSuite) TestReadBodyReadError(c *C) {
 	r := bytes.NewReader([]byte{}) // eof too early
 	req, err := http.NewRequest("POST", "", r)
+	c.Assert(err, IsNil)
 	req.Header.Set("Content-Type", "application/json")
 	req.ContentLength = 1000
-	c.Assert(err, IsNil)
-	_, err = readBody(req)
+	_, err = ReadBody(req, 2000)
 	c.Check(err, Equals, ErrCouldNotReadBody)
+}
+
+func (s *handlersSuite) TestReadBodyTooBig(c *C) {
+	r := bytes.NewReader([]byte{}) // not read
+	req, err := http.NewRequest("POST", "", r)
+	c.Assert(err, IsNil)
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = 3000
+	_, err = ReadBody(req, 2000)
+	c.Check(err, Equals, ErrRequestBodyTooLarge)
+}
+
+func (s *handlersSuite) TestGetStore(c *C) {
+	ctx := &context{storeForRequest: func(w http.ResponseWriter, r *http.Request) (store.PendingStore, error) {
+		return nil, ErrStoreUnavailable
+	}}
+	sto, apiErr := ctx.getStore(nil, nil)
+	c.Check(sto, IsNil)
+	c.Check(apiErr, Equals, ErrStoreUnavailable)
+
+	ctx = &context{storeForRequest: func(w http.ResponseWriter, r *http.Request) (store.PendingStore, error) {
+		return nil, errors.New("something else")
+	}, logger: s.testlog}
+	sto, apiErr = ctx.getStore(nil, nil)
+	c.Check(sto, IsNil)
+	c.Check(apiErr, Equals, ErrUnknown)
+	c.Check(s.testlog.Captured(), Equals, "ERROR failed to get store: something else\n")
+}
+
+var future = time.Now().Add(4 * time.Hour).Format(time.RFC3339)
+
+func (s *handlersSuite) TestCheckBroadcast(c *C) {
+	payload := json.RawMessage(`{"foo":"bar"}`)
+	broadcast := &Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     payload,
+	}
+	expire, err := checkBroadcast(broadcast)
+	c.Check(err, IsNil)
+	c.Check(expire.Format(time.RFC3339), Equals, future)
+
+	broadcast = &Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+	}
+	_, err = checkBroadcast(broadcast)
+	c.Check(err, Equals, ErrMissingData)
+
+	broadcast = &Broadcast{
+		Channel:  "system",
+		ExpireOn: "12:00",
+		Data:     payload,
+	}
+	_, err = checkBroadcast(broadcast)
+	c.Check(err, Equals, ErrInvalidExpiration)
+
+	broadcast = &Broadcast{
+		Channel:  "system",
+		ExpireOn: time.Now().Add(-10 * time.Hour).Format(time.RFC3339),
+		Data:     payload,
+	}
+	_, err = checkBroadcast(broadcast)
+	c.Check(err, Equals, ErrPastExpiration)
 }
 
 type checkBrokerSending struct {
@@ -82,11 +152,12 @@ func (cbsend *checkBrokerSending) Broadcast(chanId store.InternalChannelId) {
 func (s *handlersSuite) TestDoBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	bsend := &checkBrokerSending{store: sto}
-	bh := &BroadcastHandler{sto, bsend, nil}
+	bh := &BroadcastHandler{&context{nil, bsend, nil}}
 	payload := json.RawMessage(`{"a": 1}`)
-	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "system",
-		Data:    payload,
+	apiErr := bh.doBroadcast(sto, &Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     payload,
 	})
 	c.Check(apiErr, IsNil)
 	c.Check(bsend.err, IsNil)
@@ -97,10 +168,11 @@ func (s *handlersSuite) TestDoBroadcast(c *C) {
 
 func (s *handlersSuite) TestDoBroadcastUnknownChannel(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	bh := &BroadcastHandler{sto, nil, nil}
-	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "unknown",
-		Data:    json.RawMessage(`{"a": 1}`),
+	bh := &BroadcastHandler{}
+	apiErr := bh.doBroadcast(sto, &Broadcast{
+		Channel:  "unknown",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrUnknownChannel)
 }
@@ -115,8 +187,8 @@ func (isto *interceptInMemoryPendingStore) GetInternalChannelId(channel string) 
 	return chanId, isto.intercept("GetInternalChannelId", err)
 }
 
-func (isto *interceptInMemoryPendingStore) AppendToChannel(chanId store.InternalChannelId, payload json.RawMessage) error {
-	err := isto.InMemoryPendingStore.AppendToChannel(chanId, payload)
+func (isto *interceptInMemoryPendingStore) AppendToChannel(chanId store.InternalChannelId, payload json.RawMessage, expiration time.Time) error {
+	err := isto.InMemoryPendingStore.AppendToChannel(chanId, payload, expiration)
 	return isto.intercept("AppendToChannel", err)
 }
 
@@ -127,10 +199,11 @@ func (s *handlersSuite) TestDoBroadcastUnknownError(c *C) {
 			return errors.New("other")
 		},
 	}
-	bh := &BroadcastHandler{sto, nil, nil}
-	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"a": 1}`),
+	bh := &BroadcastHandler{}
+	apiErr := bh.doBroadcast(sto, &Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrUnknown)
 }
@@ -145,12 +218,15 @@ func (s *handlersSuite) TestDoBroadcastCouldNotStoreNotification(c *C) {
 			return err
 		},
 	}
-	bh := &BroadcastHandler{sto, nil, nil}
-	apiErr := bh.doBroadcast(&Broadcast{
-		Channel: "system",
-		Data:    json.RawMessage(`{"a": 1}`),
+	ctx := &context{logger: s.testlog}
+	bh := &BroadcastHandler{ctx}
+	apiErr := bh.doBroadcast(sto, &Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"a": 1}`),
 	})
 	c.Check(apiErr, Equals, ErrCouldNotStoreNotification)
+	c.Check(s.testlog.Captured(), Equals, "ERROR could not store notification: fail\n")
 }
 
 func newPostRequest(path string, message interface{}, server *httptest.Server) *http.Request {
@@ -194,16 +270,19 @@ func (bsend testBrokerSending) Broadcast(chanId store.InternalChannelId) {
 
 func (s *handlersSuite) TestRespondsToBasicSystemBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
+	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+		return sto, nil
+	}
 	bsend := testBrokerSending{make(chan store.InternalChannelId, 1)}
-	testServer := httptest.NewServer(MakeHandlersMux(sto, bsend, nil))
+	testServer := httptest.NewServer(MakeHandlersMux(stoForReq, bsend, nil))
 	defer testServer.Close()
 
 	payload := json.RawMessage(`{"foo":"bar"}`)
 
 	request := newPostRequest("/broadcast", &Broadcast{
-		Channel:     "system",
-		ExpireAfter: 60,
-		Data:        payload,
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     payload,
 	}, testServer)
 
 	response, err := s.client.Do(request)
@@ -224,17 +303,40 @@ func (s *handlersSuite) TestRespondsToBasicSystemBroadcast(c *C) {
 	c.Check(<-bsend.chanId, Equals, store.SystemInternalChannelId)
 }
 
-func (s *handlersSuite) TestFromBroadcastError(c *C) {
-	sto := store.NewInMemoryPendingStore()
-	testServer := httptest.NewServer(MakeHandlersMux(sto, nil, nil))
+func (s *handlersSuite) TestStoreUnavailable(c *C) {
+	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+		return nil, ErrStoreUnavailable
+	}
+	testServer := httptest.NewServer(MakeHandlersMux(stoForReq, nil, nil))
 	defer testServer.Close()
 
 	payload := json.RawMessage(`{"foo":"bar"}`)
 
 	request := newPostRequest("/broadcast", &Broadcast{
-		Channel:     "unknown",
-		ExpireAfter: 60,
-		Data:        payload,
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     payload,
+	}, testServer)
+
+	response, err := s.client.Do(request)
+	c.Assert(err, IsNil)
+	checkError(c, response, ErrStoreUnavailable)
+}
+
+func (s *handlersSuite) TestFromBroadcastError(c *C) {
+	sto := store.NewInMemoryPendingStore()
+	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+		return sto, nil
+	}
+	testServer := httptest.NewServer(MakeHandlersMux(stoForReq, nil, nil))
+	defer testServer.Close()
+
+	payload := json.RawMessage(`{"foo":"bar"}`)
+
+	request := newPostRequest("/broadcast", &Broadcast{
+		Channel:  "unknown",
+		ExpireOn: future,
+		Data:     payload,
 	}, testServer)
 
 	response, err := s.client.Do(request)
@@ -243,7 +345,11 @@ func (s *handlersSuite) TestFromBroadcastError(c *C) {
 }
 
 func (s *handlersSuite) TestMissingData(c *C) {
-	testServer := httptest.NewServer(&BroadcastHandler{})
+	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+		return store.NewInMemoryPendingStore(), nil
+	}
+	ctx := &context{stoForReq, nil, nil}
+	testServer := httptest.NewServer(&BroadcastHandler{ctx})
 	defer testServer.Close()
 
 	packedMessage := []byte(`{"channel": "system"}`)
@@ -260,7 +366,11 @@ func (s *handlersSuite) TestMissingData(c *C) {
 }
 
 func (s *handlersSuite) TestCannotBroadcastMalformedData(c *C) {
-	testServer := httptest.NewServer(&BroadcastHandler{})
+	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+		return store.NewInMemoryPendingStore(), nil
+	}
+	ctx := &context{stoForReq, nil, nil}
+	testServer := httptest.NewServer(&BroadcastHandler{ctx})
 	defer testServer.Close()
 
 	packedMessage := []byte("{some bogus-message: ")
@@ -284,9 +394,9 @@ func (s *handlersSuite) TestCannotBroadcastTooBigMessages(c *C) {
 	dataString := fmt.Sprintf(`"%v"`, bigString)
 
 	request := newPostRequest("/", &Broadcast{
-		Channel:     "some-channel",
-		ExpireAfter: 60,
-		Data:        json.RawMessage([]byte(dataString)),
+		Channel:  "some-channel",
+		ExpireOn: future,
+		Data:     json.RawMessage([]byte(dataString)),
 	}, testServer)
 
 	response, err := s.client.Do(request)
@@ -301,9 +411,9 @@ func (s *handlersSuite) TestCannotBroadcastWithoutContentLength(c *C) {
 	dataString := `{"foo":"bar"}`
 
 	request := newPostRequest("/", &Broadcast{
-		Channel:     "some-channel",
-		ExpireAfter: 60,
-		Data:        json.RawMessage([]byte(dataString)),
+		Channel:  "some-channel",
+		ExpireOn: future,
+		Data:     json.RawMessage([]byte(dataString)),
 	}, testServer)
 	request.ContentLength = -1
 
@@ -336,9 +446,9 @@ func (s *handlersSuite) TestCannotBroadcastNonJSONMessages(c *C) {
 	dataString := `{"foo":"bar"}`
 
 	request := newPostRequest("/", &Broadcast{
-		Channel:     "some-channel",
-		ExpireAfter: 60,
-		Data:        json.RawMessage([]byte(dataString)),
+		Channel:  "some-channel",
+		ExpireOn: future,
+		Data:     json.RawMessage([]byte(dataString)),
 	}, testServer)
 	request.Header.Set("Content-Type", "text/plain")
 
@@ -353,9 +463,9 @@ func (s *handlersSuite) TestCannotBroadcastNonPostMessages(c *C) {
 
 	dataString := `{"foo":"bar"}`
 	packedMessage, err := json.Marshal(&Broadcast{
-		Channel:     "some-channel",
-		ExpireAfter: 60,
-		Data:        json.RawMessage([]byte(dataString)),
+		Channel:  "some-channel",
+		ExpireOn: future,
+		Data:     json.RawMessage([]byte(dataString)),
 	})
 	s.c.Assert(err, IsNil)
 	reader := bytes.NewReader(packedMessage)

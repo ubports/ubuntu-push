@@ -14,29 +14,5 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package main
-
-import (
-	"log"
-
-	"launchpad.net/go-xdg/v0"
-
-	"launchpad.net/ubuntu-push/client"
-)
-
-func main() {
-	cfgFname, err := xdg.Config.Find("ubuntu-push-client/config.json")
-	if err != nil {
-		log.Fatalf("unable to find a configuration file: %v", err)
-	}
-	lvlFname, err := xdg.Data.Ensure("ubuntu-push-client/levels.db")
-	if err != nil {
-		log.Fatalf("unable to open the levels database: %v", err)
-	}
-	cli := client.NewPushClient(cfgFname, lvlFname)
-	err = cli.Start()
-	if err != nil {
-		log.Fatalf("unable to start: %v", err)
-	}
-	cli.Loop()
-}
+// Package whoopsie wraps libwhoopsie.
+package whoopsie

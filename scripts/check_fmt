@@ -1,6 +1,6 @@
 #!/bin/bash
-# check that all go files respect gofmt formatting
-# assumes GOPATH is properly set
+# Checks that all Go files in the specified project respect gofmt formatting.
+# Requires GOPATH to be set to a single path, not a list of them.
 PROJECT=${1:?missing project}
 PROBLEMS=
 for pkg in $(go list ${PROJECT}/...) ; do

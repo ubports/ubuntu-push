@@ -18,12 +18,13 @@ package server
 
 import (
 	"fmt"
-	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/server/listener"
 	"net"
 	"syscall"
 	"time"
+
+	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/server/listener"
 )
 
 // A DevicesParsedConfig holds and can be used to parse the device server config.
@@ -86,7 +87,9 @@ func (cfg *DevicesParsedConfig) CertPEMBlock() []byte {
 }
 
 // DevicesRunner returns a function to accept device connections.
-func DevicesRunner(session func(net.Conn) error, logger logger.Logger, parsedCfg *DevicesParsedConfig) func() {
+// If adoptLst is not nil it will be used as the underlying listener, instead
+// of creating one, wrapped in a TLS layer.
+func DevicesRunner(adoptLst net.Listener, session func(net.Conn) error, logger logger.Logger, parsedCfg *DevicesParsedConfig) func() {
 	BootLogger.Debugf("PingInterval: %s, ExchangeTimeout %s", parsedCfg.PingInterval(), parsedCfg.ExchangeTimeout())
 	var rlim syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlim)
@@ -94,7 +97,7 @@ func DevicesRunner(session func(net.Conn) error, logger logger.Logger, parsedCfg
 		BootLogFatalf("getrlimit failed: %v", err)
 	}
 	BootLogger.Debugf("nofile soft: %d hard: %d", rlim.Cur, rlim.Max)
-	lst, err := listener.DeviceListen(parsedCfg)
+	lst, err := listener.DeviceListen(adoptLst, parsedCfg)
 	if err != nil {
 		BootLogFatalf("start device listening: %v", err)
 	}

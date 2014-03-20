@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package bus/testing provides an implementation of bus.Bus and bus.Endpoint
+// Package testing provides an implementation of bus.Bus and bus.Endpoint
 // suitable for testing.
 package testing
 
