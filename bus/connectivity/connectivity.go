@@ -145,7 +145,7 @@ Loop:
 // The endpoint need not be dialed; connectivity will Dial() and Close()
 // it as it sees fit.
 func ConnectedState(endp bus.Endpoint, config ConnectivityConfig, log logger.Logger, out chan<- bool) {
-	wg := NewWebchecker(config.ConnectivityCheckURL, config.ConnectivityCheckMD5, log)
+	wg := NewWebchecker(config.ConnectivityCheckURL, config.ConnectivityCheckMD5, 10*time.Second, log)
 	cs := &connectedState{
 		config: config,
 		log:    log,

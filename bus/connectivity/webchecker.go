@@ -26,8 +26,11 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"time"
+
+	http13 "launchpad.net/ubuntu-push/http13client"
+
 	"launchpad.net/ubuntu-push/logger"
-	"net/http"
 )
 
 // how much web would a webchecker check
@@ -43,20 +46,25 @@ type webchecker struct {
 	log    logger.Logger
 	url    string
 	target string
+	cli    *http13.Client
 }
 
 // Build a webchecker for the given URL, that should match the target MD5.
-func NewWebchecker(url string, target string, log logger.Logger) Webchecker {
-	return &webchecker{log, url, target}
+func NewWebchecker(url string, target string, timeout time.Duration, log logger.Logger) Webchecker {
+	cli := &http13.Client{
+		Timeout:   timeout,
+		Transport: &http13.Transport{TLSHandshakeTimeout: timeout},
+	}
+	return &webchecker{log, url, target, cli}
 }
 
 // ensure webchecker implements Webchecker
 var _ Webchecker = &webchecker{}
 
 func (wb *webchecker) Webcheck(ch chan<- bool) {
-	response, err := http.Get(wb.url)
+	response, err := wb.cli.Get(wb.url)
 	if err != nil {
-		wb.log.Errorf("While GETting %s: %s", wb.url, err)
+		wb.log.Errorf("While GETting %s: %v", wb.url, err)
 		ch <- false
 		return
 	}
@@ -64,7 +72,7 @@ func (wb *webchecker) Webcheck(ch chan<- bool) {
 	hash := md5.New()
 	_, err = io.CopyN(hash, response.Body, 1024)
 	if err != io.EOF {
-		wb.log.Errorf("Reading %s, expecting EOF, got: %s",
+		wb.log.Errorf("Reading %s, expecting EOF, got: %v",
 			wb.url, err)
 		ch <- false
 		return
