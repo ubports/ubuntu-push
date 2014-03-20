@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 /*
-Package http provides HTTP client and server implementations.
+Package http contains the client subset of go 1.3 development net/http.
 
 Get, Head, Post, and PostForm make HTTP (or HTTPS) requests:
 
@@ -52,29 +52,5 @@ compression, and other settings, create a Transport:
 
 Clients and Transports are safe for concurrent use by multiple
 goroutines and for efficiency should only be created once and re-used.
-
-ListenAndServe starts an HTTP server with a given address and handler.
-The handler is usually nil, which means to use DefaultServeMux.
-Handle and HandleFunc add handlers to DefaultServeMux:
-
-	http.Handle("/foo", fooHandler)
-
-	http.HandleFunc("/bar", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
-	})
-
-	log.Fatal(http.ListenAndServe(":8080", nil))
-
-More control over the server's behavior is available by creating a
-custom Server:
-
-	s := &http.Server{
-		Addr:           ":8080",
-		Handler:        myHandler,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
-	}
-	log.Fatal(s.ListenAndServe())
 */
 package http
