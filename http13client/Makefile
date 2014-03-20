@@ -1,14 +1,15 @@
 # help massage and extract from go development 1.3 net/http the client bits
 
 grab:
-	cp $(CHECKOUT)/src/pkg/net/http/*.go .
+	cp $(GOCHECKOUT)/src/pkg/net/http/*.go .
+	cp $(GOCHECKOUT)/LICENSE .
 	mkdir -p httptest
 	mkdir -p httputil
 	mkdir -p testdata
-	cp $(CHECKOUT)/src/pkg/net/http/httptest/*.go httptest
-	cp $(CHECKOUT)/src/pkg/net//http/httputil/*.go httputil
-	cp $(CHECKOUT)/src/pkg/net/http/testdata/* testdata
-	hg -R $(CHECKOUT) summary > _using.txt
+	cp $(GOCHECKOUT)/src/pkg/net/http/httptest/*.go httptest
+	cp $(GOCHECKOUT)/src/pkg/net//http/httputil/*.go httputil
+	cp $(GOCHECKOUT)/src/pkg/net/http/testdata/* testdata
+	hg -R $(GOCHECKOUT) summary > _using.txt
 
 full-prepare:
 	patch -R -p5 < _patches/sync_pool.Rpatch
@@ -27,8 +28,10 @@ fix:
 	patch -p1 < _patches/fix_tests.patch
 	patch -p1 < _patches/fix_code.patch
 	patch -p1 < _patches/fix_status.patch
+	patch -p1 < _patches/tweak_doc_go.patch
+	go fmt
 
-clean:
+wipe:
 	rm -rf *.go httptest httputil testdata
 
-.PHONY: grab full-prepare prune fix clean
+.PHONY: grab full-prepare prune fix wipe
