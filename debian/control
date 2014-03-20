@@ -9,8 +9,8 @@ Build-Depends: debhelper (>= 9),
                libwhoopsie-dev,
                libglib2.0-dev (>= 2.31.6),
                libgcrypt11-dev,
-               gocheck-dev,
-               go-dbus-dev,
+               golang-gocheck-dev,
+               golang-go-dbus-dev,
                golang-go-xdg-dev,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push
