@@ -4,16 +4,16 @@ Priority: optional
 X-Original-Maintainer: John Lenton <john.lenton@canonical.com>
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: debhelper (>= 9),
-               dh-golang,
                dh-exec (>= 0.3),
+               dh-golang,
                golang-go,
-               libwhoopsie-dev,
-               libglib2.0-dev (>= 2.31.6),
-               libgcrypt11-dev,
-               golang-gocheck-dev,
                golang-go-dbus-dev,
                golang-go-xdg-dev,
+               golang-gocheck-dev,
                golang-gosqlite-dev,
+               libgcrypt11-dev,
+               libglib2.0-dev (>= 2.31.6),
+               libwhoopsie-dev,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push
 Vcs-Bzr: lp:ubuntu-push
@@ -21,19 +21,20 @@ Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-push-hackers/ubuntu-push/trunk/
 
 Package: ubuntu-push-client
 Architecture: any
-Depends: ${shlibs:Depends},
-         ${misc:Depends},
-         dbus,
+Depends: dbus,
          network-manager,
-         url-dispatcher,
          notification-daemon,
+         url-dispatcher,
+         ${misc:Depends},
+         ${shlibs:Depends},
 Built-Using: ${misc:Built-Using}
 Description: Ubuntu Push Notifications client-side daemon
  The Ubuntu Push Notifications client-side daemon.
 
 Package: golang-ubuntu-push-dev
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
 Built-Using: ${misc:Built-Using}
 Description: Ubuntu Push Notifications client-side daemon
  The Ubuntu Push Notifications client-side daemon library.
