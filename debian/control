@@ -16,9 +16,6 @@ Build-Depends: debhelper (>= 9),
                libwhoopsie-dev,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push
-# if you don't have have commit access to this branch but would like to upload
-# directly to Ubuntu, don't worry: your changes will be merged back into the
-# upstream branch
 Vcs-Bzr: lp:ubuntu-push
 Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-push-hackers/ubuntu-push/trunk/files
 
