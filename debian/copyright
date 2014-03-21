@@ -1,6 +1,6 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: ubuntu-push-client
-Source: <url://launchpad.net/ubuntu-push>
+Source: http://launchpad.net/ubuntu-push
 
 Files: *
 Copyright: 2013-2014 Canonical Ltd.
