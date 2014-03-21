@@ -5,18 +5,5 @@ export DH_GOPKG := launchpad.net/ubuntu-push
 export DEB_BUILD_OPTIONS := nostrip
 export UBUNTU_PUSH_TEST_RESOURCES_ROOT := $(CURDIR)
 
-TMP := debian/tmp
-DIR := debian/ubuntu-push-client
-BIN := $(DIR)/usr/lib/ubuntu-push-client
-CFG := $(DIR)/etc/xdg/ubuntu-push-client
-UPS := $(DIR)/usr/share/upstart/sessions
-
-# override_dh_install:
-# 	mv -v $(DIR) $(TMP)
-# 	mkdir -vp $(BIN) $(CFG) $(UPS)
-# 	mv -v $(TMP)/usr/bin/ubuntu-push $(BIN)/ubuntu-push-client
-# 	cp -v debian/config.json $(CFG)
-# 	cp -v debian/ubuntu-push-client.conf $(UPS)
-
 %:
 	dh $@ --buildsystem=golang --with=golang
