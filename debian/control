@@ -21,6 +21,7 @@ Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-push-hackers/ubuntu-push/trunk/
 
 Package: ubuntu-push-client
 Architecture: any
+Multi-Arch: foreign
 Depends: dbus,
          network-manager,
          notification-daemon,
