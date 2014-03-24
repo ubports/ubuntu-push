@@ -1,0 +1,3 @@
+Directly included vendorized small packages.
+
+* murmor3 comes from import at lp:~ubuntu-push-hackers/ubuntu-push/murmur at revno 10

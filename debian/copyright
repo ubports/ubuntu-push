@@ -10,6 +10,10 @@ Files: http13client/*
 Copyright: 2009-2013 The Go Authors
 License: BSD-3-clause
 
+Files: external/murmur3/*
+Copyright: 2013 Sébastien Paolacci
+License: BSD-3-clause
+
 License: GPL-3.0
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
