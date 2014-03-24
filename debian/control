@@ -36,7 +36,7 @@ Architecture: all
 Depends: ${misc:Depends},
          ${shlibs:Depends},
 Built-Using: ${misc:Built-Using}
-Description: Ubuntu Push Notifications client-side daemon
+Description: Ubuntu Push Notifications client-side daemon development package
  The Ubuntu Push Notifications client-side daemon library.
  .
  This package contains the source.
