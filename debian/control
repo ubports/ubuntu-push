@@ -21,6 +21,7 @@ Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-push-hackers/ubuntu-push/trunk/
 
 Package: ubuntu-push-client
 Architecture: any
+Multi-Arch: foreign
 Depends: dbus,
          network-manager,
          notification-daemon,
@@ -36,7 +37,7 @@ Architecture: all
 Depends: ${misc:Depends},
          ${shlibs:Depends},
 Built-Using: ${misc:Built-Using}
-Description: Ubuntu Push Notifications client-side daemon
+Description: Ubuntu Push Notifications client-side daemon development package
  The Ubuntu Push Notifications client-side daemon library.
  .
  This package contains the source.
