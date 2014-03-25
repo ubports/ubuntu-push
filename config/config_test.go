@@ -189,3 +189,44 @@ func (s *configSuite) TestTraverseStruct(c *C) {
 	}
 	c.Check(a, DeepEquals, A{1, B{2}, 0})
 }
+
+type testConfig2 struct {
+	A int
+	B string
+	C []string `json:"c_list"`
+	D ConfigTimeDuration
+}
+
+func (s *configSuite) TestCompareConfig(c *C) {
+	var cfg1 = testConfig2{
+		A: 1,
+		B: "xyz",
+		C: []string{"a", "b"},
+		D: ConfigTimeDuration{200 * time.Millisecond},
+	}
+	var cfg2 = testConfig2{
+		A: 1,
+		B: "xyz",
+		C: []string{"a", "b"},
+		D: ConfigTimeDuration{200 * time.Millisecond},
+	}
+	_, err := CompareConfig(cfg1, &cfg2)
+	c.Check(err, ErrorMatches, `config1 not \*struct`)
+	_, err = CompareConfig(&cfg1, cfg2)
+	c.Check(err, ErrorMatches, `config2 not \*struct`)
+	_, err = CompareConfig(&cfg1, &testConfig1{})
+	c.Check(err, ErrorMatches, `config1 and config2 don't have the same type`)
+
+	res, err := CompareConfig(&cfg1, &cfg2)
+	c.Assert(err, IsNil)
+	c.Check(res, IsNil)
+
+	cfg1.B = "zyx"
+	cfg2.C = []string{"a", "B"}
+	cfg2.D = ConfigTimeDuration{205 * time.Millisecond}
+
+	res, err = CompareConfig(&cfg1, &cfg2)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, []string{"b", "c_list", "d"})
+
+}
