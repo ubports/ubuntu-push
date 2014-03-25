@@ -1,3 +1,182 @@
+ubuntu-push (0.1+14.04.20140325.2-0ubuntu1) trusty; urgency=low
+
+  [ Diogo Baeder de Paula Pinto ]
+  * [r=pedronis] Adding authorization field to the ConnectMsg struct
+
+  [ Robert Bruce Park ]
+  * [r=chipaca] Minor cleanup, with wrap-and-sort.
+
+  [ Nicola Larosa ]
+  * [r=pedronis] Reflow comments so that subsequent changes are more
+    readable. Only comment reflows, no other changes.
+  * [r=pedronis] Clean up docs and comments, and make them look better
+    in go doc. No behavior change at all.
+
+  [ john.lenton@canonical.com ]
+  * [r=pedronis] A thin wrapper around libwhoopsie/identifier.h.
+  * [r=pedronis] A simplified (and more testable) dbus api
+  * [r=pedronis] A simplified, testable, Network Manager wrapper
+  * [r=pedronis] A super simple connectivity api (in the "am i
+    connected?" sense)
+  * [r=pedronis] Switched networkmanager to use the non-deprecated api
+    for state.
+  * [r=pedronis] moved the object proxy into the endpoint
+  * [r=pedronis] Made the bus support multi-valued signals (preparatory
+    for notifications). Also added tests for TestingBus.
+  * [r=pedronis] notifications! first, a low-level api.
+  * [r=pedronis] URLDispatcher (and extended endpoint.Call to return
+    []interface{})
+  * [r=pedronis] moved a bunch of packages under bus/
+  * [r=pedronis] change a few of the bus/* services to take a
+    bus.Endpoint instead of a bus.Bus
+  * [r=pedronis] reworked bus.Endpoint to have a Dial() method, added an
+    AutoRedialer() and put the redialing logic in there (for use on
+    sessionbus as well, later).
+  * [r=pedronis] Nuked the connectivity example.
+  * [r=pedronis] Renamed bus/connectivity's Config to
+    ConnectivityConfig.
+  * [r=pedronis] Introducing AutoRetry, a generic AutoRetry.
+  * [r=pedronis] Made bus.Endpoint's WatchSignal use an (exported)
+    channel for waiting between sending values, if the channel is not
+    nil.
+  * [r=pedronis] The client session level map. Interesting as an
+    interface and not much more, right now.
+  * [r=pedronis] A wild client session appears!
+  * [r=pedronis] get rid of a race in the bus/testing watchticker thing
+  * [r=pedronis] The handling of the ping.
+  * [r=pedronis,chipaca] Broadcasting your horizons.
+  * [r=pedronis] The running man.
+  * [r=pedronis] Starting to take shape.
+  * [r=pedronis] Killed checkRunnable; renamed: Dial -> connect, run ->
+    loop.
+  * [r=pedronis] Ladies and gentlemen, the client session.
+  * [r=pedronis] first step of the v0 of the client
+  * [r=pedronis] second step of the v0 of the client: getting the device
+    id
+  * [r=pedronis] part 3: setting up the bus
+  * [r=pedronis] Part 4: added State to client/session, to aid in
+    testing some aspects of this.
+  * [r=pedronis] added handleConnState
+  * [r=pedronis] Several things: features:. * bus/testing/'s Endpoint
+    now tracks Calls; call bus/testing.GetCallCargs(endp) to get the
+    list. * Client.handleErr, Client.handleNotification and
+    Client.handleClick (and tests) cleanups:. * renamed client's
+    Client's connState to hasConnectivity * split out code from
+    handleConnState into initSession/connectSession/disconnectSession
+  * [r=pedronis] Several things: features:. * Client.doLoop, the puppet
+    master. fixes and cleanups:. * added log_level to client config *
+    added the mysterious sessionRetryCh, used in doLoop to avoid a
+    rather common starvation scenario. * found a way not to panic out in
+    initSession (not that it's much better) * unified logging in the
+    client tests a bit * added logging to session's start error states.
+  * [r=pedronis] Reworked or refactored util/redialer, and a bit of
+    client/session, and client.
+  * [r=pedronis] TestLogger
+  * [r=pedronis] and this completes the client library (for now)
+  * [r=pedronis] made GetSourceRelative look at the environ to help make
+    the tests pass in packaging
+  * [r=pedronis] Gave client a constructor, moved setting config file to
+    there.
+  * [r=pedronis] change the levelmap interface to return errors
+  * [r=pedronis] this is sqlevelmap
+  * [r=pedronis] bring sqlevelmap into session
+  * [r=pedronis] and this gives the client the ability to persist its
+    session's levelmap
+  * [r=pedronis] The Push Client itself.
+  * [r=diogobaeder] Merging the packaging branch (to get on the CI
+    train).
+  * [r=didrocks] Fixes to packaging, as suggested by didrocks.
+  * Bring back source/format, so executable .install file works.
+
+  [ Timo Jyrinki ]
+  * [r=chipaca] Add http13client copyright information and use GPL-3.0
+    (non-+) license consistently.
+
+  [ Ubuntu daily release ]
+  * New rebuild forced
+
+  [ Samuele Pedroni (Canonical Services Ltd.) ]
+  * [r=chipaca] and as a start we get some protocol support and a
+    development server and infrastructure
+  * [r=chipaca] couple of extra tests and changes to improve test
+    coverage
+  * [r=chipaca] -insecure (don't check certs) -reportPings=f (don't
+    report pings) flags for acceptanceclient
+  * [r=chipaca] make the tracker used by the session for logging
+    pluggable
+  * [r=chipaca] introduce CONNACK message from the server after CONNECT
+    to inform the client of connection params like ping interval
+  * [r=chipaca] protocol diagrams using graphviz
+  * [r=chipaca] introduce middleware in the http handling that recovers
+    and converts panics into 500 errors, profit (remove 500 ad hoc code)
+  * [r=bloodearnest] log some debug info about runtime configuration of
+    the dev server; also tweak play-around config.json with some
+    slightly saner values
+  * [r=chipaca] teach config how to behave with anonymous fields,
+    unexported fields, and to compose a config reading from many files;
+    move some shared/sharable things into testing/
+  * [r=chipaca] make server/dev into composable pieces, somewhat big
+    mostly because of lots of shuffling around
+  * [r=chipaca] populate /server with the runners code; generalize
+    acceptance.sh
+  * [r=chipaca] exchanges don't require to be so tied to a particular
+    broker
+  * [r=chipaca] put simple broker in its own package, reorg most of its
+    tests as a common testsuite; fix TestBroadcast to test what it says
+    on the tin
+  * [r=chipaca] introduce reusable TestBrokerConfig and
+    TestBrokerSession
+  * [r=chipaca] check that the data field is not missing
+  * [r=pedronis] [trivial ]support supplying auxiliary configs to the
+    server in acceptance tests
+  * [r=chipaca] some more info reported out of session, some tweaks
+  * [r=chipaca] add indirection to accessing the broadcast exchanges on
+    the broadcast queue in the broker suite
+  * [r=chipaca] fix corner cases like client level too ahead etc, with
+    acceptance tests
+  * [r=chipaca] base the simple logger only on having a log.Logger-style
+    Output(); given this we can introduce a testing.TestLogger that does
+    redirecting of logs to the gocheck.C object if wired in SetUpTest
+    and also does its own capture
+  * [r=chipaca] use TestLogger in more places
+  * [r=chipaca] be explicit with the MinLogger interface, stops 1.1
+    compiler from exploding
+  * [r=pedronis] [trivial] reorg imports in: config logger protocol
+    server testing as: stdlib -- 3rdparty -- own
+  * [r=pedronis] [trivial] use Assert in place of Check to sanity check
+    api http reqs in acceptance; use a longer ping in
+    TestSessionLoopExchangeNextPing
+  * [r=chipaca] add support for expiration of broadcasts with trivial
+    implementation in the in-memory pending store
+  * [r=chipaca] starting splitting out helpers in the acceptance tests
+  * [r=chipaca] restructure acceptance tests into reusable suites
+  * [r=chipaca] add acceptance test about broadcast expiration
+  * [r=diogobaeder] simplify acceptance test; don't hide that
+    MakeHandlersMux returns a *http.ServeMux
+  * [r=verterok] add some flexibility in how the requests get the store;
+    log unexpected store related errors
+  * [r=teknico] expose a couple of helpers for reuse
+  * [r=pedronis] further small doc cleanups
+  * [r=teknico] * fix the fact that exchanges were reusing broadcast
+    messages but the split state of those wasn't reset fix naming in
+    tests that was reversed.
+  * [r=teknico] refactor acceptance tests to expose more hooking
+    points/details
+  * [r=pedronis] [trivial] variable spelling
+  * [r=pedronis] [trivial] hook to massage requests sent to the http api
+    server by the acceptance test suite
+  * [r=chipaca] let the device listener setup code also take a prebuilt
+    listener
+  * [r=chipaca] vendor the go 1.3 development net/http bits which
+    properly/better support timeouts for requests; see _using.txt and
+    Makefile for the recipe in http13client
+  * [r=chipaca] add timeing out to webhecker using the vendorized go 1.3
+    net/http in http13client
+  * [r=chipaca] introduce package gethosts implementing finding hosts to
+    connect to for delivery of notifications
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Tue, 25 Mar 2014 17:27:09 +0000
+
 ubuntu-push (0.1-0ubuntu1) trusty; urgency=medium
 
   * Getting ready for CI train.
