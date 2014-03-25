@@ -24,7 +24,7 @@ Architecture: any
 Multi-Arch: foreign
 Depends: dbus,
          network-manager,
-         notification-daemon,
+         qtdeclarative5-unity-notifications-plugin | notification-daemon,
          url-dispatcher,
          ${misc:Depends},
          ${shlibs:Depends},
