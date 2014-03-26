@@ -392,7 +392,7 @@ func (cs *clientSuite) TestHandleNotification(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
-	c.Check(cli.handleNotification(), IsNil)
+	c.Check(cli.handleNotification(nil), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
@@ -405,7 +405,7 @@ func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
-	c.Check(cli.handleNotification(), NotNil)
+	c.Check(cli.handleNotification(nil), NotNil)
 }
 
 /*****************************************************************
@@ -437,7 +437,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	c.Assert(cli.initSession(), IsNil)
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) { ch <- true }, func() error { return nil }, func() error { return nil }, func(error) {})
+	go cli.doLoop(func(bool) { ch <- true }, func() error { return nil }, func(_ *session.Notification) error { return nil }, func(error) {})
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -450,7 +450,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli.actionsCh = aCh
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func() error { ch <- true; return nil }, func() error { return nil }, func(error) {})
+	go cli.doLoop(func(bool) {}, func() error { ch <- true; return nil }, func(_ *session.Notification) error { return nil }, func(error) {})
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -462,7 +462,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.session.MsgCh <- &session.Notification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func() error { return nil }, func() error { ch <- true; return nil }, func(error) {})
+	go cli.doLoop(func(bool) {}, func() error { return nil }, func(_ *session.Notification) error { ch <- true; return nil }, func(error) {})
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -474,7 +474,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli.session.ErrCh <- nil
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func() error { return nil }, func() error { return nil }, func(error) { ch <- true })
+	go cli.doLoop(func(bool) {}, func() error { return nil }, func(_ *session.Notification) error { return nil }, func(error) { ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
