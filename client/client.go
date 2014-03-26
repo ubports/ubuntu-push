@@ -195,8 +195,8 @@ func (client *PushClient) handleNotification() error {
 		"ubuntu-push-client",               // app name
 		uint32(0),                          // id
 		"update_manager_icon",              // icon
-		"There's an updated system image!", // summary
-		"You've got to get it! Now! Run!",  // body
+		"There's an updated system image.", // summary
+		"Tap to open the system updater.",  // body
 		a,              // actions
 		h,              // hints
 		int32(10*1000), // timeout (ms)
