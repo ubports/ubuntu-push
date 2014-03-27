@@ -83,9 +83,12 @@ type ClientSession struct {
 	Levels             levelmap.LevelMap
 	Protocolator       func(net.Conn) protocol.Protocol
 	// hosts
-	timeNow                func() time.Time // hook for testing
+	timeSince              func(time.Time) time.Duration // hook for testing
 	deliveryHostsTimestamp time.Time
 	deliveryHosts          []string
+	lastAttemptTimestamp   time.Time
+	leftToTry              int
+	tryHost                int
 	// connection
 	Connection   net.Conn
 	Log          logger.Logger
@@ -99,8 +102,7 @@ type ClientSession struct {
 	MsgCh  chan *Notification
 }
 
-func NewSession(serverAddrSpec string, pem []byte,
-	exchangeTimeout time.Duration, hostsCachingExpiry time.Duration,
+func NewSession(serverAddrSpec string, pem []byte, exchangeTimeout time.Duration,
 	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
 	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
@@ -114,16 +116,17 @@ func NewSession(serverAddrSpec string, pem []byte,
 		getHost = gethosts.New(deviceId, hostsEndpoint, exchangeTimeout)
 	}
 	sess := &ClientSession{
-		ExchangeTimeout: exchangeTimeout,
-		getHost:         getHost,
-		fallbackHosts:   fallbackHosts,
-		DeviceId:        deviceId,
-		Log:             log,
-		Protocolator:    protocol.NewProtocol0,
-		Levels:          levels,
-		TLS:             &tls.Config{InsecureSkipVerify: true}, // XXX
-		stateP:          &state,
-		timeNow:         time.Now,
+		ExchangeTimeout:    exchangeTimeout,
+		HostsCachingExpiry: 12 * time.Hour,
+		getHost:            getHost,
+		fallbackHosts:      fallbackHosts,
+		DeviceId:           deviceId,
+		Log:                log,
+		Protocolator:       protocol.NewProtocol0,
+		Levels:             levels,
+		TLS:                &tls.Config{InsecureSkipVerify: true}, // XXX
+		stateP:             &state,
+		timeSince:          time.Since,
 	}
 	if pem != nil {
 		cp := x509.NewCertPool()
@@ -147,7 +150,7 @@ func (sess *ClientSession) setState(state ClientSessionState) {
 // getHosts sets deliverHosts possibly querying a remote endpoint
 func (sess *ClientSession) getHosts() error {
 	if sess.getHost != nil {
-		if sess.timeNow().Sub(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiry {
+		if sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiry {
 			return nil
 		}
 		hosts, err := sess.getHost.Get()
@@ -156,7 +159,7 @@ func (sess *ClientSession) getHosts() error {
 			sess.setState(Error)
 			return err
 		}
-		sess.deliveryHostsTimestamp = sess.timeNow()
+		sess.deliveryHostsTimestamp = time.Now()
 		sess.deliveryHosts = hosts
 	} else {
 		sess.deliveryHosts = sess.fallbackHosts
@@ -164,14 +167,52 @@ func (sess *ClientSession) getHosts() error {
 	return nil
 }
 
+// startConnectionAttempt/nextHostToTry help connect iterating over candidate hosts
+
+func (sess *ClientSession) startConnectionAttempt() {
+	if sess.timeSince(sess.lastAttemptTimestamp) > 10*sess.ExchangeTimeout {
+		sess.tryHost = 0
+	}
+	sess.leftToTry = len(sess.deliveryHosts)
+	sess.lastAttemptTimestamp = time.Now()
+}
+
+func (sess *ClientSession) nextHostToTry() string {
+	if sess.leftToTry == 0 {
+		return ""
+	}
+	res := sess.deliveryHosts[sess.tryHost]
+	sess.tryHost = (sess.tryHost + 1) % len(sess.deliveryHosts)
+	sess.leftToTry--
+	return res
+}
+
+// we reached the Started state, we can retry with the same host if we
+// have to retry again
+func (sess *ClientSession) started() {
+	sess.tryHost--
+	if sess.tryHost == -1 {
+		sess.tryHost = len(sess.deliveryHosts) - 1
+	}
+	sess.setState(Started)
+}
+
 // connect to a server using the configuration in the ClientSession
 // and set up the connection.
 func (sess *ClientSession) connect() error {
-	// xxx
-	conn, err := net.DialTimeout("tcp", sess.fallbackHosts[0], sess.ExchangeTimeout)
-	if err != nil {
-		sess.setState(Error)
-		return fmt.Errorf("connect: %s", err)
+	sess.startConnectionAttempt()
+	var err error
+	var conn net.Conn
+	for {
+		host := sess.nextHostToTry()
+		if host == "" {
+			sess.setState(Error)
+			return fmt.Errorf("connect: %s", err)
+		}
+		conn, err = net.DialTimeout("tcp", host, sess.ExchangeTimeout)
+		if err == nil {
+			break
+		}
 	}
 	sess.Connection = tls.Client(conn, sess.TLS)
 	sess.setState(Connected)
@@ -330,15 +371,19 @@ func (sess *ClientSession) start() error {
 	sess.proto = proto
 	sess.pingInterval = pingInterval
 	sess.Log.Debugf("Connected %v.", conn.LocalAddr())
-	sess.setState(Started)
+	sess.started() // deals with choosing which host to retry with as well
 	return nil
 }
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *ClientSession) run(closer func(), connecter, starter, looper func() error) error {
+func (sess *ClientSession) run(closer func(), hostGetter, connecter, starter, looper func() error) error {
 	closer()
-	err := connecter()
+	err := hostGetter()
+	if err != nil {
+		return err
+	}
+	err = connecter()
 	if err == nil {
 		err = starter()
 		if err == nil {
@@ -368,7 +413,7 @@ func (sess *ClientSession) Dial() error {
 		// keep on trying.
 		panic("can't Dial() without a protocol constructor.")
 	}
-	return sess.run(sess.doClose, sess.connect, sess.start, sess.loop)
+	return sess.run(sess.doClose, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
 func init() {
