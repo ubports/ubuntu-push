@@ -23,16 +23,19 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/protocol"
-	helpers "launchpad.net/ubuntu-push/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
 	"net"
 	"reflect"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/client/session/levelmap"
+	//"launchpad.net/ubuntu-push/client/gethosts"
+	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/protocol"
+	helpers "launchpad.net/ubuntu-push/testing"
+	"launchpad.net/ubuntu-push/testing/condition"
 )
 
 func TestSession(t *testing.T) { TestingT(t) }
@@ -181,16 +184,41 @@ func (cs *clientSqlevelsSessionSuite) SetUpSuite(c *C) {
 }
 
 /****************************************************************
+  parseServerAddrSpec() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestParseServerAddrSpec(c *C) {
+	hEp, fallbackHosts := parseServerAddrSpec("http://foo/hosts")
+	c.Check(hEp, Equals, "http://foo/hosts")
+	c.Check(fallbackHosts, IsNil)
+
+	hEp, fallbackHosts = parseServerAddrSpec("foo:443")
+	c.Check(hEp, Equals, "")
+	c.Check(fallbackHosts, DeepEquals, []string{"foo:443"})
+
+	hEp, fallbackHosts = parseServerAddrSpec("foo:443|bar:443")
+	c.Check(hEp, Equals, "")
+	c.Check(fallbackHosts, DeepEquals, []string{"foo:443", "bar:443"})
+}
+
+/****************************************************************
   NewSession() tests
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
-	sess, err := NewSession("", nil, 0, "", cs.lvls, cs.log)
+	sess, err := NewSession("foo:443", nil, 0, "", cs.lvls, cs.log)
 	c.Check(sess, NotNil)
 	c.Check(err, IsNil)
+	c.Check(sess.fallbackHosts, DeepEquals, []string{"foo:443"})
 	// but no root CAs set
 	c.Check(sess.TLS.RootCAs, IsNil)
 	c.Check(sess.State(), Equals, Disconnected)
+}
+
+func (cs *clientSessionSuite) TestNewSessionHostEndpointWorks(c *C) {
+	sess, err := NewSession("http://foo/hosts", pem, 0, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	c.Check(sess.getHost, NotNil)
 }
 
 var certfile string = helpers.SourceRelative("../../server/acceptance/config/testing.cert")
@@ -215,6 +243,70 @@ func (cs *clientSessionSuite) TestNewSessionBadLevelMapFails(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", ferr, cs.log)
 	c.Check(sess, IsNil)
 	c.Assert(err, NotNil)
+}
+
+/****************************************************************
+  getHosts() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestGetHostsFallback(c *C) {
+	fallback := []string{"foo:443", "bar:443"}
+	sess := &ClientSession{fallbackHosts: fallback}
+	err := sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, fallback)
+}
+
+type testHostGetter struct {
+	hosts []string
+	err   error
+}
+
+func (thg *testHostGetter) Get() ([]string, error) {
+	return thg.hosts, thg.err
+}
+
+func (cs *clientSessionSuite) TestGetHostsRemote(c *C) {
+	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	sess := &ClientSession{getHost: hostGetter, timeNow: time.Now}
+	err := sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, []string{"foo:443", "bar:443"})
+}
+
+func (cs *clientSessionSuite) TestGetHostsRemoteError(c *C) {
+	sess, err := NewSession("", nil, 0, "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	hostsErr := errors.New("failed")
+	hostGetter := &testHostGetter{nil, hostsErr}
+	sess.getHost = hostGetter
+	err = sess.getHosts()
+	c.Assert(err, Equals, hostsErr)
+	c.Check(sess.deliveryHosts, IsNil)
+	c.Check(sess.State(), Equals, Error)
+}
+
+func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
+	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	sess := &ClientSession{
+		getHost:            hostGetter,
+		HostsCachingExpiry: 2 * time.Hour,
+		timeNow:            time.Now,
+	}
+	err := sess.getHosts()
+	c.Assert(err, IsNil)
+	hostGetter.hosts = []string{"baz:443"}
+	// cached
+	err = sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, []string{"foo:443", "bar:443"})
+	// expired
+	sess.timeNow = func() time.Time {
+		return time.Now().Add(3 * time.Hour)
+	}
+	err = sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, []string{"baz:443"})
 }
 
 /****************************************************************

@@ -23,14 +23,17 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"math/rand"
+	"net"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
-	"math/rand"
-	"net"
-	"sync/atomic"
-	"time"
 )
 
 var wireVersionBytes = []byte{protocol.ProtocolWireVersion}
@@ -45,6 +48,15 @@ type serverMsg struct {
 	protocol.NotificationsMsg
 }
 
+// parseServerAddrSpec recognizes whether spec is a HTTP URL to get
+// hosts from or a |-separated list of host:port pairs.
+func parseServerAddrSpec(spec string) (hostsEndpoint string, fallbackHosts []string) {
+	if strings.HasPrefix(spec, "http") {
+		return spec, nil
+	}
+	return "", strings.Split(spec, "|")
+}
+
 // ClientSessionState is a way to broadly track the progress of the session
 type ClientSessionState uint32
 
@@ -56,14 +68,24 @@ const (
 	Running
 )
 
+type hostGetter interface {
+	Get() ([]string, error)
+}
+
 // ClienSession holds a client<->server session and its configuration.
 type ClientSession struct {
 	// configuration
-	DeviceId        string
-	ServerAddr      string
-	ExchangeTimeout time.Duration
-	Levels          levelmap.LevelMap
-	Protocolator    func(net.Conn) protocol.Protocol
+	DeviceId           string
+	getHost            hostGetter
+	fallbackHosts      []string
+	ExchangeTimeout    time.Duration
+	HostsCachingExpiry time.Duration
+	Levels             levelmap.LevelMap
+	Protocolator       func(net.Conn) protocol.Protocol
+	// hosts
+	timeNow                func() time.Time // hook for testing
+	deliveryHostsTimestamp time.Time
+	deliveryHosts          []string
 	// connection
 	Connection   net.Conn
 	Log          logger.Logger
@@ -77,7 +99,7 @@ type ClientSession struct {
 	MsgCh  chan *Notification
 }
 
-func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
+func NewSession(serverAddrSpec string, pem []byte, exchangeTimeout time.Duration,
 	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
 	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
@@ -85,15 +107,22 @@ func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 	if err != nil {
 		return nil, err
 	}
+	var getHost hostGetter
+	hostsEndpoint, fallbackHosts := parseServerAddrSpec(serverAddrSpec)
+	if hostsEndpoint != "" {
+		getHost = gethosts.New(deviceId, hostsEndpoint, exchangeTimeout)
+	}
 	sess := &ClientSession{
 		ExchangeTimeout: exchangeTimeout,
-		ServerAddr:      serverAddr,
+		getHost:         getHost,
+		fallbackHosts:   fallbackHosts,
 		DeviceId:        deviceId,
 		Log:             log,
 		Protocolator:    protocol.NewProtocol0,
 		Levels:          levels,
 		TLS:             &tls.Config{InsecureSkipVerify: true}, // XXX
 		stateP:          &state,
+		timeNow:         time.Now,
 	}
 	if pem != nil {
 		cp := x509.NewCertPool()
@@ -114,10 +143,31 @@ func (sess *ClientSession) setState(state ClientSessionState) {
 	atomic.StoreUint32(sess.stateP, uint32(state))
 }
 
+// getHosts sets deliverHosts possibly querying a remote endpoint
+func (sess *ClientSession) getHosts() error {
+	if sess.getHost != nil {
+		if sess.timeNow().Sub(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiry {
+			return nil
+		}
+		hosts, err := sess.getHost.Get()
+		if err != nil {
+			sess.Log.Errorf("getHosts: %v", err)
+			sess.setState(Error)
+			return err
+		}
+		sess.deliveryHostsTimestamp = sess.timeNow()
+		sess.deliveryHosts = hosts
+	} else {
+		sess.deliveryHosts = sess.fallbackHosts
+	}
+	return nil
+}
+
 // connect to a server using the configuration in the ClientSession
 // and set up the connection.
 func (sess *ClientSession) connect() error {
-	conn, err := net.DialTimeout("tcp", sess.ServerAddr, sess.ExchangeTimeout)
+	// xxx
+	conn, err := net.DialTimeout("tcp", sess.fallbackHosts[0], sess.ExchangeTimeout)
 	if err != nil {
 		sess.setState(Error)
 		return fmt.Errorf("connect: %s", err)
