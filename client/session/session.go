@@ -99,7 +99,8 @@ type ClientSession struct {
 	MsgCh  chan *Notification
 }
 
-func NewSession(serverAddrSpec string, pem []byte, exchangeTimeout time.Duration,
+func NewSession(serverAddrSpec string, pem []byte,
+	exchangeTimeout time.Duration, hostsCachingExpiry time.Duration,
 	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
 	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
