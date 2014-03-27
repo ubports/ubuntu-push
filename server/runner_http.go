@@ -31,10 +31,14 @@ type HTTPServeParsedConfig struct {
 }
 
 // HTTPServeRunner returns a function to serve HTTP requests.
-func HTTPServeRunner(h http.Handler, parsedCfg *HTTPServeParsedConfig) func() {
-	httpLst, err := net.Listen("tcp", parsedCfg.ParsedHTTPAddr.HostPort())
-	if err != nil {
-		BootLogFatalf("start http listening: %v", err)
+// If httpLst is not nil it will be used as the underlying listener.
+func HTTPServeRunner(httpLst net.Listener, h http.Handler, parsedCfg *HTTPServeParsedConfig) func() {
+	if httpLst == nil {
+		var err error
+		httpLst, err = net.Listen("tcp", parsedCfg.ParsedHTTPAddr.HostPort())
+		if err != nil {
+			BootLogFatalf("start http listening: %v", err)
+		}
 	}
 	BootLogListener("http", httpLst)
 	srv := &http.Server{

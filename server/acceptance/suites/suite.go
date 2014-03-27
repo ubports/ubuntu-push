@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"runtime"
 	"time"
 
@@ -77,7 +78,7 @@ type AcceptanceSuite struct {
 	ServerAPIURL string
 	// KillGroup should be populated by StartServer with functions
 	// to kill the server process
-	KillGroup map[string]func()
+	KillGroup map[string]func(os.Signal)
 	// hook to adjust requests
 	MassageRequest func(req *http.Request) *http.Request
 	// other state
@@ -86,7 +87,7 @@ type AcceptanceSuite struct {
 
 // Start a new server for each test.
 func (s *AcceptanceSuite) SetUpTest(c *C) {
-	s.KillGroup = make(map[string]func())
+	s.KillGroup = make(map[string]func(os.Signal))
 	s.StartServer(c, s, &s.ServerHandle)
 	c.Assert(s.ServerHandle.ServerEvents, NotNil)
 	c.Assert(s.ServerHandle.ServerAddr, Not(Equals), "")
@@ -96,7 +97,7 @@ func (s *AcceptanceSuite) SetUpTest(c *C) {
 
 func (s *AcceptanceSuite) TearDownTest(c *C) {
 	for _, f := range s.KillGroup {
-		f()
+		f(os.Kill)
 	}
 }
 

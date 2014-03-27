@@ -390,7 +390,7 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
 	c.Assert(len(s.sess.MsgCh), Equals, 1)
-	c.Check(<-s.sess.MsgCh, Equals, &Notification{})
+	c.Check(<-s.sess.MsgCh, DeepEquals, &Notification{TopLevel: 2})
 	// and finally, the session keeps track of the levels
 	levels, err := s.sess.Levels.GetAll()
 	c.Check(err, IsNil)
