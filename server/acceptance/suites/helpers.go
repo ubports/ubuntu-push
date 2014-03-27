@@ -81,7 +81,7 @@ var rxLineInfo = regexp.MustCompile("^.*? ([[:alpha:]].*)\n")
 
 // RunAndObserve runs cmdName and returns a channel that will receive
 // cmdName stderr logging and a function to kill the process.
-func RunAndObserve(c *C, cmdName string, arg ...string) (<-chan string, func()) {
+func RunAndObserve(c *C, cmdName string, arg ...string) (<-chan string, func(os.Signal)) {
 	cmd := exec.Command(cmdName, arg...)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -127,7 +127,7 @@ func RunAndObserve(c *C, cmdName string, arg ...string) (<-chan string, func()) 
 			logs <- info
 		}
 	}()
-	return logs, func() { cmd.Process.Kill() }
+	return logs, func(sig os.Signal) { cmd.Process.Signal(sig) }
 }
 
 const (

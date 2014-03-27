@@ -68,7 +68,7 @@ func testHandle(w http.ResponseWriter, r *http.Request) {
 func (s *runnerSuite) TestHTTPServeRunner(c *C) {
 	errCh := make(chan interface{}, 1)
 	h := http.HandlerFunc(testHandle)
-	runner := HTTPServeRunner(h, &testHTTPServeParsedConfig)
+	runner := HTTPServeRunner(nil, h, &testHTTPServeParsedConfig)
 	c.Assert(s.lst, Not(IsNil))
 	defer s.lst.Close()
 	c.Check(s.kind, Equals, "http")
@@ -129,4 +129,13 @@ func (s *runnerSuite) TestDevicesRunnerAdoptListener(c *C) {
 	c.Assert(s.lst, Not(IsNil))
 	c.Check(s.lst.Addr().String(), Equals, lst0.Addr().String())
 	s.lst.Close()
+}
+
+func (s *runnerSuite) TestHTTPServeRunnerAdoptListener(c *C) {
+	lst0, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, IsNil)
+	defer lst0.Close()
+	HTTPServeRunner(lst0, nil, &testHTTPServeParsedConfig)
+	c.Assert(s.lst, Equals, lst0)
+	c.Check(s.kind, Equals, "http")
 }
