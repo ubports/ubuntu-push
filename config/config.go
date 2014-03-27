@@ -31,10 +31,10 @@ import (
 	"time"
 )
 
-func checkDestConfig(destConfig interface{}) (reflect.Value, error) {
+func checkDestConfig(name string, destConfig interface{}) (reflect.Value, error) {
 	destValue := reflect.ValueOf(destConfig)
 	if destValue.Kind() != reflect.Ptr || destValue.Elem().Kind() != reflect.Struct {
-		return reflect.Value{}, errors.New("destConfig not *struct")
+		return reflect.Value{}, fmt.Errorf("%s not *struct", name)
 	}
 	return destValue, nil
 }
@@ -42,6 +42,15 @@ func checkDestConfig(destConfig interface{}) (reflect.Value, error) {
 type destField struct {
 	fld  reflect.StructField
 	dest interface{}
+}
+
+func (f destField) configName() string {
+	fld := f.fld
+	configName := strings.Split(fld.Tag.Get("json"), ",")[0]
+	if configName == "" {
+		configName = strings.ToLower(fld.Name[:1]) + fld.Name[1:]
+	}
+	return configName
 }
 
 func traverseStruct(destStruct reflect.Value) <-chan destField {
@@ -76,11 +85,7 @@ func traverseStruct(destStruct reflect.Value) <-chan destField {
 func fillDestConfig(destValue reflect.Value, p map[string]json.RawMessage) error {
 	destStruct := destValue.Elem()
 	for destField := range traverseStruct(destStruct) {
-		fld := destField.fld
-		configName := strings.Split(fld.Tag.Get("json"), ",")[0]
-		if configName == "" {
-			configName = strings.ToLower(fld.Name[:1]) + fld.Name[1:]
-		}
+		configName := destField.configName()
 		raw, found := p[configName]
 		if !found { // assume all fields are mandatory for now
 			return fmt.Errorf("missing %s", configName)
@@ -100,7 +105,7 @@ func fillDestConfig(destValue reflect.Value, p map[string]json.RawMessage) error
 // fields in errors. Configuration fields in the JSON object are
 // expected to start with lower case.
 func ReadConfig(r io.Reader, destConfig interface{}) error {
-	destValue, err := checkDestConfig(destConfig)
+	destValue, err := checkDestConfig("destConfig", destConfig)
 	if err != nil {
 		return err
 	}
@@ -195,7 +200,7 @@ func LoadFile(p, baseDir string) ([]byte, error) {
 
 // ReadFiles reads configuration from a set of files. Uses ReadConfig internally.
 func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
-	destValue, err := checkDestConfig(destConfig)
+	destValue, err := checkDestConfig("destConfig", destConfig)
 	if err != nil {
 		return err
 	}
@@ -220,4 +225,36 @@ func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
 		return fmt.Errorf("no config to read")
 	}
 	return fillDestConfig(destValue, p1)
+}
+
+// CompareConfigs compares the two given configuration structures. It returns a list of differing fields or nil if the config contents are the same.
+func CompareConfig(config1, config2 interface{}) ([]string, error) {
+	v1, err := checkDestConfig("config1", config1)
+	if err != nil {
+		return nil, err
+	}
+	v2, err := checkDestConfig("config2", config2)
+	if err != nil {
+		return nil, err
+	}
+	if v1.Type() != v2.Type() {
+		return nil, errors.New("config1 and config2 don't have the same type")
+	}
+	fields1 := traverseStruct(v1.Elem())
+	fields2 := traverseStruct(v2.Elem())
+	diff := make([]string, 0)
+	for {
+		d1 := <-fields1
+		d2 := <-fields2
+		if d1.dest == nil {
+			break
+		}
+		if !reflect.DeepEqual(d1.dest, d2.dest) {
+			diff = append(diff, d1.configName())
+		}
+	}
+	if len(diff) != 0 {
+		return diff, nil
+	}
+	return nil, nil
 }
