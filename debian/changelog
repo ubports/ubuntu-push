@@ -1,8 +1,9 @@
-ubuntu-push (0.1-0ubuntu2) UNRELEASED; urgency=medium
+ubuntu-push (0.1+14.04.20140327-0ubuntu1) trusty; urgency=medium
 
+  [ John Lenton ]
   * got rid of multiarch bug
 
- -- John Lenton <john.lenton@canonical.com>  Wed, 26 Mar 2014 16:27:06 +0000
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Thu, 27 Mar 2014 14:11:31 +0000
 
 ubuntu-push (0.1+14.04.20140325.2-0ubuntu1) trusty; urgency=low
 
