@@ -36,7 +36,7 @@ import (
 var wireVersionBytes = []byte{protocol.ProtocolWireVersion}
 
 type Notification struct {
-	// something something something
+	TopLevel int64
 }
 
 type serverMsg struct {
@@ -189,7 +189,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	if bcast.ChanId == protocol.SystemChannelId {
 		// the system channel id, the only one we care about for now
 		sess.Log.Debugf("sending it over")
-		sess.MsgCh <- &Notification{}
+		sess.MsgCh <- &Notification{bcast.TopLevel}
 		sess.Log.Debugf("sent it over")
 	} else {
 		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)

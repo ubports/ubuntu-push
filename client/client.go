@@ -186,17 +186,21 @@ func (client *PushClient) handleErr(err error) {
 }
 
 // handleNotification deals with receiving a notification
-func (client *PushClient) handleNotification() error {
+func (client *PushClient) handleNotification(msg *session.Notification) error {
 	action_id := "dummy_id"
 	a := []string{action_id, "Go get it!"} // action value not visible on the phone
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
 	nots := notifications.Raw(client.notificationsEndp, client.log)
+	body := "Tap to open the system updater."
+	if msg != nil {
+		body = fmt.Sprintf("[%d] %s", msg.TopLevel, body)
+	}
 	not_id, err := nots.Notify(
 		"ubuntu-push-client",               // app name
 		uint32(0),                          // id
 		"update_manager_icon",              // icon
-		"There's an updated system image!", // summary
-		"You've got to get it! Now! Run!",  // body
+		"There's an updated system image.", // summary
+		body,           // body
 		a,              // actions
 		h,              // hints
 		int32(10*1000), // timeout (ms)
@@ -217,15 +221,15 @@ func (client *PushClient) handleClick() error {
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler, notifhandler func() error, errhandler func(error)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler func() error, notifhandler func(*session.Notification) error, errhandler func(error)) {
 	for {
 		select {
 		case state := <-client.connCh:
 			connhandler(state)
 		case <-client.actionsCh:
 			clickhandler()
-		case <-client.session.MsgCh:
-			notifhandler()
+		case msg := <-client.session.MsgCh:
+			notifhandler(msg)
 		case err := <-client.session.ErrCh:
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
