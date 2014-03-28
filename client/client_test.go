@@ -17,10 +17,19 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"reflect"
+	"testing"
+	"time"
+
 	. "launchpad.net/gocheck"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/notifications"
@@ -32,11 +41,6 @@ import (
 	"launchpad.net/ubuntu-push/util"
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
 	idtesting "launchpad.net/ubuntu-push/whoopsie/identifier/testing"
-	"net/http"
-	"net/http/httptest"
-	"path/filepath"
-	"testing"
-	"time"
 )
 
 func TestClient(t *testing.T) { TestingT(t) }
@@ -83,22 +87,37 @@ func (cs *clientSuite) TearDownSuite(c *C) {
 	cs.timeouts = nil
 }
 
+func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
+	cfgMap := map[string]interface{}{
+		"connect_timeout":        "7ms",
+		"exchange_timeout":       "10ms",
+		"hosts_cache_expiry":     "1h",
+		"expect_all_repaired":    "30m",
+		"stabilizing_timeout":    "0ms",
+		"connectivity_check_url": "",
+		"connectivity_check_md5": "",
+		"addr":            ":0",
+		"recheck_timeout": "3h",
+		"log_level":       "debug",
+	}
+	for k, v := range overrides {
+		cfgMap[k] = v
+	}
+	cfgBlob, err := json.Marshal(cfgMap)
+	if err != nil {
+		panic(err)
+	}
+	ioutil.WriteFile(cs.configPath, cfgBlob, 0600)
+}
+
 func (cs *clientSuite) SetUpTest(c *C) {
 	cs.log = helpers.NewTestLogger(c, "debug")
 	dir := c.MkDir()
 	cs.configPath = filepath.Join(dir, "config")
-	cfg := fmt.Sprintf(`
-{
-    "exchange_timeout": "10ms",
-    "stabilizing_timeout": "0ms",
-    "connectivity_check_url": "",
-    "connectivity_check_md5": "",
-    "addr": ":0",
-    "cert_pem_file": %#v,
-    "recheck_timeout": "3h",
-    "log_level": "debug"
-}`, helpers.SourceRelative("../server/acceptance/config/testing.cert"))
-	ioutil.WriteFile(cs.configPath, []byte(cfg), 0600)
+	pem_file := helpers.SourceRelative("../server/acceptance/config/testing.cert")
+	cs.writeTestConfig(map[string]interface{}{
+		"cert_pem_file": pem_file,
+	})
 }
 
 type sqlientSuite struct{ clientSuite }
@@ -119,7 +138,7 @@ func (cs *clientSuite) TestConfigureWorks(c *C) {
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.config, NotNil)
-	c.Check(cli.config.ExchangeTimeout.Duration, Equals, time.Duration(10*time.Millisecond))
+	c.Check(cli.config.ExchangeTimeout.TimeDuration(), Equals, time.Duration(10*time.Millisecond))
 }
 
 func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
@@ -179,39 +198,49 @@ func (cs *clientSuite) TestConfigureBailsOnBadConfig(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadPEMFilename(c *C) {
-	ioutil.WriteFile(cs.configPath, []byte(`
-{
-    "exchange_timeout": "10ms",
-    "stabilizing_timeout": "0ms",
-    "connectivity_check_url": "",
-    "connectivity_check_md5": "",
-    "addr": ":0",
-    "cert_pem_file": "/a/b/c",
-    "log_level": "debug",
-    "recheck_timeout": "3h"
-}`), 0600)
-
+	cs.writeTestConfig(map[string]interface{}{
+		"cert_pem_file": "/a/b/c",
+	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "reading PEM file: .*")
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
-	ioutil.WriteFile(cs.configPath, []byte(`
-{
-    "exchange_timeout": "10ms",
-    "stabilizing_timeout": "0ms",
-    "connectivity_check_url": "",
-    "connectivity_check_md5": "",
-    "addr": ":0",
-    "cert_pem_file": "/etc/passwd",
-    "log_level": "debug",
-    "recheck_timeout": "3h"
-}`), 0600)
-
+	cs.writeTestConfig(map[string]interface{}{
+		"cert_pem_file": "/etc/passwd",
+	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "no PEM found.*")
+}
+
+/*****************************************************************
+    deriveSessionConfig tests
+******************************************************************/
+
+func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	expected := session.ClientSessionConfig{
+		ConnectTimeout:         7 * time.Millisecond,
+		ExchangeTimeout:        10 * time.Millisecond,
+		HostsCachingExpiryTime: 1 * time.Hour,
+		ExpectAllRepairedTime:  30 * time.Minute,
+		PEM: cli.pem,
+	}
+	// sanity check that we are looking at all fields
+	vExpected := reflect.ValueOf(expected)
+	nf := vExpected.NumField()
+	for i := 0; i < nf; i++ {
+		fv := vExpected.Field(i)
+		// field isn't empty/zero
+		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
+	}
+	// finally compare
+	conf := cli.deriveSessionConfig()
+	c.Check(conf, DeepEquals, expected)
 }
 
 /*****************************************************************
@@ -308,6 +337,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	c.Assert(cli.initSession(), IsNil)
+	cs.log.ResetCapture()
 	cli.hasConnectivity = true
 	cli.handleErr(errors.New("bananas"))
 	c.Check(cs.log.Captured(), Matches, ".*session exited.*bananas\n")
@@ -363,7 +393,7 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log)
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(), cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
@@ -376,7 +406,7 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log)
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(), cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)

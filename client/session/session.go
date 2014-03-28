@@ -122,7 +122,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		return nil, err
 	}
 	var getHost hostGetter
-	log.Infof("talking to: %v", serverAddrSpec)
+	log.Infof("using addr: %v", serverAddrSpec)
 	hostsEndpoint, fallbackHosts := parseServerAddrSpec(serverAddrSpec)
 	if hostsEndpoint != "" {
 		getHost = gethosts.New(deviceId, hostsEndpoint, conf.ExchangeTimeout)

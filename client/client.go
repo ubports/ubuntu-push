@@ -22,7 +22,10 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"os"
+
 	"launchpad.net/go-dbus/v1"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
@@ -34,7 +37,6 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
-	"os"
 )
 
 // ClientConfig holds the client configuration
@@ -42,8 +44,13 @@ type ClientConfig struct {
 	connectivity.ConnectivityConfig // q.v.
 	// A reasonably large timeout for receive/answer pairs
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
-	// The server to connect to
-	Addr config.ConfigHostPort
+	// A timeout to use when trying to connect to the server
+	ConnectTimeout config.ConfigTimeDuration `json:"connect_timeout"`
+	// The server to connect to or url to query for hosts to connect to
+	Addr string
+	// Host list management
+	HostsCachingExpiryTime config.ConfigTimeDuration `json:"hosts_cache_expiry"`  // potentially refresh host list after
+	ExpectAllRepairedTime  config.ConfigTimeDuration `json:"expect_all_repaired"` // worth retrying all servers after
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
 	// The logging level (one of "debug", "info", "error")
@@ -116,6 +123,17 @@ func (client *PushClient) configure() error {
 	return nil
 }
 
+// deriveSessionConfig dervies the session configuration from the client configuration bits.
+func (client *PushClient) deriveSessionConfig() session.ClientSessionConfig {
+	return session.ClientSessionConfig{
+		ConnectTimeout:         client.config.ConnectTimeout.TimeDuration(),
+		ExchangeTimeout:        client.config.ExchangeTimeout.TimeDuration(),
+		HostsCachingExpiryTime: client.config.HostsCachingExpiryTime.TimeDuration(),
+		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
+		PEM: client.pem,
+	}
+}
+
 // getDeviceId gets the whoopsie identifier for the device
 func (client *PushClient) getDeviceId() error {
 	err := client.idder.Generate()
@@ -143,8 +161,8 @@ func (client *PushClient) takeTheBus() error {
 
 // initSession creates the session object
 func (client *PushClient) initSession() error {
-	sess, err := session.NewSession(string(client.config.Addr), client.pem,
-		client.config.ExchangeTimeout.Duration, client.deviceId,
+	sess, err := session.NewSession(client.config.Addr,
+		client.deriveSessionConfig(), client.deviceId,
 		client.levelMapFactory, client.log)
 	if err != nil {
 		return err
