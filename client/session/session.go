@@ -75,13 +75,14 @@ type hostGetter interface {
 // ClienSession holds a client<->server session and its configuration.
 type ClientSession struct {
 	// configuration
-	DeviceId           string
-	getHost            hostGetter
-	fallbackHosts      []string
-	ExchangeTimeout    time.Duration
-	HostsCachingExpiry time.Duration
-	Levels             levelmap.LevelMap
-	Protocolator       func(net.Conn) protocol.Protocol
+	DeviceId               string
+	getHost                hostGetter
+	fallbackHosts          []string
+	ExchangeTimeout        time.Duration
+	HostsCachingExpiryTime time.Duration
+	ExpectAllRepairedTime  time.Duration
+	Levels                 levelmap.LevelMap
+	Protocolator           func(net.Conn) protocol.Protocol
 	// hosts
 	timeSince              func(time.Time) time.Duration // hook for testing
 	deliveryHostsTimestamp time.Time
@@ -116,17 +117,18 @@ func NewSession(serverAddrSpec string, pem []byte, exchangeTimeout time.Duration
 		getHost = gethosts.New(deviceId, hostsEndpoint, exchangeTimeout)
 	}
 	sess := &ClientSession{
-		ExchangeTimeout:    exchangeTimeout,
-		HostsCachingExpiry: 12 * time.Hour,
-		getHost:            getHost,
-		fallbackHosts:      fallbackHosts,
-		DeviceId:           deviceId,
-		Log:                log,
-		Protocolator:       protocol.NewProtocol0,
-		Levels:             levels,
-		TLS:                &tls.Config{InsecureSkipVerify: true}, // XXX
-		stateP:             &state,
-		timeSince:          time.Since,
+		ExchangeTimeout:        exchangeTimeout,
+		HostsCachingExpiryTime: 12 * time.Hour,   // XXX take param
+		ExpectAllRepairedTime:  30 * time.Minute, // XXX take param
+		getHost:                getHost,
+		fallbackHosts:          fallbackHosts,
+		DeviceId:               deviceId,
+		Log:                    log,
+		Protocolator:           protocol.NewProtocol0,
+		Levels:                 levels,
+		TLS:                    &tls.Config{InsecureSkipVerify: true}, // XXX
+		stateP:                 &state,
+		timeSince:              time.Since,
 	}
 	if pem != nil {
 		cp := x509.NewCertPool()
@@ -150,7 +152,7 @@ func (sess *ClientSession) setState(state ClientSessionState) {
 // getHosts sets deliverHosts possibly querying a remote endpoint
 func (sess *ClientSession) getHosts() error {
 	if sess.getHost != nil {
-		if sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiry {
+		if sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
 			return nil
 		}
 		hosts, err := sess.getHost.Get()
@@ -170,7 +172,7 @@ func (sess *ClientSession) getHosts() error {
 // startConnectionAttempt/nextHostToTry help connect iterating over candidate hosts
 
 func (sess *ClientSession) startConnectionAttempt() {
-	if sess.timeSince(sess.lastAttemptTimestamp) > 10*sess.ExchangeTimeout {
+	if sess.timeSince(sess.lastAttemptTimestamp) > sess.ExpectAllRepairedTime {
 		sess.tryHost = 0
 	}
 	sess.leftToTry = len(sess.deliveryHosts)

@@ -291,9 +291,9 @@ func (cs *clientSessionSuite) TestGetHostsRemoteError(c *C) {
 func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
 	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
 	sess := &ClientSession{
-		getHost:            hostGetter,
-		HostsCachingExpiry: 2 * time.Hour,
-		timeSince:          time.Since,
+		getHost:                hostGetter,
+		HostsCachingExpiryTime: 2 * time.Hour,
+		timeSince:              time.Since,
 	}
 	err := sess.getHosts()
 	c.Assert(err, IsNil)
@@ -318,7 +318,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
 func (cs *clientSessionSuite) TestStartConnectionAttempt(c *C) {
 	since := time.Since(time.Time{})
 	sess := &ClientSession{
-		ExchangeTimeout: 10 * time.Second,
+		ExpectAllRepairedTime: 10 * time.Second,
 		timeSince: func(ts time.Time) time.Duration {
 			return since
 		},
