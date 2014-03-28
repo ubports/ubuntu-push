@@ -164,7 +164,7 @@ func (sess *ClientSession) getConnection() net.Conn {
 	return sess.Connection
 }
 
-// getHosts sets deliverHosts possibly querying a remote endpoint
+// getHosts sets deliveryHosts possibly querying a remote endpoint
 func (sess *ClientSession) getHosts() error {
 	if sess.getHost != nil {
 		if sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
