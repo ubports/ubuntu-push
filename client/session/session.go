@@ -232,7 +232,7 @@ func (sess *ClientSession) connect() error {
 			sess.setState(Error)
 			return fmt.Errorf("connect: %s", err)
 		}
-		sess.Log.Debugf("try to connect to: %v", host)
+		sess.Log.Debugf("trying to connect to: %v", host)
 		conn, err = net.DialTimeout("tcp", host, sess.ConnectTimeout)
 		if err == nil {
 			break
