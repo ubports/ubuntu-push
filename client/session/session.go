@@ -73,15 +73,21 @@ type hostGetter interface {
 	Get() ([]string, error)
 }
 
-// ClienSession holds a client<->server session and its configuration.
-type ClientSession struct {
-	// configuration
-	DeviceId               string
+// ClientSessionConfig groups the client session configuration.
+type ClientSessionConfig struct {
 	ExchangeTimeout        time.Duration
 	HostsCachingExpiryTime time.Duration
 	ExpectAllRepairedTime  time.Duration
-	Levels                 levelmap.LevelMap
-	Protocolator           func(net.Conn) protocol.Protocol
+	PEM                    []byte
+}
+
+// ClientSession holds a client<->server session and its configuration.
+type ClientSession struct {
+	// configuration
+	DeviceId string
+	ClientSessionConfig
+	Levels       levelmap.LevelMap
+	Protocolator func(net.Conn) protocol.Protocol
 	// hosts
 	getHost                hostGetter
 	fallbackHosts          []string
@@ -91,7 +97,7 @@ type ClientSession struct {
 	leftToTry              int
 	tryHost                int
 	// hook for testing
-	timeSince              func(time.Time) time.Duration
+	timeSince func(time.Time) time.Duration
 	// connection
 	connLock     sync.RWMutex
 	Connection   net.Conn
@@ -106,7 +112,7 @@ type ClientSession struct {
 	MsgCh  chan *Notification
 }
 
-func NewSession(serverAddrSpec string, pem []byte, exchangeTimeout time.Duration,
+func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
 	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
@@ -117,25 +123,23 @@ func NewSession(serverAddrSpec string, pem []byte, exchangeTimeout time.Duration
 	var getHost hostGetter
 	hostsEndpoint, fallbackHosts := parseServerAddrSpec(serverAddrSpec)
 	if hostsEndpoint != "" {
-		getHost = gethosts.New(deviceId, hostsEndpoint, exchangeTimeout)
+		getHost = gethosts.New(deviceId, hostsEndpoint, conf.ExchangeTimeout)
 	}
 	sess := &ClientSession{
-		ExchangeTimeout:        exchangeTimeout,
-		HostsCachingExpiryTime: 12 * time.Hour,   // XXX take param
-		ExpectAllRepairedTime:  30 * time.Minute, // XXX take param
-		getHost:                getHost,
-		fallbackHosts:          fallbackHosts,
-		DeviceId:               deviceId,
-		Log:                    log,
-		Protocolator:           protocol.NewProtocol0,
-		Levels:                 levels,
-		TLS:                    &tls.Config{InsecureSkipVerify: true}, // XXX
-		stateP:                 &state,
-		timeSince:              time.Since,
+		ClientSessionConfig: conf,
+		getHost:             getHost,
+		fallbackHosts:       fallbackHosts,
+		DeviceId:            deviceId,
+		Log:                 log,
+		Protocolator:        protocol.NewProtocol0,
+		Levels:              levels,
+		TLS:                 &tls.Config{InsecureSkipVerify: true}, // XXX
+		stateP:              &state,
+		timeSince:           time.Since,
 	}
-	if pem != nil {
+	if sess.PEM != nil {
 		cp := x509.NewCertPool()
-		ok := cp.AppendCertsFromPEM(pem)
+		ok := cp.AppendCertsFromPEM(sess.PEM)
 		if !ok {
 			return nil, errors.New("could not parse certificate")
 		}
