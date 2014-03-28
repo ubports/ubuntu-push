@@ -23,14 +23,17 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"math/rand"
+	"net"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
-	"math/rand"
-	"net"
-	"sync/atomic"
-	"time"
 )
 
 var wireVersionBytes = []byte{protocol.ProtocolWireVersion}
@@ -45,6 +48,15 @@ type serverMsg struct {
 	protocol.NotificationsMsg
 }
 
+// parseServerAddrSpec recognizes whether spec is a HTTP URL to get
+// hosts from or a |-separated list of host:port pairs.
+func parseServerAddrSpec(spec string) (hostsEndpoint string, fallbackHosts []string) {
+	if strings.HasPrefix(spec, "http") {
+		return spec, nil
+	}
+	return "", strings.Split(spec, "|")
+}
+
 // ClientSessionState is a way to broadly track the progress of the session
 type ClientSessionState uint32
 
@@ -56,14 +68,29 @@ const (
 	Running
 )
 
+type hostGetter interface {
+	Get() ([]string, error)
+}
+
 // ClienSession holds a client<->server session and its configuration.
 type ClientSession struct {
 	// configuration
-	DeviceId        string
-	ServerAddr      string
-	ExchangeTimeout time.Duration
-	Levels          levelmap.LevelMap
-	Protocolator    func(net.Conn) protocol.Protocol
+	DeviceId               string
+	ExchangeTimeout        time.Duration
+	HostsCachingExpiryTime time.Duration
+	ExpectAllRepairedTime  time.Duration
+	Levels                 levelmap.LevelMap
+	Protocolator           func(net.Conn) protocol.Protocol
+	// hosts
+	getHost                hostGetter
+	fallbackHosts          []string
+	deliveryHostsTimestamp time.Time
+	deliveryHosts          []string
+	lastAttemptTimestamp   time.Time
+	leftToTry              int
+	tryHost                int
+	// hook for testing
+	timeSince func(time.Time) time.Duration
 	// connection
 	Connection   net.Conn
 	Log          logger.Logger
@@ -77,7 +104,7 @@ type ClientSession struct {
 	MsgCh  chan *Notification
 }
 
-func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
+func NewSession(serverAddrSpec string, pem []byte, exchangeTimeout time.Duration,
 	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
 	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
@@ -85,15 +112,24 @@ func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 	if err != nil {
 		return nil, err
 	}
+	var getHost hostGetter
+	hostsEndpoint, fallbackHosts := parseServerAddrSpec(serverAddrSpec)
+	if hostsEndpoint != "" {
+		getHost = gethosts.New(deviceId, hostsEndpoint, exchangeTimeout)
+	}
 	sess := &ClientSession{
-		ExchangeTimeout: exchangeTimeout,
-		ServerAddr:      serverAddr,
-		DeviceId:        deviceId,
-		Log:             log,
-		Protocolator:    protocol.NewProtocol0,
-		Levels:          levels,
-		TLS:             &tls.Config{InsecureSkipVerify: true}, // XXX
-		stateP:          &state,
+		ExchangeTimeout:        exchangeTimeout,
+		HostsCachingExpiryTime: 12 * time.Hour,   // XXX take param
+		ExpectAllRepairedTime:  30 * time.Minute, // XXX take param
+		getHost:                getHost,
+		fallbackHosts:          fallbackHosts,
+		DeviceId:               deviceId,
+		Log:                    log,
+		Protocolator:           protocol.NewProtocol0,
+		Levels:                 levels,
+		TLS:                    &tls.Config{InsecureSkipVerify: true}, // XXX
+		stateP:                 &state,
+		timeSince:              time.Since,
 	}
 	if pem != nil {
 		cp := x509.NewCertPool()
@@ -114,13 +150,72 @@ func (sess *ClientSession) setState(state ClientSessionState) {
 	atomic.StoreUint32(sess.stateP, uint32(state))
 }
 
+// getHosts sets deliverHosts possibly querying a remote endpoint
+func (sess *ClientSession) getHosts() error {
+	if sess.getHost != nil {
+		if sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
+			return nil
+		}
+		hosts, err := sess.getHost.Get()
+		if err != nil {
+			sess.Log.Errorf("getHosts: %v", err)
+			sess.setState(Error)
+			return err
+		}
+		sess.deliveryHostsTimestamp = time.Now()
+		sess.deliveryHosts = hosts
+	} else {
+		sess.deliveryHosts = sess.fallbackHosts
+	}
+	return nil
+}
+
+// startConnectionAttempt/nextHostToTry help connect iterating over candidate hosts
+
+func (sess *ClientSession) startConnectionAttempt() {
+	if sess.timeSince(sess.lastAttemptTimestamp) > sess.ExpectAllRepairedTime {
+		sess.tryHost = 0
+	}
+	sess.leftToTry = len(sess.deliveryHosts)
+	sess.lastAttemptTimestamp = time.Now()
+}
+
+func (sess *ClientSession) nextHostToTry() string {
+	if sess.leftToTry == 0 {
+		return ""
+	}
+	res := sess.deliveryHosts[sess.tryHost]
+	sess.tryHost = (sess.tryHost + 1) % len(sess.deliveryHosts)
+	sess.leftToTry--
+	return res
+}
+
+// we reached the Started state, we can retry with the same host if we
+// have to retry again
+func (sess *ClientSession) started() {
+	sess.tryHost--
+	if sess.tryHost == -1 {
+		sess.tryHost = len(sess.deliveryHosts) - 1
+	}
+	sess.setState(Started)
+}
+
 // connect to a server using the configuration in the ClientSession
 // and set up the connection.
 func (sess *ClientSession) connect() error {
-	conn, err := net.DialTimeout("tcp", sess.ServerAddr, sess.ExchangeTimeout)
-	if err != nil {
-		sess.setState(Error)
-		return fmt.Errorf("connect: %s", err)
+	sess.startConnectionAttempt()
+	var err error
+	var conn net.Conn
+	for {
+		host := sess.nextHostToTry()
+		if host == "" {
+			sess.setState(Error)
+			return fmt.Errorf("connect: %s", err)
+		}
+		conn, err = net.DialTimeout("tcp", host, sess.ExchangeTimeout)
+		if err == nil {
+			break
+		}
 	}
 	sess.Connection = tls.Client(conn, sess.TLS)
 	sess.setState(Connected)
@@ -279,15 +374,19 @@ func (sess *ClientSession) start() error {
 	sess.proto = proto
 	sess.pingInterval = pingInterval
 	sess.Log.Debugf("Connected %v.", conn.LocalAddr())
-	sess.setState(Started)
+	sess.started() // deals with choosing which host to retry with as well
 	return nil
 }
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *ClientSession) run(closer func(), connecter, starter, looper func() error) error {
+func (sess *ClientSession) run(closer func(), hostGetter, connecter, starter, looper func() error) error {
 	closer()
-	err := connecter()
+	err := hostGetter()
+	if err != nil {
+		return err
+	}
+	err = connecter()
 	if err == nil {
 		err = starter()
 		if err == nil {
@@ -317,7 +416,7 @@ func (sess *ClientSession) Dial() error {
 		// keep on trying.
 		panic("can't Dial() without a protocol constructor.")
 	}
-	return sess.run(sess.doClose, sess.connect, sess.start, sess.loop)
+	return sess.run(sess.doClose, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
 func init() {

@@ -23,16 +23,21 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"testing"
+	"time"
+
 	. "launchpad.net/gocheck"
+
 	"launchpad.net/ubuntu-push/client/session/levelmap"
+	//"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
-	"net"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestSession(t *testing.T) { TestingT(t) }
@@ -181,16 +186,41 @@ func (cs *clientSqlevelsSessionSuite) SetUpSuite(c *C) {
 }
 
 /****************************************************************
+  parseServerAddrSpec() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestParseServerAddrSpec(c *C) {
+	hEp, fallbackHosts := parseServerAddrSpec("http://foo/hosts")
+	c.Check(hEp, Equals, "http://foo/hosts")
+	c.Check(fallbackHosts, IsNil)
+
+	hEp, fallbackHosts = parseServerAddrSpec("foo:443")
+	c.Check(hEp, Equals, "")
+	c.Check(fallbackHosts, DeepEquals, []string{"foo:443"})
+
+	hEp, fallbackHosts = parseServerAddrSpec("foo:443|bar:443")
+	c.Check(hEp, Equals, "")
+	c.Check(fallbackHosts, DeepEquals, []string{"foo:443", "bar:443"})
+}
+
+/****************************************************************
   NewSession() tests
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
-	sess, err := NewSession("", nil, 0, "", cs.lvls, cs.log)
+	sess, err := NewSession("foo:443", nil, 0, "", cs.lvls, cs.log)
 	c.Check(sess, NotNil)
 	c.Check(err, IsNil)
+	c.Check(sess.fallbackHosts, DeepEquals, []string{"foo:443"})
 	// but no root CAs set
 	c.Check(sess.TLS.RootCAs, IsNil)
 	c.Check(sess.State(), Equals, Disconnected)
+}
+
+func (cs *clientSessionSuite) TestNewSessionHostEndpointWorks(c *C) {
+	sess, err := NewSession("http://foo/hosts", pem, 0, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	c.Check(sess.getHost, NotNil)
 }
 
 var certfile string = helpers.SourceRelative("../../server/acceptance/config/testing.cert")
@@ -218,12 +248,141 @@ func (cs *clientSessionSuite) TestNewSessionBadLevelMapFails(c *C) {
 }
 
 /****************************************************************
+  getHosts() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestGetHostsFallback(c *C) {
+	fallback := []string{"foo:443", "bar:443"}
+	sess := &ClientSession{fallbackHosts: fallback}
+	err := sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, fallback)
+}
+
+type testHostGetter struct {
+	hosts []string
+	err   error
+}
+
+func (thg *testHostGetter) Get() ([]string, error) {
+	return thg.hosts, thg.err
+}
+
+func (cs *clientSessionSuite) TestGetHostsRemote(c *C) {
+	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	sess := &ClientSession{getHost: hostGetter, timeSince: time.Since}
+	err := sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, []string{"foo:443", "bar:443"})
+}
+
+func (cs *clientSessionSuite) TestGetHostsRemoteError(c *C) {
+	sess, err := NewSession("", nil, 0, "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	hostsErr := errors.New("failed")
+	hostGetter := &testHostGetter{nil, hostsErr}
+	sess.getHost = hostGetter
+	err = sess.getHosts()
+	c.Assert(err, Equals, hostsErr)
+	c.Check(sess.deliveryHosts, IsNil)
+	c.Check(sess.State(), Equals, Error)
+}
+
+func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
+	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	sess := &ClientSession{
+		getHost:                hostGetter,
+		HostsCachingExpiryTime: 2 * time.Hour,
+		timeSince:              time.Since,
+	}
+	err := sess.getHosts()
+	c.Assert(err, IsNil)
+	hostGetter.hosts = []string{"baz:443"}
+	// cached
+	err = sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, []string{"foo:443", "bar:443"})
+	// expired
+	sess.timeSince = func(ts time.Time) time.Duration {
+		return 3 * time.Hour
+	}
+	err = sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, []string{"baz:443"})
+}
+
+/****************************************************************
+  startConnectionAttempt()/nextHostToTry()/started tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestStartConnectionAttempt(c *C) {
+	since := time.Since(time.Time{})
+	sess := &ClientSession{
+		ExpectAllRepairedTime: 10 * time.Second,
+		timeSince: func(ts time.Time) time.Duration {
+			return since
+		},
+		deliveryHosts: []string{"foo:443", "bar:443"},
+	}
+	// start from first host
+	sess.startConnectionAttempt()
+	c.Check(sess.lastAttemptTimestamp, Not(Equals), 0)
+	c.Check(sess.tryHost, Equals, 0)
+	c.Check(sess.leftToTry, Equals, 2)
+	since = 1 * time.Second
+	sess.tryHost = 1
+	// just continue
+	sess.startConnectionAttempt()
+	c.Check(sess.tryHost, Equals, 1)
+	sess.tryHost = 2
+}
+
+func (cs *clientSessionSuite) TestNextHostToTry(c *C) {
+	sess := &ClientSession{
+		deliveryHosts: []string{"foo:443", "bar:443", "baz:443"},
+		tryHost:       0,
+		leftToTry:     3,
+	}
+	c.Check(sess.nextHostToTry(), Equals, "foo:443")
+	c.Check(sess.nextHostToTry(), Equals, "bar:443")
+	c.Check(sess.nextHostToTry(), Equals, "baz:443")
+	c.Check(sess.nextHostToTry(), Equals, "")
+	c.Check(sess.nextHostToTry(), Equals, "")
+	c.Check(sess.tryHost, Equals, 0)
+
+	sess.leftToTry = 3
+	sess.tryHost = 1
+	c.Check(sess.nextHostToTry(), Equals, "bar:443")
+	c.Check(sess.nextHostToTry(), Equals, "baz:443")
+	c.Check(sess.nextHostToTry(), Equals, "foo:443")
+	c.Check(sess.nextHostToTry(), Equals, "")
+	c.Check(sess.nextHostToTry(), Equals, "")
+	c.Check(sess.tryHost, Equals, 1)
+}
+
+func (cs *clientSessionSuite) TestStarted(c *C) {
+	sess, err := NewSession("", nil, 0, "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+
+	sess.deliveryHosts = []string{"foo:443", "bar:443", "baz:443"}
+	sess.tryHost = 1
+
+	sess.started()
+	c.Check(sess.tryHost, Equals, 0)
+	c.Check(sess.State(), Equals, Started)
+
+	sess.started()
+	c.Check(sess.tryHost, Equals, 2)
+}
+
+/****************************************************************
   connect() tests
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestConnectFailsWithNoAddress(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
+	sess.deliveryHosts = []string{"nowhere"}
 	err = sess.connect()
 	c.Check(err, ErrorMatches, ".*connect.*address.*")
 	c.Check(sess.State(), Equals, Error)
@@ -233,12 +392,27 @@ func (cs *clientSessionSuite) TestConnectConnects(c *C) {
 	srv, err := net.Listen("tcp", "localhost:0")
 	c.Assert(err, IsNil)
 	defer srv.Close()
-	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", cs.lvls, cs.log)
+	sess, err := NewSession("", nil, 0, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
+	sess.deliveryHosts = []string{srv.Addr().String()}
 	err = sess.connect()
 	c.Check(err, IsNil)
 	c.Check(sess.Connection, NotNil)
 	c.Check(sess.State(), Equals, Connected)
+}
+
+func (cs *clientSessionSuite) TestConnectSecondConnects(c *C) {
+	srv, err := net.Listen("tcp", "localhost:0")
+	c.Assert(err, IsNil)
+	defer srv.Close()
+	sess, err := NewSession("", nil, 0, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.deliveryHosts = []string{"nowhere", srv.Addr().String()}
+	err = sess.connect()
+	c.Check(err, IsNil)
+	c.Check(sess.Connection, NotNil)
+	c.Check(sess.State(), Equals, Connected)
+	c.Check(sess.tryHost, Equals, 0)
 }
 
 func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
@@ -247,6 +421,7 @@ func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
 	sess, err := NewSession(srv.Addr().String(), nil, 0, "wah", cs.lvls, cs.log)
 	srv.Close()
 	c.Assert(err, IsNil)
+	sess.deliveryHosts = []string{srv.Addr().String()}
 	err = sess.connect()
 	c.Check(err, ErrorMatches, ".*connection refused")
 	c.Check(sess.State(), Equals, Error)
@@ -688,18 +863,32 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
   run() tests
 ****************************************************************/
 
-func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
+func (cs *clientSessionSuite) TestRunBailsIfHostGetterFails(c *C) {
 	sess, err := NewSession("", nil, 0, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	failure := errors.New("TestRunBailsIfConnectFails")
+	failure := errors.New("TestRunBailsIfHostGetterFails")
 	has_closed := false
 	err = sess.run(
 		func() { has_closed = true },
 		func() error { return failure },
 		nil,
+		nil,
 		nil)
 	c.Check(err, Equals, failure)
 	c.Check(has_closed, Equals, true)
+}
+
+func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
+	sess, err := NewSession("", nil, 0, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	failure := errors.New("TestRunBailsIfConnectFails")
+	err = sess.run(
+		func() {},
+		func() error { return nil },
+		func() error { return failure },
+		nil,
+		nil)
+	c.Check(err, Equals, failure)
 }
 
 func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
@@ -708,6 +897,7 @@ func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
 	failure := errors.New("TestRunBailsIfStartFails")
 	err = sess.run(
 		func() {},
+		func() error { return nil },
 		func() error { return nil },
 		func() error { return failure },
 		nil)
@@ -725,6 +915,7 @@ func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 	notf := &Notification{}
 	err = sess.run(
 		func() {},
+		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
 		func() error { sess.MsgCh <- notf; return <-failureCh })
@@ -794,7 +985,20 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	timeout := 100 * time.Millisecond
 	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
 	c.Assert(err, IsNil)
-	sess, err := NewSession(lst.Addr().String(), nil, timeout, "wah", cs.lvls, cs.log)
+	// advertise
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := json.Marshal(map[string]interface{}{
+			"hosts": []string{"nowhere", lst.Addr().String()},
+		})
+		if err != nil {
+			panic(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(b)
+	}))
+	defer ts.Close()
+
+	sess, err := NewSession(ts.URL, nil, timeout, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	tconn := &testConn{CloseCondition: condition.Fail2Work(10)}
 	sess.Connection = tconn
@@ -823,6 +1027,9 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(v, Equals, protocol.ProtocolWireVersion)
 
+	// if something goes wrong session would try the first/other host
+	c.Check(sess.tryHost, Equals, 0)
+
 	// 2. "connect" (but on the fake protcol above! woo)
 
 	c.Check(takeNext(downCh), Equals, "deadline 100ms")
@@ -842,6 +1049,9 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	upCh <- protocol.PingPongMsg{Type: "ping"}
 	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "pong"})
 	upCh <- nil
+
+	// session would retry the same host
+	c.Check(sess.tryHost, Equals, 1)
 
 	// and broadcasts...
 	b := &protocol.BroadcastMsg{
@@ -869,4 +1079,32 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	failure := errors.New("pongs")
 	upCh <- failure
 	c.Check(<-sess.ErrCh, Equals, failure)
+}
+
+func (cs *clientSessionSuite) TestDialWorksDirect(c *C) {
+	// happy path thoughts
+	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
+	c.Assert(err, IsNil)
+	tlsCfg := &tls.Config{
+		Certificates:           []tls.Certificate{cert},
+		SessionTicketsDisabled: true,
+	}
+
+	timeout := 100 * time.Millisecond
+	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
+	c.Assert(err, IsNil)
+	sess, err := NewSession(lst.Addr().String(), nil, timeout, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	//defer sess.Close() xxx provokes a race, fix in a later branch
+
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(net.Conn) protocol.Protocol { return proto }
+
+	go sess.Dial()
+
+	_, err = lst.Accept()
+	c.Assert(err, IsNil)
+	// connect done
 }
