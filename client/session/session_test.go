@@ -295,11 +295,11 @@ func (cs *clientSessionSuite) TestGetHostsRemoteError(c *C) {
 func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
 	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
 	sess := &ClientSession{
-		getHost:                hostGetter,
+		getHost: hostGetter,
 		ClientSessionConfig: ClientSessionConfig{
 			HostsCachingExpiryTime: 2 * time.Hour,
 		},
-		timeSince:              time.Since,
+		timeSince: time.Since,
 	}
 	err := sess.getHosts()
 	c.Assert(err, IsNil)
@@ -986,7 +986,7 @@ func (cs *clientSessionSuite) TestDialPanics(c *C) {
 
 var (
 	dialTestTimeout = 100 * time.Millisecond
-	dialTestConf = ClientSessionConfig{ExchangeTimeout: dialTestTimeout}
+	dialTestConf    = ClientSessionConfig{ExchangeTimeout: dialTestTimeout}
 )
 
 func (cs *clientSessionSuite) TestDialWorks(c *C) {
