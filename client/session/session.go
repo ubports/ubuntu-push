@@ -76,20 +76,21 @@ type hostGetter interface {
 type ClientSession struct {
 	// configuration
 	DeviceId               string
-	getHost                hostGetter
-	fallbackHosts          []string
 	ExchangeTimeout        time.Duration
 	HostsCachingExpiryTime time.Duration
 	ExpectAllRepairedTime  time.Duration
 	Levels                 levelmap.LevelMap
 	Protocolator           func(net.Conn) protocol.Protocol
 	// hosts
-	timeSince              func(time.Time) time.Duration // hook for testing
+	getHost                hostGetter
+	fallbackHosts          []string
 	deliveryHostsTimestamp time.Time
 	deliveryHosts          []string
 	lastAttemptTimestamp   time.Time
 	leftToTry              int
 	tryHost                int
+	// hook for testing
+	timeSince              func(time.Time) time.Duration
 	// connection
 	Connection   net.Conn
 	Log          logger.Logger
