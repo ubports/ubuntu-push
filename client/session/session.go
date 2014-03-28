@@ -122,6 +122,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		return nil, err
 	}
 	var getHost hostGetter
+	log.Infof("talking to: %v", serverAddrSpec)
 	hostsEndpoint, fallbackHosts := parseServerAddrSpec(serverAddrSpec)
 	if hostsEndpoint != "" {
 		getHost = gethosts.New(deviceId, hostsEndpoint, conf.ExchangeTimeout)
@@ -231,6 +232,7 @@ func (sess *ClientSession) connect() error {
 			sess.setState(Error)
 			return fmt.Errorf("connect: %s", err)
 		}
+		sess.Log.Debugf("try to connect to: %v", host)
 		conn, err = net.DialTimeout("tcp", host, sess.ConnectTimeout)
 		if err == nil {
 			break
