@@ -75,6 +75,7 @@ type hostGetter interface {
 
 // ClientSessionConfig groups the client session configuration.
 type ClientSessionConfig struct {
+	ConnectTimeout         time.Duration
 	ExchangeTimeout        time.Duration
 	HostsCachingExpiryTime time.Duration
 	ExpectAllRepairedTime  time.Duration
@@ -230,7 +231,7 @@ func (sess *ClientSession) connect() error {
 			sess.setState(Error)
 			return fmt.Errorf("connect: %s", err)
 		}
-		conn, err = net.DialTimeout("tcp", host, sess.ExchangeTimeout)
+		conn, err = net.DialTimeout("tcp", host, sess.ConnectTimeout)
 		if err == nil {
 			break
 		}
