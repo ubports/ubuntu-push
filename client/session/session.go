@@ -26,6 +26,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -92,6 +93,7 @@ type ClientSession struct {
 	// hook for testing
 	timeSince              func(time.Time) time.Duration
 	// connection
+	connLock     sync.RWMutex
 	Connection   net.Conn
 	Log          logger.Logger
 	TLS          *tls.Config
@@ -148,6 +150,18 @@ func (sess *ClientSession) State() ClientSessionState {
 
 func (sess *ClientSession) setState(state ClientSessionState) {
 	atomic.StoreUint32(sess.stateP, uint32(state))
+}
+
+func (sess *ClientSession) setConnection(conn net.Conn) {
+	sess.connLock.Lock()
+	defer sess.connLock.Unlock()
+	sess.Connection = conn
+}
+
+func (sess *ClientSession) getConnection() net.Conn {
+	sess.connLock.RLock()
+	defer sess.connLock.RUnlock()
+	return sess.Connection
 }
 
 // getHosts sets deliverHosts possibly querying a remote endpoint
@@ -217,7 +231,7 @@ func (sess *ClientSession) connect() error {
 			break
 		}
 	}
-	sess.Connection = tls.Client(conn, sess.TLS)
+	sess.setConnection(tls.Client(conn, sess.TLS))
 	sess.setState(Connected)
 	return nil
 }
@@ -240,6 +254,8 @@ func (sess *ClientSession) Close() {
 	sess.doClose()
 }
 func (sess *ClientSession) doClose() {
+	sess.connLock.Lock()
+	defer sess.connLock.Unlock()
 	if sess.Connection != nil {
 		sess.Connection.Close()
 		// we ignore Close errors, on purpose (the thinking being that
@@ -319,7 +335,7 @@ func (sess *ClientSession) loop() error {
 
 // Call this when you've connected and want to start looping.
 func (sess *ClientSession) start() error {
-	conn := sess.Connection
+	conn := sess.getConnection()
 	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	if err != nil {
 		sess.setState(Error)

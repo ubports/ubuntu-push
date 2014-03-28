@@ -1095,7 +1095,7 @@ func (cs *clientSessionSuite) TestDialWorksDirect(c *C) {
 	c.Assert(err, IsNil)
 	sess, err := NewSession(lst.Addr().String(), nil, timeout, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	//defer sess.Close() xxx provokes a race, fix in a later branch
+	defer sess.Close()
 
 	upCh := make(chan interface{}, 5)
 	downCh := make(chan interface{}, 5)
