@@ -90,7 +90,7 @@ type ClientSession struct {
 	leftToTry              int
 	tryHost                int
 	// hook for testing
-	timeSince              func(time.Time) time.Duration
+	timeSince func(time.Time) time.Duration
 	// connection
 	Connection   net.Conn
 	Log          logger.Logger
