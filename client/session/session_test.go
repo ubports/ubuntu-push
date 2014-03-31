@@ -345,6 +345,19 @@ func (cs *clientSessionSuite) TestStartConnectionAttempt(c *C) {
 	sess.tryHost = 2
 }
 
+func (cs *clientSessionSuite) TestStartConnectionAttemptNoHostsPanic(c *C) {
+	since := time.Since(time.Time{})
+	sess := &ClientSession{
+		ClientSessionConfig: ClientSessionConfig{
+			ExpectAllRepairedTime: 10 * time.Second,
+		},
+		timeSince: func(ts time.Time) time.Duration {
+			return since
+		},
+	}
+	c.Check(sess.startConnectionAttempt, PanicMatches, "should have got hosts from config or remote at this point")
+}
+
 func (cs *clientSessionSuite) TestNextHostToTry(c *C) {
 	sess := &ClientSession{
 		deliveryHosts: []string{"foo:443", "bar:443", "baz:443"},

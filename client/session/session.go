@@ -197,6 +197,9 @@ func (sess *ClientSession) startConnectionAttempt() {
 		sess.tryHost = 0
 	}
 	sess.leftToTry = len(sess.deliveryHosts)
+	if sess.leftToTry == 0 {
+		panic("should have got hosts from config or remote at this point")
+	}
 	sess.lastAttemptTimestamp = time.Now()
 }
 

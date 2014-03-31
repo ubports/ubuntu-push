@@ -20,9 +20,11 @@ package client
 
 import (
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"launchpad.net/go-dbus/v1"
 
@@ -96,6 +98,12 @@ func (client *PushClient) configure() error {
 	if err != nil {
 		return fmt.Errorf("reading config: %v", err)
 	}
+	// ignore spaces
+	client.config.Addr = strings.Replace(client.config.Addr, " ", "", -1)
+	if client.config.Addr == "" {
+		return errors.New("no hosts specified")
+	}
+
 	// later, we'll be specifying more logging options in the config file
 	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel)
 
