@@ -48,8 +48,8 @@ func FillServerConfig(cfg map[string]interface{}, addr string) {
 		"session_queue_size": 10,
 		"broker_queue_size":  100,
 		"addr":               addr,
-		"key_pem_file":       helpers.SourceRelative("../config/testing.key"),
-		"cert_pem_file":      helpers.SourceRelative("../config/testing.cert"),
+		"key_pem_file":       helpers.SourceRelative("../ssl/testing.key"),
+		"cert_pem_file":      helpers.SourceRelative("../ssl/testing.cert"),
 	})
 }
 
