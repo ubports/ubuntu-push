@@ -88,6 +88,7 @@ func (cs *clientSuite) TearDownSuite(c *C) {
 }
 
 func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
+	pem_file := helpers.SourceRelative("../server/acceptance/config/testing.cert")
 	cfgMap := map[string]interface{}{
 		"connect_timeout":        "7ms",
 		"exchange_timeout":       "10ms",
@@ -97,6 +98,7 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"connectivity_check_url": "",
 		"connectivity_check_md5": "",
 		"addr":            ":0",
+		"cert_pem_file":   pem_file,
 		"recheck_timeout": "3h",
 		"log_level":       "debug",
 	}
@@ -114,10 +116,8 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.log = helpers.NewTestLogger(c, "debug")
 	dir := c.MkDir()
 	cs.configPath = filepath.Join(dir, "config")
-	pem_file := helpers.SourceRelative("../server/acceptance/config/testing.cert")
-	cs.writeTestConfig(map[string]interface{}{
-		"cert_pem_file": pem_file,
-	})
+
+	cs.writeTestConfig(nil)
 }
 
 type sqlientSuite struct{ clientSuite }
@@ -213,6 +213,25 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "no PEM found.*")
+}
+
+func (cs *clientSuite) TestConfigureBailsOnNoHosts(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"addr": "  ",
+	})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, ErrorMatches, "no hosts specified")
+}
+
+func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"addr": " foo: 443",
+	})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	c.Check(cli.config.Addr, Equals, "foo:443")
 }
 
 /*****************************************************************
