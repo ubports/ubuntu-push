@@ -159,3 +159,20 @@ func (s *NMSuite) TestWatchPrimaryConnection(c *C) {
 	l := []string{<-ch, <-ch, <-ch}
 	c.Check(l, DeepEquals, []string{"/a/1", "/b/2", "/c/3"})
 }
+
+// WatchPrimaryConnection returns on error if the dbus call fails
+func (s *NMSuite) TestWatchPrimaryConnectionFails(c *C) {
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
+	_, err := nm.WatchPrimaryConnection()
+	c.Check(err, NotNil)
+}
+
+// WatchPrimaryConnection calls close on its channel when the watch bails
+func (s *NMSuite) TestWatchClosesOnWatchBail(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
+	nm := New(tc, s.log)
+	ch, err := nm.WatchPrimaryConnection()
+	c.Check(err, IsNil)
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
