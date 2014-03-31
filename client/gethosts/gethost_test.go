@@ -61,18 +61,16 @@ func (s *getHostsSuite) TestGet(c *C) {
 }
 
 func (s *getHostsSuite) TestGetTimeout(c *C) {
-	finish := make(chan bool, 1)
+	started := make(chan bool, 1)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-finish
+		started <- true
+		time.Sleep(700 * time.Millisecond)
 	}))
 	defer func() {
-		time.Sleep(100 * time.Millisecond) // work around -race issue
+		<-started
 		ts.Close()
 	}()
-	defer func() {
-		finish <- true
-	}()
-	gh := New("foobar", ts.URL, 1*time.Second)
+	gh := New("foobar", ts.URL, 500*time.Millisecond)
 	_, err := gh.Get()
 	c.Check(err, ErrorMatches, ".*closed.*")
 }
