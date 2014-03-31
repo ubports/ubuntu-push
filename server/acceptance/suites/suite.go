@@ -128,9 +128,9 @@ func (s *AcceptanceSuite) PostRequest(path string, message interface{}) (string,
 }
 
 func testClientSession(addr string, deviceId string, reportPings bool) *acceptance.ClientSession {
-	certPEMBlock, err := ioutil.ReadFile(helpers.SourceRelative("../config/testing.cert"))
+	certPEMBlock, err := ioutil.ReadFile(helpers.SourceRelative("../ssl/testing.cert"))
 	if err != nil {
-		panic(fmt.Sprintf("could not read config/testing.cert: %v", err))
+		panic(fmt.Sprintf("could not read ssl/testing.cert: %v", err))
 	}
 	return &acceptance.ClientSession{
 		ExchangeTimeout: 100 * time.Millisecond,

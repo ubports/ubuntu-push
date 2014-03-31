@@ -225,7 +225,7 @@ func (cs *clientSessionSuite) TestNewSessionHostEndpointWorks(c *C) {
 	c.Check(sess.getHost, NotNil)
 }
 
-var certfile string = helpers.SourceRelative("../../server/acceptance/config/testing.cert")
+var certfile string = helpers.SourceRelative("../../server/acceptance/ssl/testing.cert")
 var pem, _ = ioutil.ReadFile(certfile)
 
 func (cs *clientSessionSuite) TestNewSessionPEMWorks(c *C) {

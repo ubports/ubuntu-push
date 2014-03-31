@@ -88,7 +88,7 @@ func (cs *clientSuite) TearDownSuite(c *C) {
 }
 
 func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
-	pem_file := helpers.SourceRelative("../server/acceptance/config/testing.cert")
+	pem_file := helpers.SourceRelative("../server/acceptance/ssl/testing.cert")
 	cfgMap := map[string]interface{}{
 		"connect_timeout":        "7ms",
 		"exchange_timeout":       "10ms",
