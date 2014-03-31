@@ -36,8 +36,7 @@ There are build targets to build the client:
 
   make build-client
 
-building ubuntu-push-client, and the development server:
+building ubuntu-push-client, and to run the development server:
 
-  make build-server-dev
+  make run-server-dev
 
-building push-server-dev.

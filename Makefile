@@ -12,7 +12,7 @@ GODEPS += launchpad.net/go-dbus/v1
 GODEPS += launchpad.net/go-xdg/v0
 GODEPS += code.google.com/p/gosqlite/sqlite3
 
-TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance{|grep -v http13client )
+TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
 
 bootstrap:
 	mkdir -p $(GOPATH)/bin
@@ -36,6 +36,9 @@ build-client:
 
 build-server-dev:
 	go build -o push-server-dev launchpad.net/ubuntu-push/server/dev
+
+run-server-dev:
+	go run server/dev/*.go sampleconfigs/dev.json
 
 coverage-summary:
 	go test $(TESTFLAGS) -a -cover $(TOTEST)
@@ -64,5 +67,5 @@ protocol-diagrams: protocol/state-diag-client.svg protocol/state-diag-session.sv
 	dot -Tsvg $< > $@
 
 .PHONY: bootstrap check check-race format check-format \
-	acceptance build-client bluild-server-dev \
+	acceptance build-client build server-dev run-server-dev \
 	coverage-summary coverage-html protocol-diagrams
