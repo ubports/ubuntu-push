@@ -104,7 +104,7 @@ func (s *NMSuite) TestWatchStateFails(c *C) {
 }
 
 // WatchState calls close on its channel when the watch bails
-func (s *NMSuite) TestWatchClosesOnWatchBail(c *C) {
+func (s *NMSuite) TestWatchStateClosesOnWatchBail(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
 	nm := New(tc, s.log)
 	ch, err := nm.WatchState()
@@ -168,7 +168,7 @@ func (s *NMSuite) TestWatchPrimaryConnectionFails(c *C) {
 }
 
 // WatchPrimaryConnection calls close on its channel when the watch bails
-func (s *NMSuite) TestWatchClosesOnWatchBail(c *C) {
+func (s *NMSuite) TestWatchPrimaryConnectionClosesOnWatchBail(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
 	nm := New(tc, s.log)
 	ch, err := nm.WatchPrimaryConnection()
