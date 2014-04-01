@@ -20,6 +20,8 @@
 package networkmanager
 
 import (
+	"launchpad.net/go-dbus/v1"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/logger"
 )
@@ -41,6 +43,12 @@ type NetworkManager interface {
 	// WatchState listens for changes to NetworkManager's state, and sends
 	// them out over the channel returned.
 	WatchState() (<-chan State, error)
+	// GetPrimaryConnection fetches and returns NetworkManager's current
+	// primary connection.
+	GetPrimaryConnection() string
+	// WatchPrimaryConnection listens for changes of NetworkManager's
+	// Primary Connection, and sends it out over the channel returned.
+	WatchPrimaryConnection() (<-chan string, error)
 }
 
 type networkManager struct {
@@ -68,7 +76,13 @@ func (nm *networkManager) GetState() State {
 		return Unknown
 	}
 
-	return State(s.(uint32))
+	v, ok := s.(uint32)
+	if !ok {
+		nm.log.Errorf("Got weird state: %#v", s)
+		return Unknown
+	}
+
+	return State(v)
 }
 
 func (nm *networkManager) WatchState() (<-chan State, error) {
@@ -76,6 +90,41 @@ func (nm *networkManager) WatchState() (<-chan State, error) {
 	err := nm.bus.WatchSignal("StateChanged",
 		func(ns ...interface{}) { ch <- State(ns[0].(uint32)) },
 		func() { close(ch) })
+	if err != nil {
+		nm.log.Debugf("Failed to set up the watch: %s", err)
+		return nil, err
+	}
+
+	return ch, nil
+}
+
+func (nm *networkManager) GetPrimaryConnection() string {
+	s, err := nm.bus.GetProperty("PrimaryConnection")
+	if err != nil {
+		nm.log.Errorf("Failed gettting current primary connection: %s", err)
+		nm.log.Debugf("Defaulting primary connection to empty")
+		return ""
+	}
+
+	v, ok := s.(dbus.ObjectPath)
+	if !ok {
+		nm.log.Errorf("got weird PrimaryConnection: %#v", s)
+		return ""
+	}
+
+	return string(v)
+}
+
+func (nm *networkManager) WatchPrimaryConnection() (<-chan string, error) {
+	ch := make(chan string)
+	err := nm.bus.WatchSignal("PropertiesChanged",
+		func(ppsi ...interface{}) {
+			pps := ppsi[0].(map[string]dbus.Variant)
+			v, ok := pps["PrimaryConnection"]
+			if ok {
+				ch <- string(v.Value.(dbus.ObjectPath))
+			}
+		}, func() { close(ch) })
 	if err != nil {
 		nm.log.Debugf("Failed to set up the watch: %s", err)
 		return nil, err

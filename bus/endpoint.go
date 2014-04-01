@@ -175,7 +175,11 @@ func (endp *endpoint) String() string {
 
 // unpackOneMsg unpacks the value from the response msg
 func (endp *endpoint) unpackOneMsg(msg *dbus.Message, member string) []interface{} {
-	return msg.AllArgs()
+	var varmap map[string]dbus.Variant
+	if err := msg.Args(&varmap); err != nil {
+		return msg.AllArgs()
+	}
+	return []interface{}{varmap}
 }
 
 // unpackMessages unpacks the value from the watch
