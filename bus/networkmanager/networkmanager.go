@@ -46,7 +46,7 @@ type NetworkManager interface {
 	// GetPrimaryConnection fetches and returns NetworkManager's current
 	// primary connection.
 	GetPrimaryConnection() string
-	// WatchPrimaryConnection listens for changes to NetworkManager's
+	// WatchPrimaryConnection listens for changes of NetworkManager's
 	// Primary Connection, and sends it out over the channel returned.
 	WatchPrimaryConnection() (<-chan string, error)
 }
