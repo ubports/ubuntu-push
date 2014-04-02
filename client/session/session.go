@@ -80,6 +80,7 @@ type ClientSessionConfig struct {
 	HostsCachingExpiryTime time.Duration
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
+	Info                   map[string]interface{}
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -374,6 +375,7 @@ func (sess *ClientSession) start() error {
 		// xxx get the SSO Authorization string from the phone
 		Authorization: "",
 		Levels:        levels,
+		Info:          sess.Info,
 	})
 	if err != nil {
 		sess.setState(Error)

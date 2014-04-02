@@ -856,7 +856,14 @@ func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
 }
 
 func (cs *clientSessionSuite) TestStartWorks(c *C) {
-	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
+	info := map[string]interface{}{
+		"foo": 1,
+		"bar": "baz",
+	}
+	conf := ClientSessionConfig{
+		Info: info,
+	}
+	sess, err := NewSession("", conf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestStartWorks"}
 	errCh := make(chan error, 1)
@@ -870,8 +877,10 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	}()
 
 	c.Check(takeNext(downCh), Equals, "deadline 0")
-	_, ok := takeNext(downCh).(protocol.ConnectMsg)
+	msg, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
+	c.Check(msg.DeviceId, Equals, "wah")
+	c.Check(msg.Info, DeepEquals, info)
 	upCh <- nil // no error
 	upCh <- protocol.ConnAckMsg{
 		Type:   "connack",
