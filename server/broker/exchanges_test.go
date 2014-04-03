@@ -35,24 +35,45 @@ type exchangesSuite struct{}
 
 var _ = Suite(&exchangesSuite{})
 
-func (s *exchangesSuite) TestBroadcastExchange(c *C) {
-	sess := &testing.TestBrokerSession{
-		LevelsMap: broker.LevelsMap(map[store.InternalChannelId]int64{}),
-	}
+func (s *exchangesSuite) TestBroadcastExchangeInit(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
 		NotificationPayloads: []json.RawMessage{
 			json.RawMessage(`{"a":"x"}`),
+			json.RawMessage(`[]`),
 			json.RawMessage(`{"a":"y"}`),
 		},
 	}
+	exchg.Init()
+	c.Check(exchg.Decoded, DeepEquals, []map[string]interface{}{
+		map[string]interface{}{"a": "x"},
+		nil,
+		map[string]interface{}{"a": "y"},
+	})
+}
+
+func (s *exchangesSuite) TestBroadcastExchange(c *C) {
+	sess := &testing.TestBrokerSession{
+		LevelsMap:    broker.LevelsMap(map[store.InternalChannelId]int64{}),
+		Model:        "m1",
+		ImageChannel: "img1",
+	}
+	exchg := &broker.BroadcastExchange{
+		ChanId:   store.SystemInternalChannelId,
+		TopLevel: 3,
+		NotificationPayloads: []json.RawMessage{
+			json.RawMessage(`{"img1/m1":100}`),
+			json.RawMessage(`{"img2/m2":200}`),
+		},
+	}
+	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	// check
 	marshalled, err := json.Marshal(outMsg)
 	c.Assert(err, IsNil)
-	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"x"},{"a":"y"}]}`)
+	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"img1/m1":100}]}`)
 	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)
 	c.Assert(err, IsNil)
 	err = exchg.Acked(sess, true)
@@ -62,9 +83,11 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 
 func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 	sess := &testing.TestBrokerSession{
-		LevelsMap: broker.LevelsMap(map[store.InternalChannelId]int64{}),
+		LevelsMap:    broker.LevelsMap(map[store.InternalChannelId]int64{}),
+		Model:        "m1",
+		ImageChannel: "img1",
 	}
-	payloadFmt := fmt.Sprintf(`{"b":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
+	payloadFmt := fmt.Sprintf(`{"img1/m1":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
 	needsSplitting := make([]json.RawMessage, 32)
 	for i := 0; i < 32; i++ {
 		needsSplitting[i] = json.RawMessage(fmt.Sprintf(payloadFmt, i))
@@ -76,6 +99,7 @@ func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 		TopLevel:             topLevel,
 		NotificationPayloads: needsSplitting,
 	}
+	exchg.Init()
 	outMsg, _, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	parts := 0
@@ -95,6 +119,7 @@ func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 			json.RawMessage(`{"a":"y"}`),
 		},
 	}
+	exchg.Init()
 	outMsg, _, err = exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	done := outMsg.Split() // shouldn't panic
@@ -103,21 +128,24 @@ func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 
 func (s *exchangesSuite) TestBroadcastExchangeAckMismatch(c *C) {
 	sess := &testing.TestBrokerSession{
-		LevelsMap: broker.LevelsMap(map[store.InternalChannelId]int64{}),
+		LevelsMap:    broker.LevelsMap(map[store.InternalChannelId]int64{}),
+		Model:        "m1",
+		ImageChannel: "img2",
 	}
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
 		NotificationPayloads: []json.RawMessage{
-			json.RawMessage(`{"a":"y"}`),
+			json.RawMessage(`{"img2/m1":1}`),
 		},
 	}
+	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	// check
 	marshalled, err := json.Marshal(outMsg)
 	c.Assert(err, IsNil)
-	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"y"}]}`)
+	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"img2/m1":1}]}`)
 	err = json.Unmarshal([]byte(`{}`), inMsg)
 	c.Assert(err, IsNil)
 	err = exchg.Acked(sess, true)
@@ -130,23 +158,55 @@ func (s *exchangesSuite) TestBroadcastExchangeFilterByLevel(c *C) {
 		LevelsMap: broker.LevelsMap(map[store.InternalChannelId]int64{
 			store.SystemInternalChannelId: 2,
 		}),
+		Model:        "m1",
+		ImageChannel: "img1",
 	}
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
 		NotificationPayloads: []json.RawMessage{
-			json.RawMessage(`{"a":"x"}`),
-			json.RawMessage(`{"a":"y"}`),
+			json.RawMessage(`{"img1/m1":100}`),
+			json.RawMessage(`{"img1/m1":101}`),
 		},
 	}
+	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	// check
 	marshalled, err := json.Marshal(outMsg)
 	c.Assert(err, IsNil)
-	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"a":"y"}]}`)
+	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":3,"Payloads":[{"img1/m1":101}]}`)
 	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)
 	c.Assert(err, IsNil)
 	err = exchg.Acked(sess, true)
 	c.Assert(err, IsNil)
+}
+
+func (s *exchangesSuite) TestBroadcastExchangeChannelFilter(c *C) {
+	sess := &testing.TestBrokerSession{
+		LevelsMap:    broker.LevelsMap(map[store.InternalChannelId]int64{}),
+		Model:        "m1",
+		ImageChannel: "img1",
+	}
+	exchg := &broker.BroadcastExchange{
+		ChanId:   store.SystemInternalChannelId,
+		TopLevel: 5,
+		NotificationPayloads: []json.RawMessage{
+			json.RawMessage(`{"img1/m1":100}`),
+			json.RawMessage(`{"img2/m2":200}`),
+			json.RawMessage(`{"img1/m1":101}`),
+		},
+	}
+	exchg.Init()
+	outMsg, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	// check
+	marshalled, err := json.Marshal(outMsg)
+	c.Assert(err, IsNil)
+	c.Check(string(marshalled), Equals, `{"T":"broadcast","ChanId":"0","TopLevel":5,"Payloads":[{"img1/m1":100},{"img1/m1":101}]}`)
+	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)
+	c.Assert(err, IsNil)
+	err = exchg.Acked(sess, true)
+	c.Assert(err, IsNil)
+	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(5))
 }

@@ -175,6 +175,7 @@ func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
+	decoded1 := map[string]interface{}{"m": "M"}
 	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
@@ -194,6 +195,7 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
+			Decoded:              []map[string]interface{}{decoded1},
 		})
 	}
 	select {
@@ -204,6 +206,7 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
+			Decoded:              []map[string]interface{}{decoded1},
 		})
 	}
 }

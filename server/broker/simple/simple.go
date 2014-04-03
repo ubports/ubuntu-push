@@ -157,6 +157,7 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 				TopLevel:             topLevel,
 				NotificationPayloads: payloads,
 			}
+			broadcastExchg.Init()
 			sess.exchanges <- broadcastExchg
 		}
 	}
@@ -239,6 +240,7 @@ Loop:
 					TopLevel:             topLevel,
 					NotificationPayloads: payloads,
 				}
+				broadcastExchg.Init()
 				for _, sess := range b.registry {
 					sess.exchanges <- broadcastExchg
 				}
