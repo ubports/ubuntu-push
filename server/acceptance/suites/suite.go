@@ -46,7 +46,7 @@ type ServerHandle struct {
 func (h *ServerHandle) StartClient(c *C, devId string, levels map[string]int64) (events <-chan string, errorCh <-chan error, stop func()) {
 	errCh := make(chan error, 1)
 	cliEvents := make(chan string, 10)
-	sess := testClientSession(h.ServerAddr, devId, false)
+	sess := testClientSession(h.ServerAddr, devId, "m1", "img1", false)
 	sess.Levels = levels
 	err := sess.Dial()
 	c.Assert(err, IsNil)
@@ -127,7 +127,7 @@ func (s *AcceptanceSuite) PostRequest(path string, message interface{}) (string,
 	return string(body), err
 }
 
-func testClientSession(addr string, deviceId string, reportPings bool) *acceptance.ClientSession {
+func testClientSession(addr string, deviceId, model, imageChannel string, reportPings bool) *acceptance.ClientSession {
 	certPEMBlock, err := ioutil.ReadFile(helpers.SourceRelative("../ssl/testing.cert"))
 	if err != nil {
 		panic(fmt.Sprintf("could not read ssl/testing.cert: %v", err))
@@ -137,6 +137,8 @@ func testClientSession(addr string, deviceId string, reportPings bool) *acceptan
 		ServerAddr:      addr,
 		CertPEMBlock:    certPEMBlock,
 		DeviceId:        deviceId,
+		Model:           model,
+		ImageChannel:    imageChannel,
 		ReportPings:     reportPings,
 	}
 }
