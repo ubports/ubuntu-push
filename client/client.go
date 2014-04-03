@@ -32,6 +32,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/bus/systemimage"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
@@ -71,6 +72,8 @@ type PushClient struct {
 	notificationsEndp  bus.Endpoint
 	urlDispatcherEndp  bus.Endpoint
 	connectivityEndp   bus.Endpoint
+	systemImageEndp    bus.Endpoint
+	systemImageInfo    *systemimage.InfoResult
 	connCh             chan bool
 	hasConnectivity    bool
 	actionsCh          <-chan notifications.RawActionReply
@@ -112,6 +115,7 @@ func (client *PushClient) configure() error {
 	client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
 	client.urlDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, client.log)
 	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
+	client.systemImageEndp = bus.SystemBus.Endpoint(systemimage.BusAddress, client.log)
 
 	client.connCh = make(chan bool, 1)
 	client.sessionConnectedCh = make(chan uint32, 1)
@@ -132,13 +136,14 @@ func (client *PushClient) configure() error {
 }
 
 // deriveSessionConfig dervies the session configuration from the client configuration bits.
-func (client *PushClient) deriveSessionConfig() session.ClientSessionConfig {
+func (client *PushClient) deriveSessionConfig(info map[string]interface{}) session.ClientSessionConfig {
 	return session.ClientSessionConfig{
 		ConnectTimeout:         client.config.ConnectTimeout.TimeDuration(),
 		ExchangeTimeout:        client.config.ExchangeTimeout.TimeDuration(),
 		HostsCachingExpiryTime: client.config.HostsCachingExpiryTime.TimeDuration(),
 		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
-		PEM: client.pem,
+		PEM:  client.pem,
+		Info: info,
 	}
 }
 
@@ -159,8 +164,17 @@ func (client *PushClient) takeTheBus() error {
 	iniCh := make(chan uint32)
 	go func() { iniCh <- util.NewAutoRedialer(client.notificationsEndp).Redial() }()
 	go func() { iniCh <- util.NewAutoRedialer(client.urlDispatcherEndp).Redial() }()
+	go func() { iniCh <- util.NewAutoRedialer(client.systemImageEndp).Redial() }()
 	<-iniCh
 	<-iniCh
+	<-iniCh
+
+	sysimg := systemimage.New(client.systemImageEndp, client.log)
+	info, err := sysimg.Info()
+	if err != nil {
+		return err
+	}
+	client.systemImageInfo = info
 
 	actionsCh, err := notifications.Raw(client.notificationsEndp, client.log).WatchActions()
 	client.actionsCh = actionsCh
@@ -169,8 +183,13 @@ func (client *PushClient) takeTheBus() error {
 
 // initSession creates the session object
 func (client *PushClient) initSession() error {
+	info := map[string]interface{}{
+		"device":       client.systemImageInfo.Device,
+		"channel":      client.systemImageInfo.Channel,
+		"build_number": client.systemImageInfo.BuildNumber,
+	}
 	sess, err := session.NewSession(client.config.Addr,
-		client.deriveSessionConfig(), client.deviceId,
+		client.deriveSessionConfig(info), client.deviceId,
 		client.levelMapFactory, client.log)
 	if err != nil {
 		return err
@@ -286,7 +305,7 @@ func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
 		client.getDeviceId,
-		client.initSession,
 		client.takeTheBus,
+		client.initSession,
 	)
 }

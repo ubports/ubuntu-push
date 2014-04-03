@@ -33,6 +33,7 @@ import (
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/bus/systemimage"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
@@ -239,6 +240,9 @@ func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
+	info := map[string]interface{}{
+		"foo": 1,
+	}
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -247,7 +251,8 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExchangeTimeout:        10 * time.Millisecond,
 		HostsCachingExpiryTime: 1 * time.Hour,
 		ExpectAllRepairedTime:  30 * time.Minute,
-		PEM: cli.pem,
+		PEM:  cli.pem,
+		Info: info,
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)
@@ -258,7 +263,7 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
 	}
 	// finally compare
-	conf := cli.deriveSessionConfig()
+	conf := cli.deriveSessionConfig(info)
 	c.Check(conf, DeepEquals, expected)
 }
 
@@ -302,6 +307,8 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	cEndp := testibus.NewTestingEndpoint(cCond, condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal),
 	)
+	siCond := condition.Fail2Work(2)
+	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})
 	testibus.SetWatchTicker(cEndp, make(chan bool))
 	// ok, create the thing
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -317,6 +324,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	cli.notificationsEndp = nEndp
 	cli.urlDispatcherEndp = uEndp
 	cli.connectivityEndp = cEndp
+	cli.systemImageEndp = siEndp
 
 	c.Assert(cli.takeTheBus(), IsNil)
 	// the notifications and urldispatcher endpoints retried until connected
@@ -328,6 +336,8 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	c.Check(takeNextBool(cli.connCh), Equals, true)
 	// the connectivity endpoint retried until connected
 	c.Check(cCond.OK(), Equals, true)
+	// the systemimage endpoint retried until connected
+	c.Check(siCond.OK(), Equals, true)
 }
 
 // takeTheBus can, in fact, fail
@@ -343,6 +353,7 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 	cli.notificationsEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.systemImageEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 
 	c.Check(cli.takeTheBus(), NotNil)
 	c.Check(cli.actionsCh, IsNil)
@@ -355,6 +366,7 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 func (cs *clientSuite) TestHandleErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 	cs.log.ResetCapture()
 	cli.hasConnectivity = true
@@ -387,6 +399,7 @@ func (cs *clientSuite) TestLevelMapFactoryWithDbPath(c *C) {
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 
 	c.Assert(cli.hasConnectivity, Equals, false)
@@ -412,7 +425,7 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(), cli.deviceId, levelmap.NewLevelMap, cs.log)
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
@@ -425,7 +438,7 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(), cli.deviceId, levelmap.NewLevelMap, cs.log)
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)
@@ -478,9 +491,17 @@ func (cs *clientSuite) TestHandleClick(c *C) {
     doLoop tests
 ******************************************************************/
 
+var siInfoRes = &systemimage.InfoResult{
+	Device:      "mako",
+	Channel:     "daily",
+	BuildNumber: 102,
+	LastUpdate:  "Unknown",
+}
+
 func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	cli.connCh = make(chan bool, 1)
 	cli.connCh <- true
 	c.Assert(cli.initSession(), IsNil)
@@ -493,6 +514,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 	aCh := make(chan notifications.RawActionReply, 1)
 	aCh <- notifications.RawActionReply{}
@@ -506,6 +528,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 	cli.session.MsgCh = make(chan *session.Notification, 1)
 	cli.session.MsgCh <- &session.Notification{}
@@ -518,6 +541,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 	cli.session.ErrCh = make(chan error, 1)
 	cli.session.ErrCh <- nil
@@ -570,7 +594,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal))
-
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 
 	cli.session.MsgCh = make(chan *session.Notification)
