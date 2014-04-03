@@ -32,7 +32,7 @@ import (
 // bus.Endpoint represents the DBus connection itself.
 type Endpoint interface {
 	WatchSignal(member string, f func(...interface{}), d func()) error
-	Call(member string, args ...interface{}) ([]interface{}, error)
+	Call(member string, args []interface{}, rvs ...interface{}) error
 	GetProperty(property string) (interface{}, error)
 	Dial() error
 	Close()
@@ -118,16 +118,20 @@ func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func(
 	return nil
 }
 
-// Call() invokes the provided member method (on the name, path and interface
-// provided when creating the endpoint). The return value is unpacked before
-// being returned.
-func (endp *endpoint) Call(member string, args ...interface{}) ([]interface{}, error) {
+// Call() invokes the provided member method (on the name, path and
+// interface provided when creating the endpoint). args can be built
+// using bus.Args(...). The return value is unpacked into rvs before being
+// returned.
+func (endp *endpoint) Call(member string, args []interface{}, rvs ...interface{}) error {
 	msg, err := endp.proxy.Call(endp.addr.Interface, member, args...)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	rvs := endp.unpackOneMsg(msg, member)
-	return rvs, nil
+	err = msg.Args(rvs...)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetProperty uses the org.freedesktop.DBus.Properties interface's Get method

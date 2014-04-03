@@ -464,7 +464,7 @@ func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 func (cs *clientSuite) TestHandleClick(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), nil)
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 	cli.urlDispatcherEndp = endp
 	c.Check(cli.handleClick(), IsNil)
 	// check we sent the notification
