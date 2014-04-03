@@ -230,8 +230,54 @@ func (client *PushClient) handleErr(err error) {
 	}
 }
 
+// filterNotification finds out if the notification is about an actual
+// upgrade for the device. It expects msg.Decoded entries to look
+// like:
+//
+// {
+// "IMAGE-CHANNEL/DEVICE-MODEL": [BUILD-NUMBER, CHANNEL-ALIAS]
+// ...
+// }
+func (client *PushClient) filterNotification(msg *session.Notification) bool {
+	n := len(msg.Decoded)
+	if n == 0 {
+		return false
+	}
+	// they are all for us, consider last
+	last := msg.Decoded[n-1]
+	tag := fmt.Sprintf("%s/%s", client.systemImageInfo.Channel, client.systemImageInfo.Device)
+	entry, ok := last[tag]
+	if !ok {
+		return false
+	}
+	pair, ok := entry.([]interface{})
+	if !ok {
+		return false
+	}
+	if len(pair) < 1 {
+		return false
+	}
+	buildNumber, ok := pair[0].(float64)
+	if !ok {
+		return false
+	}
+	curBuildNumber := float64(client.systemImageInfo.BuildNumber)
+	if buildNumber > curBuildNumber {
+		return true
+	}
+	// xxx we should really compare channel_target and alias here
+	// going backward by a margin, assume switch of target
+	if buildNumber < curBuildNumber && (curBuildNumber-buildNumber) > 10 {
+		return true
+	}
+	return false
+}
+
 // handleNotification deals with receiving a notification
 func (client *PushClient) handleNotification(msg *session.Notification) error {
+	if !client.filterNotification(msg) {
+		return nil
+	}
 	action_id := "dummy_id"
 	a := []string{action_id, "Go get it!"} // action value not visible on the phone
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
