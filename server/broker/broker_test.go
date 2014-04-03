@@ -20,6 +20,8 @@ import (
 	"fmt"
 
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/protocol"
 )
 
 type brokerSuite struct{}
@@ -29,4 +31,20 @@ var _ = Suite(&brokerSuite{})
 func (s *brokerSuite) TestErrAbort(c *C) {
 	err := &ErrAbort{"expected FOO"}
 	c.Check(fmt.Sprintf("%s", err), Equals, "session aborted (expected FOO)")
+}
+
+func (s *brokerSuite) TestGetInfoString(c *C) {
+	connectMsg := &protocol.ConnectMsg{}
+	v, err := GetInfoString(connectMsg, "foo", "?")
+	c.Check(err, IsNil)
+	c.Check(v, Equals, "?")
+
+	connectMsg.Info = map[string]interface{}{"foo": "yay"}
+	v, err = GetInfoString(connectMsg, "foo", "?")
+	c.Check(err, IsNil)
+	c.Check(v, Equals, "yay")
+
+	connectMsg.Info["foo"] = 33
+	v, err = GetInfoString(connectMsg, "foo", "?")
+	c.Check(err, Equals, ErrUnexpectedValue)
 }

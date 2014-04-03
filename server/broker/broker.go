@@ -49,6 +49,19 @@ type Exchange interface {
 // LevelsMap is the type for holding channel levels for session.
 type LevelsMap map[store.InternalChannelId]int64
 
+// GetInfoString helps retrivieng a string out of a protocol.ConnectMsg.Info
+func GetInfoString(msg *protocol.ConnectMsg, name, defaultVal string) (string, error) {
+	v, ok := msg.Info[name]
+	if !ok {
+		return defaultVal, nil
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", ErrUnexpectedValue
+	}
+	return s, nil
+}
+
 // BrokerSession holds broker session state.
 type BrokerSession interface {
 	// SessionChannel returns the session control channel
@@ -56,6 +69,10 @@ type BrokerSession interface {
 	SessionChannel() <-chan Exchange
 	// DeviceIdentifier returns the device id string.
 	DeviceIdentifier() string
+	// DeviceImageModel returns the device model.
+	DeviceImageModel() string
+	// DeviceImageChannel returns the device system image channel.
+	DeviceImageChannel() string
 	// Levels returns the current channel levels for the session
 	Levels() LevelsMap
 	// ExchangeScratchArea returns the scratch area for exchanges.
@@ -70,6 +87,9 @@ type ErrAbort struct {
 func (ea *ErrAbort) Error() string {
 	return fmt.Sprintf("session aborted (%s)", ea.Reason)
 }
+
+// Unexpect value in message
+var ErrUnexpectedValue = &ErrAbort{"unexpected value in message"}
 
 // BrokerConfig gives access to the typical broker configuration.
 type BrokerConfig interface {
