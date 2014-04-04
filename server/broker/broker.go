@@ -19,6 +19,7 @@
 package broker
 
 import (
+	"errors"
 	"fmt"
 
 	"launchpad.net/ubuntu-push/protocol"
@@ -45,6 +46,9 @@ type Exchange interface {
 	Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error)
 	Acked(sess BrokerSession, done bool) error
 }
+
+// ErrNop returned by Prepare means nothing to do/send.
+var ErrNop = errors.New("nothing to send")
 
 // LevelsMap is the type for holding channel levels for session.
 type LevelsMap map[store.InternalChannelId]int64

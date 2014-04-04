@@ -81,6 +81,24 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(3))
 }
 
+func (s *exchangesSuite) TestBroadcastExchangeEmpty(c *C) {
+	sess := &testing.TestBrokerSession{
+		LevelsMap:    broker.LevelsMap(map[store.InternalChannelId]int64{}),
+		Model:        "m1",
+		ImageChannel: "img1",
+	}
+	exchg := &broker.BroadcastExchange{
+		ChanId:   store.SystemInternalChannelId,
+		TopLevel: 3,
+		NotificationPayloads: []json.RawMessage{},
+	}
+	exchg.Init()
+	outMsg, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, Equals, broker.ErrNop)
+	c.Check(outMsg, IsNil)
+	c.Check(inMsg, IsNil)
+}
+
 func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 	sess := &testing.TestBrokerSession{
 		LevelsMap:    broker.LevelsMap(map[store.InternalChannelId]int64{}),
