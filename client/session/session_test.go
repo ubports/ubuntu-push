@@ -785,7 +785,7 @@ func (s *loopSuite) TestLoopBroadcast(c *C) {
 func (s *loopSuite) TestLoopConnBroken(c *C) {
 	c.Check(s.sess.State(), Equals, Running)
 	broken := protocol.ConnBrokenMsg{
-		Type: "connbroken",
+		Type:   "connbroken",
 		Reason: "REASON",
 	}
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")

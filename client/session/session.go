@@ -346,7 +346,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 // handle "connbroken" messages
 func (sess *ClientSession) handleConnBroken(connBroken *serverMsg) error {
 	sess.setState(Error)
-	reason :=connBroken.Reason
+	reason := connBroken.Reason
 	err := fmt.Errorf("server broke connection: %s", reason)
 	sess.Log.Errorf("%s", err)
 	switch reason {
