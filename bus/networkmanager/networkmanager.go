@@ -140,6 +140,7 @@ func (nm *networkManager) WatchPrimaryConnection() (<-chan string, error) {
 			con, ok := v.Value.(dbus.ObjectPath)
 			if !ok {
 				nm.log.Errorf("got weird PrimaryConnection via PropertiesChanged: %#v", v)
+				return
 			}
 			nm.log.Debugf("got primary connection: %s", con)
 			ch <- string(con)

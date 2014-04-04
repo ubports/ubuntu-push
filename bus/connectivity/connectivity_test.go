@@ -85,6 +85,17 @@ func (s *ConnSuite) TestStartRetriesCall(c *C) {
 	c.Check(cs.connAttempts, Equals, uint32(6))
 }
 
+// when some of the calls to NetworkManager fails for a bit, we're still OK
+func (s *ConnSuite) TestStartRetriesCall2(c *C) {
+	cond := condition.Chain(3, condition.Work(true), 1, condition.Work(false),
+		1, condition.Work(true))
+
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), cond, uint32(networkmanager.Connecting))
+	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+
+	c.Check(cs.start(), Equals, networkmanager.Connecting)
+}
+
 // when... and bear with me... the bus works, and the first call to
 // get network manager's state works, but then you can't establish the
 // watch, we recover and try again.
