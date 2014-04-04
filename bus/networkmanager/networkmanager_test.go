@@ -17,12 +17,15 @@
 package networkmanager
 
 import (
+	"testing"
+
+	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
+
 	testingbus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
-	"testing"
 )
 
 // hook up gocheck
@@ -71,7 +74,7 @@ func (s *NMSuite) TestGetStateFail(c *C) {
 
 // GetState returns the right state when dbus works but delivers rubbish values
 func (s *NMSuite) TestGetStateRubbishValues(c *C) {
-	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(false), 42), s.log)
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(true), "Unknown"), s.log)
 	state := nm.GetState()
 	c.Check(state, Equals, Unknown)
 }
@@ -101,11 +104,123 @@ func (s *NMSuite) TestWatchStateFails(c *C) {
 }
 
 // WatchState calls close on its channel when the watch bails
-func (s *NMSuite) TestWatchClosesOnWatchBail(c *C) {
+func (s *NMSuite) TestWatchStateClosesOnWatchBail(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
 	nm := New(tc, s.log)
 	ch, err := nm.WatchState()
 	c.Check(err, IsNil)
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
+}
+
+// WatchState survives rubbish values
+func (s *NMSuite) TestWatchStateSurvivesRubbishValues(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), "a")
+	nm := New(tc, s.log)
+	ch, err := nm.WatchState()
+	c.Check(err, IsNil)
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
+
+// GetPrimaryConnection returns the right state when everything works
+func (s *NMSuite) TestGetPrimaryConnection(c *C) {
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(true), dbus.ObjectPath("/a/1")), s.log)
+	con := nm.GetPrimaryConnection()
+	c.Check(con, Equals, "/a/1")
+}
+
+// GetPrimaryConnection returns the right state when dbus fails
+func (s *NMSuite) TestGetPrimaryConnectionFail(c *C) {
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
+	con := nm.GetPrimaryConnection()
+	c.Check(con, Equals, "")
+}
+
+// GetPrimaryConnection returns the right state when dbus works but delivers rubbish values
+func (s *NMSuite) TestGetPrimaryConnectionRubbishValues(c *C) {
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(true), "broken"), s.log)
+	con := nm.GetPrimaryConnection()
+	c.Check(con, Equals, "")
+}
+
+// GetPrimaryConnection returns the right state when dbus works but delivers a rubbish structure
+func (s *NMSuite) TestGetPrimaryConnectionRubbishStructure(c *C) {
+	nm := New(testingbus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{}), s.log)
+	con := nm.GetPrimaryConnection()
+	c.Check(con, Equals, "")
+}
+
+func mkPriConMap(priCon string) map[string]dbus.Variant {
+	m := make(map[string]dbus.Variant)
+	m["PrimaryConnection"] = dbus.Variant{dbus.ObjectPath(priCon)}
+	return m
+}
+
+// WatchPrimaryConnection sends a stream of Connections over the channel
+func (s *NMSuite) TestWatchPrimaryConnection(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true),
+		mkPriConMap("/a/1"),
+		mkPriConMap("/b/2"),
+		mkPriConMap("/c/3"))
+	nm := New(tc, s.log)
+	ch, err := nm.WatchPrimaryConnection()
+	c.Check(err, IsNil)
+	l := []string{<-ch, <-ch, <-ch}
+	c.Check(l, DeepEquals, []string{"/a/1", "/b/2", "/c/3"})
+}
+
+// WatchPrimaryConnection returns on error if the dbus call fails
+func (s *NMSuite) TestWatchPrimaryConnectionFails(c *C) {
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
+	_, err := nm.WatchPrimaryConnection()
+	c.Check(err, NotNil)
+}
+
+// WatchPrimaryConnection calls close on its channel when the watch bails
+func (s *NMSuite) TestWatchPrimaryConnectionClosesOnWatchBail(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
+	nm := New(tc, s.log)
+	ch, err := nm.WatchPrimaryConnection()
+	c.Check(err, IsNil)
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
+
+// WatchPrimaryConnection survives rubbish values
+func (s *NMSuite) TestWatchPrimaryConnectionSurvivesRubbishValues(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), "a")
+	nm := New(tc, s.log)
+	ch, err := nm.WatchPrimaryConnection()
+	c.Assert(err, IsNil)
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
+
+// WatchPrimaryConnection ignores non-PrimaryConnection PropertyChanged
+func (s *NMSuite) TestWatchPrimaryConnectionIgnoresIrrelephant(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true),
+		map[string]dbus.Variant{"foo": dbus.Variant{}},
+		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("42")}},
+	)
+	nm := New(tc, s.log)
+	ch, err := nm.WatchPrimaryConnection()
+	c.Assert(err, IsNil)
+	v, ok := <-ch
+	c.Check(ok, Equals, true)
+	c.Check(v, Equals, "42")
+}
+
+// WatchPrimaryConnection ignores rubbish PrimaryConnections
+func (s *NMSuite) TestWatchPrimaryConnectionIgnoresRubbishValues(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true),
+		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{-12}},
+		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("42")}},
+	)
+	nm := New(tc, s.log)
+	ch, err := nm.WatchPrimaryConnection()
+	c.Assert(err, IsNil)
+	v, ok := <-ch
+	c.Check(ok, Equals, true)
+	c.Check(v, Equals, "42")
 }

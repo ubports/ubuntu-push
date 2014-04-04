@@ -1,6 +1,9 @@
 {
+    "connect_timeout": "20s",
     "exchange_timeout": "30s",
-    "addr": "push-delivery.ubuntu.com:443",
+    "hosts_cache_expiry": "12h",
+    "expect_all_repaired": "40m",
+    "addr": "https://push.ubuntu.com/delivery-hosts",
     "cert_pem_file": "",
     "stabilizing_timeout": "2s",
     "recheck_timeout": "10m",

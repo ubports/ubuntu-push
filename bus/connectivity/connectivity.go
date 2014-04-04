@@ -47,6 +47,7 @@ type ConnectivityConfig struct {
 
 type connectedState struct {
 	networkStateCh <-chan networkmanager.State
+	networkConCh   <-chan string
 	config         ConnectivityConfig
 	log            logger.Logger
 	endp           bus.Endpoint
@@ -62,7 +63,9 @@ type connectedState struct {
 // up the watch.
 func (cs *connectedState) start() networkmanager.State {
 	var initial networkmanager.State
-	var ch <-chan networkmanager.State
+	var stateCh <-chan networkmanager.State
+	var primary string
+	var conCh <-chan string
 	var err error
 	for {
 		ar := util.NewAutoRedialer(cs.endp)
@@ -77,13 +80,24 @@ func (cs *connectedState) start() networkmanager.State {
 		}
 
 		// set up the watch
-		ch, err = nm.WatchState()
+		stateCh, err = nm.WatchState()
 		if err != nil {
-			cs.log.Debugf("Failed to set up the watch: %s", err)
+			cs.log.Debugf("failed to set up the state watch: %s", err)
 			goto Continue
 		}
 
-		cs.networkStateCh = ch
+		primary = nm.GetPrimaryConnection()
+		cs.log.Debugf("primary connection starts as %#v", primary)
+
+		conCh, err = nm.WatchPrimaryConnection()
+		if err != nil {
+			cs.log.Debugf("failed to set up the connection watch: %s", err)
+			goto Continue
+		}
+
+		cs.networkStateCh = stateCh
+		cs.networkConCh = conCh
+
 		return initial
 
 	Continue:
@@ -102,6 +116,15 @@ func (cs *connectedState) connectedStateStep() (bool, error) {
 Loop:
 	for {
 		select {
+		case <-cs.networkConCh:
+			cs.webgetCh = nil
+			cs.timer.Reset(stabilizingTimeout)
+			log.Debugf("PrimaryConnection changed. Assuming disconnect.")
+			if cs.lastSent == true {
+				cs.lastSent = false
+				break Loop
+			}
+
 		case v, ok := <-cs.networkStateCh:
 			if !ok {
 				// tear it all down and start over

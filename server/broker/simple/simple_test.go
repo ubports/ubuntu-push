@@ -48,6 +48,7 @@ func (s *simpleSuite) TestFeedPending(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	muchLater := time.Now().Add(10 * time.Minute)
 	notification1 := json.RawMessage(`{"m": "M"}`)
+	decoded1 := map[string]interface{}{"m": "M"}
 	sto.AppendToChannel(store.SystemInternalChannelId, notification1, muchLater)
 	b := NewSimpleBroker(sto, testBrokerConfig, nil)
 	sess := &simpleBrokerSession{
@@ -60,6 +61,7 @@ func (s *simpleSuite) TestFeedPending(c *C) {
 		ChanId:               store.SystemInternalChannelId,
 		TopLevel:             1,
 		NotificationPayloads: []json.RawMessage{notification1},
+		Decoded:              []map[string]interface{}{decoded1},
 	})
 }
 

@@ -57,9 +57,14 @@ func (bus concreteBus) String() string {
 	}
 }
 
-// Connect() connects to the bus, and returns the bus endpoint (and/or error).
+// Endpoint returns a bus endpoint.
 func (bus concreteBus) Endpoint(addr Address, log logger.Logger) Endpoint {
 	return newEndpoint(bus, addr, log)
+}
+
+// Args helps build arguments for endpoint Call().
+func Args(args ...interface{}) []interface{} {
+	return args
 }
 
 /*

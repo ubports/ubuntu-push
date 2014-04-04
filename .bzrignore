@@ -11,3 +11,5 @@ debian/*.debhelper.log
 debian/*.ex
 debian/*.EX
 debian/*.substvars
+ubuntu-push-client
+push-server-dev

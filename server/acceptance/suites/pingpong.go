@@ -34,7 +34,7 @@ type PingPongAcceptanceSuite struct {
 func (s *PingPongAcceptanceSuite) TestConnectPingPing(c *C) {
 	errCh := make(chan error, 1)
 	events := make(chan string, 10)
-	sess := testClientSession(s.ServerAddr, "DEVA", true)
+	sess := testClientSession(s.ServerAddr, "DEVA", "m1", "img1", true)
 	err := sess.Dial()
 	c.Assert(err, IsNil)
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
@@ -68,7 +68,7 @@ func (s *PingPongAcceptanceSuite) TestConnectPingPing(c *C) {
 func (s *PingPongAcceptanceSuite) TestConnectPingNeverPong(c *C) {
 	errCh := make(chan error, 1)
 	events := make(chan string, 10)
-	sess := testClientSession(s.ServerAddr, "DEVB", true)
+	sess := testClientSession(s.ServerAddr, "DEVB", "m1", "img1", true)
 	err := sess.Dial()
 	c.Assert(err, IsNil)
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {

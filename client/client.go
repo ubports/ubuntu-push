@@ -20,13 +20,19 @@ package client
 
 import (
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"strings"
+
 	"launchpad.net/go-dbus/v1"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/bus/systemimage"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
@@ -34,7 +40,6 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
-	"os"
 )
 
 // ClientConfig holds the client configuration
@@ -42,8 +47,13 @@ type ClientConfig struct {
 	connectivity.ConnectivityConfig // q.v.
 	// A reasonably large timeout for receive/answer pairs
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
-	// The server to connect to
-	Addr config.ConfigHostPort
+	// A timeout to use when trying to connect to the server
+	ConnectTimeout config.ConfigTimeDuration `json:"connect_timeout"`
+	// The server to connect to or url to query for hosts to connect to
+	Addr string
+	// Host list management
+	HostsCachingExpiryTime config.ConfigTimeDuration `json:"hosts_cache_expiry"`  // potentially refresh host list after
+	ExpectAllRepairedTime  config.ConfigTimeDuration `json:"expect_all_repaired"` // worth retrying all servers after
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
 	// The logging level (one of "debug", "info", "error")
@@ -62,6 +72,8 @@ type PushClient struct {
 	notificationsEndp  bus.Endpoint
 	urlDispatcherEndp  bus.Endpoint
 	connectivityEndp   bus.Endpoint
+	systemImageEndp    bus.Endpoint
+	systemImageInfo    *systemimage.InfoResult
 	connCh             chan bool
 	hasConnectivity    bool
 	actionsCh          <-chan notifications.RawActionReply
@@ -89,6 +101,12 @@ func (client *PushClient) configure() error {
 	if err != nil {
 		return fmt.Errorf("reading config: %v", err)
 	}
+	// ignore spaces
+	client.config.Addr = strings.Replace(client.config.Addr, " ", "", -1)
+	if client.config.Addr == "" {
+		return errors.New("no hosts specified")
+	}
+
 	// later, we'll be specifying more logging options in the config file
 	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel)
 
@@ -97,6 +115,7 @@ func (client *PushClient) configure() error {
 	client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
 	client.urlDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, client.log)
 	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
+	client.systemImageEndp = bus.SystemBus.Endpoint(systemimage.BusAddress, client.log)
 
 	client.connCh = make(chan bool, 1)
 	client.sessionConnectedCh = make(chan uint32, 1)
@@ -116,6 +135,18 @@ func (client *PushClient) configure() error {
 	return nil
 }
 
+// deriveSessionConfig dervies the session configuration from the client configuration bits.
+func (client *PushClient) deriveSessionConfig(info map[string]interface{}) session.ClientSessionConfig {
+	return session.ClientSessionConfig{
+		ConnectTimeout:         client.config.ConnectTimeout.TimeDuration(),
+		ExchangeTimeout:        client.config.ExchangeTimeout.TimeDuration(),
+		HostsCachingExpiryTime: client.config.HostsCachingExpiryTime.TimeDuration(),
+		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
+		PEM:  client.pem,
+		Info: info,
+	}
+}
+
 // getDeviceId gets the whoopsie identifier for the device
 func (client *PushClient) getDeviceId() error {
 	err := client.idder.Generate()
@@ -133,8 +164,17 @@ func (client *PushClient) takeTheBus() error {
 	iniCh := make(chan uint32)
 	go func() { iniCh <- util.NewAutoRedialer(client.notificationsEndp).Redial() }()
 	go func() { iniCh <- util.NewAutoRedialer(client.urlDispatcherEndp).Redial() }()
+	go func() { iniCh <- util.NewAutoRedialer(client.systemImageEndp).Redial() }()
 	<-iniCh
 	<-iniCh
+	<-iniCh
+
+	sysimg := systemimage.New(client.systemImageEndp, client.log)
+	info, err := sysimg.Info()
+	if err != nil {
+		return err
+	}
+	client.systemImageInfo = info
 
 	actionsCh, err := notifications.Raw(client.notificationsEndp, client.log).WatchActions()
 	client.actionsCh = actionsCh
@@ -143,8 +183,13 @@ func (client *PushClient) takeTheBus() error {
 
 // initSession creates the session object
 func (client *PushClient) initSession() error {
-	sess, err := session.NewSession(string(client.config.Addr), client.pem,
-		client.config.ExchangeTimeout.Duration, client.deviceId,
+	info := map[string]interface{}{
+		"device":       client.systemImageInfo.Device,
+		"channel":      client.systemImageInfo.Channel,
+		"build_number": client.systemImageInfo.BuildNumber,
+	}
+	sess, err := session.NewSession(client.config.Addr,
+		client.deriveSessionConfig(info), client.deviceId,
 		client.levelMapFactory, client.log)
 	if err != nil {
 		return err
@@ -185,8 +230,54 @@ func (client *PushClient) handleErr(err error) {
 	}
 }
 
+// filterNotification finds out if the notification is about an actual
+// upgrade for the device. It expects msg.Decoded entries to look
+// like:
+//
+// {
+// "IMAGE-CHANNEL/DEVICE-MODEL": [BUILD-NUMBER, CHANNEL-ALIAS]
+// ...
+// }
+func (client *PushClient) filterNotification(msg *session.Notification) bool {
+	n := len(msg.Decoded)
+	if n == 0 {
+		return false
+	}
+	// they are all for us, consider last
+	last := msg.Decoded[n-1]
+	tag := fmt.Sprintf("%s/%s", client.systemImageInfo.Channel, client.systemImageInfo.Device)
+	entry, ok := last[tag]
+	if !ok {
+		return false
+	}
+	pair, ok := entry.([]interface{})
+	if !ok {
+		return false
+	}
+	if len(pair) < 1 {
+		return false
+	}
+	buildNumber, ok := pair[0].(float64)
+	if !ok {
+		return false
+	}
+	curBuildNumber := float64(client.systemImageInfo.BuildNumber)
+	if buildNumber > curBuildNumber {
+		return true
+	}
+	// xxx we should really compare channel_target and alias here
+	// going backward by a margin, assume switch of target
+	if buildNumber < curBuildNumber && (curBuildNumber-buildNumber) > 10 {
+		return true
+	}
+	return false
+}
+
 // handleNotification deals with receiving a notification
 func (client *PushClient) handleNotification(msg *session.Notification) error {
+	if !client.filterNotification(msg) {
+		return nil
+	}
 	action_id := "dummy_id"
 	a := []string{action_id, "Go get it!"} // action value not visible on the phone
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
@@ -260,7 +351,7 @@ func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
 		client.getDeviceId,
-		client.initSession,
 		client.takeTheBus,
+		client.initSession,
 	)
 }

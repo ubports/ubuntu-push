@@ -81,10 +81,20 @@ func (s *CommonBrokerSuite) TestRegistration(c *C) {
 	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
-	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1", Levels: map[string]int64{"0": 5}})
+	sess, err := b.Register(&protocol.ConnectMsg{
+		Type:     "connect",
+		DeviceId: "dev-1",
+		Levels:   map[string]int64{"0": 5},
+		Info: map[string]interface{}{
+			"device":  "model",
+			"channel": "daily",
+		},
+	})
 	c.Assert(err, IsNil)
 	c.Assert(s.RevealSession(b, "dev-1"), Equals, sess)
 	c.Assert(sess.DeviceIdentifier(), Equals, "dev-1")
+	c.Check(sess.DeviceImageModel(), Equals, "model")
+	c.Check(sess.DeviceImageChannel(), Equals, "daily")
 	c.Assert(sess.ExchangeScratchArea(), Not(IsNil))
 	c.Check(sess.Levels(), DeepEquals, broker.LevelsMap(map[store.InternalChannelId]int64{
 		store.SystemInternalChannelId: 5,
@@ -103,6 +113,22 @@ func (s *CommonBrokerSuite) TestRegistrationBrokenLevels(c *C) {
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1", Levels: map[string]int64{"z": 5}})
 	c.Check(err, FitsTypeOf, &broker.ErrAbort{})
+}
+
+func (s *CommonBrokerSuite) TestRegistrationInfoErrors(c *C) {
+	sto := store.NewInMemoryPendingStore()
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b.Start()
+	defer b.Stop()
+	info := map[string]interface{}{
+		"device": -1,
+	}
+	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", Info: info})
+	c.Check(err, Equals, broker.ErrUnexpectedValue)
+	info["device"] = "m"
+	info["channel"] = -1
+	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", Info: info})
+	c.Check(err, Equals, broker.ErrUnexpectedValue)
 }
 
 func (s *CommonBrokerSuite) TestRegistrationFeedPending(c *C) {
@@ -149,6 +175,7 @@ func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
+	decoded1 := map[string]interface{}{"m": "M"}
 	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
@@ -168,6 +195,7 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
+			Decoded:              []map[string]interface{}{decoded1},
 		})
 	}
 	select {
@@ -178,6 +206,7 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 			ChanId:               store.SystemInternalChannelId,
 			TopLevel:             1,
 			NotificationPayloads: []json.RawMessage{notification1},
+			Decoded:              []map[string]interface{}{decoded1},
 		})
 	}
 }

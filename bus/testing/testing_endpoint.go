@@ -21,6 +21,9 @@ package testing
 import (
 	"errors"
 	"fmt"
+
+	"launchpad.net/go-dbus/v1"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"sync"
@@ -37,6 +40,7 @@ type testingEndpoint struct {
 	callCond    condition.Interface
 	retvals     [][]interface{}
 	watchTicker chan bool
+	watchLck    sync.RWMutex
 	callArgs    []callArgs
 	callArgsLck sync.RWMutex
 }
@@ -62,7 +66,9 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 // instead of the default timeout to wait while sending values over
 // WatchSignal. Set it to nil again to restore default behaviour.
 func SetWatchTicker(tc bus.Endpoint, watchTicker chan bool) {
+	tc.(*testingEndpoint).watchLck.Lock()
 	tc.(*testingEndpoint).watchTicker = watchTicker
+	tc.(*testingEndpoint).watchLck.Unlock()
 }
 
 // GetCallArgs returns a list of the arguments for each Call() invocation.
@@ -79,8 +85,11 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 		go func() {
 			for _, v := range tc.retvals {
 				f(v...)
-				if tc.watchTicker != nil {
-					<-tc.watchTicker
+				tc.watchLck.RLock()
+				ticker := tc.watchTicker
+				tc.watchLck.RUnlock()
+				if ticker != nil {
+					<-ticker
 				} else {
 					time.Sleep(10 * time.Millisecond)
 				}
@@ -95,32 +104,50 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 
 // See Endpoint's Call. This Call will check its condition to decide whether
 // to return an error, or the first of its return values
-func (tc *testingEndpoint) Call(member string, args ...interface{}) ([]interface{}, error) {
+func (tc *testingEndpoint) Call(member string, args []interface{}, rvs ...interface{}) error {
 	tc.callArgsLck.Lock()
 	defer tc.callArgsLck.Unlock()
 
 	tc.callArgs = append(tc.callArgs, callArgs{member, args})
 	if tc.callCond.OK() {
+		expected := len(rvs)
+		var provided int
 		if len(tc.retvals) == 0 {
-			panic("No return values provided!")
+			if expected != 0 {
+				panic("No return values provided!")
+			}
+			provided = 0
+		} else {
+			provided = len(tc.retvals[0])
 		}
-		return tc.retvals[0], nil
+		if provided != expected {
+			return errors.New("provided/expected return vals mismatch")
+		}
+		if provided != 0 {
+			x := dbus.NewMethodCallMessage("", "", "", "")
+			err := x.AppendArgs(tc.retvals[0]...)
+			if err != nil {
+				return err
+			}
+			err = x.Args(rvs...)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	} else {
-		return nil, errors.New("no way")
+		return errors.New("no way")
 	}
 }
 
 // See Endpoint's GetProperty. This one is just another name for Call.
 func (tc *testingEndpoint) GetProperty(property string) (interface{}, error) {
-	rvs, err := tc.Call(property)
+	var res interface{}
+	err := tc.Call(property, bus.Args(), &res)
 	if err != nil {
 		return nil, err
 	}
-	if len(rvs) != 1 {
-		return nil, errors.New("Wrong number of values given to testingEndpoint" +
-			" -- GetProperty only returns a single value for now!")
-	}
-	return rvs[0], err
+	return res, err
 }
 
 // See Endpoint's Dial. This one will check its dialCondition to

@@ -49,7 +49,7 @@ var _ URLDispatcher = &urlDispatcher{} // ensures it conforms
 
 func (ud *urlDispatcher) DispatchURL(url string) error {
 	ud.log.Debugf("Dispatching %s", url)
-	_, err := ud.endp.Call("DispatchURL", url)
+	err := ud.endp.Call("DispatchURL", bus.Args(url))
 	if err != nil {
 		ud.log.Errorf("Dispatch to %s failed with %s", url, err)
 	}
