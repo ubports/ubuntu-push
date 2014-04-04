@@ -446,15 +446,110 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 }
 
 /*****************************************************************
+   filterNotification tests
+******************************************************************/
+
+var siInfoRes = &systemimage.InfoResult{
+	Device:      "mako",
+	Channel:     "daily",
+	BuildNumber: 102,
+	LastUpdate:  "Unknown",
+}
+
+func (cs *clientSuite) TestFilterNotification(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.systemImageInfo = siInfoRes
+	// empty
+	msg := &session.Notification{}
+	c.Check(cli.filterNotification(msg), Equals, false)
+	// same build number
+	msg = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(102), "tubular"},
+			},
+		},
+	}
+	c.Check(cli.filterNotification(msg), Equals, false)
+	// higher build number and pick last
+	msg = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(102), "tubular"},
+			},
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(103), "tubular"},
+			},
+		},
+	}
+	c.Check(cli.filterNotification(msg), Equals, true)
+	// going backward by a margin, assume switch of alias
+	msg = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(102), "tubular"},
+			},
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(2), "urban"},
+			},
+		},
+	}
+	c.Check(cli.filterNotification(msg), Equals, true)
+}
+
+func (cs *clientSuite) TestFilterNotificationRobust(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.systemImageInfo = siInfoRes
+	msg := &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{},
+		},
+	}
+	c.Check(cli.filterNotification(msg), Equals, false)
+	for _, broken := range []interface{}{
+		5,
+		[]interface{}{},
+		[]interface{}{55},
+	} {
+		msg := &session.Notification{
+			Decoded: []map[string]interface{}{
+				map[string]interface{}{
+					"daily/mako": broken,
+				},
+			},
+		}
+		c.Check(cli.filterNotification(msg), Equals, false)
+	}
+}
+
+/*****************************************************************
     handleNotification tests
 ******************************************************************/
 
+var (
+	positiveNotification = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(103), "tubular"},
+			},
+		},
+	}
+	negativeNotification = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(102), "tubular"},
+			},
+		},
+	}
+)
+
 func (cs *clientSuite) TestHandleNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.systemImageInfo = siInfoRes
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
-	c.Check(cli.handleNotification(nil), IsNil)
+	c.Check(cli.handleNotification(positiveNotification), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
@@ -462,12 +557,26 @@ func (cs *clientSuite) TestHandleNotification(c *C) {
 	c.Check(cs.log.Captured(), Matches, `.* got notification id \d+\s*`)
 }
 
+func (cs *clientSuite) TestHandleNotificationNothingToDo(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.systemImageInfo = siInfoRes
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	cli.notificationsEndp = endp
+	cli.log = cs.log
+	c.Check(cli.handleNotification(negativeNotification), IsNil)
+	// check we sent the notification
+	args := testibus.GetCallArgs(endp)
+	c.Assert(args, HasLen, 0)
+	c.Check(cs.log.Captured(), Matches, "")
+}
+
 func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.systemImageInfo = siInfoRes
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
-	c.Check(cli.handleNotification(nil), NotNil)
+	c.Check(cli.handleNotification(positiveNotification), NotNil)
 }
 
 /*****************************************************************
@@ -490,13 +599,6 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 /*****************************************************************
     doLoop tests
 ******************************************************************/
-
-var siInfoRes = &systemimage.InfoResult{
-	Device:      "mako",
-	Channel:     "daily",
-	BuildNumber: 102,
-	LastUpdate:  "Unknown",
-}
 
 func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -631,7 +733,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	c.Check(cli.hasConnectivity, Equals, false)
 
 	//  * session.MsgCh to the notifications handler
-	cli.session.MsgCh <- &session.Notification{}
+	cli.session.MsgCh <- positiveNotification
 	tick()
 	nargs := testibus.GetCallArgs(cli.notificationsEndp)
 	c.Check(nargs, HasLen, 1)

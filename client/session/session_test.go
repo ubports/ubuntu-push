@@ -582,14 +582,28 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 			AppId:    "--ignored--",
 			ChanId:   "0",
 			TopLevel: 2,
-			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+			Payloads: []json.RawMessage{
+				json.RawMessage(`{"img1/m1":[101,"tubular"]}`),
+				json.RawMessage("false"), // shouldn't happen but robust
+				json.RawMessage(`{"img1/m1":[102,"tubular"]}`),
+			},
 		}, protocol.NotificationsMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
 	c.Assert(len(s.sess.MsgCh), Equals, 1)
-	c.Check(<-s.sess.MsgCh, DeepEquals, &Notification{TopLevel: 2})
+	c.Check(<-s.sess.MsgCh, DeepEquals, &Notification{
+		TopLevel: 2,
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"img1/m1": []interface{}{float64(101), "tubular"},
+			},
+			map[string]interface{}{
+				"img1/m1": []interface{}{float64(102), "tubular"},
+			},
+		},
+	})
 	// and finally, the session keeps track of the levels
 	levels, err := s.sess.Levels.GetAll()
 	c.Check(err, IsNil)

@@ -21,6 +21,7 @@ package session
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -41,6 +42,7 @@ var wireVersionBytes = []byte{protocol.ProtocolWireVersion}
 
 type Notification struct {
 	TopLevel int64
+	Decoded  []map[string]interface{}
 }
 
 type serverMsg struct {
@@ -289,6 +291,23 @@ func (sess *ClientSession) handlePing() error {
 	return err
 }
 
+func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *Notification {
+	decoded := make([]map[string]interface{}, 0)
+	for _, p := range bcast.Payloads {
+		var v map[string]interface{}
+		err := json.Unmarshal(p, &v)
+		if err != nil {
+			sess.Log.Debugf("expected map in broadcast: %v", err)
+			continue
+		}
+		decoded = append(decoded, v)
+	}
+	return &Notification{
+		TopLevel: bcast.TopLevel,
+		Decoded:  decoded,
+	}
+}
+
 // handle "broadcast" messages
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	err := sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
@@ -311,7 +330,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	if bcast.ChanId == protocol.SystemChannelId {
 		// the system channel id, the only one we care about for now
 		sess.Log.Debugf("sending it over")
-		sess.MsgCh <- &Notification{bcast.TopLevel}
+		sess.MsgCh <- sess.decodeBroadcast(bcast)
 		sess.Log.Debugf("sent it over")
 	} else {
 		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)
