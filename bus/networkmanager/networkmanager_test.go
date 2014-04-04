@@ -113,6 +113,16 @@ func (s *NMSuite) TestWatchStateClosesOnWatchBail(c *C) {
 	c.Check(ok, Equals, false)
 }
 
+// WatchState survives rubbish values
+func (s *NMSuite) TestWatchStateSurvivesRubbishValues(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), "a")
+	nm := New(tc, s.log)
+	ch, err := nm.WatchState()
+	c.Check(err, IsNil)
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
+
 // GetPrimaryConnection returns the right state when everything works
 func (s *NMSuite) TestGetPrimaryConnection(c *C) {
 	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(true), dbus.ObjectPath("/a/1")), s.log)
@@ -175,4 +185,42 @@ func (s *NMSuite) TestWatchPrimaryConnectionClosesOnWatchBail(c *C) {
 	c.Check(err, IsNil)
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
+}
+
+// WatchPrimaryConnection survives rubbish values
+func (s *NMSuite) TestWatchPrimaryConnectionSurvivesRubbishValues(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), "a")
+	nm := New(tc, s.log)
+	ch, err := nm.WatchPrimaryConnection()
+	c.Assert(err, IsNil)
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
+
+// WatchPrimaryConnection ignores non-PrimaryConnection PropertyChanged
+func (s *NMSuite) TestWatchPrimaryConnectionIgnoresIrrelephant(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true),
+		map[string]dbus.Variant{"foo": dbus.Variant{}},
+		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("42")}},
+	)
+	nm := New(tc, s.log)
+	ch, err := nm.WatchPrimaryConnection()
+	c.Assert(err, IsNil)
+	v, ok := <-ch
+	c.Check(ok, Equals, true)
+	c.Check(v, Equals, "42")
+}
+
+// WatchPrimaryConnection ignores rubbish PrimaryConnections
+func (s *NMSuite) TestWatchPrimaryConnectionIgnoresRubbishValues(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true),
+		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{-12}},
+		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("42")}},
+	)
+	nm := New(tc, s.log)
+	ch, err := nm.WatchPrimaryConnection()
+	c.Assert(err, IsNil)
+	v, ok := <-ch
+	c.Check(ok, Equals, true)
+	c.Check(v, Equals, "42")
 }
