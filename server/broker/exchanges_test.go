@@ -115,8 +115,8 @@ func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: topLevel + 2,
 		NotificationPayloads: []json.RawMessage{
-			json.RawMessage(`{"a":"x"}`),
-			json.RawMessage(`{"a":"y"}`),
+			json.RawMessage(`{"img1/m1":"x"}`),
+			json.RawMessage(`{"img1/m1":"y"}`),
 		},
 	}
 	exchg.Init()
