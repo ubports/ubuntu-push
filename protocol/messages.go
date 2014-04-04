@@ -67,7 +67,7 @@ func (m *ConnBrokenMsg) Split() bool {
 
 // CONNBROKEN reasons
 const (
-	brokenHostMismatch = "host-mismatch"
+	BrokenHostMismatch = "host-mismatch"
 )
 
 // PING/PONG messages
