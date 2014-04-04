@@ -41,11 +41,34 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastToConnected(c *C) {
 	got, err := s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"n": 42}`),
+		Data:     json.RawMessage(`{"img1/m1": 42}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
-	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"img1/m1":42}]`)
+	stop()
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}
+
+func (s *BroadcastAcceptanceSuite) TestBroadcastToConnectedChannelFilter(c *C) {
+	events, errCh, stop := s.StartClient(c, "DEVB", nil)
+	got, err := s.PostRequest("/broadcast", &api.Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"img1/m2": 10}`),
+	})
+	c.Assert(err, IsNil)
+	got, err = s.PostRequest("/broadcast", &api.Broadcast{
+		Channel:  "system",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"img1/m1": 20}`),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
+	// xxx don't send this one
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"img1/m1":20}]`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
@@ -56,14 +79,14 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastPending(c *C) {
 	got, err := s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"b": 1}`),
+		Data:     json.RawMessage(`{"img1/m1": 1}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
 
 	events, errCh, stop := s.StartClient(c, "DEVB", nil)
 	// gettting pending on connect
-	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"b":1}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"img1/m1":1}]`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
@@ -71,7 +94,7 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastPending(c *C) {
 
 func (s *BroadcastAcceptanceSuite) TestBroadcasLargeNeedsSplitting(c *C) {
 	// send bunch of broadcasts that will be pending
-	payloadFmt := fmt.Sprintf(`{"b":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
+	payloadFmt := fmt.Sprintf(`{"img1/m1":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
 	for i := 0; i < 32; i++ {
 		got, err := s.PostRequest("/broadcast", &api.Broadcast{
 			Channel:  "system",
@@ -84,7 +107,7 @@ func (s *BroadcastAcceptanceSuite) TestBroadcasLargeNeedsSplitting(c *C) {
 
 	events, errCh, stop := s.StartClient(c, "DEVC", nil)
 	// gettting pending on connect
-	c.Check(NextEvent(events, errCh), Matches, `broadcast chan:0 app: topLevel:30 payloads:\[{"b":0,.*`)
+	c.Check(NextEvent(events, errCh), Matches, `broadcast chan:0 app: topLevel:30 payloads:\[{"img1/m1":0,.*`)
 	c.Check(NextEvent(events, errCh), Matches, `broadcast chan:0 app: topLevel:32 payloads:\[.*`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
@@ -100,12 +123,12 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastDistribution2(c *C) {
 	got, err := s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"n": 42}`),
+		Data:     json.RawMessage(`{"img1/m1": 42}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
-	c.Check(NextEvent(events1, errCh1), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
-	c.Check(NextEvent(events2, errCh2), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"n":42}]`)
+	c.Check(NextEvent(events1, errCh1), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"img1/m1":42}]`)
+	c.Check(NextEvent(events2, errCh2), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"img1/m1":42}]`)
 	stop1()
 	stop2()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
@@ -119,11 +142,11 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 	got, err := s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"b": 1}`),
+		Data:     json.RawMessage(`{"img1/m1": 1}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
-	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"b":1}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[{"img1/m1":1}]`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
@@ -131,7 +154,7 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 	got, err = s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"b": 2}`),
+		Data:     json.RawMessage(`{"img1/m1": 2}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -139,7 +162,7 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastFilterByLevel(c *C) {
 	events, errCh, stop = s.StartClient(c, "DEVD", map[string]int64{
 		protocol.SystemChannelId: 1,
 	})
-	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":2}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"img1/m1":2}]`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
@@ -150,14 +173,14 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastTooAhead(c *C) {
 	got, err := s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"b": 1}`),
+		Data:     json.RawMessage(`{"img1/m1": 1}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
 	got, err = s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"b": 2}`),
+		Data:     json.RawMessage(`{"img1/m1": 2}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -166,7 +189,7 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastTooAhead(c *C) {
 		protocol.SystemChannelId: 10,
 	})
 	// gettting last one pending on connect
-	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":2}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"img1/m1":2}]`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
@@ -189,14 +212,14 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastWayBehind(c *C) {
 	got, err := s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"b": 1}`),
+		Data:     json.RawMessage(`{"img1/m1": 1}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
 	got, err = s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"b": 2}`),
+		Data:     json.RawMessage(`{"img1/m1": 2}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -205,7 +228,7 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastWayBehind(c *C) {
 		protocol.SystemChannelId: -10,
 	})
 	// gettting pending on connect
-	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":1},{"b":2}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"img1/m1":1},{"img1/m1":2}]`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
@@ -216,14 +239,14 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastExpiration(c *C) {
 	got, err := s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
-		Data:     json.RawMessage(`{"b": 1}`),
+		Data:     json.RawMessage(`{"img1/m1": 1}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
 	got, err = s.PostRequest("/broadcast", &api.Broadcast{
 		Channel:  "system",
 		ExpireOn: time.Now().Add(1 * time.Second).Format(time.RFC3339),
-		Data:     json.RawMessage(`{"b": 2}`),
+		Data:     json.RawMessage(`{"img1/m1": 2}`),
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
@@ -233,7 +256,7 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastExpiration(c *C) {
 
 	events, errCh, stop := s.StartClient(c, "DEVB", nil)
 	// gettting pending on connect
-	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"b":1}]`)
+	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"img1/m1":1}]`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)

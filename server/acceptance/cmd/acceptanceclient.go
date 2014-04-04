@@ -30,6 +30,8 @@ import (
 var (
 	insecureFlag    = flag.Bool("insecure", false, "disable checking of server certificate and hostname")
 	reportPingsFlag = flag.Bool("reportPings", true, "report each Ping from the server")
+	deviceModel     = flag.String("model", "?", "device image model")
+	imageChannel    = flag.String("imageChannel", "?", "image channel")
 )
 
 type configuration struct {
@@ -64,9 +66,12 @@ func main() {
 		ServerAddr:      cfg.Addr.HostPort(),
 		DeviceId:        flag.Arg(1),
 		// flags
-		ReportPings: *reportPingsFlag,
-		Insecure:    *insecureFlag,
+		Model:        *deviceModel,
+		ImageChannel: *imageChannel,
+		ReportPings:  *reportPingsFlag,
+		Insecure:     *insecureFlag,
 	}
+	log.Printf("with: %#v", session)
 	session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(configFName))
 	if err != nil {
 		log.Fatalf("reading CertPEMFile: %v", err)

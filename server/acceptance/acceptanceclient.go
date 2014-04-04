@@ -35,6 +35,8 @@ var wireVersionBytes = []byte{protocol.ProtocolWireVersion}
 type ClientSession struct {
 	// configuration
 	DeviceId        string
+	Model           string
+	ImageChannel    string
 	ServerAddr      string
 	ExchangeTimeout time.Duration
 	CertPEMBlock    []byte
@@ -86,6 +88,10 @@ func (sess *ClientSession) Run(events chan<- string) error {
 		Type:     "connect",
 		DeviceId: sess.DeviceId,
 		Levels:   sess.Levels,
+		Info: map[string]interface{}{
+			"device":  sess.Model,
+			"channel": sess.ImageChannel,
+		},
 	})
 	if err != nil {
 		return err
