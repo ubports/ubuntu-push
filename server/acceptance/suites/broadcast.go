@@ -66,8 +66,6 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastToConnectedChannelFilter(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, ".*ok.*")
-	// xxx don't send this one
-	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:1 payloads:[]`)
 	c.Check(NextEvent(events, errCh), Equals, `broadcast chan:0 app: topLevel:2 payloads:[{"img1/m1":20}]`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)

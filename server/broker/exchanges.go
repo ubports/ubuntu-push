@@ -92,7 +92,8 @@ func (sbe *BroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.S
 	payloads := filterByLevel(clientLevel, sbe.TopLevel, sbe.NotificationPayloads)
 	tag := fmt.Sprintf("%s/%s", sess.DeviceImageChannel(), sess.DeviceImageModel())
 	payloads = channelFilter(tag, sbe.ChanId, payloads, sbe.Decoded)
-	if len(payloads) == 0 {
+	if len(payloads) == 0 && sbe.TopLevel >= clientLevel {
+		// empty and don't need to force resync => do nothing
 		return nil, nil, ErrNop
 	}
 
