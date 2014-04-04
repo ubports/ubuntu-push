@@ -248,3 +248,17 @@ func (s *exchangesSuite) TestBroadcastExchangeChannelFilter(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(5))
 }
+
+func (s *exchangesSuite) TestConnBrokenExchange(c *C) {
+	sess := &testing.TestBrokerSession{}
+	cbe := &broker.ConnBrokenExchange{"REASON"}
+	outMsg, inMsg, err := cbe.Prepare(sess)
+	c.Assert(err, IsNil)
+	c.Check(inMsg, IsNil) // no answer is expected
+	// check
+	marshalled, err := json.Marshal(outMsg)
+	c.Assert(err, IsNil)
+	c.Check(string(marshalled), Equals, `{"T":"connbroken","Reason":"REASON"}`)
+
+	c.Check(func() { cbe.Acked(nil, true) }, PanicMatches, "Acked should not get invoked on ConnBrokenExchange")
+}

@@ -49,17 +49,33 @@ type ConnAckParams struct {
 	PingInterval string
 }
 
+// SplittableMsg are messages that may require and are capable of splitting.
+type SplittableMsg interface {
+	Split() (done bool)
+}
+
+// CONNBROKEN message, server side is breaking the connection for reason.
+type ConnBrokenMsg struct {
+	Type string `json:"T"`
+	// reason
+	Reason string
+}
+
+func (m *ConnBrokenMsg) Split() bool {
+	return true
+}
+
+// CONNBROKEN reasons
+const (
+	brokenHostMismatch = "host-mismatch"
+)
+
 // PING/PONG messages
 type PingPongMsg struct {
 	Type string `json:"T"`
 }
 
 const maxPayloadSize = 62 * 1024
-
-// SplittableMsg are messages that may require and are capable of splitting.
-type SplittableMsg interface {
-	Split() (done bool)
-}
 
 // BROADCAST messages
 type BroadcastMsg struct {

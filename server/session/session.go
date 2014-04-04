@@ -62,6 +62,9 @@ func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeou
 	if err != nil {
 		return err
 	}
+	if inMsg == nil { // no answer expected, breaking connection
+		return &broker.ErrAbort{"session broken for reason"}
+	}
 	err = proto.ReadMessage(inMsg)
 	if err != nil {
 		return err
