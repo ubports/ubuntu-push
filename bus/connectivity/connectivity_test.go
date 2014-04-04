@@ -17,6 +17,7 @@
 package connectivity
 
 import (
+	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	testingbus "launchpad.net/ubuntu-push/bus/testing"
@@ -82,6 +83,17 @@ func (s *ConnSuite) TestStartRetriesCall(c *C) {
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 
 	c.Check(cs.connAttempts, Equals, uint32(6))
+}
+
+// when some of the calls to NetworkManager fails for a bit, we're still OK
+func (s *ConnSuite) TestStartRetriesCall2(c *C) {
+	cond := condition.Chain(3, condition.Work(true), 1, condition.Work(false),
+		1, condition.Work(true))
+
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), cond, uint32(networkmanager.Connecting))
+	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+
+	c.Check(cs.start(), Equals, networkmanager.Connecting)
 }
 
 // when... and bear with me... the bus works, and the first call to
@@ -213,10 +225,10 @@ func (s *ConnSuite) TestRun(c *C) {
 	}{
 		{false, "first state is always false", 0},
 		{true, "then it should be true as per ConnectedGlobal above", 0},
-		{false, "then, false (upon receiving the next ConnectedGlobal)", 1},
+		{false, "then, false (upon receiving the next ConnectedGlobal)", 2},
 		{true, "then it should be true (webcheck passed)", 0},
-		{false, "then it should be false (Disconnected)", 1},
-		{false, "then it should be false again because it's restarted", 1},
+		{false, "then it should be false (Disconnected)", 2},
+		{false, "then it should be false again because it's restarted", 2},
 	}
 
 	for i, expected := range expecteds {
@@ -230,7 +242,55 @@ func (s *ConnSuite) TestRun(c *C) {
 		case <-timer.C:
 			c.Fatalf("Timed out before getting value (#%d: %s)", i+1, expected.s)
 		}
+		c.Assert(v, Equals, expected.p, Commentf(expected.s))
+	}
+}
 
-		c.Check(v, Equals, expected.p, Commentf(expected.s))
+func (s *ConnSuite) TestRun4Active(c *C) {
+	ts := httptest.NewServer(mkHandler(staticText))
+	defer ts.Close()
+
+	cfg := ConnectivityConfig{
+		ConnectivityCheckURL: ts.URL,
+		ConnectivityCheckMD5: staticHash,
+		RecheckTimeout:       config.ConfigTimeDuration{time.Second},
+	}
+
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
+		uint32(networkmanager.ConnectedGlobal),
+		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("hello")}},
+	)
+
+	watchTicker := make(chan bool)
+	testingbus.SetWatchTicker(endp, watchTicker)
+
+	out := make(chan bool)
+	dt := time.Second / 10
+	timer := time.NewTimer(dt)
+	go ConnectedState(endp, cfg, s.log, out)
+	var v bool
+	expecteds := []struct {
+		p bool
+		s string
+		n int
+	}{
+		{false, "first state is always false", 0},
+		{true, "then it should be true as per ConnectedGlobal above", 0},
+		{false, "then, false (PrimaryConnection changed)", 2},
+		{true, "then it should be true (webcheck passed)", 0},
+	}
+
+	for i, expected := range expecteds {
+		for j := 0; j < expected.n; j++ {
+			watchTicker <- true
+		}
+		timer.Reset(dt)
+		select {
+		case v = <-out:
+			break
+		case <-timer.C:
+			c.Fatalf("Timed out before getting value (#%d: %s)", i+1, expected.s)
+		}
+		c.Assert(v, Equals, expected.p, Commentf(expected.s))
 	}
 }
