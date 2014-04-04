@@ -1,3 +1,10 @@
+ubuntu-push (0.1+14.04.20140404-0ubuntu1) trusty; urgency=low
+
+  [ Tarmac ]
+  * Merge automatic into trunk.
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Fri, 04 Apr 2014 14:52:06 +0000
+
 ubuntu-push (0.1+14.04.20140327-0ubuntu1) trusty; urgency=medium
 
   [ John Lenton ]
