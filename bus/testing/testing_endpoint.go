@@ -40,6 +40,7 @@ type testingEndpoint struct {
 	callCond    condition.Interface
 	retvals     [][]interface{}
 	watchTicker chan bool
+	watchLck    sync.RWMutex
 	callArgs    []callArgs
 	callArgsLck sync.RWMutex
 }
@@ -65,7 +66,9 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 // instead of the default timeout to wait while sending values over
 // WatchSignal. Set it to nil again to restore default behaviour.
 func SetWatchTicker(tc bus.Endpoint, watchTicker chan bool) {
+	tc.(*testingEndpoint).watchLck.Lock()
 	tc.(*testingEndpoint).watchTicker = watchTicker
+	tc.(*testingEndpoint).watchLck.Unlock()
 }
 
 // GetCallArgs returns a list of the arguments for each Call() invocation.
@@ -82,8 +85,11 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 		go func() {
 			for _, v := range tc.retvals {
 				f(v...)
-				if tc.watchTicker != nil {
-					<-tc.watchTicker
+				tc.watchLck.RLock()
+				ticker := tc.watchTicker
+				tc.watchLck.RUnlock()
+				if ticker != nil {
+					<-ticker
 				} else {
 					time.Sleep(10 * time.Millisecond)
 				}

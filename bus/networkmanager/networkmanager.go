@@ -88,7 +88,16 @@ func (nm *networkManager) GetState() State {
 func (nm *networkManager) WatchState() (<-chan State, error) {
 	ch := make(chan State)
 	err := nm.bus.WatchSignal("StateChanged",
-		func(ns ...interface{}) { ch <- State(ns[0].(uint32)) },
+		func(ns ...interface{}) {
+			stint, ok := ns[0].(uint32)
+			if !ok {
+				nm.log.Errorf("got weird state: %#v", ns[0])
+				return
+			}
+			st := State(stint)
+			nm.log.Debugf("got state: %s", st)
+			ch <- State(stint)
+		},
 		func() { close(ch) })
 	if err != nil {
 		nm.log.Debugf("Failed to set up the watch: %s", err)
@@ -119,11 +128,21 @@ func (nm *networkManager) WatchPrimaryConnection() (<-chan string, error) {
 	ch := make(chan string)
 	err := nm.bus.WatchSignal("PropertiesChanged",
 		func(ppsi ...interface{}) {
-			pps := ppsi[0].(map[string]dbus.Variant)
-			v, ok := pps["PrimaryConnection"]
-			if ok {
-				ch <- string(v.Value.(dbus.ObjectPath))
+			pps, ok := ppsi[0].(map[string]dbus.Variant)
+			if !ok {
+				nm.log.Errorf("got weird PropertiesChanged: %#v", ppsi[0])
+				return
 			}
+			v, ok := pps["PrimaryConnection"]
+			if !ok {
+				return
+			}
+			con, ok := v.Value.(dbus.ObjectPath)
+			if !ok {
+				nm.log.Errorf("got weird PrimaryConnection via PropertiesChanged: %#v", v)
+			}
+			nm.log.Debugf("got primary connection: %s", con)
+			ch <- string(con)
 		}, func() { close(ch) })
 	if err != nil {
 		nm.log.Debugf("Failed to set up the watch: %s", err)
