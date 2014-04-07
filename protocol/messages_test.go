@@ -103,3 +103,7 @@ func (s *messagesSuite) TestSplitBroadcastMsgManyParts(c *C) {
 	b.Reset()
 	c.Check(b.splitting, Equals, 0)
 }
+
+func (s *messagesSuite) TestSplitConnBrokenMsg(c *C) {
+	c.Check((&ConnBrokenMsg{}).Split(), Equals, true)
+}

@@ -454,6 +454,25 @@ func (s *sessionSuite) TestSessionLoopExchangeWriteError(c *C) {
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
 }
 
+func (s *sessionSuite) TestSessionLoopConnBrokenExchange(c *C) {
+	nopTrack := NewTracker(s.testlog)
+	errCh := make(chan error, 1)
+	up := make(chan interface{}, 5)
+	down := make(chan interface{}, 5)
+	tp := &testProtocol{up, down}
+	exchanges := make(chan broker.Exchange, 1)
+	exchanges <- &broker.ConnBrokenExchange{"REASON"}
+	sess := &testing.TestBrokerSession{Exchanges: exchanges}
+	go func() {
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
+	}()
+	c.Check(takeNext(down), Equals, "deadline 2ms")
+	c.Check(takeNext(down), DeepEquals, protocol.ConnBrokenMsg{"connbroken", "REASON"})
+	up <- nil // no write error
+	err := <-errCh
+	c.Check(err, DeepEquals, &broker.ErrAbort{"session broken for reason"})
+}
+
 type testTracker struct {
 	SessionTracker
 	interval chan interface{}
