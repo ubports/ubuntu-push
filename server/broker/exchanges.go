@@ -88,14 +88,18 @@ func channelFilter(tag string, chanId store.InternalChannelId, payloads []json.R
 
 // Prepare session for a BROADCAST.
 func (sbe *BroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
-	scratchArea := sess.ExchangeScratchArea()
-	scratchArea.broadcastMsg.Reset()
-	scratchArea.broadcastMsg.Type = "broadcast"
 	clientLevel := sess.Levels()[sbe.ChanId]
 	payloads := filterByLevel(clientLevel, sbe.TopLevel, sbe.NotificationPayloads)
 	tag := fmt.Sprintf("%s/%s", sess.DeviceImageChannel(), sess.DeviceImageModel())
 	payloads = channelFilter(tag, sbe.ChanId, payloads, sbe.Decoded)
+	if len(payloads) == 0 && sbe.TopLevel >= clientLevel {
+		// empty and don't need to force resync => do nothing
+		return nil, nil, ErrNop
+	}
 
+	scratchArea := sess.ExchangeScratchArea()
+	scratchArea.broadcastMsg.Reset()
+	scratchArea.broadcastMsg.Type = "broadcast"
 	// xxx need an AppId as well, later
 	scratchArea.broadcastMsg.ChanId = store.InternalChannelIdToHex(sbe.ChanId)
 	scratchArea.broadcastMsg.TopLevel = sbe.TopLevel

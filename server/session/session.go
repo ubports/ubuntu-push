@@ -76,6 +76,7 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 	pingTimer := time.NewTimer(pingInterval)
 	intervalStart := time.Now()
 	ch := sess.SessionChannel()
+Loop:
 	for {
 		select {
 		case <-pingTimer.C:
@@ -94,6 +95,11 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 			// xxx later can use ch closing for shutdown/reset
 			pingTimer.Stop()
 			outMsg, inMsg, err := exchg.Prepare(sess)
+			if err == broker.ErrNop { // nothing to do
+				pingTimer.Reset(pingInterval)
+				intervalStart = time.Now()
+				continue Loop
+			}
 			if err != nil {
 				return err
 			}
