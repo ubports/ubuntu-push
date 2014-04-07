@@ -34,6 +34,7 @@ func testServerConfig(addr, httpAddr string) map[string]interface{} {
 	cfg := make(map[string]interface{})
 	suites.FillServerConfig(cfg, addr)
 	suites.FillHTTPServerConfig(cfg, httpAddr)
+	cfg["delivery_domain"] = "localhost"
 	return cfg
 }
 

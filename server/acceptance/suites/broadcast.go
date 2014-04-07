@@ -24,6 +24,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/api"
 )
@@ -258,4 +259,13 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastExpiration(c *C) {
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
+}
+
+// test /delivery-hosts
+
+func (s *BroadcastAcceptanceSuite) TestGetHosts(c *C) {
+	gh := gethosts.New("", s.ServerAPIURL+"/delivery-hosts", 2*time.Second)
+	hosts, err := gh.Get()
+	c.Assert(err, IsNil)
+	c.Check(hosts, DeepEquals, []string{s.ServerAddr})
 }
