@@ -2,3 +2,5 @@ code.google.com/p/gosqlite	hg	74691fb6f83716190870cde1b658538dd4b18eb0	15
 launchpad.net/go-dbus/v1	bzr	james@jamesh.id.au-20140206110213-pbzcr6ucaz3rqmnw	125
 launchpad.net/go-xdg/v0	bzr	john.lenton@canonical.com-20140208094800-gubd5md7cro3mtxa	10
 launchpad.net/gocheck	bzr	gustavo@niemeyer.net-20140127131816-zshobk1qqme626xw	86
+gopkg.in/qml.v0	git	master	8adbc8c2bf2da9f609df366683ad0f47a89c3d49
+gopkg.in/niemeyer/uoneauth.v1	git	v1	0758ba882a143ad2862dbcac85a7ca145750b640

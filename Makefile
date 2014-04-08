@@ -11,6 +11,8 @@ GODEPS = launchpad.net/gocheck
 GODEPS += launchpad.net/go-dbus/v1
 GODEPS += launchpad.net/go-xdg/v0
 GODEPS += code.google.com/p/gosqlite/sqlite3
+GODEPS += gopkg.in/qml.v0
+GODEPS += gopkg.in/niemeyer/uoneauth.v1
 
 bootstrap:
 	mkdir -p $(GOPATH)/bin
