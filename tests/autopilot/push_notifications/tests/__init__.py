@@ -9,6 +9,7 @@
 
 
 import configparser
+import httplib2
 
 from push_notifications import config
 from autopilot.testcase import AutopilotTestCase
@@ -26,13 +27,27 @@ class PushNotificationMessage:
     expire_after = ''
     data = ''
 
+    def __init__(self, channel='system', data='', expire_after=''):
+        self.channel = channel
+        self.data = data
+        self.expire_after = expire_after
+
+    def json(self):
+        """
+        Return json string of message
+        """
+        json_str = '{{"channel":"{0}", "data":{{{1}}}, "expire_on":"{2}"}}'
+        return json_str.format(self.channel, self.data, self.expire_after)
+
 
 class PushNotificationTestBase(AutopilotTestCase):
     """
     Base class for push notification test cases
     """
 
+    PUSH_CLIENT_DEFAULT_CONFIG_FILE = '/etc/xdg/ubuntu-push-client/config.json'
     PUSH_CLIENT_CONFIG_FILE = '~/.config/ubuntu-push-client/config.json'
+    PUSH_SERVER_BROADCAST_URL = '/broadcast'
     DEFAULT_DISPLAY_MESSAGE = 'There\'s an updated system image.'
     PUSH_MIME_TYPE = 'application/json'
     SECTION_DEFAULT = 'default'
@@ -44,6 +59,8 @@ class PushNotificationTestBase(AutopilotTestCase):
         """
         Start the client running with the correct server config
         """
+        # setup
+        super(PushNotificationTestBase, self).setUp()
         # Read the config data
         self.read_config_file()
         # Read the server device address
@@ -54,8 +71,8 @@ class PushNotificationTestBase(AutopilotTestCase):
         self.restart_push_client()
         # validate that the initialisation push message is displayed
         self.validate_push_message(self.DEFAULT_DISPLAY_MESSAGE)
-        # setup
-        super(PushNotificationTestBase, self).setUp()
+        # create http lib
+        self.http = httplib2.Http()
 
 
     def read_config_file(self):
@@ -63,22 +80,22 @@ class PushNotificationTestBase(AutopilotTestCase):
         Read data from config file
         """
         config_file = config.get_config_file()
-        self.config = configparser.ConfigParser()
-        self.config.read(config_file)
+        self.configparser = configparser.ConfigParser()
+        self.configparser.read(config_file)
         # read the name of the environment to use (local/remote)
-        self.environment = self.config.get(self.SECTION_DEFAULT, self.KEY_ENVIRONMENT)
+        self.environment = self.configparser[self.SECTION_DEFAULT][self.KEY_ENVIRONMENT]
 
     def get_push_server_device_address(self):
         """
         Return the server device address from config file
         """
-        return self.config.get(self.environment, self.KEY_SERVER_DEVICE_URL)
+        return self.configparser[self.environment][self.KEY_SERVER_DEVICE_URL]
 
     def get_push_server_listener_address(self):
         """
         Return the server device address from config file
         """
-        return self.config(self.environment, self.KEY_SERVER_LISTENER_URL)
+        return self.configparser[self.environment][self.KEY_SERVER_LISTENER_URL]
 
     def restart_push_client(self):
         """
@@ -90,11 +107,17 @@ class PushNotificationTestBase(AutopilotTestCase):
         Write the server details to the push client config
         """
 
-    def send_push_notification(self, server_address, json_data):
+    def send_push_broadcast_notification(self, server_address, json_data):
         """
         Send the specified push message to the server
         using an HTTP POST command
         """
+        broadcast_url = server_address + self.PUSH_SERVER_BROADCAST_URL
+        headers = {'Content-type': self.PUSH_MIME_TYPE}
+        response, content = self.http.request(
+            broadcast_url, 'POST', headers=headers, body=json_data)
+        print(response)
+        print(content)
 
     def format_json_data(self, push_message):
         """

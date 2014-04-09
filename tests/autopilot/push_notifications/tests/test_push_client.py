@@ -16,11 +16,13 @@ from autopilot.introspection import dbus
 from autopilot.testcase import AutopilotTestCase
 
 from push_notifications.tests import PushNotificationTestBase
+from push_notifications.tests import PushNotificationMessage
+
 
 class TestPushClient(PushNotificationTestBase):
     """ Tests a Push notification can be sent and received """
 
     def test_get_config(self):
-	    server_add = self.get_push_server_device_address()
-	    print(server_add)
-
+        msg = PushNotificationMessage(expire_after="2015-12-19T16:39:57-08:00")      
+        server_add = self.get_push_server_listener_address()
+        self.send_push_broadcast_notification(server_add, msg.json())
