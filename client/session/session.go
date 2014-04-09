@@ -254,7 +254,7 @@ func (sess *ClientSession) start() error {
 		Type:     "connect",
 		DeviceId: sess.DeviceId,
 		// xxx get the SSO Authorization string from the phone
-		Authorization: "",
+		Authorization: sess.auth,
 		Levels:        levels,
 	})
 	if err != nil {
