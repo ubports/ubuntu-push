@@ -20,13 +20,13 @@ import (
 	"log"
 	"os"
 
-	"gopkg.in/niemeyer/uoneauth.v1"
 	"gopkg.in/qml.v0"
 
 	"launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/client"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/util"
 )
 
 func main() {
@@ -38,18 +38,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to open the levels database: %v", err)
 	}
+
 	authLogger := logger.NewSimpleLogger(os.Stderr, "debug")
 	qml.SetLogger(authLogger)
 	qml.Init(nil)
-	engine := qml.NewEngine()
-	defer engine.Destroy()
-	authService := uoneauth.NewService(engine)
-	var auth string
-	token, err := authService.Token()
+	auth, err := util.GetAuthorization()
 	if err != nil {
 		authLogger.Errorf("unable to get the authorization token from the account: %v", err)
-	} else {
-		auth = token.HeaderSignature("POST", "https://push.ubuntu.com")
 	}
 
 	cli := client.NewPushClient(cfgFname, lvlFname, auth)
