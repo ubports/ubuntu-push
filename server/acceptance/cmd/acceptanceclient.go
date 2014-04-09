@@ -72,9 +72,11 @@ func main() {
 		Insecure:     *insecureFlag,
 	}
 	log.Printf("with: %#v", session)
-	session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(configFName))
-	if err != nil {
-		log.Fatalf("reading CertPEMFile: %v", err)
+	if !*insecureFlag {
+		session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(configFName))
+		if err != nil {
+			log.Fatalf("reading CertPEMFile: %v", err)
+		}
 	}
 	err = session.Dial()
 	if err != nil {
