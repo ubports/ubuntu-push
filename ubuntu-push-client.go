@@ -19,8 +19,8 @@ package main
 import (
 	"log"
 
-	"gopkg.in/qml.v0"
 	"gopkg.in/niemeyer/uoneauth.v1"
+	"gopkg.in/qml.v0"
 
 	"launchpad.net/go-xdg/v0"
 

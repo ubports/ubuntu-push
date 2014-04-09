@@ -11,3 +11,4 @@ debian/*.debhelper.log
 debian/*.ex
 debian/*.EX
 debian/*.substvars
+precommit

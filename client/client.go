@@ -67,7 +67,7 @@ type PushClient struct {
 	actionsCh          <-chan notifications.RawActionReply
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
-	auth string
+	auth               string
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
