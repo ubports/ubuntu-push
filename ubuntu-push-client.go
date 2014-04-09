@@ -39,12 +39,17 @@ func main() {
 		log.Fatalf("unable to open the levels database: %v", err)
 	}
 
-	authLogger := logger.NewSimpleLogger(os.Stderr, "debug")
-	qml.SetLogger(authLogger)
-	qml.Init(nil)
-	auth, err := util.GetAuthorization()
-	if err != nil {
-		authLogger.Errorf("unable to get the authorization token from the account: %v", err)
+	var auth string
+
+	// TODO: remove this condition when we have a way to deal with failing authorizations
+	if false {
+		authLogger := logger.NewSimpleLogger(os.Stderr, "debug")
+		qml.SetLogger(authLogger)
+		qml.Init(nil)
+		auth, err = util.GetAuthorization()
+		if err != nil {
+			log.Fatalf("unable to get the authorization token from the account: %v", err)
+		}
 	}
 
 	cli := client.NewPushClient(cfgFname, lvlFname, auth)
