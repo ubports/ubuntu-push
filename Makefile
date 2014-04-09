@@ -14,6 +14,8 @@ GODEPS += code.google.com/p/gosqlite/sqlite3
 GODEPS += gopkg.in/qml.v0
 GODEPS += gopkg.in/niemeyer/uoneauth.v1
 
+TMP_FILE := $(shell mktemp -u)
+
 bootstrap:
 	mkdir -p $(GOPATH)/bin
 	mkdir -p $(GOPATH)/pkg
@@ -48,6 +50,10 @@ format:
 
 check-format:
 	scripts/check_fmt $(PROJECT)
+
+try-build:
+	go build -o $(TMP_FILE) ubuntu-push-client.go
+	@rm $(TMP_FILE)
 
 protocol-diagrams: protocol/state-diag-client.svg protocol/state-diag-session.svg
 %.svg: %.gv
