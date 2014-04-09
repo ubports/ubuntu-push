@@ -23,16 +23,17 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
+	"reflect"
+	"testing"
+	"time"
+
 	. "launchpad.net/gocheck"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
-	"net"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestSession(t *testing.T) { TestingT(t) }
