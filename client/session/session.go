@@ -75,11 +75,13 @@ type ClientSession struct {
 	stateP *uint32
 	ErrCh  chan error
 	MsgCh  chan *Notification
+	// authorization
+	auth string
 }
 
 func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
-	log logger.Logger) (*ClientSession, error) {
+	log logger.Logger, auth string) (*ClientSession, error) {
 	state := uint32(Disconnected)
 	levels, err := levelmapFactory()
 	if err != nil {
@@ -94,6 +96,7 @@ func NewSession(serverAddr string, pem []byte, exchangeTimeout time.Duration,
 		Levels:          levels,
 		TLS:             &tls.Config{InsecureSkipVerify: true}, // XXX
 		stateP:          &state,
+		auth:            auth,
 	}
 	if pem != nil {
 		cp := x509.NewCertPool()

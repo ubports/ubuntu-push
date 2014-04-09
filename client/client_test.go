@@ -363,7 +363,7 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log)
+	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log, "some auth")
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
@@ -376,7 +376,7 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log)
+	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log, "some auth")
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)

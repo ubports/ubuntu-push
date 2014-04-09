@@ -147,7 +147,7 @@ func (client *PushClient) takeTheBus() error {
 func (client *PushClient) initSession() error {
 	sess, err := session.NewSession(string(client.config.Addr), client.pem,
 		client.config.ExchangeTimeout.Duration, client.deviceId,
-		client.levelMapFactory, client.log)
+		client.levelMapFactory, client.log, client.auth)
 	if err != nil {
 		return err
 	}
