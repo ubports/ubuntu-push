@@ -144,6 +144,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		TLS:                 &tls.Config{InsecureSkipVerify: true}, // XXX
 		stateP:              &state,
 		timeSince:           time.Since,
+		auth:                conf.Authorization,
 	}
 	if sess.PEM != nil {
 		cp := x509.NewCertPool()
@@ -392,9 +393,8 @@ func (sess *ClientSession) start() error {
 		return err
 	}
 	err = proto.WriteMessage(protocol.ConnectMsg{
-		Type:     "connect",
-		DeviceId: sess.DeviceId,
-		// xxx get the SSO Authorization string from the phone
+		Type:          "connect",
+		DeviceId:      sess.DeviceId,
 		Authorization: sess.auth,
 		Levels:        levels,
 		Info:          sess.Info,

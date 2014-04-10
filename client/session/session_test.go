@@ -876,7 +876,8 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 		"bar": "baz",
 	}
 	conf := ClientSessionConfig{
-		Info: info,
+		Info:          info,
+		Authorization: "some auth",
 	}
 	sess, err := NewSession("", conf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
@@ -895,6 +896,7 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	msg, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	c.Check(msg.DeviceId, Equals, "wah")
+	c.Check(msg.Authorization, Equals, "some auth")
 	c.Check(msg.Info, DeepEquals, info)
 	upCh <- nil // no error
 	upCh <- protocol.ConnAckMsg{
