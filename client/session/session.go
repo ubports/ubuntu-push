@@ -83,6 +83,7 @@ type ClientSessionConfig struct {
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
 	Info                   map[string]interface{}
+	Authorization          string
 }
 
 // ClientSession holds a client<->server session and its configuration.

@@ -19,6 +19,8 @@ package main
 import (
 	"log"
 
+	"gopkg.in/qml.v0"
+
 	"launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/client"
@@ -34,18 +36,7 @@ func main() {
 		log.Fatalf("unable to open the levels database: %v", err)
 	}
 
-	// TODO: remove this condition when we have a way to deal with failing authorizations
-	/*
-		if false {
-			authLogger := logger.NewSimpleLogger(os.Stderr, "debug")
-			qml.SetLogger(authLogger)
-			qml.Init(nil)
-			auth, err = util.GetAuthorization()
-			if err != nil {
-				log.Fatalf("unable to get the authorization token from the account: %v", err)
-			}
-		}
-		* */
+	qml.Init(nil)
 
 	cli := client.NewPushClient(cfgFname, lvlFname)
 	err = cli.Start()
