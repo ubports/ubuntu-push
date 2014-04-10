@@ -79,16 +79,14 @@ type PushClient struct {
 	actionsCh          <-chan notifications.RawActionReply
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
-	auth               string
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
-func NewPushClient(configPath string, leveldbPath string, auth string) *PushClient {
+func NewPushClient(configPath string, leveldbPath string) *PushClient {
 	client := new(PushClient)
 	client.configPath = configPath
 	client.leveldbPath = leveldbPath
-	client.auth = auth
 
 	return client
 }
@@ -192,7 +190,7 @@ func (client *PushClient) initSession() error {
 	}
 	sess, err := session.NewSession(client.config.Addr,
 		client.deriveSessionConfig(info), client.deviceId,
-		client.levelMapFactory, client.log, client.auth)
+		client.levelMapFactory, client.log)
 	if err != nil {
 		return err
 	}

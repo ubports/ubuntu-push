@@ -120,7 +120,7 @@ type ClientSession struct {
 
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
-	log logger.Logger, auth string) (*ClientSession, error) {
+	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
 	levels, err := levelmapFactory()
 	if err != nil {
@@ -143,7 +143,6 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		TLS:                 &tls.Config{InsecureSkipVerify: true}, // XXX
 		stateP:              &state,
 		timeSince:           time.Since,
-		auth:                auth,
 	}
 	if sess.PEM != nil {
 		cp := x509.NewCertPool()

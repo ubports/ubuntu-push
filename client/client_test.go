@@ -135,7 +135,7 @@ var _ = Suite(&sqlientSuite{})
 ******************************************************************/
 
 func (cs *clientSuite) TestConfigureWorks(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.config, NotNil)
@@ -143,7 +143,7 @@ func (cs *clientSuite) TestConfigureWorks(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.log, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -151,7 +151,7 @@ func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.pem, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -159,7 +159,7 @@ func (cs *clientSuite) TestConfigureSetsUpPEM(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.idder, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -167,7 +167,7 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.notificationsEndp, IsNil)
 	c.Check(cli.urlDispatcherEndp, IsNil)
 	c.Check(cli.connectivityEndp, IsNil)
@@ -179,7 +179,7 @@ func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.connCh, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -187,13 +187,13 @@ func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
-	cli := NewPushClient("/does/not/exist", cs.leveldbPath, "some auth")
+	cli := NewPushClient("/does/not/exist", cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadConfig(c *C) {
-	cli := NewPushClient("/etc/passwd", cs.leveldbPath, "some auth")
+	cli := NewPushClient("/etc/passwd", cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, NotNil)
 }
@@ -202,7 +202,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEMFilename(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
 		"cert_pem_file": "/a/b/c",
 	})
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "reading PEM file: .*")
 }
@@ -211,7 +211,7 @@ func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
 		"cert_pem_file": "/etc/passwd",
 	})
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "no PEM found.*")
 }
@@ -220,7 +220,7 @@ func (cs *clientSuite) TestConfigureBailsOnNoHosts(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
 		"addr": "  ",
 	})
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "no hosts specified")
 }
@@ -229,7 +229,7 @@ func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
 		"addr": " foo: 443",
 	})
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Check(cli.config.Addr, Equals, "foo:443")
@@ -243,7 +243,7 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	info := map[string]interface{}{
 		"foo": 1,
 	}
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	expected := session.ClientSessionConfig{
@@ -272,7 +272,7 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.idder = identifier.New()
 	c.Check(cli.deviceId, Equals, "")
@@ -281,7 +281,7 @@ func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 }
 
 func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.idder = idtesting.Failing()
 	c.Check(cli.deviceId, Equals, "")
@@ -311,7 +311,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})
 	testibus.SetWatchTicker(cEndp, make(chan bool))
 	// ok, create the thing
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	err := cli.configure()
 	c.Assert(err, IsNil)
@@ -342,7 +342,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 
 // takeTheBus can, in fact, fail
 func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	cli.log = cs.log
 	c.Assert(err, IsNil)
@@ -364,7 +364,7 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleErr(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
@@ -379,14 +379,14 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestLevelMapFactoryNoDbPath(c *C) {
-	cli := NewPushClient(cs.configPath, "", "some auth")
+	cli := NewPushClient(cs.configPath, "")
 	ln, err := cli.levelMapFactory()
 	c.Assert(err, IsNil)
 	c.Check(fmt.Sprintf("%T", ln), Equals, "*levelmap.mapLevelMap")
 }
 
 func (cs *clientSuite) TestLevelMapFactoryWithDbPath(c *C) {
-	cli := NewPushClient(cs.configPath, ":memory:", "some auth")
+	cli := NewPushClient(cs.configPath, ":memory:")
 	ln, err := cli.levelMapFactory()
 	c.Assert(err, IsNil)
 	c.Check(fmt.Sprintf("%T", ln), Equals, "*levelmap.sqliteLevelMap")
@@ -397,7 +397,7 @@ func (cs *clientSuite) TestLevelMapFactoryWithDbPath(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
@@ -409,7 +409,7 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 }
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	// here we want to check that we don't do anything
 	c.Assert(cli.session, IsNil)
@@ -423,9 +423,9 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 }
 
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log, "some auth")
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
@@ -436,9 +436,9 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 }
 
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log, "some auth")
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log)
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)
@@ -457,7 +457,7 @@ var siInfoRes = &systemimage.InfoResult{
 }
 
 func (cs *clientSuite) TestFilterNotification(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	// empty
 	msg := &session.Notification{}
@@ -498,7 +498,7 @@ func (cs *clientSuite) TestFilterNotification(c *C) {
 }
 
 func (cs *clientSuite) TestFilterNotificationRobust(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	msg := &session.Notification{
 		Decoded: []map[string]interface{}{
@@ -544,7 +544,7 @@ var (
 )
 
 func (cs *clientSuite) TestHandleNotification(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
@@ -558,7 +558,7 @@ func (cs *clientSuite) TestHandleNotification(c *C) {
 }
 
 func (cs *clientSuite) TestHandleNotificationNothingToDo(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
@@ -571,7 +571,7 @@ func (cs *clientSuite) TestHandleNotificationNothingToDo(c *C) {
 }
 
 func (cs *clientSuite) TestHandleNotificationFail(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
@@ -584,7 +584,7 @@ func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestHandleClick(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 	cli.urlDispatcherEndp = endp
@@ -601,7 +601,7 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDoLoopConn(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	cli.connCh = make(chan bool, 1)
@@ -614,7 +614,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 }
 
 func (cs *clientSuite) TestDoLoopClick(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
@@ -628,7 +628,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 }
 
 func (cs *clientSuite) TestDoLoopNotif(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
@@ -641,7 +641,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 }
 
 func (cs *clientSuite) TestDoLoopErr(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
@@ -658,7 +658,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDoStartWorks(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	one_called := false
 	two_called := false
 	one := func() error { one_called = true; return nil }
@@ -669,7 +669,7 @@ func (cs *clientSuite) TestDoStartWorks(c *C) {
 }
 
 func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	one_called := false
 	two_called := false
 	failure := errors.New("Failure")
@@ -685,7 +685,7 @@ func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestLoop(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.connCh = make(chan bool)
 	cli.sessionConnectedCh = make(chan uint32)
 	aCh := make(chan notifications.RawActionReply, 1)
@@ -763,7 +763,7 @@ func (cs *clientSuite) TestStart(c *C) {
 		c.Skip("no dbus")
 	}
 
-	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	// before start, everything sucks:
 	// no config,
 	c.Check(string(cli.config.Addr), Equals, "")
@@ -792,7 +792,7 @@ func (cs *clientSuite) TestStart(c *C) {
 }
 
 func (cs *clientSuite) TestStartCanFail(c *C) {
-	cli := NewPushClient("/does/not/exist", cs.leveldbPath, "some auth")
+	cli := NewPushClient("/does/not/exist", cs.leveldbPath)
 	// easiest way for it to fail is to feed it a bad config
 	err := cli.Start()
 	// and it works. Err. Doesn't.

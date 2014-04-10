@@ -42,17 +42,19 @@ func main() {
 	var auth string
 
 	// TODO: remove this condition when we have a way to deal with failing authorizations
-	if false {
-		authLogger := logger.NewSimpleLogger(os.Stderr, "debug")
-		qml.SetLogger(authLogger)
-		qml.Init(nil)
-		auth, err = util.GetAuthorization()
-		if err != nil {
-			log.Fatalf("unable to get the authorization token from the account: %v", err)
+	/*
+		if false {
+			authLogger := logger.NewSimpleLogger(os.Stderr, "debug")
+			qml.SetLogger(authLogger)
+			qml.Init(nil)
+			auth, err = util.GetAuthorization()
+			if err != nil {
+				log.Fatalf("unable to get the authorization token from the account: %v", err)
+			}
 		}
-	}
+		* */
 
-	cli := client.NewPushClient(cfgFname, lvlFname, auth)
+	cli := client.NewPushClient(cfgFname, lvlFname)
 	err = cli.Start()
 	if err != nil {
 		log.Fatalf("unable to start: %v", err)
