@@ -10,6 +10,9 @@
 
 import configparser
 import httplib2
+import json
+import os
+import psutil
 
 from push_notifications import config
 from autopilot.testcase import AutopilotTestCase
@@ -66,7 +69,7 @@ class PushNotificationTestBase(AutopilotTestCase):
         # Read the server device address
         server_device_address = self.get_push_server_device_address()
         # write server device address to the client config
-        self.write_push_client_server_address(server_device_address)
+        self.write_client_test_config(server_device_address)
         # restart the push client
         self.restart_push_client()
         # validate that the initialisation push message is displayed
@@ -100,12 +103,28 @@ class PushNotificationTestBase(AutopilotTestCase):
     def restart_push_client(self):
         """
         Restart the push client
+        Process should re-launch automatically
         """
+        for proc in psutil.process_iter():
+            if proc.name == 'ubuntu-push-client':
+                proc.kill()
 
-    def write_push_client_server_address(self, server_address):
+    def write_client_test_config(self, server_address):
         """
-        Write the server details to the push client config
+        Write the test server address to client config file
         """
+        # read the original config file
+        with open(self.PUSH_CLIENT_DEFAULT_CONFIG_FILE) as config_file:    
+            config = json.load(config_file)
+        # change server address
+        config['addr'] = self.get_push_server_device_address()
+        # write the config json out to the ~.local address
+        abs_config_file = os.path.expanduser(self.PUSH_CLIENT_CONFIG_FILE)
+        config_dir = os.path.dirname(abs_config_file) 
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+        with open(abs_config_file, 'w+') as outfile:
+            json.dump(config, outfile, indent=4)
 
     def send_push_broadcast_notification(self, server_address, json_data):
         """
@@ -114,16 +133,9 @@ class PushNotificationTestBase(AutopilotTestCase):
         """
         broadcast_url = server_address + self.PUSH_SERVER_BROADCAST_URL
         headers = {'Content-type': self.PUSH_MIME_TYPE}
-        response, content = self.http.request(
+        response = self.http.request(
             broadcast_url, 'POST', headers=headers, body=json_data)
-        print(response)
-        print(content)
-
-    def format_json_data(self, push_message):
-        """
-        Return the json formatted encoding of push_message including:
-        channel, data, expire_after
-        """
+        return response
 
     def validate_push_message(self, display_message, timeout=10):
         """

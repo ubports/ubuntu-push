@@ -25,4 +25,7 @@ class TestPushClient(PushNotificationTestBase):
     def test_get_config(self):
         msg = PushNotificationMessage(expire_after="2015-12-19T16:39:57-08:00")      
         server_add = self.get_push_server_listener_address()
-        self.send_push_broadcast_notification(server_add, msg.json())
+        response = self.send_push_broadcast_notification(server_add, msg.json())
+        status = response[0]['status']
+        self.assertThat(status, Equals('200'))
+
