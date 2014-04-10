@@ -18,15 +18,10 @@ package main
 
 import (
 	"log"
-	"os"
-
-	"gopkg.in/qml.v0"
 
 	"launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/client"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/util"
 )
 
 func main() {
@@ -38,8 +33,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to open the levels database: %v", err)
 	}
-
-	var auth string
 
 	// TODO: remove this condition when we have a way to deal with failing authorizations
 	/*
