@@ -15,8 +15,7 @@ To run tests, install libgcrypt11-dev and libwhoopsie-dev and run:
    make check
 
 To produce coverage reports you need Go 1.2 (default on Trusty) and
-the cover tool (the latter can be obtained atm with something like:
-sudo GOPATH=<go-workspace> go get code.google.com/p/go.tools/cmd/cover ),
+the cover tool (in the golang-go.tools package),
 then run:
 
    make coverage-summary
@@ -31,4 +30,13 @@ for per-package HTML with annotated code in coverhtml/<package-name>.html
 
 To run the acceptance tests, change to the acceptance subdir and run:
 
-   ./acceptance.sh
+  make acceptance
+
+There are build targets to build the client:
+
+  make build-client
+
+building ubuntu-push-client, and to run the development server:
+
+  make run-server-dev
+

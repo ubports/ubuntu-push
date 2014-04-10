@@ -24,6 +24,8 @@ import (
 // Test implementation of BrokerSession.
 type TestBrokerSession struct {
 	DeviceId     string
+	Model        string
+	ImageChannel string
 	Exchanges    chan broker.Exchange
 	LevelsMap    broker.LevelsMap
 	exchgScratch broker.ExchangesScratchArea
@@ -31,6 +33,14 @@ type TestBrokerSession struct {
 
 func (tbs *TestBrokerSession) DeviceIdentifier() string {
 	return tbs.DeviceId
+}
+
+func (tbs *TestBrokerSession) DeviceImageModel() string {
+	return tbs.Model
+}
+
+func (tbs *TestBrokerSession) DeviceImageChannel() string {
+	return tbs.ImageChannel
 }
 
 func (tbs *TestBrokerSession) SessionChannel() <-chan broker.Exchange {

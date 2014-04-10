@@ -18,6 +18,7 @@ package broker
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/store"
@@ -37,10 +38,23 @@ type BroadcastExchange struct {
 	ChanId               store.InternalChannelId
 	TopLevel             int64
 	NotificationPayloads []json.RawMessage
+	Decoded              []map[string]interface{}
 }
 
 // check interface already here
 var _ Exchange = &BroadcastExchange{}
+
+// Init ensures the BroadcastExchange is fully initialized for the sessions.
+func (sbe *BroadcastExchange) Init() {
+	decoded := make([]map[string]interface{}, len(sbe.NotificationPayloads))
+	sbe.Decoded = decoded
+	for i, p := range sbe.NotificationPayloads {
+		err := json.Unmarshal(p, &decoded[i])
+		if err != nil {
+			decoded[i] = nil
+		}
+	}
+}
 
 func filterByLevel(clientLevel, topLevel int64, payloads []json.RawMessage) []json.RawMessage {
 	c := int64(len(payloads))
@@ -58,6 +72,20 @@ func filterByLevel(clientLevel, topLevel int64, payloads []json.RawMessage) []js
 	}
 }
 
+func channelFilter(tag string, chanId store.InternalChannelId, payloads []json.RawMessage, decoded []map[string]interface{}) []json.RawMessage {
+	if len(payloads) != 0 && chanId == store.SystemInternalChannelId {
+		decoded := decoded[len(decoded)-len(payloads):]
+		filtered := make([]json.RawMessage, 0)
+		for i, decoded1 := range decoded {
+			if _, ok := decoded1[tag]; ok {
+				filtered = append(filtered, payloads[i])
+			}
+		}
+		payloads = filtered
+	}
+	return payloads
+}
+
 // Prepare session for a BROADCAST.
 func (sbe *BroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
 	scratchArea := sess.ExchangeScratchArea()
@@ -65,6 +93,9 @@ func (sbe *BroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.S
 	scratchArea.broadcastMsg.Type = "broadcast"
 	clientLevel := sess.Levels()[sbe.ChanId]
 	payloads := filterByLevel(clientLevel, sbe.TopLevel, sbe.NotificationPayloads)
+	tag := fmt.Sprintf("%s/%s", sess.DeviceImageChannel(), sess.DeviceImageModel())
+	payloads = channelFilter(tag, sbe.ChanId, payloads, sbe.Decoded)
+
 	// xxx need an AppId as well, later
 	scratchArea.broadcastMsg.ChanId = store.InternalChannelIdToHex(sbe.ChanId)
 	scratchArea.broadcastMsg.TopLevel = sbe.TopLevel

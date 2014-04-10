@@ -46,11 +46,13 @@ type SimpleBroker struct {
 
 // simpleBrokerSession represents a session in the broker.
 type simpleBrokerSession struct {
-	registered bool
-	deviceId   string
-	done       chan bool
-	exchanges  chan broker.Exchange
-	levels     broker.LevelsMap
+	registered   bool
+	deviceId     string
+	model        string
+	imageChannel string
+	done         chan bool
+	exchanges    chan broker.Exchange
+	levels       broker.LevelsMap
 	// for exchanges
 	exchgScratch broker.ExchangesScratchArea
 }
@@ -73,6 +75,14 @@ func (sess *simpleBrokerSession) SessionChannel() <-chan broker.Exchange {
 
 func (sess *simpleBrokerSession) DeviceIdentifier() string {
 	return sess.deviceId
+}
+
+func (sess *simpleBrokerSession) DeviceImageModel() string {
+	return sess.model
+}
+
+func (sess *simpleBrokerSession) DeviceImageChannel() string {
+	return sess.imageChannel
 }
 
 func (sess *simpleBrokerSession) Levels() broker.LevelsMap {
@@ -147,6 +157,7 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 				TopLevel:             topLevel,
 				NotificationPayloads: payloads,
 			}
+			broadcastExchg.Init()
 			sess.exchanges <- broadcastExchg
 		}
 	}
@@ -157,6 +168,14 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 // pending notifications as well.
 func (b *SimpleBroker) Register(connect *protocol.ConnectMsg) (broker.BrokerSession, error) {
 	// xxx sanity check DeviceId
+	model, err := broker.GetInfoString(connect, "device", "?")
+	if err != nil {
+		return nil, err
+	}
+	imageChannel, err := broker.GetInfoString(connect, "channel", "?")
+	if err != nil {
+		return nil, err
+	}
 	levels := map[store.InternalChannelId]int64{}
 	for hexId, v := range connect.Levels {
 		id, err := store.HexToInternalChannelId(hexId)
@@ -166,14 +185,16 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg) (broker.BrokerSess
 		levels[id] = v
 	}
 	sess := &simpleBrokerSession{
-		deviceId:  connect.DeviceId,
-		done:      make(chan bool),
-		exchanges: make(chan broker.Exchange, b.sessionQueueSize),
-		levels:    levels,
+		deviceId:     connect.DeviceId,
+		model:        model,
+		imageChannel: imageChannel,
+		done:         make(chan bool),
+		exchanges:    make(chan broker.Exchange, b.sessionQueueSize),
+		levels:       levels,
 	}
 	b.sessionCh <- sess
 	<-sess.done
-	err := b.feedPending(sess)
+	err = b.feedPending(sess)
 	if err != nil {
 		return nil, err
 	}
@@ -219,6 +240,7 @@ Loop:
 					TopLevel:             topLevel,
 					NotificationPayloads: payloads,
 				}
+				broadcastExchg.Init()
 				for _, sess := range b.registry {
 					sess.exchanges <- broadcastExchg
 				}

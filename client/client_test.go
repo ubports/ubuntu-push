@@ -17,13 +17,23 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"reflect"
+	"testing"
+	"time"
+
 	. "launchpad.net/gocheck"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/bus/systemimage"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
@@ -32,11 +42,6 @@ import (
 	"launchpad.net/ubuntu-push/util"
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
 	idtesting "launchpad.net/ubuntu-push/whoopsie/identifier/testing"
-	"net/http"
-	"net/http/httptest"
-	"path/filepath"
-	"testing"
-	"time"
 )
 
 func TestClient(t *testing.T) { TestingT(t) }
@@ -83,22 +88,37 @@ func (cs *clientSuite) TearDownSuite(c *C) {
 	cs.timeouts = nil
 }
 
+func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
+	pem_file := helpers.SourceRelative("../server/acceptance/ssl/testing.cert")
+	cfgMap := map[string]interface{}{
+		"connect_timeout":        "7ms",
+		"exchange_timeout":       "10ms",
+		"hosts_cache_expiry":     "1h",
+		"expect_all_repaired":    "30m",
+		"stabilizing_timeout":    "0ms",
+		"connectivity_check_url": "",
+		"connectivity_check_md5": "",
+		"addr":            ":0",
+		"cert_pem_file":   pem_file,
+		"recheck_timeout": "3h",
+		"log_level":       "debug",
+	}
+	for k, v := range overrides {
+		cfgMap[k] = v
+	}
+	cfgBlob, err := json.Marshal(cfgMap)
+	if err != nil {
+		panic(err)
+	}
+	ioutil.WriteFile(cs.configPath, cfgBlob, 0600)
+}
+
 func (cs *clientSuite) SetUpTest(c *C) {
 	cs.log = helpers.NewTestLogger(c, "debug")
 	dir := c.MkDir()
 	cs.configPath = filepath.Join(dir, "config")
-	cfg := fmt.Sprintf(`
-{
-    "exchange_timeout": "10ms",
-    "stabilizing_timeout": "0ms",
-    "connectivity_check_url": "",
-    "connectivity_check_md5": "",
-    "addr": ":0",
-    "cert_pem_file": %#v,
-    "recheck_timeout": "3h",
-    "log_level": "debug"
-}`, helpers.SourceRelative("../server/acceptance/config/testing.cert"))
-	ioutil.WriteFile(cs.configPath, []byte(cfg), 0600)
+
+	cs.writeTestConfig(nil)
 }
 
 type sqlientSuite struct{ clientSuite }
@@ -119,7 +139,7 @@ func (cs *clientSuite) TestConfigureWorks(c *C) {
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.config, NotNil)
-	c.Check(cli.config.ExchangeTimeout.Duration, Equals, time.Duration(10*time.Millisecond))
+	c.Check(cli.config.ExchangeTimeout.TimeDuration(), Equals, time.Duration(10*time.Millisecond))
 }
 
 func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
@@ -179,39 +199,72 @@ func (cs *clientSuite) TestConfigureBailsOnBadConfig(c *C) {
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadPEMFilename(c *C) {
-	ioutil.WriteFile(cs.configPath, []byte(`
-{
-    "exchange_timeout": "10ms",
-    "stabilizing_timeout": "0ms",
-    "connectivity_check_url": "",
-    "connectivity_check_md5": "",
-    "addr": ":0",
-    "cert_pem_file": "/a/b/c",
-    "log_level": "debug",
-    "recheck_timeout": "3h"
-}`), 0600)
-
+	cs.writeTestConfig(map[string]interface{}{
+		"cert_pem_file": "/a/b/c",
+	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "reading PEM file: .*")
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadPEM(c *C) {
-	ioutil.WriteFile(cs.configPath, []byte(`
-{
-    "exchange_timeout": "10ms",
-    "stabilizing_timeout": "0ms",
-    "connectivity_check_url": "",
-    "connectivity_check_md5": "",
-    "addr": ":0",
-    "cert_pem_file": "/etc/passwd",
-    "log_level": "debug",
-    "recheck_timeout": "3h"
-}`), 0600)
-
+	cs.writeTestConfig(map[string]interface{}{
+		"cert_pem_file": "/etc/passwd",
+	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	err := cli.configure()
 	c.Assert(err, ErrorMatches, "no PEM found.*")
+}
+
+func (cs *clientSuite) TestConfigureBailsOnNoHosts(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"addr": "  ",
+	})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	err := cli.configure()
+	c.Assert(err, ErrorMatches, "no hosts specified")
+}
+
+func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"addr": " foo: 443",
+	})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	c.Check(cli.config.Addr, Equals, "foo:443")
+}
+
+/*****************************************************************
+    deriveSessionConfig tests
+******************************************************************/
+
+func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
+	info := map[string]interface{}{
+		"foo": 1,
+	}
+	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	expected := session.ClientSessionConfig{
+		ConnectTimeout:         7 * time.Millisecond,
+		ExchangeTimeout:        10 * time.Millisecond,
+		HostsCachingExpiryTime: 1 * time.Hour,
+		ExpectAllRepairedTime:  30 * time.Minute,
+		PEM:  cli.pem,
+		Info: info,
+	}
+	// sanity check that we are looking at all fields
+	vExpected := reflect.ValueOf(expected)
+	nf := vExpected.NumField()
+	for i := 0; i < nf; i++ {
+		fv := vExpected.Field(i)
+		// field isn't empty/zero
+		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
+	}
+	// finally compare
+	conf := cli.deriveSessionConfig(info)
+	c.Check(conf, DeepEquals, expected)
 }
 
 /*****************************************************************
@@ -254,6 +307,8 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	cEndp := testibus.NewTestingEndpoint(cCond, condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal),
 	)
+	siCond := condition.Fail2Work(2)
+	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})
 	testibus.SetWatchTicker(cEndp, make(chan bool))
 	// ok, create the thing
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
@@ -269,6 +324,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	cli.notificationsEndp = nEndp
 	cli.urlDispatcherEndp = uEndp
 	cli.connectivityEndp = cEndp
+	cli.systemImageEndp = siEndp
 
 	c.Assert(cli.takeTheBus(), IsNil)
 	// the notifications and urldispatcher endpoints retried until connected
@@ -280,6 +336,8 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	c.Check(takeNextBool(cli.connCh), Equals, true)
 	// the connectivity endpoint retried until connected
 	c.Check(cCond.OK(), Equals, true)
+	// the systemimage endpoint retried until connected
+	c.Check(siCond.OK(), Equals, true)
 }
 
 // takeTheBus can, in fact, fail
@@ -295,6 +353,7 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 	cli.notificationsEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.systemImageEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 
 	c.Check(cli.takeTheBus(), NotNil)
 	c.Check(cli.actionsCh, IsNil)
@@ -307,7 +366,9 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 func (cs *clientSuite) TestHandleErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
+	cs.log.ResetCapture()
 	cli.hasConnectivity = true
 	cli.handleErr(errors.New("bananas"))
 	c.Check(cs.log.Captured(), Matches, ".*session exited.*bananas\n")
@@ -338,6 +399,7 @@ func (cs *clientSuite) TestLevelMapFactoryWithDbPath(c *C) {
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 
 	c.Assert(cli.hasConnectivity, Equals, false)
@@ -363,7 +425,7 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log, "some auth")
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log, "some auth")
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
@@ -376,7 +438,7 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(string(cli.config.Addr), cli.pem, cli.config.ExchangeTimeout.Duration, cli.deviceId, levelmap.NewLevelMap, cs.log, "some auth")
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log, "some auth")
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)
@@ -384,15 +446,110 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 }
 
 /*****************************************************************
+   filterNotification tests
+******************************************************************/
+
+var siInfoRes = &systemimage.InfoResult{
+	Device:      "mako",
+	Channel:     "daily",
+	BuildNumber: 102,
+	LastUpdate:  "Unknown",
+}
+
+func (cs *clientSuite) TestFilterNotification(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli.systemImageInfo = siInfoRes
+	// empty
+	msg := &session.Notification{}
+	c.Check(cli.filterNotification(msg), Equals, false)
+	// same build number
+	msg = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(102), "tubular"},
+			},
+		},
+	}
+	c.Check(cli.filterNotification(msg), Equals, false)
+	// higher build number and pick last
+	msg = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(102), "tubular"},
+			},
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(103), "tubular"},
+			},
+		},
+	}
+	c.Check(cli.filterNotification(msg), Equals, true)
+	// going backward by a margin, assume switch of alias
+	msg = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(102), "tubular"},
+			},
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(2), "urban"},
+			},
+		},
+	}
+	c.Check(cli.filterNotification(msg), Equals, true)
+}
+
+func (cs *clientSuite) TestFilterNotificationRobust(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli.systemImageInfo = siInfoRes
+	msg := &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{},
+		},
+	}
+	c.Check(cli.filterNotification(msg), Equals, false)
+	for _, broken := range []interface{}{
+		5,
+		[]interface{}{},
+		[]interface{}{55},
+	} {
+		msg := &session.Notification{
+			Decoded: []map[string]interface{}{
+				map[string]interface{}{
+					"daily/mako": broken,
+				},
+			},
+		}
+		c.Check(cli.filterNotification(msg), Equals, false)
+	}
+}
+
+/*****************************************************************
     handleNotification tests
 ******************************************************************/
 
+var (
+	positiveNotification = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(103), "tubular"},
+			},
+		},
+	}
+	negativeNotification = &session.Notification{
+		Decoded: []map[string]interface{}{
+			map[string]interface{}{
+				"daily/mako": []interface{}{float64(102), "tubular"},
+			},
+		},
+	}
+)
+
 func (cs *clientSuite) TestHandleNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli.systemImageInfo = siInfoRes
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
-	c.Check(cli.handleNotification(nil), IsNil)
+	c.Check(cli.handleNotification(positiveNotification), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
@@ -400,12 +557,26 @@ func (cs *clientSuite) TestHandleNotification(c *C) {
 	c.Check(cs.log.Captured(), Matches, `.* got notification id \d+\s*`)
 }
 
+func (cs *clientSuite) TestHandleNotificationNothingToDo(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli.systemImageInfo = siInfoRes
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	cli.notificationsEndp = endp
+	cli.log = cs.log
+	c.Check(cli.handleNotification(negativeNotification), IsNil)
+	// check we sent the notification
+	args := testibus.GetCallArgs(endp)
+	c.Assert(args, HasLen, 0)
+	c.Check(cs.log.Captured(), Matches, "")
+}
+
 func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
+	cli.systemImageInfo = siInfoRes
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
-	c.Check(cli.handleNotification(nil), NotNil)
+	c.Check(cli.handleNotification(positiveNotification), NotNil)
 }
 
 /*****************************************************************
@@ -415,7 +586,7 @@ func (cs *clientSuite) TestHandleNotificationFail(c *C) {
 func (cs *clientSuite) TestHandleClick(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), nil)
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 	cli.urlDispatcherEndp = endp
 	c.Check(cli.handleClick(), IsNil)
 	// check we sent the notification
@@ -432,6 +603,7 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	cli.connCh = make(chan bool, 1)
 	cli.connCh <- true
 	c.Assert(cli.initSession(), IsNil)
@@ -444,6 +616,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 	aCh := make(chan notifications.RawActionReply, 1)
 	aCh <- notifications.RawActionReply{}
@@ -457,6 +630,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 	cli.session.MsgCh = make(chan *session.Notification, 1)
 	cli.session.MsgCh <- &session.Notification{}
@@ -469,6 +643,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath, "some auth")
 	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 	cli.session.ErrCh = make(chan error, 1)
 	cli.session.ErrCh <- nil
@@ -521,7 +696,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal))
-
+	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 
 	cli.session.MsgCh = make(chan *session.Notification)
@@ -558,7 +733,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	c.Check(cli.hasConnectivity, Equals, false)
 
 	//  * session.MsgCh to the notifications handler
-	cli.session.MsgCh <- &session.Notification{}
+	cli.session.MsgCh <- positiveNotification
 	tick()
 	nargs := testibus.GetCallArgs(cli.notificationsEndp)
 	c.Check(nargs, HasLen, 1)

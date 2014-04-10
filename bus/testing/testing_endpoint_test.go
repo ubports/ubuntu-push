@@ -18,6 +18,7 @@ package testing
 
 import (
 	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"testing"
 	"time"
@@ -35,26 +36,26 @@ var _ = Suite(&TestingEndpointSuite{})
 func (s *TestingEndpointSuite) TestCallReturnsFirstRetval(c *C) {
 	var m, n uint32 = 42, 17
 	endp := NewTestingEndpoint(nil, condition.Work(true), m, n)
-	vs, e := endp.Call("what")
+	var r uint32
+	e := endp.Call("what", bus.Args(), &r)
 	c.Check(e, IsNil)
-	c.Check(vs, HasLen, 1)
-	c.Check(vs[0], Equals, m)
+	c.Check(r, Equals, m)
 }
 
 // Test the same Call() but with multi-valued endpoint
 func (s *TestingEndpointSuite) TestMultiValuedCall(c *C) {
 	var m, n uint32 = 42, 17
 	endp := NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{m}, []interface{}{n})
-	vs, e := endp.Call("what")
+	var r uint32
+	e := endp.Call("what", bus.Args(), &r)
 	c.Check(e, IsNil)
-	c.Check(vs, HasLen, 1)
-	c.Check(vs[0], Equals, m)
+	c.Check(r, Equals, m)
 }
 
 // Test that Call() with a negative condition returns an error.
 func (s *TestingEndpointSuite) TestCallFails(c *C) {
 	endp := NewTestingEndpoint(nil, condition.Work(false))
-	_, e := endp.Call("what")
+	e := endp.Call("what", bus.Args())
 	c.Check(e, NotNil)
 }
 
@@ -62,13 +63,14 @@ func (s *TestingEndpointSuite) TestCallFails(c *C) {
 // a helpful message.
 func (s *TestingEndpointSuite) TestCallPanicsWithNiceMessage(c *C) {
 	endp := NewTestingEndpoint(nil, condition.Work(true))
-	c.Check(func() { endp.Call("") }, PanicMatches, "No return values provided.*")
+	var x int32
+	c.Check(func() { endp.Call("", bus.Args(), &x) }, PanicMatches, "No return values provided.*")
 }
 
 // Test that Call() updates callArgs
 func (s *TestingEndpointSuite) TestCallArgs(c *C) {
-	endp := NewTestingEndpoint(nil, condition.Work(true), 0)
-	_, err := endp.Call("what", "is", "this", "thing")
+	endp := NewTestingEndpoint(nil, condition.Work(true))
+	err := endp.Call("what", bus.Args("is", "this", "thing"))
 	c.Assert(err, IsNil)
 	c.Check(GetCallArgs(endp), DeepEquals,
 		[]callArgs{{"what", []interface{}{"is", "this", "thing"}}})

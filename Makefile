@@ -16,6 +16,8 @@ GODEPS += gopkg.in/niemeyer/uoneauth.v1
 
 TMP_FILE := $(shell mktemp -u)
 
+TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
+
 bootstrap:
 	mkdir -p $(GOPATH)/bin
 	mkdir -p $(GOPATH)/pkg
@@ -25,17 +27,29 @@ bootstrap:
 	go install $(GODEPS)
 
 check:
-	go test $(TESTFLAGS) $(PROJECT)/...
+	go test $(TESTFLAGS) $(TOTEST)
 
 check-race:
-	go test $(TESTFLAGS) -race $(PROJECT)/...
+	go test $(TESTFLAGS) -race $(TOTEST)
+
+acceptance:
+	cd server/acceptance; ./acceptance.sh
+
+build-client:
+	go build ubuntu-push-client.go
+
+build-server-dev:
+	go build -o push-server-dev launchpad.net/ubuntu-push/server/dev
+
+run-server-dev:
+	go run server/dev/*.go sampleconfigs/dev.json
 
 coverage-summary:
-	go test $(TESTFLAGS) -a -cover $(PROJECT)/...
+	go test $(TESTFLAGS) -a -cover $(TOTEST)
 
 coverage-html:
 	mkdir -p coverhtml
-	for pkg in $$(go list $(PROJECT)/...|grep -v acceptance ); do \
+	for pkg in $(TOTEST); do \
 		relname="$${pkg#$(PROJECT)/}" ; \
 		mkdir -p coverhtml/$$(dirname $${relname}) ; \
 		go test $(TESTFLAGS) -a -coverprofile=coverhtml/$${relname}.out $$pkg ; \
@@ -60,5 +74,6 @@ protocol-diagrams: protocol/state-diag-client.svg protocol/state-diag-session.sv
 	# requires graphviz installed
 	dot -Tsvg $< > $@
 
-.PHONY: bootstrap check check-race format check-format coverage-summary \
-	coverage-html protocol-diagrams
+.PHONY: bootstrap check check-race format check-format \
+	acceptance build-client build server-dev run-server-dev \
+	coverage-summary coverage-html protocol-diagrams

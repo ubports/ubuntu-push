@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/server/store"
 )
 
 type exchangesImplSuite struct{}
@@ -55,4 +57,32 @@ func (s *exchangesImplSuite) TestFilterByLevelEmpty(c *C) {
 	c.Check(len(res), Equals, 0)
 	res = filterByLevel(5, 10, nil)
 	c.Check(len(res), Equals, 0)
+}
+
+func (s *exchangesImplSuite) TestChannelFilter(c *C) {
+	payloads := []json.RawMessage{
+		json.RawMessage(`{"a/x": 3}`),
+		json.RawMessage(`{"b/x": 4}`),
+		json.RawMessage(`{"a/y": 5}`),
+		json.RawMessage(`{"a/x": 6}`),
+	}
+	decoded := make([]map[string]interface{}, 4)
+	for i, p := range payloads {
+		err := json.Unmarshal(p, &decoded[i])
+		c.Assert(err, IsNil)
+	}
+
+	other := store.InternalChannelId("1")
+
+	c.Check(channelFilter("", store.SystemInternalChannelId, nil, nil), IsNil)
+	c.Check(channelFilter("", other, payloads[1:], decoded), DeepEquals, payloads[1:])
+
+	// use tag when channel is the sytem channel
+
+	c.Check(channelFilter("c/z", store.SystemInternalChannelId, payloads, decoded), HasLen, 0)
+
+	c.Check(channelFilter("a/x", store.SystemInternalChannelId, payloads, decoded), DeepEquals, []json.RawMessage{payloads[0], payloads[3]})
+
+	c.Check(channelFilter("a/x", store.SystemInternalChannelId, payloads[1:], decoded), DeepEquals, []json.RawMessage{payloads[3]})
+
 }
