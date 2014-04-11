@@ -164,6 +164,14 @@ func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 	c.Assert(err, IsNil)
 	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
 	c.Assert(err, IsNil)
+	checkAndFalse := false
+	// previous session got signaled by closing its channel
+	select {
+	case _, ok := <-sess1.SessionChannel():
+		checkAndFalse = ok == false
+	default:
+	}
+	c.Check(checkAndFalse, Equals, true)
 	c.Assert(s.RevealSession(b, "dev-1"), Equals, sess2)
 	b.Unregister(sess1)
 	// just to make sure the unregister was processed
