@@ -18,6 +18,7 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -53,8 +54,7 @@ const (
 	lDebug
 )
 
-// LevelToNLevel has log levels as keys.
-var LevelToNLevel = map[string]int{
+var levelToNLevel = map[string]int{
 	"error": lError,
 	"info":  lInfo,
 	"debug": lDebug,
@@ -69,7 +69,7 @@ type MinimalLogger interface {
 // to the given level. The level can be, in order: "error", "info",
 // "debug". It takes a value just implementing stlib Logger.Output().
 func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger {
-	nlevel := LevelToNLevel[level]
+	nlevel := levelToNLevel[level]
 	return &simpleLogger{
 		minLog.Output,
 		nlevel,
@@ -119,4 +119,30 @@ func (lg *simpleLogger) Debugf(format string, v ...interface{}) {
 	if lg.nlevel >= lDebug {
 		lg.outputFunc(2, fmt.Sprintf("DEBUG "+format, v...))
 	}
+}
+
+// config bits
+
+// ConfigLogLevel can hold a log level in a configuration struct.
+type ConfigLogLevel string
+
+func (cll *ConfigLogLevel) ConfigFromJSONString() {}
+
+func (cll *ConfigLogLevel) UnmarshalJSON(b []byte) error {
+	var enc string
+	err := json.Unmarshal(b, &enc)
+	if err != nil {
+		return err
+	}
+	_, ok := levelToNLevel[enc]
+	if !ok {
+		return fmt.Errorf("not a log level: %s", enc)
+	}
+	*cll = ConfigLogLevel(enc)
+	return nil
+}
+
+// LogLevel returns the log level string held in cll.
+func (cll ConfigLogLevel) LogLevel() string {
+	return string(cll)
 }

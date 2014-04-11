@@ -25,6 +25,8 @@ import (
 	"testing"
 
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/config"
 )
 
 func TestLogger(t *testing.T) { TestingT(t) }
@@ -137,4 +139,27 @@ func (s *loggerSuite) TestReexposeOutput(c *C) {
 	baselog.Output(1, "foobar")
 	logger.Output(1, "foobaz")
 	c.Check(buf.String(), Matches, "logger_test.go:[0-9]+: foobar\nlogger_test.go:[0-9]+: foobaz\n")
+}
+
+type testLogLevelConfig struct {
+	Lvl ConfigLogLevel
+}
+
+func (s *loggerSuite) TestReadConfigLogLevel(c *C) {
+	buf := bytes.NewBufferString(`{"lvl": "debug"}`)
+	var cfg testLogLevelConfig
+	err := config.ReadConfig(buf, &cfg)
+	c.Assert(err, IsNil)
+	c.Check(cfg.Lvl.LogLevel(), Equals, "debug")
+}
+
+func (s *loggerSuite) TestReadConfigLogLevelErrors(c *C) {
+	var cfg testLogLevelConfig
+	checkError := func(jsonCfg string, expectedError string) {
+		buf := bytes.NewBufferString(jsonCfg)
+		err := config.ReadConfig(buf, &cfg)
+		c.Check(err, ErrorMatches, expectedError)
+	}
+	checkError(`{"lvl": 1}`, "lvl:.*type string")
+	checkError(`{"lvl": "foo"}`, "lvl: not a log level")
 }
