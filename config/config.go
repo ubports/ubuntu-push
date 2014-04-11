@@ -212,7 +212,7 @@ func LoadFile(p, baseDir string) ([]byte, error) {
 
 // used to implement getting config values with flag.Parse()
 type val struct {
-	treatment string // b(bool)|s(tringify) or empty
+	treatment string // b(bool)|q(uoted string) or empty
 	staging   map[string]json.RawMessage
 	name      string
 }
@@ -238,7 +238,7 @@ func (v *val) Set(s string) error {
 			return err
 		}
 		raw = json.RawMessage(b)
-	case "s":
+	case "q":
 		b, err := json.Marshal(s)
 		if err != nil {
 			return err
@@ -290,10 +290,10 @@ func readUsingFlags(staging map[string]json.RawMessage, destValue reflect.Value)
 		case reflect.Bool:
 			treatment = "b"
 		case reflect.String:
-			treatment = "s"
+			treatment = "q"
 		default:
 			if _, ok := destField.dest.(FromJSONString); ok {
-				treatment = "s"
+				treatment = "q"
 			}
 		}
 		help := destField.fld.Tag.Get("help")
