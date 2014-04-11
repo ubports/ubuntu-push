@@ -228,22 +228,18 @@ func (v *val) IsBoolFlag() bool {
 func (v *val) Set(s string) error {
 	var raw json.RawMessage
 	switch v.treatment {
-	case "b":
-		bit, err := strconv.ParseBool(s)
-		if err != nil {
-			return err
-		}
-		b, err := json.Marshal(bit)
-		if err != nil {
-			return err
-		}
-		raw = json.RawMessage(b)
 	case "q":
 		b, err := json.Marshal(s)
 		if err != nil {
 			return err
 		}
 		raw = json.RawMessage(b)
+	case "b":
+		bit, err := strconv.ParseBool(s)
+		if err != nil {
+			return err
+		}
+		raw = json.RawMessage(strconv.FormatBool(bit))
 	default:
 		raw = json.RawMessage(s)
 	}
