@@ -53,7 +53,8 @@ const (
 	lDebug
 )
 
-var levelToNLevel = map[string]int{
+// LevelToNLevel has log levels as keys.
+var LevelToNLevel = map[string]int{
 	"error": lError,
 	"info":  lInfo,
 	"debug": lDebug,
@@ -68,7 +69,7 @@ type MinimalLogger interface {
 // to the given level. The level can be, in order: "error", "info",
 // "debug". It takes a value just implementing stlib Logger.Output().
 func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger {
-	nlevel := levelToNLevel[level]
+	nlevel := LevelToNLevel[level]
 	return &simpleLogger{
 		minLog.Output,
 		nlevel,
