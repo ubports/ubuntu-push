@@ -81,6 +81,8 @@ type PushClient struct {
 	sessionConnectedCh chan uint32
 }
 
+var ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
+
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
 func NewPushClient(configPath string, leveldbPath string) *PushClient {
@@ -278,7 +280,7 @@ func (client *PushClient) handleNotification(msg *session.Notification) error {
 	if !client.filterNotification(msg) {
 		return nil
 	}
-	action_id := "dummy_id"
+	action_id := ACTION_ID_SNOWFLAKE
 	a := []string{action_id, "Go get it!"} // action value not visible on the phone
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
 	nots := notifications.Raw(client.notificationsEndp, client.log)
@@ -305,20 +307,23 @@ func (client *PushClient) handleNotification(msg *session.Notification) error {
 }
 
 // handleClick deals with the user clicking a notification
-func (client *PushClient) handleClick() error {
-	// it doesn't get much simpler...
-	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
-	return urld.DispatchURL("settings:///system/system-update")
+func (client *PushClient) handleClick(action_id string) error {
+	if action_id == ACTION_ID_SNOWFLAKE {
+		// it doesn't get much simpler...
+		urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
+		return urld.DispatchURL("settings:///system/system-update")
+	}
+	return nil
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func() error, notifhandler func(*session.Notification) error, errhandler func(error)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, notifhandler func(*session.Notification) error, errhandler func(error)) {
 	for {
 		select {
 		case state := <-client.connCh:
 			connhandler(state)
-		case <-client.actionsCh:
-			clickhandler()
+		case action := <-client.actionsCh:
+			clickhandler(action.ActionId)
 		case msg := <-client.session.MsgCh:
 			notifhandler(msg)
 		case err := <-client.session.ErrCh:
