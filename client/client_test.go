@@ -588,9 +588,15 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 	cli.urlDispatcherEndp = endp
-	c.Check(cli.handleClick(), IsNil)
-	// check we sent the notification
+	// check we don't fail on something random
+	c.Check(cli.handleClick("something random"), IsNil)
+	// ... but we don't send anything either
 	args := testibus.GetCallArgs(endp)
+	c.Assert(args, HasLen, 0)
+	// check we worked with the right action id
+	c.Check(cli.handleClick(ACTION_ID_SNOWFLAKE), IsNil)
+	// check we sent the notification
+	args = testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Check(args[0].Args, DeepEquals, []interface{}{"settings:///system/system-update"})
@@ -609,7 +615,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	c.Assert(cli.initSession(), IsNil)
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) { ch <- true }, func() error { return nil }, func(_ *session.Notification) error { return nil }, func(error) {})
+	go cli.doLoop(func(bool) { ch <- true }, func(_ string) error { return nil }, func(_ *session.Notification) error { return nil }, func(error) {})
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -623,7 +629,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli.actionsCh = aCh
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func() error { ch <- true; return nil }, func(_ *session.Notification) error { return nil }, func(error) {})
+	go cli.doLoop(func(bool) {}, func(_ string) error { ch <- true; return nil }, func(_ *session.Notification) error { return nil }, func(error) {})
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -636,7 +642,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.session.MsgCh <- &session.Notification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func() error { return nil }, func(_ *session.Notification) error { ch <- true; return nil }, func(error) {})
+	go cli.doLoop(func(bool) {}, func(_ string) error { return nil }, func(_ *session.Notification) error { ch <- true; return nil }, func(error) {})
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -649,7 +655,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli.session.ErrCh <- nil
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func() error { return nil }, func(_ *session.Notification) error { return nil }, func(error) { ch <- true })
+	go cli.doLoop(func(bool) {}, func(_ string) error { return nil }, func(_ *session.Notification) error { return nil }, func(error) { ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -716,7 +722,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
 
 	//  * actionsCh to the click handler/url dispatcher
-	aCh <- notifications.RawActionReply{}
+	aCh <- notifications.RawActionReply{ActionId: ACTION_ID_SNOWFLAKE}
 	tick()
 	uargs := testibus.GetCallArgs(cli.urlDispatcherEndp)
 	c.Assert(uargs, HasLen, 1)

@@ -49,6 +49,7 @@ type serverMsg struct {
 	Type string `json:"T"`
 	protocol.BroadcastMsg
 	protocol.NotificationsMsg
+	protocol.ConnBrokenMsg
 }
 
 // parseServerAddrSpec recognizes whether spec is a HTTP URL to get
@@ -176,7 +177,7 @@ func (sess *ClientSession) getConnection() net.Conn {
 // getHosts sets deliveryHosts possibly querying a remote endpoint
 func (sess *ClientSession) getHosts() error {
 	if sess.getHost != nil {
-		if sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
+		if sess.deliveryHosts != nil && sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
 			return nil
 		}
 		hosts, err := sess.getHost.Get()
@@ -191,6 +192,10 @@ func (sess *ClientSession) getHosts() error {
 		sess.deliveryHosts = sess.fallbackHosts
 	}
 	return nil
+}
+
+func (sess *ClientSession) resetHosts() {
+	sess.deliveryHosts = nil
 }
 
 // startConnectionAttempt/nextHostToTry help connect iterating over candidate hosts
@@ -338,6 +343,19 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	return nil
 }
 
+// handle "connbroken" messages
+func (sess *ClientSession) handleConnBroken(connBroken *serverMsg) error {
+	sess.setState(Error)
+	reason := connBroken.Reason
+	err := fmt.Errorf("server broke connection: %s", reason)
+	sess.Log.Errorf("%s", err)
+	switch reason {
+	case protocol.BrokenHostMismatch:
+		sess.resetHosts()
+	}
+	return err
+}
+
 // loop runs the session with the server, emits a stream of events.
 func (sess *ClientSession) loop() error {
 	var err error
@@ -356,6 +374,8 @@ func (sess *ClientSession) loop() error {
 			err = sess.handlePing()
 		case "broadcast":
 			err = sess.handleBroadcast(&recv)
+		case "connbroken":
+			err = sess.handleConnBroken(&recv)
 		}
 		if err != nil {
 			return err

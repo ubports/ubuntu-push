@@ -8,5 +8,6 @@
     "cert_pem_file": "../server/acceptance/ssl/testing.cert",
     "http_addr": "127.0.0.1:8080",
     "http_read_timeout": "5s",
-    "http_write_timeout": "5s"
+    "http_write_timeout": "5s",
+    "delivery_domain": "localhost"
 }

@@ -56,11 +56,11 @@ func (s *PingPongAcceptanceSuite) TestConnectPingPing(c *C) {
 	c.Assert(connectSrv, Matches, ".*session.* connected .*")
 	c.Assert(registeredSrv, Matches, ".*session.* registered DEVA")
 	c.Assert(strings.HasSuffix(connectSrv, connectCli), Equals, true)
-	c.Assert(NextEvent(events, errCh), Equals, "Ping")
+	c.Assert(NextEvent(events, errCh), Equals, "ping")
 	elapsedOfPing := float64(time.Since(tconnect)) / float64(500*time.Millisecond)
 	c.Check(elapsedOfPing >= 1.0, Equals, true)
 	c.Check(elapsedOfPing < 1.05, Equals, true)
-	c.Assert(NextEvent(events, errCh), Equals, "Ping")
+	c.Assert(NextEvent(events, errCh), Equals, "ping")
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* ended with: EOF")
 	c.Check(len(errCh), Equals, 0)
 }
@@ -87,7 +87,7 @@ func (s *PingPongAcceptanceSuite) TestConnectPingNeverPong(c *C) {
 	c.Assert(NextEvent(events, errCh), Matches, "connected .*")
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* connected .*")
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, ".*session.* registered .*")
-	c.Assert(NextEvent(events, errCh), Equals, "Ping")
+	c.Assert(NextEvent(events, errCh), Equals, "ping")
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*timeout`)
 	c.Check(len(errCh), Equals, 0)
 }

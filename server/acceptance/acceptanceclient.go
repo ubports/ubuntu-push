@@ -42,7 +42,8 @@ type ClientSession struct {
 	CertPEMBlock    []byte
 	ReportPings     bool
 	Levels          map[string]int64
-	Insecure        bool // don't verify certs
+	Insecure        bool   // don't verify certs
+	Prefix          string // prefix for events
 	// connection
 	Connection net.Conn
 }
@@ -105,7 +106,7 @@ func (sess *ClientSession) Run(events chan<- string) error {
 	if err != nil {
 		return err
 	}
-	events <- fmt.Sprintf("connected %v", conn.LocalAddr())
+	events <- fmt.Sprintf("%sconnected %v", sess.Prefix, conn.LocalAddr())
 	var recv serverMsg
 	for {
 		deadAfter := pingInterval + sess.ExchangeTimeout
@@ -122,7 +123,7 @@ func (sess *ClientSession) Run(events chan<- string) error {
 				return err
 			}
 			if sess.ReportPings {
-				events <- "Ping"
+				events <- sess.Prefix + "ping"
 			}
 		case "broadcast":
 			conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
@@ -134,7 +135,7 @@ func (sess *ClientSession) Run(events chan<- string) error {
 			if err != nil {
 				return err
 			}
-			events <- fmt.Sprintf("broadcast chan:%v app:%v topLevel:%d payloads:%s", recv.ChanId, recv.AppId, recv.TopLevel, pack)
+			events <- fmt.Sprintf("%sbroadcast chan:%v app:%v topLevel:%d payloads:%s", sess.Prefix, recv.ChanId, recv.AppId, recv.TopLevel, pack)
 		}
 	}
 	return nil

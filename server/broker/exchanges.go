@@ -28,8 +28,9 @@ import (
 
 // Scratch area for exchanges, sessions should hold one of these.
 type ExchangesScratchArea struct {
-	broadcastMsg protocol.BroadcastMsg
-	ackMsg       protocol.AckMsg
+	broadcastMsg  protocol.BroadcastMsg
+	ackMsg        protocol.AckMsg
+	connBrokenMsg protocol.ConnBrokenMsg
 }
 
 // BroadcastExchange leads a session through delivering a BROADCAST.
@@ -42,7 +43,7 @@ type BroadcastExchange struct {
 }
 
 // check interface already here
-var _ Exchange = &BroadcastExchange{}
+var _ Exchange = (*BroadcastExchange)(nil)
 
 // Init ensures the BroadcastExchange is fully initialized for the sessions.
 func (sbe *BroadcastExchange) Init() {
@@ -88,14 +89,18 @@ func channelFilter(tag string, chanId store.InternalChannelId, payloads []json.R
 
 // Prepare session for a BROADCAST.
 func (sbe *BroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
-	scratchArea := sess.ExchangeScratchArea()
-	scratchArea.broadcastMsg.Reset()
-	scratchArea.broadcastMsg.Type = "broadcast"
 	clientLevel := sess.Levels()[sbe.ChanId]
 	payloads := filterByLevel(clientLevel, sbe.TopLevel, sbe.NotificationPayloads)
 	tag := fmt.Sprintf("%s/%s", sess.DeviceImageChannel(), sess.DeviceImageModel())
 	payloads = channelFilter(tag, sbe.ChanId, payloads, sbe.Decoded)
+	if len(payloads) == 0 && sbe.TopLevel >= clientLevel {
+		// empty and don't need to force resync => do nothing
+		return nil, nil, ErrNop
+	}
 
+	scratchArea := sess.ExchangeScratchArea()
+	scratchArea.broadcastMsg.Reset()
+	scratchArea.broadcastMsg.Type = "broadcast"
 	// xxx need an AppId as well, later
 	scratchArea.broadcastMsg.ChanId = store.InternalChannelIdToHex(sbe.ChanId)
 	scratchArea.broadcastMsg.TopLevel = sbe.TopLevel
@@ -112,4 +117,25 @@ func (sbe *BroadcastExchange) Acked(sess BrokerSession, done bool) error {
 	// update levels
 	sess.Levels()[sbe.ChanId] = sbe.TopLevel
 	return nil
+}
+
+// ConnBrokenExchange breaks a session giving a reason.
+type ConnBrokenExchange struct {
+	Reason string
+}
+
+// check interface already here
+var _ Exchange = (*ConnBrokenExchange)(nil)
+
+// Prepare session for a CONNBROKEN.
+func (cbe *ConnBrokenExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
+	scratchArea := sess.ExchangeScratchArea()
+	scratchArea.connBrokenMsg.Type = "connbroken"
+	scratchArea.connBrokenMsg.Reason = cbe.Reason
+	return &scratchArea.connBrokenMsg, nil, nil
+}
+
+// CONNBROKEN isn't acked
+func (cbe *ConnBrokenExchange) Acked(sess BrokerSession, done bool) error {
+	panic("Acked should not get invoked on ConnBrokenExchange")
 }

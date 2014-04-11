@@ -81,6 +81,44 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(3))
 }
 
+func (s *exchangesSuite) TestBroadcastExchangeEmpty(c *C) {
+	sess := &testing.TestBrokerSession{
+		LevelsMap:    broker.LevelsMap(map[store.InternalChannelId]int64{}),
+		Model:        "m1",
+		ImageChannel: "img1",
+	}
+	exchg := &broker.BroadcastExchange{
+		ChanId:               store.SystemInternalChannelId,
+		TopLevel:             3,
+		NotificationPayloads: []json.RawMessage{},
+	}
+	exchg.Init()
+	outMsg, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, Equals, broker.ErrNop)
+	c.Check(outMsg, IsNil)
+	c.Check(inMsg, IsNil)
+}
+
+func (s *exchangesSuite) TestBroadcastExchangeEmptyButAhead(c *C) {
+	sess := &testing.TestBrokerSession{
+		LevelsMap: broker.LevelsMap(map[store.InternalChannelId]int64{
+			store.SystemInternalChannelId: 10,
+		}),
+		Model:        "m1",
+		ImageChannel: "img1",
+	}
+	exchg := &broker.BroadcastExchange{
+		ChanId:               store.SystemInternalChannelId,
+		TopLevel:             3,
+		NotificationPayloads: []json.RawMessage{},
+	}
+	exchg.Init()
+	outMsg, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	c.Check(outMsg, NotNil)
+	c.Check(inMsg, NotNil)
+}
+
 func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 	sess := &testing.TestBrokerSession{
 		LevelsMap:    broker.LevelsMap(map[store.InternalChannelId]int64{}),
@@ -209,4 +247,18 @@ func (s *exchangesSuite) TestBroadcastExchangeChannelFilter(c *C) {
 	err = exchg.Acked(sess, true)
 	c.Assert(err, IsNil)
 	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(5))
+}
+
+func (s *exchangesSuite) TestConnBrokenExchange(c *C) {
+	sess := &testing.TestBrokerSession{}
+	cbe := &broker.ConnBrokenExchange{"REASON"}
+	outMsg, inMsg, err := cbe.Prepare(sess)
+	c.Assert(err, IsNil)
+	c.Check(inMsg, IsNil) // no answer is expected
+	// check
+	marshalled, err := json.Marshal(outMsg)
+	c.Assert(err, IsNil)
+	c.Check(string(marshalled), Equals, `{"T":"connbroken","Reason":"REASON"}`)
+
+	c.Check(func() { cbe.Acked(nil, true) }, PanicMatches, "Acked should not get invoked on ConnBrokenExchange")
 }
