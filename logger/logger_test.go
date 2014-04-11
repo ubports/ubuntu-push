@@ -161,5 +161,5 @@ func (s *loggerSuite) TestReadConfigLogLevelErrors(c *C) {
 		c.Check(err, ErrorMatches, expectedError)
 	}
 	checkError(`{"lvl": 1}`, "lvl:.*type string")
-	checkError(`{"lvl": "foo"}`, "lvl: not a log level")
+	checkError(`{"lvl": "foo"}`, "lvl: not a log level: foo")
 }
