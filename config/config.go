@@ -280,6 +280,9 @@ func (v *readConfigAtVal) Set(path string) error {
 // readUsingFlags gets config values from command line flags.
 func readUsingFlags(staging map[string]json.RawMessage, destValue reflect.Value) error {
 	if flag.Parsed() {
+		if IgnoreParsedFlags {
+			return nil
+		}
 		return fmt.Errorf("too late, flags already parsed")
 	}
 	destStruct := destValue.Elem()
@@ -338,6 +341,10 @@ func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
 	}
 	return fillDestConfig(destValue, p1)
 }
+
+// IgnoreParsedFlags will just have ReadFiles ignore <flags> if the
+// command line was already parsed.
+var IgnoreParsedFlags = false
 
 // CompareConfigs compares the two given configuration structures. It returns a list of differing fields or nil if the config contents are the same.
 func CompareConfig(config1, config2 interface{}) ([]string, error) {

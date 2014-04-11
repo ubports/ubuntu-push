@@ -320,10 +320,16 @@ func (s *configFlagsSuite) TestReadUsingFlagsHelp(c *C) {
 func (s *configFlagsSuite) TestReadUsingFlagsAlreadyParsed(c *C) {
 	os.Args = []string{"cmd"}
 	flag.Parse()
-	var cfg testConfig3
+	var cfg struct{}
 	p := make(map[string]json.RawMessage)
 	err := readUsingFlags(p, reflect.ValueOf(&cfg))
 	c.Assert(err, ErrorMatches, "too late, flags already parsed")
 	err = ReadFiles(&cfg, "<flags>")
 	c.Assert(err, ErrorMatches, "too late, flags already parsed")
+	IgnoreParsedFlags = true
+	defer func() {
+		IgnoreParsedFlags = false
+	}()
+	err = ReadFiles(&cfg, "<flags>")
+	c.Assert(err, IsNil)
 }
