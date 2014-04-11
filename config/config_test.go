@@ -237,8 +237,8 @@ func (s *configSuite) TestCompareConfig(c *C) {
 type testConfig3 struct {
 	A bool
 	B string
-	C []string `json:"c_list"`
-	D ConfigTimeDuration
+	C []string           `json:"c_list"`
+	D ConfigTimeDuration `help:"duration"`
 	E ConfigHostPort
 	F string
 }
@@ -249,6 +249,8 @@ var _ = Suite(&configFlagsSuite{})
 
 func (s *configFlagsSuite) SetUpTest(c *C) {
 	flag.CommandLine = flag.NewFlagSet("cmd", flag.PanicOnError)
+	// supress outputs
+	flag.Usage = func() { flag.PrintDefaults() }
 	flag.CommandLine.SetOutput(ioutil.Discard)
 }
 
@@ -302,6 +304,17 @@ func (s *configFlagsSuite) TestReadFilesAndFlagsConfigAtSupport(c *C) {
 	c.Check(cfg.A, Equals, 42)
 	c.Check(cfg.B, Equals, "x")
 	c.Check(cfg.C, DeepEquals, []string{"y", "z"})
+}
+
+func (s *configFlagsSuite) TestReadUsingFlagsHelp(c *C) {
+	os.Args = []string{"cmd", "-h"}
+	buf := bytes.NewBufferString("")
+	flag.CommandLine.Init("cmd", flag.ContinueOnError)
+	flag.CommandLine.SetOutput(buf)
+	var cfg testConfig3
+	p := make(map[string]json.RawMessage)
+	readUsingFlags(p, reflect.ValueOf(&cfg))
+	c.Check(buf.String(), Matches, "(?s).*-cfg@=<config.json>: get config values from file\n.*-d.*duration.*")
 }
 
 func (s *configFlagsSuite) TestReadUsingFlagsAlreadyParsed(c *C) {
