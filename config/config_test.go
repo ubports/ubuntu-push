@@ -312,9 +312,11 @@ func (s *configFlagsSuite) TestReadUsingFlagsHelp(c *C) {
 	flag.CommandLine.Init("cmd", flag.ContinueOnError)
 	flag.CommandLine.SetOutput(buf)
 	var cfg testConfig3
-	p := make(map[string]json.RawMessage)
+	p := map[string]json.RawMessage{
+		"d": json.RawMessage(`"2s"`),
+	}
 	readUsingFlags(p, reflect.ValueOf(&cfg))
-	c.Check(buf.String(), Matches, "(?s).*-cfg@=<config.json>: get config values from file\n.*-d.*duration.*")
+	c.Check(buf.String(), Matches, `(?s).*-cfg@=<config.json>: get config values from file\n.*-d="2s": duration.*`)
 }
 
 func (s *configFlagsSuite) TestReadUsingFlagsAlreadyParsed(c *C) {
