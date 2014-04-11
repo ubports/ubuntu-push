@@ -94,9 +94,11 @@ Loop:
 				return &broker.ErrAbort{"expected PONG message"}
 			}
 			pingTimer.Reset(pingInterval)
-		case exchg := <-ch:
-			// xxx later can use ch closing for shutdown/reset
+		case exchg, ok := <-ch:
 			pingTimer.Stop()
+			if !ok {
+				return &broker.ErrAbort{"terminated"}
+			}
 			outMsg, inMsg, err := exchg.Prepare(sess)
 			if err == broker.ErrNop { // nothing to do
 				pingTimer.Reset(pingInterval)

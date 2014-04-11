@@ -222,6 +222,10 @@ Loop:
 					delete(b.registry, sess.deviceId)
 				}
 			} else { // register
+				prev := b.registry[sess.deviceId]
+				if prev != nil { // kick it
+					close(prev.exchanges)
+				}
 				b.registry[sess.deviceId] = sess
 				sess.registered = true
 				sess.done <- true
