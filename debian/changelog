@@ -1,3 +1,9 @@
+ubuntu-push (0.2-0ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+
+ -- John Lenton <john.lenton@canonical.com>  Fri, 11 Apr 2014 11:19:42 +0100
+
 ubuntu-push (0.1+14.04.20140327-0ubuntu1) trusty; urgency=medium
 
   [ John Lenton ]
