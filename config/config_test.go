@@ -255,33 +255,44 @@ func (s *configFlagsSuite) SetUpTest(c *C) {
 }
 
 func (s *configFlagsSuite) TestReadUsingFlags(c *C) {
-	os.Args = []string{"cmd", "-a=0", "-b=foo", "-c_list", `["x","y"]`, "-d", "10s", "-e=localhost:80"}
+	os.Args = []string{"cmd", "-a=1", "-b=foo", "-c_list", `["x","y"]`, "-d", "10s", "-e=localhost:80"}
 	var cfg testConfig3
 	p := make(map[string]json.RawMessage)
 	err := readUsingFlags(p, reflect.ValueOf(&cfg))
 	c.Assert(err, IsNil)
 	c.Check(p, DeepEquals, map[string]json.RawMessage{
-		"a":      json.RawMessage("false"),
-		"b":      json.RawMessage(`"foo"`),
+		"a":      nil,
+		"b":      nil,
 		"c_list": json.RawMessage(`["x","y"]`),
-		"d":      json.RawMessage(`"10s"`),
-		"e":      json.RawMessage(`"localhost:80"`),
+		"d":      nil,
+		"e":      nil,
 	})
+	c.Check(cfg.A, Equals, true)
+	c.Check(cfg.B, Equals, "foo")
+	c.Check(cfg.D.TimeDuration(), Equals, 10*time.Second)
+	c.Check(cfg.E.HostPort(), Equals, "localhost:80")
 }
 
-func (s *configFlagsSuite) TestReadUsingFlagsError(c *C) {
+func (s *configFlagsSuite) TestReadUsingFlagsBoolError(c *C) {
 	os.Args = []string{"cmd", "-a=zoo"}
 	var cfg testConfig3
 	p := make(map[string]json.RawMessage)
 	c.Check(func() { readUsingFlags(p, reflect.ValueOf(&cfg)) }, PanicMatches, ".*invalid boolean.*-a.*")
 }
 
+func (s *configFlagsSuite) TestReadUsingFlagsFromStringError(c *C) {
+	os.Args = []string{"cmd", "-d=zoo"}
+	var cfg testConfig3
+	p := make(map[string]json.RawMessage)
+	c.Check(func() { readUsingFlags(p, reflect.ValueOf(&cfg)) }, PanicMatches, ".*invalid duration.*")
+}
+
 func (s *configFlagsSuite) TestReadFilesAndFlags(c *C) {
 	// test <flags> pseudo file
-	os.Args = []string{"cmd", "-a=42"}
+	os.Args = []string{"cmd", "-b=x"}
 	tmpDir := c.MkDir()
 	cfgPath := filepath.Join(tmpDir, "cfg.json")
-	err := ioutil.WriteFile(cfgPath, []byte(`{"b": "x", "c_list": ["y", "z"]}`), os.ModePerm)
+	err := ioutil.WriteFile(cfgPath, []byte(`{"a": 42, "c_list": ["y", "z"]}`), os.ModePerm)
 	c.Assert(err, IsNil)
 	var cfg testConfig1
 	err = ReadFiles(&cfg, cfgPath, "<flags>")

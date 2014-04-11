@@ -18,12 +18,13 @@
 package logger
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"runtime"
+
+	"launchpad.net/ubuntu-push/config"
 )
 
 // Logger is a simple logger interface with logging at levels.
@@ -129,11 +130,10 @@ type ConfigLogLevel string
 func (cll *ConfigLogLevel) ConfigFromJSONString() {}
 
 func (cll *ConfigLogLevel) UnmarshalJSON(b []byte) error {
-	var enc string
-	err := json.Unmarshal(b, &enc)
-	if err != nil {
-		return err
-	}
+	return config.UnmarshalJSONViaString(cll, b)
+}
+
+func (cll *ConfigLogLevel) SetFromString(enc string) error {
 	_, ok := levelToNLevel[enc]
 	if !ok {
 		return fmt.Errorf("not a log level: %s", enc)
