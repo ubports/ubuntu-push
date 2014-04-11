@@ -92,6 +92,9 @@ func fillDestConfig(destValue reflect.Value, p map[string]json.RawMessage) error
 		if !found { // assume all fields are mandatory for now
 			return fmt.Errorf("missing %s", configName)
 		}
+		if raw == nil {
+			continue
+		}
 		dest := destField.dest
 		err := json.Unmarshal([]byte(raw), dest)
 		if err != nil {
@@ -120,10 +123,20 @@ func ReadConfig(r io.Reader, destConfig interface{}) error {
 	return fillDestConfig(destValue, p1)
 }
 
-// FromJSONString is for marking config types that are represented as
-// strings originally in the JSON.
-type FromJSONString interface {
-	ConfigFromJSONString()
+// FromString are config holders that can be set by parsing a string.
+type FromString interface {
+	SetFromString(enc string) error
+}
+
+// UnmarshalJSONViaString helps unmarshalling from JSON for FromString
+// supporting config holders.
+func UnmarshalJSONViaString(dest FromString, b []byte) error {
+	var enc string
+	err := json.Unmarshal(b, &enc)
+	if err != nil {
+		return err
+	}
+	return dest.SetFromString(enc)
 }
 
 // ConfigTimeDuration can hold a time.Duration in a configuration struct,
@@ -132,16 +145,12 @@ type ConfigTimeDuration struct {
 	time.Duration
 }
 
-func (ctd *ConfigTimeDuration) ConfigFromJSONString() {}
-
 func (ctd *ConfigTimeDuration) UnmarshalJSON(b []byte) error {
-	var enc string
-	var v time.Duration
-	err := json.Unmarshal(b, &enc)
-	if err != nil {
-		return err
-	}
-	v, err = time.ParseDuration(enc)
+	return UnmarshalJSONViaString(ctd, b)
+}
+
+func (ctd *ConfigTimeDuration) SetFromString(enc string) error {
+	v, err := time.ParseDuration(enc)
 	if err != nil {
 		return err
 	}
@@ -157,15 +166,12 @@ func (ctd ConfigTimeDuration) TimeDuration() time.Duration {
 // ConfigHostPort can hold a host:port string in a configuration struct.
 type ConfigHostPort string
 
-func (chp *ConfigHostPort) ConfigFromJSONString() {}
-
 func (chp *ConfigHostPort) UnmarshalJSON(b []byte) error {
-	var enc string
-	err := json.Unmarshal(b, &enc)
-	if err != nil {
-		return err
-	}
-	_, _, err = net.SplitHostPort(enc)
+	return UnmarshalJSONViaString(chp, b)
+}
+
+func (chp *ConfigHostPort) SetFromString(enc string) error {
+	_, _, err := net.SplitHostPort(enc)
 	if err != nil {
 		return err
 	}
@@ -212,38 +218,38 @@ func LoadFile(p, baseDir string) ([]byte, error) {
 
 // used to implement getting config values with flag.Parse()
 type val struct {
-	treatment string // b(bool)|q(uoted string) or empty
+	destField destField
 	staging   map[string]json.RawMessage
-	name      string
 }
 
 func (v *val) String() string { // used to show default
-	return string(v.staging[v.name])
+	return string(v.staging[v.destField.configName()])
 }
 
 func (v *val) IsBoolFlag() bool {
-	return v.treatment == "b"
+	return v.destField.fld.Type.Kind() == reflect.Bool
 }
 
 func (v *val) Set(s string) error {
-	var raw json.RawMessage
-	switch v.treatment {
-	case "q":
-		b, err := json.Marshal(s)
-		if err != nil {
-			return err
-		}
-		raw = json.RawMessage(b)
-	case "b":
+	raw := json.RawMessage(nil)
+	switch d := v.destField.dest.(type) {
+	case *string:
+		*d = s
+	case *bool:
 		bit, err := strconv.ParseBool(s)
 		if err != nil {
 			return err
 		}
-		raw = json.RawMessage(strconv.FormatBool(bit))
+		*d = bit
+	case FromString:
+		err := d.SetFromString(s)
+		if err != nil {
+			return err
+		}
 	default:
 		raw = json.RawMessage(s)
 	}
-	v.staging[v.name] = raw
+	v.staging[v.destField.configName()] = raw
 	return nil
 }
 
@@ -283,20 +289,8 @@ func readUsingFlags(staging map[string]json.RawMessage, destValue reflect.Value)
 	}
 	destStruct := destValue.Elem()
 	for destField := range traverseStruct(destStruct) {
-		configName := destField.configName()
-		treatment := ""
-		switch destField.fld.Type.Kind() {
-		case reflect.Bool:
-			treatment = "b"
-		case reflect.String:
-			treatment = "q"
-		default:
-			if _, ok := destField.dest.(FromJSONString); ok {
-				treatment = "q"
-			}
-		}
 		help := destField.fld.Tag.Get("help")
-		flag.Var(&val{treatment, staging, configName}, configName, help)
+		flag.Var(&val{destField, staging}, destField.configName(), help)
 	}
 	flag.Var(&readConfigAtVal{staging}, "cfg@", "get config values from file")
 	flag.Parse()
