@@ -14,6 +14,7 @@ import json
 import os
 import psutil
 import datetime
+import subprocess
 
 from push_notifications import config
 from autopilot.testcase import AutopilotTestCase
@@ -101,15 +102,31 @@ class PushNotificationTestBase(AutopilotTestCase):
         """
         return self.configparser[self.environment][self.KEY_SERVER_LISTENER_URL]
 
+    def _control_client(self, command):
+        """
+        start/stop/restart the ubuntu-push-client using initctl
+        """        
+        args = '{} ubuntu-push-client'.format(command)
+        subprocess.call(['initctl', args])
+    
+    def stop_push_client(self):
+        """
+        Stop the push client
+        """
+        self._control_client('stop')
+
+    def start_push_client(self):
+        """
+        Start the push client
+        """
+        self._control_client('start')
+
     def restart_push_client(self):
         """
         Restart the push client
-        Process should re-launch automatically
         """
-        for proc in psutil.process_iter():
-            if proc.name == 'ubuntu-push-client':
-                proc.kill()
-
+        self._control_client('restart')
+        
     def write_client_test_config(self, server_address):
         """
         Write the test server address to client config file
