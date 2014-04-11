@@ -22,10 +22,51 @@ from push_notifications.tests import PushNotificationMessage
 class TestPushClient(PushNotificationTestBase):
     """ Tests a Push notification can be sent and received """
 
-    def test_get_config(self):
-        msg = PushNotificationMessage(expire_after="2015-12-19T16:39:57-08:00")      
-        server_add = self.get_push_server_listener_address()
-        response = self.send_push_broadcast_notification(server_add, msg.json())
+    def _validate_response(self, response, expected_status_code='200'):
+        """
+        Validate the received response status code against expected code
+        """
         status = response[0]['status']
-        self.assertThat(status, Equals('200'))
+        self.assertThat(status, Equals(expected_status_code))
 
+    def test_broadcast_push_notification(self):
+        """
+        Positive test case to send a valid broadcast push notification
+        to the client and validate that a notification message is displayed
+        """
+        msg = self.create_push_message()
+        response = self.send_push_broadcast_notification(msg.json())
+        self._validate_response(response)
+
+        # TODO validate that message is received on client
+
+    def test_expired_broadcast_push_notification(self):
+        """
+        Send an expired broadcast notification message to server
+        """
+        msg = self.create_push_message(expire_after=self.get_past_iso_time())
+        response = self.send_push_broadcast_notification(msg.json())
+        # 400 status is received for an expired message
+        self._validate_response(response, expected_status_code='400')
+
+        # TODO validate that message is not received on client
+
+    def test_near_expiry_broadcast_push_notification(self):
+        """
+        Send a broadcast message with a short validity time
+        """
+        msg = self.create_push_message(expire_after=self.get_near_future_iso_time())
+        response = self.send_push_broadcast_notification(msg.json())
+        self._validate_response(response)
+
+        # TODO validate that message is received on client
+
+    def test_just_expired_broadcast_push_notification(self):
+        """
+        Send a broadcast message which has just expired
+        """
+        msg = self.create_push_message(expire_after=self.get_near_past_iso_time())
+        response = self.send_push_broadcast_notification(msg.json())
+        self._validate_response(response)
+
+        # TODO validate that message is not received on client

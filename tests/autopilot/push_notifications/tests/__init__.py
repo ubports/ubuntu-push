@@ -13,6 +13,7 @@ import httplib2
 import json
 import os
 import psutil
+import datetime
 
 from push_notifications import config
 from autopilot.testcase import AutopilotTestCase
@@ -126,20 +127,88 @@ class PushNotificationTestBase(AutopilotTestCase):
         with open(abs_config_file, 'w+') as outfile:
             json.dump(config, outfile, indent=4)
 
-    def send_push_broadcast_notification(self, server_address, json_data):
+    def send_push_broadcast_notification(self, msg_json):
         """
-        Send the specified push message to the server
+        Send the specified push message to the server broadcast url
         using an HTTP POST command
         """
-        broadcast_url = server_address + self.PUSH_SERVER_BROADCAST_URL
+        broadcast_url = self.get_push_server_listener_address() + self.PUSH_SERVER_BROADCAST_URL
         headers = {'Content-type': self.PUSH_MIME_TYPE}
         response = self.http.request(
-            broadcast_url, 'POST', headers=headers, body=json_data)
+            broadcast_url, 'POST', headers=headers, body=msg_json)
         return response
+
+    def create_push_message(self, channel='system', data='', expire_after=''):
+        """
+        Return a new push msg
+        If no expiry time is given, a future date will be assigned
+        """
+        if expire_after == '':
+            expire_after = self.get_future_iso_time()
+        return PushNotificationMessage(
+            channel=channel,
+            data=data,
+            expire_after=expire_after)
 
     def validate_push_message(self, display_message, timeout=10):
         """
         Validate that a notification message is displayed on screen
         """
+
+    def get_past_iso_time(self):
+        """
+        Return time 1 year in past in ISO format
+        """
+        return self.get_iso_time(year_offset=-1)
+
+    def get_near_past_iso_time(self):
+        """
+        Return time 1 minute in past in ISO format
+        """
+        return self.get_iso_time(min_offset=-1)
+
+    def get_near_future_iso_time(self):
+        """
+        Return time 1 minute in future in ISO format
+        """
+        return self.get_iso_time(min_offset=1)
+
+    def get_future_iso_time(self):
+        """
+        Return time 1 year in future in ISO format
+        """
+        return self.get_iso_time(year_offset=1)
+
+    def get_current_iso_time(self):
+        """
+        Return current time in ISO format
+        """
+        return self.get_iso_time()
+
+    def get_iso_time(self, year_offset=0, month_offset=0, day_offset=0, 
+            hour_offset=0, min_offset=0, sec_offset=0, tz_hour_offset=0, 
+            tz_min_offset=0):
+        """
+        Return an ISO8601 format date-time string, including time-zone
+        offset: YYYY-MM-DDTHH:MM:SS-HH:MM
+        """
+        # calulate target time based on current time and format it
+        now = datetime.datetime.now()
+        target_time = datetime.datetime(
+            year=now.year+year_offset, 
+            month=now.month+month_offset, 
+            day=now.day+day_offset, 
+            hour=now.hour+hour_offset, 
+            minute=now.minute+min_offset, 
+            second=now.second+sec_offset)
+        target_time_fmt = target_time.strftime('%Y-%m-%dT%H:%M:%S')
+        # format time zone offset
+        tz = datetime.time(
+            hour=tz_hour_offset,
+            minute=tz_min_offset)
+        tz_fmt = tz.strftime('%H:%M')
+        # combine target time and time zone offset
+        iso_time = '{0}-{1}'.format(target_time_fmt, tz_fmt)
+        return iso_time
 
 
