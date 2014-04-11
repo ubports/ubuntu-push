@@ -217,8 +217,8 @@ type val struct {
 	name      string
 }
 
-func (v *val) String() string {
-	return ""
+func (v *val) String() string { // used to show default
+	return string(v.staging[v.name])
 }
 
 func (v *val) IsBoolFlag() bool {
