@@ -308,12 +308,12 @@ func (client *PushClient) handleNotification(msg *session.Notification) error {
 
 // handleClick deals with the user clicking a notification
 func (client *PushClient) handleClick(action_id string) error {
-	if action_id == ACTION_ID_SNOWFLAKE {
-		// it doesn't get much simpler...
-		urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
-		return urld.DispatchURL("settings:///system/system-update")
+	if action_id != ACTION_ID_SNOWFLAKE {
+		return nil
 	}
-	return nil
+	// it doesn't get much simpler...
+	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
+	return urld.DispatchURL("settings:///system/system-update")
 }
 
 // doLoop connects events with their handlers
