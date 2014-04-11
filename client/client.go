@@ -95,13 +95,13 @@ func NewPushClient(configPath string, leveldbPath string) *PushClient {
 
 // configure loads its configuration, and sets it up.
 func (client *PushClient) configure() error {
-	f, err := os.Open(client.configPath)
+	_, err := os.Stat(client.configPath)
 	if err != nil {
-		return fmt.Errorf("opening config: %v", err)
+		return fmt.Errorf("config: %v", err)
 	}
-	err = config.ReadConfig(f, &client.config)
+	err = config.ReadFiles(&client.config, client.configPath, "<flags>")
 	if err != nil {
-		return fmt.Errorf("reading config: %v", err)
+		return fmt.Errorf("config: %v", err)
 	}
 	// ignore spaces
 	client.config.Addr = strings.Replace(client.config.Addr, " ", "", -1)
