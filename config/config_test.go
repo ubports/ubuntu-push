@@ -18,6 +18,9 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
+	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -229,4 +232,85 @@ func (s *configSuite) TestCompareConfig(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, []string{"b", "c_list", "d"})
 
+}
+
+type testConfig3 struct {
+	A bool
+	B string
+	C []string `json:"c_list"`
+	D ConfigTimeDuration
+	E ConfigHostPort
+	F string
+}
+
+type configFlagsSuite struct{}
+
+var _ = Suite(&configFlagsSuite{})
+
+func (s *configFlagsSuite) SetUpTest(c *C) {
+	flag.CommandLine = flag.NewFlagSet("cmd", flag.PanicOnError)
+	flag.CommandLine.SetOutput(ioutil.Discard)
+}
+
+func (s *configFlagsSuite) TestReadUsingFlags(c *C) {
+	os.Args = []string{"cmd", "-a=0", "-b=foo", "-c_list", `["x","y"]`, "-d", "10s", "-e=localhost:80"}
+	var cfg testConfig3
+	p := make(map[string]json.RawMessage)
+	err := readUsingFlags(p, reflect.ValueOf(&cfg))
+	c.Assert(err, IsNil)
+	c.Check(p, DeepEquals, map[string]json.RawMessage{
+		"a":      json.RawMessage("false"),
+		"b":      json.RawMessage(`"foo"`),
+		"c_list": json.RawMessage(`["x","y"]`),
+		"d":      json.RawMessage(`"10s"`),
+		"e":      json.RawMessage(`"localhost:80"`),
+	})
+}
+
+func (s *configFlagsSuite) TestReadUsingFlagsError(c *C) {
+	os.Args = []string{"cmd", "-a=zoo"}
+	var cfg testConfig3
+	p := make(map[string]json.RawMessage)
+	c.Check(func() { readUsingFlags(p, reflect.ValueOf(&cfg)) }, PanicMatches, ".*invalid boolean.*-a.*")
+}
+
+func (s *configFlagsSuite) TestReadFilesAndFlags(c *C) {
+	// test <flags> pseudo file
+	os.Args = []string{"cmd", "-a=42"}
+	tmpDir := c.MkDir()
+	cfgPath := filepath.Join(tmpDir, "cfg.json")
+	err := ioutil.WriteFile(cfgPath, []byte(`{"b": "x", "c_list": ["y", "z"]}`), os.ModePerm)
+	c.Assert(err, IsNil)
+	var cfg testConfig1
+	err = ReadFiles(&cfg, cfgPath, "<flags>")
+	c.Assert(err, IsNil)
+	c.Check(cfg.A, Equals, 42)
+	c.Check(cfg.B, Equals, "x")
+	c.Check(cfg.C, DeepEquals, []string{"y", "z"})
+}
+
+func (s *configFlagsSuite) TestReadFilesAndFlagsConfigAtSupport(c *C) {
+	// test <flags> pseudo file
+	tmpDir := c.MkDir()
+	cfgPath := filepath.Join(tmpDir, "cfg.json")
+	os.Args = []string{"cmd", "-a=42", fmt.Sprintf("-cfg@=%s", cfgPath)}
+	err := ioutil.WriteFile(cfgPath, []byte(`{"b": "x", "c_list": ["y", "z"]}`), os.ModePerm)
+	c.Assert(err, IsNil)
+	var cfg testConfig1
+	err = ReadFiles(&cfg, "<flags>")
+	c.Assert(err, IsNil)
+	c.Check(cfg.A, Equals, 42)
+	c.Check(cfg.B, Equals, "x")
+	c.Check(cfg.C, DeepEquals, []string{"y", "z"})
+}
+
+func (s *configFlagsSuite) TestReadUsingFlagsAlreadyParsed(c *C) {
+	os.Args = []string{"cmd"}
+	flag.Parse()
+	var cfg testConfig3
+	p := make(map[string]json.RawMessage)
+	err := readUsingFlags(p, reflect.ValueOf(&cfg))
+	c.Assert(err, ErrorMatches, "too late, flags already parsed")
+	err = ReadFiles(&cfg, "<flags>")
+	c.Assert(err, ErrorMatches, "too late, flags already parsed")
 }

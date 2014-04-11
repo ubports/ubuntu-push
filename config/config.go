@@ -20,6 +20,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -118,11 +120,19 @@ func ReadConfig(r io.Reader, destConfig interface{}) error {
 	return fillDestConfig(destValue, p1)
 }
 
+// FromJSONString is for marking config types that are represented as
+// strings originally in the JSON.
+type FromJSONString interface {
+	ConfigFromJSONString()
+}
+
 // ConfigTimeDuration can hold a time.Duration in a configuration struct,
 // that is parsed from a string as supported by time.ParseDuration.
 type ConfigTimeDuration struct {
 	time.Duration
 }
+
+func (ctd *ConfigTimeDuration) ConfigFromJSONString() {}
 
 func (ctd *ConfigTimeDuration) UnmarshalJSON(b []byte) error {
 	var enc string
@@ -146,6 +156,8 @@ func (ctd ConfigTimeDuration) TimeDuration() time.Duration {
 
 // ConfigHostPort can hold a host:port string in a configuration struct.
 type ConfigHostPort string
+
+func (chp *ConfigHostPort) ConfigFromJSONString() {}
 
 func (chp *ConfigHostPort) UnmarshalJSON(b []byte) error {
 	var enc string
@@ -198,23 +210,123 @@ func LoadFile(p, baseDir string) ([]byte, error) {
 	return ioutil.ReadFile(p)
 }
 
-// ReadFiles reads configuration from a set of files. Uses ReadConfig internally.
+// used to implement getting config values with flag.Parse()
+type val struct {
+	treatment string // b(bool)|s(tringify) or empty
+	staging   map[string]json.RawMessage
+	name      string
+}
+
+func (v *val) String() string {
+	return ""
+}
+
+func (v *val) IsBoolFlag() bool {
+	return v.treatment == "b"
+}
+
+func (v *val) Set(s string) error {
+	var raw json.RawMessage
+	switch v.treatment {
+	case "b":
+		bit, err := strconv.ParseBool(s)
+		if err != nil {
+			return err
+		}
+		b, err := json.Marshal(bit)
+		if err != nil {
+			return err
+		}
+		raw = json.RawMessage(b)
+	case "s":
+		b, err := json.Marshal(s)
+		if err != nil {
+			return err
+		}
+		raw = json.RawMessage(b)
+	default:
+		raw = json.RawMessage(s)
+	}
+	v.staging[v.name] = raw
+	return nil
+}
+
+func readOneConfig(staging map[string]json.RawMessage, cfgPath string) error {
+	r, err := os.Open(cfgPath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	err = json.NewDecoder(r).Decode(&staging)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// used to implement -cfg@=
+type readConfigAtVal struct {
+	staging map[string]json.RawMessage
+}
+
+func (v *readConfigAtVal) String() string {
+	return "<config.json>"
+}
+
+func (v *readConfigAtVal) Set(path string) error {
+	return readOneConfig(v.staging, path)
+}
+
+// readUsingFlags gets config values from command line flags.
+func readUsingFlags(staging map[string]json.RawMessage, destValue reflect.Value) error {
+	if flag.Parsed() {
+		return fmt.Errorf("too late, flags already parsed")
+	}
+	destStruct := destValue.Elem()
+	for destField := range traverseStruct(destStruct) {
+		configName := destField.configName()
+		treatment := ""
+		switch destField.fld.Type.Kind() {
+		case reflect.Bool:
+			treatment = "b"
+		case reflect.String:
+			treatment = "s"
+		default:
+			if _, ok := destField.dest.(FromJSONString); ok {
+				treatment = "s"
+			}
+		}
+		help := destField.fld.Tag.Get("help")
+		flag.Var(&val{treatment, staging, configName}, configName, help)
+	}
+	flag.Var(&readConfigAtVal{staging}, "cfg@", "get config values from file")
+	flag.Parse()
+	return nil
+}
+
+// ReadFiles reads configuration from a set of files. <flags> can be
+// used as a pseudo file-path, it will consider command line flags,
+// invoking flag.Parse(). Among those -cfg@=<file> can be used to get
+// further config values from file.
 func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
 	destValue, err := checkDestConfig("destConfig", destConfig)
 	if err != nil {
 		return err
 	}
 	// do the parsing in two phases for better error handling
-	var p1 map[string]json.RawMessage
+	p1 := make(map[string]json.RawMessage)
 	readOne := false
 	for _, cfgPath := range cfgFpaths {
-		if _, err := os.Stat(cfgPath); err == nil {
-			r, err := os.Open(cfgPath)
+		if cfgPath == "<flags>" {
+			err := readUsingFlags(p1, destValue)
 			if err != nil {
 				return err
 			}
-			defer r.Close()
-			err = json.NewDecoder(r).Decode(&p1)
+			readOne = true
+			continue
+		}
+		if _, err := os.Stat(cfgPath); err == nil {
+			err := readOneConfig(p1, cfgPath)
 			if err != nil {
 				return err
 			}
