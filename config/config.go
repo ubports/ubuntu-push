@@ -303,6 +303,10 @@ func readUsingFlags(staging map[string]json.RawMessage, destValue reflect.Value)
 	return nil
 }
 
+// IgnoreParsedFlags will just have ReadFiles ignore <flags> if the
+// command line was already parsed.
+var IgnoreParsedFlags = false
+
 // ReadFiles reads configuration from a set of files. <flags> can be
 // used as a pseudo file-path, it will consider command line flags,
 // invoking flag.Parse(). Among those -cfg@=<file> can be used to get
@@ -337,10 +341,6 @@ func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
 	}
 	return fillDestConfig(destValue, p1)
 }
-
-// IgnoreParsedFlags will just have ReadFiles ignore <flags> if the
-// command line was already parsed.
-var IgnoreParsedFlags = false
 
 // CompareConfigs compares the two given configuration structures. It returns a list of differing fields or nil if the config contents are the same.
 func CompareConfig(config1, config2 interface{}) ([]string, error) {
