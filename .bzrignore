@@ -13,4 +13,3 @@ debian/*.EX
 debian/*.substvars
 ubuntu-push-client
 push-server-dev
-precommit

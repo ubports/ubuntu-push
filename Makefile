@@ -65,10 +65,6 @@ format:
 check-format:
 	scripts/check_fmt $(PROJECT)
 
-try-build:
-	go build -o $(TMP_FILE) ubuntu-push-client.go
-	@rm $(TMP_FILE)
-
 protocol-diagrams: protocol/state-diag-client.svg protocol/state-diag-session.svg
 %.svg: %.gv
 	# requires graphviz installed
