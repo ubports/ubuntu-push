@@ -142,7 +142,7 @@ func (cll *ConfigLogLevel) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// LogLevel returns the log level string held in cll.
-func (cll ConfigLogLevel) LogLevel() string {
+// Level returns the log level string held in cll.
+func (cll ConfigLogLevel) Level() string {
 	return string(cll)
 }

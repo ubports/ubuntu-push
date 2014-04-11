@@ -150,7 +150,7 @@ func (s *loggerSuite) TestReadConfigLogLevel(c *C) {
 	var cfg testLogLevelConfig
 	err := config.ReadConfig(buf, &cfg)
 	c.Assert(err, IsNil)
-	c.Check(cfg.Lvl.LogLevel(), Equals, "debug")
+	c.Check(cfg.Lvl.Level(), Equals, "debug")
 }
 
 func (s *loggerSuite) TestReadConfigLogLevelErrors(c *C) {
