@@ -216,11 +216,11 @@ func LoadFile(p, baseDir string) ([]byte, error) {
 // used to implement getting config values with flag.Parse()
 type val struct {
 	destField destField
-	staging   map[string]json.RawMessage
+	accu      map[string]json.RawMessage
 }
 
 func (v *val) String() string { // used to show default
-	return string(v.staging[v.destField.configName()])
+	return string(v.accu[v.destField.configName()])
 }
 
 func (v *val) IsBoolFlag() bool {
@@ -249,17 +249,17 @@ func (v *val) Set(s string) error {
 	if err != nil {
 		return err
 	}
-	v.staging[v.destField.configName()] = marshalled
+	v.accu[v.destField.configName()] = marshalled
 	return nil
 }
 
-func readOneConfig(staging map[string]json.RawMessage, cfgPath string) error {
+func readOneConfig(accu map[string]json.RawMessage, cfgPath string) error {
 	r, err := os.Open(cfgPath)
 	if err != nil {
 		return err
 	}
 	defer r.Close()
-	err = json.NewDecoder(r).Decode(&staging)
+	err = json.NewDecoder(r).Decode(&accu)
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func readOneConfig(staging map[string]json.RawMessage, cfgPath string) error {
 
 // used to implement -cfg@=
 type readConfigAtVal struct {
-	staging map[string]json.RawMessage
+	accu map[string]json.RawMessage
 }
 
 func (v *readConfigAtVal) String() string {
@@ -276,11 +276,11 @@ func (v *readConfigAtVal) String() string {
 }
 
 func (v *readConfigAtVal) Set(path string) error {
-	return readOneConfig(v.staging, path)
+	return readOneConfig(v.accu, path)
 }
 
 // readUsingFlags gets config values from command line flags.
-func readUsingFlags(staging map[string]json.RawMessage, destValue reflect.Value) error {
+func readUsingFlags(accu map[string]json.RawMessage, destValue reflect.Value) error {
 	if flag.Parsed() {
 		if IgnoreParsedFlags {
 			return nil
@@ -290,9 +290,9 @@ func readUsingFlags(staging map[string]json.RawMessage, destValue reflect.Value)
 	destStruct := destValue.Elem()
 	for destField := range traverseStruct(destStruct) {
 		help := destField.fld.Tag.Get("help")
-		flag.Var(&val{destField, staging}, destField.configName(), help)
+		flag.Var(&val{destField, accu}, destField.configName(), help)
 	}
-	flag.Var(&readConfigAtVal{staging}, "cfg@", "get config values from file")
+	flag.Var(&readConfigAtVal{accu}, "cfg@", "get config values from file")
 	flag.Parse()
 	return nil
 }
