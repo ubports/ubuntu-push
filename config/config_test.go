@@ -261,16 +261,12 @@ func (s *configFlagsSuite) TestReadUsingFlags(c *C) {
 	err := readUsingFlags(p, reflect.ValueOf(&cfg))
 	c.Assert(err, IsNil)
 	c.Check(p, DeepEquals, map[string]json.RawMessage{
-		"a":      nil,
-		"b":      nil,
+		"a":      json.RawMessage("true"),
+		"b":      json.RawMessage(`"foo"`),
 		"c_list": json.RawMessage(`["x","y"]`),
-		"d":      nil,
-		"e":      nil,
+		"d":      json.RawMessage(`"10s"`),
+		"e":      json.RawMessage(`"localhost:80"`),
 	})
-	c.Check(cfg.A, Equals, true)
-	c.Check(cfg.B, Equals, "foo")
-	c.Check(cfg.D.TimeDuration(), Equals, 10*time.Second)
-	c.Check(cfg.E.HostPort(), Equals, "localhost:80")
 }
 
 func (s *configFlagsSuite) TestReadUsingFlagsBoolError(c *C) {
@@ -278,13 +274,6 @@ func (s *configFlagsSuite) TestReadUsingFlagsBoolError(c *C) {
 	var cfg testConfig3
 	p := make(map[string]json.RawMessage)
 	c.Check(func() { readUsingFlags(p, reflect.ValueOf(&cfg)) }, PanicMatches, ".*invalid boolean.*-a.*")
-}
-
-func (s *configFlagsSuite) TestReadUsingFlagsFromStringError(c *C) {
-	os.Args = []string{"cmd", "-d=zoo"}
-	var cfg testConfig3
-	p := make(map[string]json.RawMessage)
-	c.Check(func() { readUsingFlags(p, reflect.ValueOf(&cfg)) }, PanicMatches, ".*invalid duration.*")
 }
 
 func (s *configFlagsSuite) TestReadFilesAndFlags(c *C) {

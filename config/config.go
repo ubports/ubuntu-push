@@ -92,9 +92,6 @@ func fillDestConfig(destValue reflect.Value, p map[string]json.RawMessage) error
 		if !found { // assume all fields are mandatory for now
 			return fmt.Errorf("missing %s", configName)
 		}
-		if raw == nil {
-			continue
-		}
 		dest := destField.dest
 		err := json.Unmarshal([]byte(raw), dest)
 		if err != nil {
@@ -230,26 +227,29 @@ func (v *val) IsBoolFlag() bool {
 	return v.destField.fld.Type.Kind() == reflect.Bool
 }
 
-func (v *val) Set(s string) error {
-	raw := json.RawMessage(nil)
-	switch d := v.destField.dest.(type) {
-	case *string:
-		*d = s
+func (v *val) marshalAsNeeded(s string) (json.RawMessage, error) {
+	var toMarshal interface{}
+	switch v.destField.dest.(type) {
+	case *string, FromString:
+		toMarshal = s
 	case *bool:
 		bit, err := strconv.ParseBool(s)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		*d = bit
-	case FromString:
-		err := d.SetFromString(s)
-		if err != nil {
-			return err
-		}
+		toMarshal = bit
 	default:
-		raw = json.RawMessage(s)
+		return json.RawMessage(s), nil
 	}
-	v.staging[v.destField.configName()] = raw
+	return json.Marshal(toMarshal)
+}
+
+func (v *val) Set(s string) error {
+	marshalled, err := v.marshalAsNeeded(s)
+	if err != nil {
+		return err
+	}
+	v.staging[v.destField.configName()] = marshalled
 	return nil
 }
 
