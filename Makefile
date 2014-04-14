@@ -14,8 +14,6 @@ GODEPS += code.google.com/p/gosqlite/sqlite3
 GODEPS += gopkg.in/qml.v0
 GODEPS += gopkg.in/niemeyer/uoneauth.v1
 
-TMP_FILE := $(shell mktemp -u)
-
 TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
 
 bootstrap:
