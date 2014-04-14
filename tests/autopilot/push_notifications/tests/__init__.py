@@ -106,8 +106,7 @@ class PushNotificationTestBase(AutopilotTestCase):
         """
         start/stop/restart the ubuntu-push-client using initctl
         """        
-        args = '{} ubuntu-push-client'.format(command)
-        subprocess.call(['initctl', args])
+        subprocess.call(['initctl', command, 'ubuntu-push-client'])
     
     def stop_push_client(self):
         """
