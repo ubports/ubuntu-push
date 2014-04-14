@@ -19,6 +19,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -43,6 +44,10 @@ type configuration struct {
 }
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: acceptancclient [options] <config.json> <device id>\n")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 	narg := flag.NArg()
 	switch {
@@ -72,9 +77,11 @@ func main() {
 		Insecure:     *insecureFlag,
 	}
 	log.Printf("with: %#v", session)
-	session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(configFName))
-	if err != nil {
-		log.Fatalf("reading CertPEMFile: %v", err)
+	if !*insecureFlag {
+		session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(configFName))
+		if err != nil {
+			log.Fatalf("reading CertPEMFile: %v", err)
+		}
 	}
 	err = session.Dial()
 	if err != nil {

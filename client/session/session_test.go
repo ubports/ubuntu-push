@@ -317,6 +317,29 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
 	c.Check(sess.deliveryHosts, DeepEquals, []string{"baz:443"})
 }
 
+func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
+	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	sess := &ClientSession{
+		getHost: hostGetter,
+		ClientSessionConfig: ClientSessionConfig{
+			HostsCachingExpiryTime: 2 * time.Hour,
+		},
+		timeSince: time.Since,
+	}
+	err := sess.getHosts()
+	c.Assert(err, IsNil)
+	hostGetter.hosts = []string{"baz:443"}
+	// cached
+	err = sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, []string{"foo:443", "bar:443"})
+	// reset
+	sess.resetHosts()
+	err = sess.getHosts()
+	c.Assert(err, IsNil)
+	c.Check(sess.deliveryHosts, DeepEquals, []string{"baz:443"})
+}
+
 /****************************************************************
   startConnectionAttempt()/nextHostToTry()/started tests
 ****************************************************************/
@@ -587,7 +610,7 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 				json.RawMessage("false"), // shouldn't happen but robust
 				json.RawMessage(`{"img1/m1":[102,"tubular"]}`),
 			},
-		}, protocol.NotificationsMsg{}}
+		}, protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
@@ -618,7 +641,7 @@ func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
 			ChanId:   "0",
 			TopLevel: 2,
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-		}, protocol.NotificationsMsg{}}
+		}, protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	failure := errors.New("ACK ACK ACK")
@@ -635,7 +658,7 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 			ChanId:   "something awful",
 			TopLevel: 2,
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-		}, protocol.NotificationsMsg{}}
+		}, protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
@@ -652,7 +675,7 @@ func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
 			ChanId:   "0",
 			TopLevel: 2,
 			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-		}, protocol.NotificationsMsg{}}
+		}, protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
 	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
 	s.upCh <- nil // ack ok
 	// start returns with error
@@ -662,6 +685,37 @@ func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
 	// and nak'ed it
 	c.Check(len(s.downCh), Equals, 1)
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"nak"})
+}
+
+/****************************************************************
+  handleConnBroken() tests
+****************************************************************/
+
+func (s *msgSuite) TestHandleConnBrokenUnkwown(c *C) {
+	msg := serverMsg{"connbroken",
+		protocol.BroadcastMsg{}, protocol.NotificationsMsg{},
+		protocol.ConnBrokenMsg{
+			Reason: "REASON",
+		},
+	}
+	go func() { s.errCh <- s.sess.handleConnBroken(&msg) }()
+	c.Check(<-s.errCh, ErrorMatches, "server broke connection: REASON")
+	c.Check(s.sess.State(), Equals, Error)
+}
+
+func (s *msgSuite) TestHandleConnBrokenHostMismatch(c *C) {
+	msg := serverMsg{"connbroken",
+		protocol.BroadcastMsg{}, protocol.NotificationsMsg{},
+		protocol.ConnBrokenMsg{
+			Reason: protocol.BrokenHostMismatch,
+		},
+	}
+	s.sess.deliveryHosts = []string{"foo:443", "bar:443"}
+	go func() { s.errCh <- s.sess.handleConnBroken(&msg) }()
+	c.Check(<-s.errCh, ErrorMatches, "server broke connection: host-mismatch")
+	c.Check(s.sess.State(), Equals, Error)
+	// hosts were reset
+	c.Check(s.sess.deliveryHosts, IsNil)
 }
 
 /****************************************************************
@@ -726,6 +780,17 @@ func (s *loopSuite) TestLoopBroadcast(c *C) {
 	failure := errors.New("ack")
 	s.upCh <- failure
 	c.Check(<-s.errCh, Equals, failure)
+}
+
+func (s *loopSuite) TestLoopConnBroken(c *C) {
+	c.Check(s.sess.State(), Equals, Running)
+	broken := protocol.ConnBrokenMsg{
+		Type:   "connbroken",
+		Reason: "REASON",
+	}
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	s.upCh <- broken
+	c.Check(<-s.errCh, NotNil)
 }
 
 /****************************************************************

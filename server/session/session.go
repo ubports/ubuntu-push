@@ -62,6 +62,9 @@ func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeou
 	if err != nil {
 		return err
 	}
+	if inMsg == nil { // no answer expected, breaking connection
+		return &broker.ErrAbort{"session broken for reason"}
+	}
 	err = proto.ReadMessage(inMsg)
 	if err != nil {
 		return err
@@ -76,6 +79,7 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 	pingTimer := time.NewTimer(pingInterval)
 	intervalStart := time.Now()
 	ch := sess.SessionChannel()
+Loop:
 	for {
 		select {
 		case <-pingTimer.C:
@@ -90,10 +94,17 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 				return &broker.ErrAbort{"expected PONG message"}
 			}
 			pingTimer.Reset(pingInterval)
-		case exchg := <-ch:
-			// xxx later can use ch closing for shutdown/reset
+		case exchg, ok := <-ch:
 			pingTimer.Stop()
+			if !ok {
+				return &broker.ErrAbort{"terminated"}
+			}
 			outMsg, inMsg, err := exchg.Prepare(sess)
+			if err == broker.ErrNop { // nothing to do
+				pingTimer.Reset(pingInterval)
+				intervalStart = time.Now()
+				continue Loop
+			}
 			if err != nil {
 				return err
 			}

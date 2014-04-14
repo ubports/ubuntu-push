@@ -18,6 +18,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net"
 	"net/http"
 	"os"
@@ -37,6 +38,8 @@ type configuration struct {
 	server.DevicesParsedConfig
 	// api http server configuration
 	server.HTTPServeParsedConfig
+	// delivery domain
+	DeliveryDomain string `json:"delivery_domain"`
 }
 
 func main() {
@@ -60,11 +63,25 @@ func main() {
 	storeForRequest := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
 		return sto, nil
 	}
+	lst, err := net.Listen("tcp", cfg.Addr())
+	if err != nil {
+		server.BootLogFatalf("start device listening: %v", err)
+	}
 	mux := api.MakeHandlersMux(storeForRequest, broker, logger)
+	// & /delivery-hosts
+	mux.HandleFunc("/delivery-hosts", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.Encode(map[string]interface{}{
+			"hosts":  []string{lst.Addr().String()},
+			"domain": cfg.DeliveryDomain,
+		})
+	})
 	handler := api.PanicTo500Handler(mux, logger)
 	go server.HTTPServeRunner(nil, handler, &cfg.HTTPServeParsedConfig)()
 	// listen for device connections
-	server.DevicesRunner(nil, func(conn net.Conn) error {
+	server.DevicesRunner(lst, func(conn net.Conn) error {
 		track := session.NewTracker(logger)
 		return session.Session(conn, broker, cfg, track)
 	}, logger, &cfg.DevicesParsedConfig)()

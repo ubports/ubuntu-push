@@ -1,3 +1,15 @@
+ubuntu-push (0.2+14.04.20140411-0ubuntu1) trusty; urgency=medium
+
+  [ John Lenton ]
+  * New upstream release.
+
+  [ Richard Huddie ]
+  * added basic autopilot framework
+  * configparser and http post updates
+  * removed tests folder
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Fri, 11 Apr 2014 18:31:57 +0000
+
 ubuntu-push (0.1+14.04.20140404-0ubuntu1) trusty; urgency=low
 
   [ Tarmac ]
