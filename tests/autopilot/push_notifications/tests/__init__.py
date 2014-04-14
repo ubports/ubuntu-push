@@ -124,7 +124,8 @@ class PushNotificationTestBase(AutopilotTestCase):
         """
         Restart the push client
         """
-        self._control_client('restart')
+        self.stop_push_client()
+        self.start_push_client()
         
     def write_client_test_config(self, server_address):
         """
