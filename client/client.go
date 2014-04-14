@@ -27,7 +27,6 @@ import (
 	"strings"
 
 	"gopkg.in/qml.v0"
-
 	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
