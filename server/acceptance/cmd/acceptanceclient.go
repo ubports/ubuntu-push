@@ -48,13 +48,18 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: acceptancclient [options] <config.json> <device id>\n")
 		flag.PrintDefaults()
 	}
+	missingArg := func(what string) {
+		fmt.Fprintf(os.Stderr, "missing %s\n", what)
+		flag.Usage()
+		os.Exit(2)
+	}
 	flag.Parse()
 	narg := flag.NArg()
 	switch {
 	case narg < 1:
-		log.Fatal("missing config file")
+		missingArg("config file")
 	case narg < 2:
-		log.Fatal("missing device-id")
+		missingArg("device-id")
 	}
 	configFName := flag.Arg(0)
 	f, err := os.Open(configFName)
