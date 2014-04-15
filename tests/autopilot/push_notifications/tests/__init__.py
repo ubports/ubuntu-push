@@ -15,6 +15,7 @@ import os
 import psutil
 import datetime
 import subprocess
+import dbus
 
 from push_notifications import config
 from autopilot.testcase import AutopilotTestCase
@@ -43,6 +44,60 @@ class PushNotificationMessage:
         """
         json_str = '{{"channel":"{0}", "data":{{{1}}}, "expire_on":"{2}"}}'
         return json_str.format(self.channel, self.data, self.expire_after)
+
+class NotificationData:
+    """
+    Class to represent notification data including
+    Device software channel
+    Device build number
+    Device model
+    Device last update
+    Data for the notification
+    """
+    channel = None
+    build_number = None
+    device = None
+    last_update = None
+    version = None
+    data = None
+    
+    def __init__(self, dbus_info=None, copy_obj=None):
+        """
+        Create a new object based on:
+        dbus_info
+        or 
+        copy_obj (creates a copy of this object)
+        """
+        if dbus_info != None:
+            self.device = dbus_info[1]
+            self.channel = dbus_info[2]
+            self.last_update = dbus_info[3]
+            self.build_number = dbus_info[4]['version']
+        elif copy_obj != None:
+            self.device = copy_obj.device
+            self.channel = copy_obj.channel
+            self.last_update = copy_obj.last_update
+            self.build_number = copy_obj.build_number
+
+    def inc_build_number(self):
+        """
+        Increment build number
+        """
+        self.build_number = str(int(self.build_number) + 1)
+
+    def dec_build_number(self):
+        """
+        Decrement build number
+        """
+        self.build_number = str(int(self.build_number) - 1)
+
+    def json(self):
+        """
+        Return json representation of info based:
+        "IMAGE-CHANNEL/DEVICE-MODEL": [BUILD-NUMBER, CHANNEL-ALIAS]"
+        """
+        json_str = '"{0}/{1}": [{2}, "{3}"]'
+        return json_str.format(self.channel, self.device, self.build_number, self.data)
 
 
 class PushNotificationTestBase(AutopilotTestCase):
@@ -78,7 +133,24 @@ class PushNotificationTestBase(AutopilotTestCase):
         self.validate_push_message(self.DEFAULT_DISPLAY_MESSAGE)
         # create http lib
         self.http = httplib2.Http()
+        # dbus
+        self.get_device_info()
 
+    def create_notification_data_copy(self):
+        """
+        Create and return a copy of the device's notification data
+        """
+        return NotificationData(copy_obj=self.notification_data)
+
+    def get_device_info(self):
+        """
+        Discover the device's model and build info
+        """
+        system_bus = dbus.SystemBus()
+        info_service = system_bus.get_object('com.canonical.SystemImage', '/Service')
+        info = info_service.Info()
+        # Store a copy of the data in self.notification_data
+        self.notification_data = NotificationData(dbus_info=info)
 
     def read_config_file(self):
         """

@@ -12,7 +12,7 @@ from __future__ import absolute_import
 from testtools.matchers import Equals
 from autopilot.matchers import Eventually
 from autopilot.introspection import dbus
-
+import autopilot.platform
 from autopilot.testcase import AutopilotTestCase
 
 from push_notifications.tests import PushNotificationTestBase
@@ -34,7 +34,13 @@ class TestPushClient(PushNotificationTestBase):
         Positive test case to send a valid broadcast push notification
         to the client and validate that a notification message is displayed
         """
-        msg = self.create_push_message()
+        # create a copy of the device's build info
+        msg_data = self.create_notification_data_copy()
+        # increment the build number to trigger an update
+        msg_data.inc_build_number()
+        # create message based on the data
+        msg = self.create_push_message(data=msg_data.json())
+        # send the notification message to the server and check response
         response = self.send_push_broadcast_notification(msg.json())
         self._validate_response(response)
 
