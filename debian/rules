@@ -2,7 +2,6 @@
 # -*- makefile -*-
 
 export DH_GOPKG := launchpad.net/ubuntu-push
-export DEB_BUILD_OPTIONS := nostrip
 export UBUNTU_PUSH_TEST_RESOURCES_ROOT := $(CURDIR)
 
 override_dh_auto_build:
