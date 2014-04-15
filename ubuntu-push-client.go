@@ -48,7 +48,7 @@ func grabName() {
 
 func main() {
 	// XXX: this is a quick hack to ensure unicity
-	grab()
+	grabName()
 
 	cfgFname, err := xdg.Config.Find("ubuntu-push-client/config.json")
 	if err != nil {
