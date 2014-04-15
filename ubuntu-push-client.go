@@ -19,12 +19,37 @@ package main
 import (
 	"log"
 
+	"launchpad.net/go-dbus/v1"
 	"launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/client"
 )
 
+const NAME = "com.ubuntu.PushNotifications"
+
+// grabName grabs ownership of the dbus name, and bails the client as
+// soon as somebody else grabs it.
+func grabName() {
+	conn, err := dbus.Connect(dbus.SessionBus)
+	if err != nil {
+		log.Fatalf("bus: %v", err)
+	}
+
+	flags := dbus.NameFlagAllowReplacement | dbus.NameFlagReplaceExisting
+	n := conn.RequestName(NAME, flags)
+	go func() {
+		for err := range n.C {
+			if err != nil {
+				log.Fatalf("FATAL: name channel got: %v", err)
+			}
+		}
+	}()
+}
+
 func main() {
+	// XXX: this is a quick hack to ensure unicity
+	grab()
+
 	cfgFname, err := xdg.Config.Find("ubuntu-push-client/config.json")
 	if err != nil {
 		log.Fatalf("unable to find a configuration file: %v", err)
