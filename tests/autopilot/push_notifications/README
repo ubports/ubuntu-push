@@ -30,8 +30,9 @@ To configure the client:
 
 Note: Tests must be run as root user
 
-1) bzr branch lp:ubuntu-push
-2) Edit ubuntu-push/tests/autopilot/push_notifications/config/push.conf:
+1) sudo apt-get install ubuntu-push-client
+2) bzr branch lp:ubuntu-push
+3) Edit ubuntu-push/tests/autopilot/push_notifications/config/push.conf:
    [default]
    environment = remote
    [remote]
@@ -41,9 +42,9 @@ Note: Tests must be run as root user
 
    The environment can be toggled using the 'environment' setting under [default] section. The addr and port settings for the chosen environment shold match required.
 
-3) cd ubuntu-push/tests/autopilot
-4) autopilot3 list push-notifications
-5) autopilot3 run push-notifications
+4) cd ubuntu-push/tests/autopilot
+5) autopilot3 list push-notifications
+6) autopilot3 run push-notifications
 
 ----------------
 Troubleshooting:
