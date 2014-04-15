@@ -22,12 +22,11 @@ from push_notifications.tests import PushNotificationMessage
 class TestPushClient(PushNotificationTestBase):
     """ Tests a Push notification can be sent and received """
 
-    def _validate_response(self, response, expected_status_code='200'):
+    def _validate_response(self, response, expected_status_code=200):
         """
         Validate the received response status code against expected code
         """
-        status = response[0]['status']
-        self.assertThat(status, Equals(expected_status_code))
+        self.assertThat(response.status, Equals(expected_status_code))
 
     def test_broadcast_push_notification(self):
         """

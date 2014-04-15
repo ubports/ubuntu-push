@@ -9,7 +9,7 @@
 
 
 import configparser
-import httplib2
+import http.client as http
 import json
 import os
 import psutil
@@ -131,8 +131,6 @@ class PushNotificationTestBase(AutopilotTestCase):
         self.restart_push_client()
         # validate that the initialisation push message is displayed
         self.validate_push_message(self.DEFAULT_DISPLAY_MESSAGE)
-        # create http lib
-        self.http = httplib2.Http()
         # dbus
         self.get_device_info()
 
@@ -223,9 +221,9 @@ class PushNotificationTestBase(AutopilotTestCase):
         """
         broadcast_url = self.get_push_server_listener_address() + self.PUSH_SERVER_BROADCAST_URL
         headers = {'Content-type': self.PUSH_MIME_TYPE}
-        response = self.http.request(
-            broadcast_url, 'POST', headers=headers, body=msg_json)
-        return response
+        conn = http.HTTPConnection(self.get_push_server_listener_address())
+        conn.request('POST', self.PUSH_SERVER_BROADCAST_URL, headers=headers, body=msg_json)
+        return conn.getresponse()        
 
     def create_push_message(self, channel='system', data='', expire_after=''):
         """
