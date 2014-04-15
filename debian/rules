@@ -2,8 +2,11 @@
 # -*- makefile -*-
 
 export DH_GOPKG := launchpad.net/ubuntu-push
-export DEB_BUILD_OPTIONS := nostrip
 export UBUNTU_PUSH_TEST_RESOURCES_ROOT := $(CURDIR)
+
+override_dh_auto_build:
+	cd $$( find ./ -type d -regex '\./[^/]*/src/launchpad.net' -printf "%h\n" | head -n1) && tar xvzf ../../externals.tgz
+	dh_auto_build --buildsystem=golang
 
 override_dh_install:
 	dh_install -Xusr/bin/cmd -Xusr/bin/dev --fail-missing

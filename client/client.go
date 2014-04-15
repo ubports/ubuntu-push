@@ -26,6 +26,7 @@ import (
 	"os"
 	"strings"
 
+	"gopkg.in/qml.v0"
 	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -40,6 +41,11 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
+)
+
+var (
+	getAuthorization = util.GetAuthorization
+	shouldGetAuth    = false
 )
 
 // ClientConfig holds the client configuration
@@ -79,6 +85,7 @@ type PushClient struct {
 	actionsCh          <-chan notifications.RawActionReply
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
+	auth               string
 }
 
 var ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
@@ -111,6 +118,17 @@ func (client *PushClient) configure() error {
 
 	// later, we'll be specifying more logging options in the config file
 	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel.Level())
+	qml.SetLogger(client.log)
+
+	// grab the authorization string from the accounts
+	// TODO: remove this condition when we have a way to deal with failing authorizations
+	if shouldGetAuth {
+		auth, err := getAuthorization()
+		if err != nil {
+			return fmt.Errorf("unable to get the authorization token from the account: %v", err)
+		}
+		client.auth = auth
+	}
 
 	// overridden for testing
 	client.idder = identifier.New()
@@ -144,8 +162,9 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		ExchangeTimeout:        client.config.ExchangeTimeout.TimeDuration(),
 		HostsCachingExpiryTime: client.config.HostsCachingExpiryTime.TimeDuration(),
 		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
-		PEM:  client.pem,
-		Info: info,
+		PEM:           client.pem,
+		Info:          info,
+		Authorization: client.auth,
 	}
 }
 
