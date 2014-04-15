@@ -1,3 +1,9 @@
+ubuntu-push (0.21-0.ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release: first auth bits, and Qt dependency.
+
+ -- John Lenton <john.lenton@canonical.com>  Tue, 15 Apr 2014 14:04:35 +0100
+
 ubuntu-push (0.2+14.04.20140411-0ubuntu1) trusty; urgency=medium
 
   [ John Lenton ]

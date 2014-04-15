@@ -29,7 +29,9 @@ type authSuite struct{}
 var _ = Suite(&authSuite{})
 
 func (s *authSuite) SetUpSuite(c *C) {
-	qml.Init(nil)
+	if os.Getenv("PUSH_AUTH_TEST") == "1" {
+		qml.Init(nil)
+	}
 }
 
 func (s *authSuite) SetUpTest(c *C) {
