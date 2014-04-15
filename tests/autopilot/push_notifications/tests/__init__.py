@@ -112,8 +112,9 @@ class PushNotificationTestBase(AutopilotTestCase):
     PUSH_MIME_TYPE = 'application/json'
     SECTION_DEFAULT = 'default'
     KEY_ENVIRONMENT = 'environment'
-    KEY_SERVER_DEVICE_URL = 'push_server_device_url'
-    KEY_SERVER_LISTENER_URL = 'push_server_listener_url'
+    KEY_ADDR = 'addr'
+    KEY_LISTENER_PORT = 'listener_port'
+    KEY_DEVICE_PORT = 'device_port'
 
     def setUp(self):
         """
@@ -123,10 +124,8 @@ class PushNotificationTestBase(AutopilotTestCase):
         super(PushNotificationTestBase, self).setUp()
         # Read the config data
         self.read_config_file()
-        # Read the server device address
-        server_device_address = self.get_push_server_device_address()
         # write server device address to the client config
-        self.write_client_test_config(server_device_address)
+        self.write_client_test_config()
         # restart the push client
         self.restart_push_client()
         # validate that the initialisation push message is displayed
@@ -159,18 +158,28 @@ class PushNotificationTestBase(AutopilotTestCase):
         self.configparser.read(config_file)
         # read the name of the environment to use (local/remote)
         self.environment = self.configparser[self.SECTION_DEFAULT][self.KEY_ENVIRONMENT]
+        addr_fmt = '{0}:{1}'
+        self.server_listener_addr = addr_fmt.format(self.get_server_addr(), self.get_listener_port())
+        self.server_device_addr = addr_fmt.format(self.get_server_addr(), self.get_device_port())
+        
 
-    def get_push_server_device_address(self):
+    def get_server_addr(self):
         """
-        Return the server device address from config file
+        Return the server address from config file
         """
-        return self.configparser[self.environment][self.KEY_SERVER_DEVICE_URL]
+        return self.configparser[self.environment][self.KEY_ADDR]
 
-    def get_push_server_listener_address(self):
+    def get_listener_port(self):
         """
-        Return the server device address from config file
+        Return the server listener port from config file
         """
-        return self.configparser[self.environment][self.KEY_SERVER_LISTENER_URL]
+        return self.configparser[self.environment][self.KEY_LISTENER_PORT]
+
+    def get_device_port(self):
+        """
+        Return the server listener port from config file
+        """
+        return self.configparser[self.environment][self.KEY_DEVICE_PORT]
 
     def _control_client(self, command):
         """
@@ -197,7 +206,7 @@ class PushNotificationTestBase(AutopilotTestCase):
         self.stop_push_client()
         self.start_push_client()
         
-    def write_client_test_config(self, server_address):
+    def write_client_test_config(self):
         """
         Write the test server address to client config file
         """
@@ -205,7 +214,7 @@ class PushNotificationTestBase(AutopilotTestCase):
         with open(self.PUSH_CLIENT_DEFAULT_CONFIG_FILE) as config_file:    
             config = json.load(config_file)
         # change server address
-        config['addr'] = self.get_push_server_device_address()
+        config['addr'] = self.server_device_addr
         # write the config json out to the ~.local address
         abs_config_file = os.path.expanduser(self.PUSH_CLIENT_CONFIG_FILE)
         config_dir = os.path.dirname(abs_config_file) 
@@ -213,15 +222,15 @@ class PushNotificationTestBase(AutopilotTestCase):
             os.makedirs(config_dir)
         with open(abs_config_file, 'w+') as outfile:
             json.dump(config, outfile, indent=4)
+            outfile.close()
 
     def send_push_broadcast_notification(self, msg_json):
         """
         Send the specified push message to the server broadcast url
         using an HTTP POST command
         """
-        broadcast_url = self.get_push_server_listener_address() + self.PUSH_SERVER_BROADCAST_URL
         headers = {'Content-type': self.PUSH_MIME_TYPE}
-        conn = http.HTTPConnection(self.get_push_server_listener_address())
+        conn = http.HTTPConnection(self.server_listener_addr)
         conn.request('POST', self.PUSH_SERVER_BROADCAST_URL, headers=headers, body=msg_json)
         return conn.getresponse()        
 
