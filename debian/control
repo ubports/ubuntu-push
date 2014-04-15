@@ -14,6 +14,7 @@ Build-Depends: debhelper (>= 9),
                libgcrypt11-dev,
                libglib2.0-dev (>= 2.31.6),
                libwhoopsie-dev,
+               libubuntuoneauth-2.0-dev,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push
 Vcs-Bzr: lp:ubuntu-push

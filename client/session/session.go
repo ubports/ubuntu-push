@@ -84,6 +84,7 @@ type ClientSessionConfig struct {
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
 	Info                   map[string]interface{}
+	Authorization          string
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -115,6 +116,8 @@ type ClientSession struct {
 	stateP *uint32
 	ErrCh  chan error
 	MsgCh  chan *Notification
+	// authorization
+	auth string
 }
 
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
@@ -142,6 +145,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		TLS:                 &tls.Config{InsecureSkipVerify: true}, // XXX
 		stateP:              &state,
 		timeSince:           time.Since,
+		auth:                conf.Authorization,
 	}
 	if sess.PEM != nil {
 		cp := x509.NewCertPool()
@@ -409,10 +413,9 @@ func (sess *ClientSession) start() error {
 		return err
 	}
 	err = proto.WriteMessage(protocol.ConnectMsg{
-		Type:     "connect",
-		DeviceId: sess.DeviceId,
-		// xxx get the SSO Authorization string from the phone
-		Authorization: "",
+		Type:          "connect",
+		DeviceId:      sess.DeviceId,
+		Authorization: sess.auth,
 		Levels:        levels,
 		Info:          sess.Info,
 	})
