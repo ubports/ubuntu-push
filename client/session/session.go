@@ -119,6 +119,8 @@ type ClientSession struct {
 	stateP *uint32
 	ErrCh  chan error
 	MsgCh  chan *Notification
+	// authorization
+	auth string
 }
 
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
@@ -197,6 +199,20 @@ func (sess *ClientSession) getHosts() error {
 		}
 	} else {
 		sess.deliveryHosts = sess.fallbackHosts
+	}
+	return nil
+}
+
+// checkAuthorization checks the authorization within the phone
+func (sess *ClientSession) checkAuthorization() error {
+	// grab the authorization string from the accounts
+	// TODO: remove this condition when we have a way to deal with failing authorizations
+	if shouldGetAuth {
+		auth, err := getAuthorization()
+		if err != nil {
+			sess.Log.Errorf("unable to get the authorization token from the account: %v", err)
+		}
+		sess.auth = auth
 	}
 	return nil
 }
@@ -392,18 +408,8 @@ func (sess *ClientSession) loop() error {
 
 // Call this when you've connected and want to start looping.
 func (sess *ClientSession) start() error {
-	// grab the authorization string from the accounts
-	// TODO: remove this condition when we have a way to deal with failing authorizations
-	var auth string
-	var err error
-	if shouldGetAuth {
-		auth, err = getAuthorization()
-		if err != nil {
-			sess.Log.Errorf("unable to get the authorization token from the account: %v", err)
-		}
-	}
 	conn := sess.getConnection()
-	err = conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to start: set deadline: %s", err)
@@ -428,7 +434,7 @@ func (sess *ClientSession) start() error {
 	err = proto.WriteMessage(protocol.ConnectMsg{
 		Type:          "connect",
 		DeviceId:      sess.DeviceId,
-		Authorization: auth,
+		Authorization: sess.auth,
 		Levels:        levels,
 		Info:          sess.Info,
 	})
@@ -463,13 +469,15 @@ func (sess *ClientSession) start() error {
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *ClientSession) run(closer func(), hostGetter, connecter, starter, looper func() error) error {
+func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter, starter, looper func() error) error {
 	closer()
-	err := hostGetter()
-	if err != nil {
+	if err := authChecker(); err != nil {
 		return err
 	}
-	err = connecter()
+	if err := hostGetter(); err != nil {
+		return err
+	}
+	err := connecter()
 	if err == nil {
 		err = starter()
 		if err == nil {
@@ -499,7 +507,7 @@ func (sess *ClientSession) Dial() error {
 		// keep on trying.
 		panic("can't Dial() without a protocol constructor.")
 	}
-	return sess.run(sess.doClose, sess.getHosts, sess.connect, sess.start, sess.loop)
+	return sess.run(sess.doClose, sess.checkAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
 func init() {

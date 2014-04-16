@@ -351,6 +351,18 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
 }
 
 /****************************************************************
+  checkAuthorization() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestChecksAuthorizationFromServer(c *C) {
+	sess := &ClientSession{}
+	c.Assert(sess.auth, Equals, "")
+	err := sess.checkAuthorization()
+	c.Assert(err, IsNil)
+	c.Check(sess.auth, Equals, "some auth")
+}
+
+/****************************************************************
   startConnectionAttempt()/nextHostToTry()/started tests
 ****************************************************************/
 
@@ -865,7 +877,7 @@ func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
 		Type:          "connect",
 		DeviceId:      sess.DeviceId,
 		Levels:        map[string]int64{},
-		Authorization: "some auth",
+		Authorization: "",
 	})
 	upCh <- errors.New("Overflow error in /dev/null")
 	err = <-errCh
@@ -945,51 +957,6 @@ func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
 	c.Check(sess.State(), Equals, Error)
 }
 
-func (cs *clientSessionSuite) TestStartsEvenIfNotAuthorized(c *C) {
-	info := map[string]interface{}{
-		"foo": 1,
-		"bar": "baz",
-	}
-	conf := ClientSessionConfig{
-		Info: info,
-	}
-	sess, err := NewSession("", conf, "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: "TestStartsEvenIfNotAuthorized"}
-	errCh := make(chan error, 1)
-	upCh := make(chan interface{}, 5)
-	downCh := make(chan interface{}, 5)
-	proto := &testProtocol{up: upCh, down: downCh}
-	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
-	getAuthorization = func() (string, error) {
-		return "", errors.New("oopsie...")
-	}
-
-	go func() {
-		errCh <- sess.start()
-	}()
-
-	c.Check(takeNext(downCh), Equals, "deadline 0")
-	msg, ok := takeNext(downCh).(protocol.ConnectMsg)
-	c.Check(ok, Equals, true)
-	c.Check(msg.DeviceId, Equals, "wah")
-	c.Check(msg.Authorization, Equals, "")
-	c.Check(msg.Info, DeepEquals, info)
-	upCh <- nil // no error
-	upCh <- protocol.ConnAckMsg{
-		Type:   "connack",
-		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
-	}
-	// start is now done.
-	err = <-errCh
-	c.Check(err, IsNil)
-	c.Check(sess.State(), Equals, Started)
-	expectedLog := ("INFO using addr: \n" +
-		"ERROR unable to get the authorization token from the account: oopsie...\n" +
-		"DEBUG Connected TestStartsEvenIfNotAuthorized.\n")
-	c.Check(cs.log.Captured(), Equals, expectedLog)
-}
-
 func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	info := map[string]interface{}{
 		"foo": 1,
@@ -1015,7 +982,7 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	msg, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	c.Check(msg.DeviceId, Equals, "wah")
-	c.Check(msg.Authorization, Equals, "some auth")
+	c.Check(msg.Authorization, Equals, "")
 	c.Check(msg.Info, DeepEquals, info)
 	upCh <- nil // no error
 	upCh <- protocol.ConnAckMsg{
@@ -1032,6 +999,22 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
   run() tests
 ****************************************************************/
 
+func (cs *clientSessionSuite) TestRunBailsIfAuthCheckFails(c *C) {
+	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	failure := errors.New("TestRunBailsIfAuthCheckFails")
+	has_closed := false
+	err = sess.run(
+		func() { has_closed = true },
+		func() error { return failure },
+		nil,
+		nil,
+		nil,
+		nil)
+	c.Check(err, Equals, failure)
+	c.Check(has_closed, Equals, true)
+}
+
 func (cs *clientSessionSuite) TestRunBailsIfHostGetterFails(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
@@ -1039,6 +1022,7 @@ func (cs *clientSessionSuite) TestRunBailsIfHostGetterFails(c *C) {
 	has_closed := false
 	err = sess.run(
 		func() { has_closed = true },
+		func() error { return nil },
 		func() error { return failure },
 		nil,
 		nil,
@@ -1054,6 +1038,7 @@ func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
 	err = sess.run(
 		func() {},
 		func() error { return nil },
+		func() error { return nil },
 		func() error { return failure },
 		nil,
 		nil)
@@ -1066,6 +1051,7 @@ func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
 	failure := errors.New("TestRunBailsIfStartFails")
 	err = sess.run(
 		func() {},
+		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return failure },
@@ -1084,6 +1070,7 @@ func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 	notf := &Notification{}
 	err = sess.run(
 		func() {},
+		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
