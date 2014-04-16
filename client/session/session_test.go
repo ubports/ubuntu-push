@@ -32,8 +32,8 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
-	//"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
@@ -264,16 +264,17 @@ func (cs *clientSessionSuite) TestGetHostsFallback(c *C) {
 }
 
 type testHostGetter struct {
-	hosts []string
-	err   error
+	domain string
+	hosts  []string
+	err    error
 }
 
-func (thg *testHostGetter) Get() ([]string, error) {
-	return thg.hosts, thg.err
+func (thg *testHostGetter) Get() (*gethosts.Host, error) {
+	return &gethosts.Host{thg.domain, thg.hosts}, thg.err
 }
 
 func (cs *clientSessionSuite) TestGetHostsRemote(c *C) {
-	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	hostGetter := &testHostGetter{"example.com", []string{"foo:443", "bar:443"}, nil}
 	sess := &ClientSession{getHost: hostGetter, timeSince: time.Since}
 	err := sess.getHosts()
 	c.Assert(err, IsNil)
@@ -284,7 +285,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteError(c *C) {
 	sess, err := NewSession("", dummyConf, "", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	hostsErr := errors.New("failed")
-	hostGetter := &testHostGetter{nil, hostsErr}
+	hostGetter := &testHostGetter{"", nil, hostsErr}
 	sess.getHost = hostGetter
 	err = sess.getHosts()
 	c.Assert(err, Equals, hostsErr)
@@ -293,7 +294,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteError(c *C) {
 }
 
 func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
-	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	hostGetter := &testHostGetter{"example.com", []string{"foo:443", "bar:443"}, nil}
 	sess := &ClientSession{
 		getHost: hostGetter,
 		ClientSessionConfig: ClientSessionConfig{
@@ -318,7 +319,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
 }
 
 func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
-	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	hostGetter := &testHostGetter{"example.com", []string{"foo:443", "bar:443"}, nil}
 	sess := &ClientSession{
 		getHost: hostGetter,
 		ClientSessionConfig: ClientSessionConfig{
@@ -1107,7 +1108,8 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	// advertise
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := json.Marshal(map[string]interface{}{
-			"hosts": []string{"nowhere", lst.Addr().String()},
+			"domain": "localhost",
+			"hosts":  []string{"nowhere", lst.Addr().String()},
 		})
 		if err != nil {
 			panic(err)

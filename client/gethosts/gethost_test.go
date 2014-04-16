@@ -45,7 +45,8 @@ func (s *getHostsSuite) TestGet(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		x := r.FormValue("h")
 		b, err := json.Marshal(map[string]interface{}{
-			"hosts": []string{"http://" + x},
+			"domain": "example.com",
+			"hosts":  []string{"http://" + x},
 		})
 		if err != nil {
 			panic(err)
@@ -57,7 +58,8 @@ func (s *getHostsSuite) TestGet(c *C) {
 	gh := New("foobar", ts.URL, 1*time.Second)
 	res, err := gh.Get()
 	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, []string{"http://c1130408a700afe0"})
+	c.Check(*res, DeepEquals,
+		Host{Domain: "example.com", Hosts: []string{"http://c1130408a700afe0"}})
 }
 
 func (s *getHostsSuite) TestGetTimeout(c *C) {
@@ -97,4 +99,6 @@ func (s *getHostsSuite) TestGetErrorScenarios(c *C) {
 
 	scenario(http.StatusOK, "{", ErrTemporary)
 	scenario(http.StatusOK, "{}", ErrTemporary)
+	scenario(http.StatusOK, `{"domain": "example.com"}`, ErrTemporary)
+	scenario(http.StatusOK, `{"hosts": ["one"]}`, nil)
 }
