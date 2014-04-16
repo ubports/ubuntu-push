@@ -78,6 +78,10 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 	exchangeTimeout := cfg.ExchangeTimeout()
 	pingTimer := time.NewTimer(pingInterval)
 	intervalStart := time.Now()
+	pingTimerReset := func() {
+		pingTimer.Reset(pingInterval)
+		intervalStart = time.Now()
+	}
 	ch := sess.SessionChannel()
 Loop:
 	for {
@@ -93,7 +97,7 @@ Loop:
 			if pongMsg.Type != "pong" {
 				return &broker.ErrAbort{"expected PONG message"}
 			}
-			pingTimer.Reset(pingInterval)
+			pingTimerReset()
 		case exchg, ok := <-ch:
 			pingTimer.Stop()
 			if !ok {
@@ -101,8 +105,7 @@ Loop:
 			}
 			outMsg, inMsg, err := exchg.Prepare(sess)
 			if err == broker.ErrNop { // nothing to do
-				pingTimer.Reset(pingInterval)
-				intervalStart = time.Now()
+				pingTimerReset()
 				continue Loop
 			}
 			if err != nil {
@@ -115,8 +118,7 @@ Loop:
 					return err
 				}
 				if done {
-					pingTimer.Reset(pingInterval)
-					intervalStart = time.Now()
+					pingTimerReset()
 				}
 				err = exchg.Acked(sess, done)
 				if err != nil {

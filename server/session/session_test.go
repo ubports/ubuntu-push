@@ -222,14 +222,14 @@ var cfg5msPingInterval2msExchangeTout = &testSessionConfig{
 }
 
 func (s *sessionSuite) TestSessionLoop(c *C) {
-	nopTrack := NewTracker(s.testlog)
+	track := &testTracker{NewTracker(s.testlog), make(chan interface{}, 2)}
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	sess := &testing.TestBrokerSession{}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, track)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
@@ -241,6 +241,9 @@ func (s *sessionSuite) TestSessionLoop(c *C) {
 	up <- io.ErrUnexpectedEOF
 	err := <-errCh
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
+	c.Check(track.interval, HasLen, 2)
+	c.Check((<-track.interval).(time.Duration) <= 8*time.Millisecond, Equals, true)
+	c.Check((<-track.interval).(time.Duration) <= 8*time.Millisecond, Equals, true)
 }
 
 func (s *sessionSuite) TestSessionLoopWriteError(c *C) {
