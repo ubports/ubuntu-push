@@ -77,7 +77,7 @@ const (
 )
 
 type hostGetter interface {
-	Get() ([]string, error)
+	Get() (*gethosts.Host, error)
 }
 
 // ClientSessionConfig groups the client session configuration.
@@ -143,7 +143,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		Log:                 log,
 		Protocolator:        protocol.NewProtocol0,
 		Levels:              levels,
-		TLS:                 &tls.Config{InsecureSkipVerify: true}, // XXX
+		TLS:                 &tls.Config{},
 		stateP:              &state,
 		timeSince:           time.Since,
 	}
@@ -184,14 +184,17 @@ func (sess *ClientSession) getHosts() error {
 		if sess.deliveryHosts != nil && sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
 			return nil
 		}
-		hosts, err := sess.getHost.Get()
+		host, err := sess.getHost.Get()
 		if err != nil {
 			sess.Log.Errorf("getHosts: %v", err)
 			sess.setState(Error)
 			return err
 		}
 		sess.deliveryHostsTimestamp = time.Now()
-		sess.deliveryHosts = hosts
+		sess.deliveryHosts = host.Hosts
+		if sess.TLS != nil {
+			sess.TLS.ServerName = host.Domain
+		}
 	} else {
 		sess.deliveryHosts = sess.fallbackHosts
 	}

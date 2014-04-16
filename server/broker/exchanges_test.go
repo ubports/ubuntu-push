@@ -24,6 +24,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
@@ -249,16 +250,18 @@ func (s *exchangesSuite) TestBroadcastExchangeChannelFilter(c *C) {
 	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(5))
 }
 
-func (s *exchangesSuite) TestConnBrokenExchange(c *C) {
+func (s *exchangesSuite) TestConnMetaExchange(c *C) {
 	sess := &testing.TestBrokerSession{}
-	cbe := &broker.ConnBrokenExchange{"REASON"}
+	var msg protocol.OnewayMsg = &protocol.ConnWarnMsg{"connwarn", "REASON"}
+	cbe := &broker.ConnMetaExchange{msg}
 	outMsg, inMsg, err := cbe.Prepare(sess)
 	c.Assert(err, IsNil)
+	c.Check(msg, Equals, outMsg)
 	c.Check(inMsg, IsNil) // no answer is expected
 	// check
 	marshalled, err := json.Marshal(outMsg)
 	c.Assert(err, IsNil)
-	c.Check(string(marshalled), Equals, `{"T":"connbroken","Reason":"REASON"}`)
+	c.Check(string(marshalled), Equals, `{"T":"connwarn","Reason":"REASON"}`)
 
-	c.Check(func() { cbe.Acked(nil, true) }, PanicMatches, "Acked should not get invoked on ConnBrokenExchange")
+	c.Check(func() { cbe.Acked(nil, true) }, PanicMatches, "Acked should not get invoked on ConnMetaExchange")
 }
