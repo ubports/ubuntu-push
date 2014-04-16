@@ -49,6 +49,7 @@ func New(deviceId, endpointUrl string, timeout time.Duration) *GetHost {
 	}
 }
 
+// Host contains the domain and hosts returned by the remote endpoint
 type Host struct {
 	Domain string
 	Hosts  []string
