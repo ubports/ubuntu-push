@@ -34,7 +34,6 @@ import (
 
 	"launchpad.net/ubuntu-push/client/session/levelmap"
 	//"launchpad.net/ubuntu-push/client/gethosts"
-	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -165,12 +164,16 @@ func (*brokenLevelMap) GetAll() (map[string]int64, error) { return nil, errors.N
 /////
 
 type clientSessionSuite struct {
-	log  logger.Logger
+	log  *helpers.TestLogger
 	lvls func() (levelmap.LevelMap, error)
 }
 
 func (cs *clientSessionSuite) SetUpTest(c *C) {
 	cs.log = helpers.NewTestLogger(c, "debug")
+	getAuthorization = func() (string, error) {
+		return "some auth", nil
+	}
+	shouldGetAuth = true
 }
 
 // in-memory level map testing
@@ -855,7 +858,7 @@ func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
 		Type:          "connect",
 		DeviceId:      sess.DeviceId,
 		Levels:        map[string]int64{},
-		Authorization: "",
+		Authorization: "some auth",
 	})
 	upCh <- errors.New("Overflow error in /dev/null")
 	err = <-errCh
@@ -935,14 +938,58 @@ func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
 	c.Check(sess.State(), Equals, Error)
 }
 
+func (cs *clientSessionSuite) TestStartsEvenIfNotAuthorized(c *C) {
+	info := map[string]interface{}{
+		"foo": 1,
+		"bar": "baz",
+	}
+	conf := ClientSessionConfig{
+		Info: info,
+	}
+	sess, err := NewSession("", conf, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.Connection = &testConn{Name: "TestStartsEvenIfNotAuthorized"}
+	errCh := make(chan error, 1)
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(_ net.Conn) protocol.Protocol { return proto }
+	getAuthorization = func() (string, error) {
+		return "", errors.New("oopsie...")
+	}
+
+	go func() {
+		errCh <- sess.start()
+	}()
+
+	c.Check(takeNext(downCh), Equals, "deadline 0")
+	msg, ok := takeNext(downCh).(protocol.ConnectMsg)
+	c.Check(ok, Equals, true)
+	c.Check(msg.DeviceId, Equals, "wah")
+	c.Check(msg.Authorization, Equals, "")
+	c.Check(msg.Info, DeepEquals, info)
+	upCh <- nil // no error
+	upCh <- protocol.ConnAckMsg{
+		Type:   "connack",
+		Params: protocol.ConnAckParams{(10 * time.Millisecond).String()},
+	}
+	// start is now done.
+	err = <-errCh
+	c.Check(err, IsNil)
+	c.Check(sess.State(), Equals, Started)
+	expectedLog := ("INFO using addr: \n" +
+		"ERROR unable to get the authorization token from the account: oopsie...\n" +
+		"DEBUG Connected TestStartsEvenIfNotAuthorized.\n")
+	c.Check(cs.log.Captured(), Equals, expectedLog)
+}
+
 func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	info := map[string]interface{}{
 		"foo": 1,
 		"bar": "baz",
 	}
 	conf := ClientSessionConfig{
-		Info:          info,
-		Authorization: "some auth",
+		Info: info,
 	}
 	sess, err := NewSession("", conf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
