@@ -37,6 +37,7 @@ import (
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
+	"launchpad.net/ubuntu-push/util"
 )
 
 func TestSession(t *testing.T) { TestingT(t) }
@@ -174,6 +175,11 @@ func (cs *clientSessionSuite) SetUpTest(c *C) {
 		return "some auth", nil
 	}
 	shouldGetAuth = true
+}
+
+func (cs *clientSessionSuite) TearDownTest(c *C) {
+	getAuthorization = util.GetAuthorization
+	shouldGetAuth = false
 }
 
 // in-memory level map testing
