@@ -1091,8 +1091,65 @@ func (cs *clientSessionSuite) TestDialPanics(c *C) {
 
 var (
 	dialTestTimeout = 100 * time.Millisecond
-	dialTestConf    = ClientSessionConfig{ExchangeTimeout: dialTestTimeout}
+	dialTestConf    = ClientSessionConfig{
+		ExchangeTimeout: dialTestTimeout,
+		PEM:             helpers.TestCertPEMBlock,
+	}
 )
+
+func (cs *clientSessionSuite) TestDialBadServerName(c *C) {
+	// a borked server name
+	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
+	c.Assert(err, IsNil)
+	tlsCfg := &tls.Config{
+		Certificates:           []tls.Certificate{cert},
+		SessionTicketsDisabled: true,
+	}
+
+	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
+	c.Assert(err, IsNil)
+	// advertise
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := json.Marshal(map[string]interface{}{
+			"domain": "xyzzy", // <-- *** THIS *** is the bit that'll break it
+			"hosts":  []string{"nowhere", lst.Addr().String()},
+		})
+		if err != nil {
+			panic(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(b)
+	}))
+	defer ts.Close()
+
+	sess, err := NewSession(ts.URL, dialTestConf, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	tconn := &testConn{CloseCondition: condition.Fail2Work(10)}
+	sess.Connection = tconn
+	// just to be sure:
+	c.Check(tconn.CloseCondition.String(), Matches, ".* 10 to go.")
+
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(net.Conn) protocol.Protocol { return proto }
+
+	go sess.Dial()
+
+	srv, err := lst.Accept()
+	c.Assert(err, IsNil)
+
+	// connect done
+
+	// Dial should have had the session's old connection (tconn) closed
+	// before connecting a new one; if that was done, tconn's condition
+	// ticked forward:
+	c.Check(tconn.CloseCondition.String(), Matches, ".* 9 to go.")
+
+	// now, start: 1. protocol version
+	_, err = protocol.ReadWireFormatVersion(srv, dialTestTimeout)
+	c.Assert(err, NotNil)
+}
 
 func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	// happy path thoughts
