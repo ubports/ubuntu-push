@@ -1124,31 +1124,29 @@ func (cs *clientSessionSuite) TestDialBadServerName(c *C) {
 
 	sess, err := NewSession(ts.URL, dialTestConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	tconn := &testConn{CloseCondition: condition.Fail2Work(10)}
+	tconn := &testConn{}
 	sess.Connection = tconn
-	// just to be sure:
-	c.Check(tconn.CloseCondition.String(), Matches, ".* 10 to go.")
 
 	upCh := make(chan interface{}, 5)
 	downCh := make(chan interface{}, 5)
+	errCh := make(chan error, 1)
 	proto := &testProtocol{up: upCh, down: downCh}
 	sess.Protocolator = func(net.Conn) protocol.Protocol { return proto }
 
-	go sess.Dial()
+	go func() {
+		errCh <- sess.Dial()
+	}()
 
 	srv, err := lst.Accept()
 	c.Assert(err, IsNil)
 
 	// connect done
 
-	// Dial should have had the session's old connection (tconn) closed
-	// before connecting a new one; if that was done, tconn's condition
-	// ticked forward:
-	c.Check(tconn.CloseCondition.String(), Matches, ".* 9 to go.")
-
-	// now, start: 1. protocol version
 	_, err = protocol.ReadWireFormatVersion(srv, dialTestTimeout)
-	c.Assert(err, NotNil)
+	c.Check(err, NotNil)
+
+	c.Check(<-errCh, NotNil)
+	c.Check(sess.State(), Equals, Error)
 }
 
 func (cs *clientSessionSuite) TestDialWorks(c *C) {
