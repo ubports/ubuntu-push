@@ -30,7 +30,6 @@ import (
 type ExchangesScratchArea struct {
 	broadcastMsg  protocol.BroadcastMsg
 	ackMsg        protocol.AckMsg
-	connBrokenMsg protocol.ConnBrokenMsg
 }
 
 // BroadcastExchange leads a session through delivering a BROADCAST.
