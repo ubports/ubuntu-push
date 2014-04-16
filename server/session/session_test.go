@@ -360,7 +360,7 @@ func (s *sessionSuite) TestSessionLoopKick(c *C) {
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
-	close(exchanges)
+	exchanges <- nil
 	err := <-errCh
 	c.Check(err, DeepEquals, &broker.ErrAbort{"terminated"})
 }

@@ -224,7 +224,7 @@ Loop:
 			} else { // register
 				prev := b.registry[sess.deviceId]
 				if prev != nil { // kick it
-					close(prev.exchanges)
+					prev.exchanges <- nil
 				}
 				b.registry[sess.deviceId] = sess
 				sess.registered = true
