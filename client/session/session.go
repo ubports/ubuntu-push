@@ -210,6 +210,7 @@ func (sess *ClientSession) checkAuthorization() error {
 	if shouldGetAuth {
 		auth, err := getAuthorization()
 		if err != nil {
+			// For now we just log the error, as we don't want to block unauthorized users
 			sess.Log.Errorf("unable to get the authorization token from the account: %v", err)
 		}
 		sess.auth = auth
