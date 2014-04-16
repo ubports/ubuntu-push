@@ -98,6 +98,7 @@ func (s *getHostsSuite) TestGetErrorScenarios(c *C) {
 	scenario(http.StatusGatewayTimeout, "", ErrTemporary)
 
 	scenario(http.StatusOK, "{", ErrTemporary)
+	scenario(http.StatusOK, "{}", ErrTemporary)
 	scenario(http.StatusOK, `{"domain": "example.com"}`, ErrTemporary)
 	scenario(http.StatusOK, `{"hosts": ["one"]}`, ErrTemporary)
 }
