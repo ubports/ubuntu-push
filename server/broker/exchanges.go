@@ -28,9 +28,8 @@ import (
 
 // Scratch area for exchanges, sessions should hold one of these.
 type ExchangesScratchArea struct {
-	broadcastMsg  protocol.BroadcastMsg
-	ackMsg        protocol.AckMsg
-	connBrokenMsg protocol.ConnBrokenMsg
+	broadcastMsg protocol.BroadcastMsg
+	ackMsg       protocol.AckMsg
 }
 
 // BroadcastExchange leads a session through delivering a BROADCAST.
