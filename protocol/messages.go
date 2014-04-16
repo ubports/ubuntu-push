@@ -55,7 +55,7 @@ type SplittableMsg interface {
 }
 
 // OnewayMsg are messages that are not to be followed by a response,
-// after sending them the session either abort or continue.
+// after sending them the session either aborts or continues.
 type OnewayMsg interface {
 	SplittableMsg
 	// continue session after the message?
