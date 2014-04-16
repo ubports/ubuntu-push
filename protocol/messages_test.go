@@ -104,6 +104,14 @@ func (s *messagesSuite) TestSplitBroadcastMsgManyParts(c *C) {
 	c.Check(b.splitting, Equals, 0)
 }
 
-func (s *messagesSuite) TestSplitConnBrokenMsg(c *C) {
-	c.Check((&ConnBrokenMsg{}).Split(), Equals, true)
+func (s *messagesSuite) TestConnBrokenMsg(c *C) {
+	m := &ConnBrokenMsg{}
+	c.Check(m.Split(), Equals, true)
+	c.Check(m.OnewayContinue(), Equals, false)
+}
+
+func (s *messagesSuite) TestConnWarnMsg(c *C) {
+	m := &ConnWarnMsg{}
+	c.Check(m.Split(), Equals, true)
+	c.Check(m.OnewayContinue(), Equals, true)
 }

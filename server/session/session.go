@@ -18,6 +18,7 @@
 package session
 
 import (
+	"errors"
 	"net"
 	"time"
 
@@ -55,6 +56,8 @@ func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig
 	return brkr.Register(&connMsg)
 }
 
+var errOneway = errors.New("oneway")
+
 // exchange writes outMsg message, reads answer in inMsg
 func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeout time.Duration) error {
 	proto.SetDeadline(time.Now().Add(exchangeTimeout))
@@ -62,7 +65,10 @@ func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeou
 	if err != nil {
 		return err
 	}
-	if inMsg == nil { // no answer expected, breaking connection
+	if inMsg == nil { // no answer expected
+		if outMsg.(protocol.OnewayMsg).OnewayContinue() {
+			return errOneway
+		}
 		return &broker.ErrAbort{"session broken for reason"}
 	}
 	err = proto.ReadMessage(inMsg)
@@ -78,6 +84,10 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 	exchangeTimeout := cfg.ExchangeTimeout()
 	pingTimer := time.NewTimer(pingInterval)
 	intervalStart := time.Now()
+	pingTimerReset := func() {
+		pingTimer.Reset(pingInterval)
+		intervalStart = time.Now()
+	}
 	ch := sess.SessionChannel()
 Loop:
 	for {
@@ -93,7 +103,7 @@ Loop:
 			if pongMsg.Type != "pong" {
 				return &broker.ErrAbort{"expected PONG message"}
 			}
-			pingTimer.Reset(pingInterval)
+			pingTimerReset()
 		case exchg := <-ch:
 			pingTimer.Stop()
 			if exchg == nil {
@@ -101,8 +111,7 @@ Loop:
 			}
 			outMsg, inMsg, err := exchg.Prepare(sess)
 			if err == broker.ErrNop { // nothing to do
-				pingTimer.Reset(pingInterval)
-				intervalStart = time.Now()
+				pingTimerReset()
 				continue Loop
 			}
 			if err != nil {
@@ -111,12 +120,15 @@ Loop:
 			for {
 				done := outMsg.Split()
 				err = exchange(proto, outMsg, inMsg, exchangeTimeout)
+				if err == errOneway {
+					pingTimerReset()
+					continue Loop
+				}
 				if err != nil {
 					return err
 				}
 				if done {
-					pingTimer.Reset(pingInterval)
-					intervalStart = time.Now()
+					pingTimerReset()
 				}
 				err = exchg.Acked(sess, done)
 				if err != nil {
