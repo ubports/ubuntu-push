@@ -222,14 +222,14 @@ var cfg5msPingInterval2msExchangeTout = &testSessionConfig{
 }
 
 func (s *sessionSuite) TestSessionLoop(c *C) {
-	nopTrack := NewTracker(s.testlog)
+	track := &testTracker{NewTracker(s.testlog), make(chan interface{}, 2)}
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	sess := &testing.TestBrokerSession{}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, track)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
@@ -241,6 +241,9 @@ func (s *sessionSuite) TestSessionLoop(c *C) {
 	up <- io.ErrUnexpectedEOF
 	err := <-errCh
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
+	c.Check(track.interval, HasLen, 2)
+	c.Check((<-track.interval).(time.Duration) <= 8*time.Millisecond, Equals, true)
+	c.Check((<-track.interval).(time.Duration) <= 8*time.Millisecond, Equals, true)
 }
 
 func (s *sessionSuite) TestSessionLoopWriteError(c *C) {
@@ -477,16 +480,42 @@ func (s *sessionSuite) TestSessionLoopConnBrokenExchange(c *C) {
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	exchanges := make(chan broker.Exchange, 1)
-	exchanges <- &broker.ConnBrokenExchange{"REASON"}
+	msg := &protocol.ConnBrokenMsg{"connbroken", "BREASON"}
+	exchanges <- &broker.ConnMetaExchange{msg}
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
 	go func() {
 		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
 	}()
 	c.Check(takeNext(down), Equals, "deadline 2ms")
-	c.Check(takeNext(down), DeepEquals, protocol.ConnBrokenMsg{"connbroken", "REASON"})
+	c.Check(takeNext(down), DeepEquals, protocol.ConnBrokenMsg{"connbroken", "BREASON"})
 	up <- nil // no write error
 	err := <-errCh
 	c.Check(err, DeepEquals, &broker.ErrAbort{"session broken for reason"})
+}
+
+func (s *sessionSuite) TestSessionLoopConnWarnExchange(c *C) {
+	nopTrack := NewTracker(s.testlog)
+	errCh := make(chan error, 1)
+	up := make(chan interface{}, 5)
+	down := make(chan interface{}, 5)
+	tp := &testProtocol{up, down}
+	exchanges := make(chan broker.Exchange, 1)
+	msg := &protocol.ConnWarnMsg{"connwarn", "WREASON"}
+	exchanges <- &broker.ConnMetaExchange{msg}
+	sess := &testing.TestBrokerSession{Exchanges: exchanges}
+	go func() {
+		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
+	}()
+	c.Check(takeNext(down), Equals, "deadline 2ms")
+	c.Check(takeNext(down), DeepEquals, protocol.ConnWarnMsg{"connwarn", "WREASON"})
+	up <- nil // no write error
+	// session continues
+	c.Check(takeNext(down), Equals, "deadline 2ms")
+	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
+	up <- nil // no write error
+	up <- io.EOF
+	err := <-errCh
+	c.Check(err, Equals, io.EOF)
 }
 
 type testTracker struct {
