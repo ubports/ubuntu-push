@@ -49,8 +49,9 @@ func New(deviceId, endpointUrl string, timeout time.Duration) *GetHost {
 	}
 }
 
-type expected struct {
-	Hosts []string
+type Host struct {
+	Domain string
+	Hosts  []string
 }
 
 var (
@@ -60,7 +61,7 @@ var (
 )
 
 // Get gets a list of hosts consulting the endpoint.
-func (gh *GetHost) Get() ([]string, error) {
+func (gh *GetHost) Get() (*Host, error) {
 	resp, err := gh.cli.Get(gh.endpointUrl + "?h=" + gh.hash)
 	if err != nil {
 		return nil, err
@@ -80,13 +81,16 @@ func (gh *GetHost) Get() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var parsed expected
+	var parsed Host
 	err = json.Unmarshal(body, &parsed)
 	if err != nil {
+		return nil, ErrTemporary
+	}
+	if len(parsed.Domain) == 0 {
 		return nil, ErrTemporary
 	}
 	if len(parsed.Hosts) == 0 {
 		return nil, ErrTemporary
 	}
-	return parsed.Hosts, nil
+	return &parsed, nil
 }
