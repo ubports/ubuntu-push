@@ -119,23 +119,20 @@ func (sbe *BroadcastExchange) Acked(sess BrokerSession, done bool) error {
 	return nil
 }
 
-// ConnBrokenExchange breaks a session giving a reason.
-type ConnBrokenExchange struct {
-	Reason string
+// ConnMetaExchange allows to send a CONNBROKEN or CONNWARN message.
+type ConnMetaExchange struct {
+	Msg protocol.OnewayMsg
 }
 
 // check interface already here
-var _ Exchange = (*ConnBrokenExchange)(nil)
+var _ Exchange = (*ConnMetaExchange)(nil)
 
-// Prepare session for a CONNBROKEN.
-func (cbe *ConnBrokenExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
-	scratchArea := sess.ExchangeScratchArea()
-	scratchArea.connBrokenMsg.Type = "connbroken"
-	scratchArea.connBrokenMsg.Reason = cbe.Reason
-	return &scratchArea.connBrokenMsg, nil, nil
+// Prepare session for a CONNBROKEN/WARN.
+func (cbe *ConnMetaExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
+	return cbe.Msg, nil, nil
 }
 
-// CONNBROKEN isn't acked
-func (cbe *ConnBrokenExchange) Acked(sess BrokerSession, done bool) error {
-	panic("Acked should not get invoked on ConnBrokenExchange")
+// CONNBROKEN/WARN aren't acked.
+func (cbe *ConnMetaExchange) Acked(sess BrokerSession, done bool) error {
+	panic("Acked should not get invoked on ConnMetaExchange")
 }

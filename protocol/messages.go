@@ -54,6 +54,14 @@ type SplittableMsg interface {
 	Split() (done bool)
 }
 
+// OnewayMsg are messages that are not to be followed by a response,
+// after sending them the session either abort or continue.
+type OnewayMsg interface {
+	SplittableMsg
+	// continue session after the message?
+	OnewayContinue() bool
+}
+
 // CONNBROKEN message, server side is breaking the connection for reason.
 type ConnBrokenMsg struct {
 	Type string `json:"T"`
@@ -65,9 +73,33 @@ func (m *ConnBrokenMsg) Split() bool {
 	return true
 }
 
+func (m *ConnBrokenMsg) OnewayContinue() bool {
+	return false
+}
+
 // CONNBROKEN reasons
 const (
 	BrokenHostMismatch = "host-mismatch"
+)
+
+// CONNWARN message, server side is warning about partial functionality
+// because reason.
+type ConnWarnMsg struct {
+	Type string `json:"T"`
+	// reason
+	Reason string
+}
+
+func (m *ConnWarnMsg) Split() bool {
+	return true
+}
+func (m *ConnWarnMsg) OnewayContinue() bool {
+	return true
+}
+
+// CONNWARN reasons
+const (
+	WarnUnauthorized = "unauthorized"
 )
 
 // PING/PONG messages

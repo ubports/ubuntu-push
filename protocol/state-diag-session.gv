@@ -2,6 +2,7 @@ digraph state_diagram_session {
         label = "State diagram for session";
         size="12,6";
         rankdir=LR;
+        node [shape = doublecircle]; stop;
         node [shape = circle];
         start1 -> start2 [ label = "Read wire version" ];
         start2 -> start3 [ label = "Read CONNECT" ];
@@ -17,4 +18,13 @@ digraph state_diagram_session {
         split_broadcast -> split_ack_wait [label = "Write split BROADCAST"];
         split_ack_wait -> split_broadcast [label = "Read ACK"];
         split_broadcast -> loop [label = "All split msgs written"];
+        // other
+        loop -> conn_broken [label = "Receive connbroken request"];
+        loop -> conn_warn [label = "Receive connwarn request"];
+        conn_broken -> stop [label = "Write CONNBROKEN"];
+        conn_warn -> loop [label = "Write CONNWARN"];
+        // timeouts
+        ack_wait -> stop [label = "Elapsed exhange timeout"];
+        split_ack_wait -> stop [label = "Elapsed exhange timeout"];
+        pong_wait -> stop [label = "Elapsed exhange timeout"];
 }

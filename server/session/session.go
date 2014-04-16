@@ -18,6 +18,7 @@
 package session
 
 import (
+	"errors"
 	"net"
 	"time"
 
@@ -55,6 +56,8 @@ func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig
 	return brkr.Register(&connMsg)
 }
 
+var errOneway = errors.New("oneway")
+
 // exchange writes outMsg message, reads answer in inMsg
 func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeout time.Duration) error {
 	proto.SetDeadline(time.Now().Add(exchangeTimeout))
@@ -62,7 +65,10 @@ func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeou
 	if err != nil {
 		return err
 	}
-	if inMsg == nil { // no answer expected, breaking connection
+	if inMsg == nil { // no answer expected
+		if outMsg.(protocol.OnewayMsg).OnewayContinue() {
+			return errOneway
+		}
 		return &broker.ErrAbort{"session broken for reason"}
 	}
 	err = proto.ReadMessage(inMsg)
@@ -114,6 +120,10 @@ Loop:
 			for {
 				done := outMsg.Split()
 				err = exchange(proto, outMsg, inMsg, exchangeTimeout)
+				if err == errOneway {
+					pingTimerReset()
+					continue Loop
+				}
 				if err != nil {
 					return err
 				}
