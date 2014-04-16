@@ -86,9 +86,6 @@ func (gh *GetHost) Get() (*Host, error) {
 	if err != nil {
 		return nil, ErrTemporary
 	}
-	if len(parsed.Domain) == 0 {
-		return nil, ErrTemporary
-	}
 	if len(parsed.Hosts) == 0 {
 		return nil, ErrTemporary
 	}
