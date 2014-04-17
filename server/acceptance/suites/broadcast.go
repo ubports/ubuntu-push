@@ -265,7 +265,11 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastExpiration(c *C) {
 
 func (s *BroadcastAcceptanceSuite) TestGetHosts(c *C) {
 	gh := gethosts.New("", s.ServerAPIURL+"/delivery-hosts", 2*time.Second)
-	hosts, err := gh.Get()
+	host, err := gh.Get()
 	c.Assert(err, IsNil)
-	c.Check(hosts, DeepEquals, []string{s.ServerAddr})
+	expected := &gethosts.Host{
+		Domain: "localhost",
+		Hosts:  []string{s.ServerAddr},
+	}
+	c.Check(host, DeepEquals, expected)
 }
