@@ -169,15 +169,18 @@ type clientSessionSuite struct {
 	lvls func() (levelmap.LevelMap, error)
 }
 
-func (cs *clientSessionSuite) SetUpTest(c *C) {
-	cs.log = helpers.NewTestLogger(c, "debug")
+func (cs *clientSessionSuite) SetUpSuite(c *C) {
 	getAuthorization = func() (string, error) {
 		return "some auth", nil
 	}
 	shouldGetAuth = true
 }
 
-func (cs *clientSessionSuite) TearDownTest(c *C) {
+func (cs *clientSessionSuite) SetUpTest(c *C) {
+	cs.log = helpers.NewTestLogger(c, "debug")
+}
+
+func (cs *clientSessionSuite) TearDownSuite(c *C) {
 	getAuthorization = util.GetAuthorization
 	shouldGetAuth = false
 }
@@ -191,6 +194,7 @@ type clientSqlevelsSessionSuite struct{ clientSessionSuite }
 var _ = Suite(&clientSqlevelsSessionSuite{})
 
 func (cs *clientSqlevelsSessionSuite) SetUpSuite(c *C) {
+	cs.clientSessionSuite.SetUpSuite(c)
 	cs.lvls = func() (levelmap.LevelMap, error) { return levelmap.NewSqliteLevelMap(":memory:") }
 }
 
