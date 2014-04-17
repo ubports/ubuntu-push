@@ -38,7 +38,11 @@ import (
 	"launchpad.net/ubuntu-push/util"
 )
 
-var wireVersionBytes = []byte{protocol.ProtocolWireVersion}
+var (
+	wireVersionBytes = []byte{protocol.ProtocolWireVersion}
+	getAuthorization = util.GetAuthorization
+	shouldGetAuth    = false
+)
 
 type Notification struct {
 	TopLevel int64
@@ -84,7 +88,6 @@ type ClientSessionConfig struct {
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
 	Info                   map[string]interface{}
-	Authorization          string
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -145,7 +148,6 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		TLS:                 &tls.Config{},
 		stateP:              &state,
 		timeSince:           time.Since,
-		auth:                conf.Authorization,
 	}
 	if sess.PEM != nil {
 		cp := x509.NewCertPool()
@@ -197,6 +199,21 @@ func (sess *ClientSession) getHosts() error {
 		}
 	} else {
 		sess.deliveryHosts = sess.fallbackHosts
+	}
+	return nil
+}
+
+// checkAuthorization checks the authorization within the phone
+func (sess *ClientSession) checkAuthorization() error {
+	// grab the authorization string from the accounts
+	// TODO: remove this condition when we have a way to deal with failing authorizations
+	if shouldGetAuth {
+		auth, err := getAuthorization()
+		if err != nil {
+			// For now we just log the error, as we don't want to block unauthorized users
+			sess.Log.Errorf("unable to get the authorization token from the account: %v", err)
+		}
+		sess.auth = auth
 	}
 	return nil
 }
@@ -453,13 +470,15 @@ func (sess *ClientSession) start() error {
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *ClientSession) run(closer func(), hostGetter, connecter, starter, looper func() error) error {
+func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter, starter, looper func() error) error {
 	closer()
-	err := hostGetter()
-	if err != nil {
+	if err := authChecker(); err != nil {
 		return err
 	}
-	err = connecter()
+	if err := hostGetter(); err != nil {
+		return err
+	}
+	err := connecter()
 	if err == nil {
 		err = starter()
 		if err == nil {
@@ -489,7 +508,7 @@ func (sess *ClientSession) Dial() error {
 		// keep on trying.
 		panic("can't Dial() without a protocol constructor.")
 	}
-	return sess.run(sess.doClose, sess.getHosts, sess.connect, sess.start, sess.loop)
+	return sess.run(sess.doClose, sess.checkAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
 func init() {

@@ -34,10 +34,10 @@ import (
 
 	"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
-	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
+	"launchpad.net/ubuntu-push/util"
 )
 
 func TestSession(t *testing.T) { TestingT(t) }
@@ -165,12 +165,24 @@ func (*brokenLevelMap) GetAll() (map[string]int64, error) { return nil, errors.N
 /////
 
 type clientSessionSuite struct {
-	log  logger.Logger
+	log  *helpers.TestLogger
 	lvls func() (levelmap.LevelMap, error)
+}
+
+func (cs *clientSessionSuite) SetUpSuite(c *C) {
+	getAuthorization = func() (string, error) {
+		return "some auth", nil
+	}
+	shouldGetAuth = true
 }
 
 func (cs *clientSessionSuite) SetUpTest(c *C) {
 	cs.log = helpers.NewTestLogger(c, "debug")
+}
+
+func (cs *clientSessionSuite) TearDownSuite(c *C) {
+	getAuthorization = util.GetAuthorization
+	shouldGetAuth = false
 }
 
 // in-memory level map testing
@@ -182,6 +194,7 @@ type clientSqlevelsSessionSuite struct{ clientSessionSuite }
 var _ = Suite(&clientSqlevelsSessionSuite{})
 
 func (cs *clientSqlevelsSessionSuite) SetUpSuite(c *C) {
+	cs.clientSessionSuite.SetUpSuite(c)
 	cs.lvls = func() (levelmap.LevelMap, error) { return levelmap.NewSqliteLevelMap(":memory:") }
 }
 
@@ -339,6 +352,18 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
 	err = sess.getHosts()
 	c.Assert(err, IsNil)
 	c.Check(sess.deliveryHosts, DeepEquals, []string{"baz:443"})
+}
+
+/****************************************************************
+  checkAuthorization() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestChecksAuthorizationFromServer(c *C) {
+	sess := &ClientSession{}
+	c.Assert(sess.auth, Equals, "")
+	err := sess.checkAuthorization()
+	c.Assert(err, IsNil)
+	c.Check(sess.auth, Equals, "some auth")
 }
 
 /****************************************************************
@@ -942,8 +967,7 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 		"bar": "baz",
 	}
 	conf := ClientSessionConfig{
-		Info:          info,
-		Authorization: "some auth",
+		Info: info,
 	}
 	sess, err := NewSession("", conf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
@@ -962,7 +986,7 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	msg, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	c.Check(msg.DeviceId, Equals, "wah")
-	c.Check(msg.Authorization, Equals, "some auth")
+	c.Check(msg.Authorization, Equals, "")
 	c.Check(msg.Info, DeepEquals, info)
 	upCh <- nil // no error
 	upCh <- protocol.ConnAckMsg{
@@ -979,6 +1003,22 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
   run() tests
 ****************************************************************/
 
+func (cs *clientSessionSuite) TestRunBailsIfAuthCheckFails(c *C) {
+	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	failure := errors.New("TestRunBailsIfAuthCheckFails")
+	has_closed := false
+	err = sess.run(
+		func() { has_closed = true },
+		func() error { return failure },
+		nil,
+		nil,
+		nil,
+		nil)
+	c.Check(err, Equals, failure)
+	c.Check(has_closed, Equals, true)
+}
+
 func (cs *clientSessionSuite) TestRunBailsIfHostGetterFails(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
@@ -986,6 +1026,7 @@ func (cs *clientSessionSuite) TestRunBailsIfHostGetterFails(c *C) {
 	has_closed := false
 	err = sess.run(
 		func() { has_closed = true },
+		func() error { return nil },
 		func() error { return failure },
 		nil,
 		nil,
@@ -1001,6 +1042,7 @@ func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
 	err = sess.run(
 		func() {},
 		func() error { return nil },
+		func() error { return nil },
 		func() error { return failure },
 		nil,
 		nil)
@@ -1013,6 +1055,7 @@ func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
 	failure := errors.New("TestRunBailsIfStartFails")
 	err = sess.run(
 		func() {},
+		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return failure },
@@ -1031,6 +1074,7 @@ func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 	notf := &Notification{}
 	err = sess.run(
 		func() {},
+		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
