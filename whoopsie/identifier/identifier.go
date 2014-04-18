@@ -27,6 +27,7 @@ package identifier
 import "C"
 import "unsafe"
 import "errors"
+import "time"
 
 // an Id knows how to generate itself, and how to stringify itself.
 type Id interface {
@@ -36,12 +37,17 @@ type Id interface {
 
 // Identifier is the default Id implementation.
 type Identifier struct {
-	value string
+	value     string
+	generator func(**C.char, **C.GError)
+}
+
+func generator(csp **C.char, errp **C.GError) {
+	C.whoopsie_identifier_generate(csp, errp)
 }
 
 // New creates an Identifier, but does not call Generate() on it.
 func New() Id {
-	return &Identifier{}
+	return &Identifier{generator: generator}
 }
 
 // Generate makes the Identifier create the identifier itself.
@@ -49,8 +55,18 @@ func (id *Identifier) Generate() error {
 	var gerr *C.GError
 	var cs *C.char
 	defer C.g_free((C.gpointer)(unsafe.Pointer(cs)))
-	C.whoopsie_identifier_generate(&cs, &gerr)
 
+	for i := 0; i < 400; i++ {
+		id.generator(&cs, &gerr)
+
+		if cs != nil || gerr != nil {
+			goto SuccessMaybe
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	return errors.New("whoopsie_identifier_generate still bad after 2m; giving up")
+
+SuccessMaybe:
 	if gerr != nil {
 		return errors.New(C.GoString((*C.char)(gerr.message)))
 	} else {
