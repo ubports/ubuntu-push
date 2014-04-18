@@ -595,6 +595,18 @@ func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
 	c.Check(flag, Equals, true)
 }
 
+func (cs *clientSessionSuite) TestAutoRedialSetsRedialDelayIfTooQuick(c *C) {
+	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.redialDelay = func(sess *ClientSession) time.Duration { return 0 }
+	sess.AutoRedial(nil)
+	c.Check(sess.ShouldDelay(), Equals, false)
+	sess.stopRedial()
+	sess.clearShouldDelay()
+	sess.AutoRedial(nil)
+	c.Check(sess.ShouldDelay(), Equals, true)
+}
+
 /****************************************************************
   handlePing() tests
 ****************************************************************/

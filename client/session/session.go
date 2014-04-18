@@ -123,6 +123,7 @@ type ClientSession struct {
 	auth string
 	// autoredial knobs
 	shouldDelayP    *uint32
+	lastAutoRedial  time.Time
 	redialDelay     func(*ClientSession) time.Duration
 	redialJitter    func(time.Duration) time.Duration
 	redialDelays    []time.Duration
@@ -324,8 +325,12 @@ func (sess *ClientSession) stopRedial() {
 
 func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 	sess.stopRedial()
+	if time.Since(sess.lastAutoRedial) < 2*time.Second {
+		sess.setShouldDelay()
+	}
 	time.Sleep(sess.redialDelay(sess))
 	sess.retrier = util.NewAutoRedialer(sess)
+	sess.lastAutoRedial = time.Now()
 	go func() { doneCh <- sess.retrier.Redial() }()
 }
 
