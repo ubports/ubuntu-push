@@ -56,13 +56,13 @@ func (id *Identifier) Generate() error {
 	var cs *C.char
 	defer C.g_free((C.gpointer)(unsafe.Pointer(cs)))
 
-	for i := 0; i < 400; i++ {
+	for i := 0; i < 200; i++ {
 		id.generator(&cs, &gerr)
 
 		if cs != nil || gerr != nil {
 			goto SuccessMaybe
 		}
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(600 * time.Millisecond)
 	}
 	return errors.New("whoopsie_identifier_generate still bad after 2m; giving up")
 
