@@ -7,7 +7,8 @@ ubuntu-push (0.2.1) UNRELEASED; urgency=medium
   [ John Lenton ]
   * Ensure ubuntu-push-client is the only one running in the session.
     (LP: #1309432)
-  * Remove supurious numbers in brackets in notifications (LP: #1308145)
+  * Remove supurious numbers in brackets in notifications. (LP: #1308145)
+  * Check the server certificate and server name. (LP: #1297969)
 
  -- John Lenton <john.lenton@canonical.com>  Fri, 18 Apr 2014 10:25:07 +0100
 
