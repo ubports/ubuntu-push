@@ -601,6 +601,8 @@ func (cs *clientSessionSuite) TestAutoRedialSetsRedialDelayIfTooQuick(c *C) {
 	sess.redialDelay = func(sess *ClientSession) time.Duration { return 0 }
 	sess.AutoRedial(nil)
 	c.Check(sess.ShouldDelay(), Equals, false)
+	sess.stopRedial()
+	sess.clearShouldDelay()
 	sess.AutoRedial(nil)
 	c.Check(sess.ShouldDelay(), Equals, true)
 }

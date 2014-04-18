@@ -123,7 +123,7 @@ type ClientSession struct {
 	auth string
 	// autoredial knobs
 	shouldDelayP    *uint32
-	lastAutoRedialP *int64
+	lastAutoRedial  time.Time
 	redialDelay     func(*ClientSession) time.Duration
 	redialJitter    func(time.Duration) time.Duration
 	redialDelays    []time.Duration
@@ -158,7 +158,6 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		getHost = gethosts.New(deviceId, hostsEndpoint, conf.ExchangeTimeout)
 	}
 	var shouldDelay uint32 = 0
-	var lastAutoRedial int64 = 0
 	sess := &ClientSession{
 		ClientSessionConfig: conf,
 		getHost:             getHost,
@@ -170,7 +169,6 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		TLS:                 &tls.Config{},
 		stateP:              &state,
 		timeSince:           time.Since,
-		lastAutoRedialP:     &lastAutoRedial,
 		shouldDelayP:        &shouldDelay,
 		redialDelay:         redialDelay,
 		redialDelays:        util.Timeouts(),
@@ -197,14 +195,6 @@ func (sess *ClientSession) setShouldDelay() {
 
 func (sess *ClientSession) clearShouldDelay() {
 	atomic.StoreUint32(sess.shouldDelayP, uint32(0))
-}
-
-func (sess *ClientSession) setLastAutoRedial() {
-	atomic.StoreInt64(sess.lastAutoRedialP, time.Now().Unix())
-}
-
-func (sess *ClientSession) LastAutoRedial() int64 {
-	return atomic.LoadInt64(sess.lastAutoRedialP)
 }
 
 func (sess *ClientSession) State() ClientSessionState {
@@ -335,13 +325,13 @@ func (sess *ClientSession) stopRedial() {
 
 func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 	sess.stopRedial()
-	if time.Now().Unix()-sess.LastAutoRedial() < 2 {
+	if time.Since(sess.lastAutoRedial) < 2*time.Second {
 		sess.setShouldDelay()
 	}
 	time.Sleep(sess.redialDelay(sess))
 	sess.retrier = util.NewAutoRedialer(sess)
+	sess.lastAutoRedial = time.Now()
 	go func() { doneCh <- sess.retrier.Redial() }()
-	sess.setLastAutoRedial()
 }
 
 func (sess *ClientSession) Close() {
