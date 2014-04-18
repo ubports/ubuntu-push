@@ -227,6 +227,10 @@ func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
 	c.Check(sess, NotNil)
 	c.Check(err, IsNil)
 	c.Check(sess.fallbackHosts, DeepEquals, []string{"foo:443"})
+	// the session is happy and redial delayer is default
+	c.Check(sess.ShouldDelay(), Equals, false)
+	c.Check(fmt.Sprintf("%#v", sess.redialDelay), Equals, fmt.Sprintf("%#v", redialDelay))
+	c.Check(sess.redialDelays, DeepEquals, util.Timeouts())
 	// but no root CAs set
 	c.Check(sess.TLS.RootCAs, IsNil)
 	c.Check(sess.State(), Equals, Disconnected)
@@ -453,7 +457,9 @@ func (cs *clientSessionSuite) TestConnectFailsWithNoAddress(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	sess.deliveryHosts = []string{"nowhere"}
+	sess.clearShouldDelay()
 	err = sess.connect()
+	c.Check(sess.ShouldDelay(), Equals, true)
 	c.Check(err, ErrorMatches, ".*connect.*address.*")
 	c.Check(sess.State(), Equals, Error)
 }
@@ -465,7 +471,9 @@ func (cs *clientSessionSuite) TestConnectConnects(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	sess.deliveryHosts = []string{srv.Addr().String()}
+	sess.clearShouldDelay()
 	err = sess.connect()
+	c.Check(sess.ShouldDelay(), Equals, true)
 	c.Check(err, IsNil)
 	c.Check(sess.Connection, NotNil)
 	c.Check(sess.State(), Equals, Connected)
@@ -478,7 +486,9 @@ func (cs *clientSessionSuite) TestConnectSecondConnects(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	sess.deliveryHosts = []string{"nowhere", srv.Addr().String()}
+	sess.clearShouldDelay()
 	err = sess.connect()
+	c.Check(sess.ShouldDelay(), Equals, true)
 	c.Check(err, IsNil)
 	c.Check(sess.Connection, NotNil)
 	c.Check(sess.State(), Equals, Connected)
@@ -492,7 +502,9 @@ func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
 	srv.Close()
 	c.Assert(err, IsNil)
 	sess.deliveryHosts = []string{srv.Addr().String()}
+	sess.clearShouldDelay()
 	err = sess.connect()
+	c.Check(sess.ShouldDelay(), Equals, true)
 	c.Check(err, ErrorMatches, ".*connection refused")
 	c.Check(sess.State(), Equals, Error)
 }
@@ -574,6 +586,15 @@ func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
 	c.Check(<-ch, Not(Equals), 0)
 }
 
+func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
+	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	flag := false
+	sess.redialDelay = func(sess *ClientSession) time.Duration { flag = true; return 0 }
+	sess.AutoRedial(nil)
+	c.Check(flag, Equals, true)
+}
+
 /****************************************************************
   handlePing() tests
 ****************************************************************/
@@ -618,6 +639,24 @@ func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
 	c.Assert(len(s.downCh), Equals, 1)
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
 	c.Check(s.sess.State(), Equals, Error)
+}
+
+func (s *msgSuite) TestHandlePingClearsDelay(c *C) {
+	s.sess.setShouldDelay()
+	s.upCh <- nil // no error
+	c.Check(s.sess.handlePing(), IsNil)
+	c.Assert(len(s.downCh), Equals, 1)
+	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
+	c.Check(s.sess.ShouldDelay(), Equals, false)
+}
+
+func (s *msgSuite) TestHandlePingDoesNotClearsDelayOnError(c *C) {
+	s.sess.setShouldDelay()
+	s.upCh <- errors.New("Pong")
+	c.Check(s.sess.handlePing(), NotNil)
+	c.Assert(len(s.downCh), Equals, 1)
+	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
+	c.Check(s.sess.ShouldDelay(), Equals, true)
 }
 
 /****************************************************************
@@ -711,6 +750,32 @@ func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
 	// and nak'ed it
 	c.Check(len(s.downCh), Equals, 1)
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"nak"})
+}
+
+func (s *msgSuite) TestHandleBroadcastClearsDelay(c *C) {
+	s.sess.setShouldDelay()
+
+	msg := serverMsg{"broadcast", protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, IsNil)
+
+	c.Check(s.sess.ShouldDelay(), Equals, false)
+}
+
+func (s *msgSuite) TestHandleBroadcastDoesNotClearDelayOnError(c *C) {
+	s.sess.setShouldDelay()
+
+	msg := serverMsg{"broadcast", protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- errors.New("bcast")
+	c.Check(<-s.errCh, NotNil)
+
+	c.Check(s.sess.ShouldDelay(), Equals, true)
 }
 
 /****************************************************************
@@ -1326,4 +1391,39 @@ func (cs *clientSessionSuite) TestDialWorksDirect(c *C) {
 	_, err = lst.Accept()
 	c.Assert(err, IsNil)
 	// connect done
+}
+
+/****************************************************************
+  redialDelay() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestShouldDelay(c *C) {
+	sess, err := NewSession("foo:443", dummyConf, "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	c.Check(sess.ShouldDelay(), Equals, false)
+	sess.setShouldDelay()
+	c.Check(sess.ShouldDelay(), Equals, true)
+	sess.clearShouldDelay()
+	c.Check(sess.ShouldDelay(), Equals, false)
+}
+
+func (cs *clientSessionSuite) TestRedialDelay(c *C) {
+	sess, err := NewSession("foo:443", dummyConf, "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.redialDelays = []time.Duration{17, 42}
+	n := 0
+	sess.redialJitter = func(time.Duration) time.Duration { n++; return 0 }
+	// we get increasing delays while we're unhappy
+	sess.setShouldDelay()
+	c.Check(redialDelay(sess), Equals, time.Duration(17))
+	c.Check(redialDelay(sess), Equals, time.Duration(42))
+	c.Check(redialDelay(sess), Equals, time.Duration(42))
+	// once we're happy, delays drop to 0
+	sess.clearShouldDelay()
+	c.Check(redialDelay(sess), Equals, time.Duration(0))
+	// and start again from the top if we become unhappy again
+	sess.setShouldDelay()
+	c.Check(redialDelay(sess), Equals, time.Duration(17))
+	// and redialJitter got called every time shouldDelay was true
+	c.Check(n, Equals, 4)
 }
