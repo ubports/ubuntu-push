@@ -285,9 +285,6 @@ func (client *PushClient) handleNotification(msg *session.Notification) error {
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
 	nots := notifications.Raw(client.notificationsEndp, client.log)
 	body := "Tap to open the system updater."
-	if msg != nil {
-		body = fmt.Sprintf("[%d] %s", msg.TopLevel, body)
-	}
 	not_id, err := nots.Notify(
 		"ubuntu-push-client",               // app name
 		uint32(0),                          // id
