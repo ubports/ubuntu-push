@@ -23,6 +23,8 @@ import (
 	"log"
 	"os"
 	"runtime"
+
+	"launchpad.net/ubuntu-push/config"
 )
 
 // Logger is a simple logger interface with logging at levels.
@@ -118,4 +120,29 @@ func (lg *simpleLogger) Debugf(format string, v ...interface{}) {
 	if lg.nlevel >= lDebug {
 		lg.outputFunc(2, fmt.Sprintf("DEBUG "+format, v...))
 	}
+}
+
+// config bits
+
+// ConfigLogLevel can hold a log level in a configuration struct.
+type ConfigLogLevel string
+
+func (cll *ConfigLogLevel) ConfigFromJSONString() {}
+
+func (cll *ConfigLogLevel) UnmarshalJSON(b []byte) error {
+	return config.UnmarshalJSONViaString(cll, b)
+}
+
+func (cll *ConfigLogLevel) SetFromString(enc string) error {
+	_, ok := levelToNLevel[enc]
+	if !ok {
+		return fmt.Errorf("not a log level: %s", enc)
+	}
+	*cll = ConfigLogLevel(enc)
+	return nil
+}
+
+// Level returns the log level string held in cll.
+func (cll ConfigLogLevel) Level() string {
+	return string(cll)
 }

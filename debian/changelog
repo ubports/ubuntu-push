@@ -1,3 +1,11 @@
+ubuntu-push (0.2.1) UNRELEASED; urgency=medium
+
+  [ Samuele Pedroni ]
+  * gave the client the ability to get config from commandline
+    ( => easier automated testing)
+
+ -- John Lenton <john.lenton@canonical.com>  Fri, 18 Apr 2014 10:25:07 +0100
+
 ubuntu-push (0.2+14.04.20140411-0ubuntu1) trusty; urgency=medium
 
   [ John Lenton ]
