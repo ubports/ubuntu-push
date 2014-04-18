@@ -177,7 +177,7 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	c.Check(cli.idder, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	c.Assert(cli.idder, DeepEquals, identifier.New())
+	c.Assert(cli.idder, FitsTypeOf, identifier.New())
 }
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {

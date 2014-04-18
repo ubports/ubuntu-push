@@ -9,6 +9,7 @@ ubuntu-push (0.2.1-0ubuntu1) trusty; urgency=high
     (LP: #1309432)
   * Remove supurious numbers in brackets in notifications. (LP: #1308145)
   * Check the server certificate and server name. (LP: #1297969)
+  * Loop whoopsie_identifier_generate until it starts working. (LP: #1309237)
 
  -- John Lenton <john.lenton@canonical.com>  Fri, 18 Apr 2014 10:42:31 +0100
 
