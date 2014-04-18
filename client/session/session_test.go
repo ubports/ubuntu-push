@@ -589,10 +589,10 @@ func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
 func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	ch := make(chan interface{}, 1)
-	sess.redialDelay = func(sess *ClientSession) time.Duration { ch <- true; return 0 }
+	flag := false
+	sess.redialDelay = func(sess *ClientSession) time.Duration { flag = true; return 0 }
 	sess.AutoRedial(nil)
-	c.Check(takeNext(ch), Equals, true)
+	c.Check(flag, Equals, true)
 }
 
 /****************************************************************
@@ -1411,8 +1411,8 @@ func (cs *clientSessionSuite) TestRedialDelay(c *C) {
 	sess, err := NewSession("foo:443", dummyConf, "", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	sess.redialDelays = []time.Duration{17, 42}
-	ch := make(chan bool, 99)
-	sess.redialJitter = func(time.Duration) time.Duration { ch <- true; return 0 }
+	n := 0
+	sess.redialJitter = func(time.Duration) time.Duration { n++; return 0 }
 	// we get increasing delays while we're unhappy
 	sess.setShouldDelay()
 	c.Check(redialDelay(sess), Equals, time.Duration(17))
@@ -1425,5 +1425,5 @@ func (cs *clientSessionSuite) TestRedialDelay(c *C) {
 	sess.setShouldDelay()
 	c.Check(redialDelay(sess), Equals, time.Duration(17))
 	// and redialJitter got called every time shouldDelay was true
-	c.Check(len(ch), Equals, 4)
+	c.Check(n, Equals, 4)
 }
