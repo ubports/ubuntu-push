@@ -73,7 +73,7 @@ const (
 )
 
 type hostGetter interface {
-	Get() ([]string, error)
+	Get() (*gethosts.Host, error)
 }
 
 // ClientSessionConfig groups the client session configuration.
@@ -180,14 +180,14 @@ func (sess *ClientSession) getHosts() error {
 		if sess.deliveryHosts != nil && sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
 			return nil
 		}
-		hosts, err := sess.getHost.Get()
+		host, err := sess.getHost.Get()
 		if err != nil {
 			sess.Log.Errorf("getHosts: %v", err)
 			sess.setState(Error)
 			return err
 		}
 		sess.deliveryHostsTimestamp = time.Now()
-		sess.deliveryHosts = hosts
+		sess.deliveryHosts = host.Hosts
 	} else {
 		sess.deliveryHosts = sess.fallbackHosts
 	}
