@@ -1,4 +1,4 @@
-ubuntu-push (0.2.1-0ubuntu1) trusty; urgency=high
+ubuntu-push (0.2.1-0ubuntu1) UNRELEASED; urgency=high
 
   [ Samuele Pedroni ]
   * gave the client the ability to get config from commandline
