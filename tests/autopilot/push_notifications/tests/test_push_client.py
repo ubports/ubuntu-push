@@ -15,9 +15,8 @@ from autopilot.introspection import dbus
 import autopilot.platform
 from autopilot.testcase import AutopilotTestCase
 
+from push_notifications import data
 from push_notifications.tests import PushNotificationTestBase
-from push_notifications.tests import PushNotificationMessage
-
 
 class TestPushClient(PushNotificationTestBase):
     """ Tests a Push notification can be sent and received """

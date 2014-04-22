@@ -43,8 +43,8 @@ Note: Tests must be run as root user
    The environment can be toggled using the 'environment' setting under [default] section. The addr and port settings for the chosen environment shold match required.
 
 4) cd ubuntu-push/tests/autopilot
-5) autopilot3 list push-notifications
-6) autopilot3 run push-notifications
+5) autopilot3 list push_notifications
+6) autopilot3 run push_notifications
 
 ----------------
 Troubleshooting:
