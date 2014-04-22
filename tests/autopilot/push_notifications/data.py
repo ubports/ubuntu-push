@@ -10,7 +10,7 @@
 
 class PushNotificationMessage:
     """
-    Class to hold all the details required for a 
+    Class to hold all the details required for a
     push notification message
     """
     channel = None
@@ -45,7 +45,7 @@ class NotificationData:
     last_update = None
     version = None
     data = None
-      
+
     @classmethod
     def from_dbus_info(cls, dbus_info=None):
         """
@@ -58,7 +58,7 @@ class NotificationData:
             nd.last_update = dbus_info[3]
             nd.build_number = dbus_info[4]['version']
         return nd
-        
+
     def inc_build_number(self):
         """
         Increment build number
@@ -77,5 +77,5 @@ class NotificationData:
         "IMAGE-CHANNEL/DEVICE-MODEL": [BUILD-NUMBER, CHANNEL-ALIAS]"
         """
         json_str = '"{0}/{1}": [{2}, "{3}"]'
-        return json_str.format(self.channel, self.device, self.build_number, self.data)
-
+        return json_str.format(self.channel, self.device, self.build_number,
+                               self.data)

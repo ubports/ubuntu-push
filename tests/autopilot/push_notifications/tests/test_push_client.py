@@ -10,13 +10,8 @@
 from __future__ import absolute_import
 
 from testtools.matchers import Equals
-from autopilot.matchers import Eventually
-from autopilot.introspection import dbus
-import autopilot.platform
-from autopilot.testcase import AutopilotTestCase
-
-from push_notifications import data
 from push_notifications.tests import PushNotificationTestBase
+
 
 class TestPushClient(PushNotificationTestBase):
     """ Tests a Push notification can be sent and received """
@@ -59,7 +54,8 @@ class TestPushClient(PushNotificationTestBase):
         """
         Send a broadcast message with a short validity time
         """
-        msg = self.create_push_message(expire_after=self.get_near_future_iso_time())
+        msg = self.create_push_message(
+            expire_after=self.get_near_future_iso_time())
         response = self.send_push_broadcast_notification(msg.json())
         self._validate_response(response)
 
@@ -69,7 +65,8 @@ class TestPushClient(PushNotificationTestBase):
         """
         Send a broadcast message which has just expired
         """
-        msg = self.create_push_message(expire_after=self.get_near_past_iso_time())
+        msg = self.create_push_message(
+            expire_after=self.get_near_past_iso_time())
         response = self.send_push_broadcast_notification(msg.json())
         self._validate_response(response)
 

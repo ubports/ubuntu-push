@@ -10,7 +10,10 @@ import os
 
 CONFIG_FILE = 'push.conf'
 
+
 def get_config_file():
+    """
+    Return the path for the config file
+    """
     config_dir = os.path.dirname(__file__)
     return os.path.join(config_dir, CONFIG_FILE)
-

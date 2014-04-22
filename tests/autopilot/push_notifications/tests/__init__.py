@@ -12,17 +12,12 @@ import configparser
 import http.client as http
 import json
 import os
-import psutil
 import datetime
 import subprocess
 import dbus
 import copy
 
 from autopilot.testcase import AutopilotTestCase
-from autopilot.matchers import Eventually
-from autopilot.platform import model
-from testtools.matchers import Equals
-
 from push_notifications.data import PushNotificationMessage
 from push_notifications.data import NotificationData
 from push_notifications import config
@@ -72,49 +67,53 @@ class PushNotificationTestBase(AutopilotTestCase):
         Discover the device's model and build info
         """
         system_bus = dbus.SystemBus()
-        info_service = system_bus.get_object('com.canonical.SystemImage', '/Service')
+        info_service = system_bus.get_object(
+            'com.canonical.SystemImage', '/Service')
         info = info_service.Info()
         # Create a NotificationData object based on the dbus info
-        self.notification_data = NotificationData.from_dbus_info(dbus_info=info)
+        self.notification_data = NotificationData.from_dbus_info(
+            dbus_info=info)
 
     def read_config_file(self):
         """
         Read data from config file
         """
         config_file = config.get_config_file()
-        self.configparser = configparser.ConfigParser()
-        self.configparser.read(config_file)
+        self.config = configparser.ConfigParser()
+        self.config.read(config_file)
         # read the name of the environment to use (local/remote)
-        self.environment = self.configparser[self.SECTION_DEFAULT][self.KEY_ENVIRONMENT]
+        self.env = self.config[self.SECTION_DEFAULT][self.KEY_ENVIRONMENT]
+        # format the server device and listener address
         addr_fmt = '{0}:{1}'
-        self.server_listener_addr = addr_fmt.format(self.get_server_addr(), self.get_listener_port())
-        self.server_device_addr = addr_fmt.format(self.get_server_addr(), self.get_device_port())
-        
+        self.server_listener_addr = addr_fmt.format(
+            self.get_server_addr(), self.get_listener_port())
+        self.server_device_addr = addr_fmt.format(
+            self.get_server_addr(), self.get_device_port())
 
     def get_server_addr(self):
         """
         Return the server address from config file
         """
-        return self.configparser[self.environment][self.KEY_ADDR]
+        return self.config[self.env][self.KEY_ADDR]
 
     def get_listener_port(self):
         """
         Return the server listener port from config file
         """
-        return self.configparser[self.environment][self.KEY_LISTENER_PORT]
+        return self.config[self.env][self.KEY_LISTENER_PORT]
 
     def get_device_port(self):
         """
         Return the server listener port from config file
         """
-        return self.configparser[self.environment][self.KEY_DEVICE_PORT]
+        return self.config[self.env][self.KEY_DEVICE_PORT]
 
     def _control_client(self, command):
         """
         start/stop/restart the ubuntu-push-client using initctl
-        """        
+        """
         subprocess.call(['initctl', command, 'ubuntu-push-client'])
-    
+
     def stop_push_client(self):
         """
         Stop the push client
@@ -133,19 +132,19 @@ class PushNotificationTestBase(AutopilotTestCase):
         """
         self.stop_push_client()
         self.start_push_client()
-        
+
     def write_client_test_config(self):
         """
         Write the test server address to client config file
         """
         # read the original config file
-        with open(self.PUSH_CLIENT_DEFAULT_CONFIG_FILE) as config_file:    
+        with open(self.PUSH_CLIENT_DEFAULT_CONFIG_FILE) as config_file:
             config = json.load(config_file)
         # change server address
         config['addr'] = self.server_device_addr
         # write the config json out to the ~.local address
         abs_config_file = os.path.expanduser(self.PUSH_CLIENT_CONFIG_FILE)
-        config_dir = os.path.dirname(abs_config_file) 
+        config_dir = os.path.dirname(abs_config_file)
         if not os.path.exists(config_dir):
             os.makedirs(config_dir)
         with open(abs_config_file, 'w+') as outfile:
@@ -159,8 +158,12 @@ class PushNotificationTestBase(AutopilotTestCase):
         """
         headers = {'Content-type': self.PUSH_MIME_TYPE}
         conn = http.HTTPConnection(self.server_listener_addr)
-        conn.request('POST', self.PUSH_SERVER_BROADCAST_URL, headers=headers, body=msg_json)
-        return conn.getresponse()        
+        conn.request(
+            'POST',
+            self.PUSH_SERVER_BROADCAST_URL,
+            headers=headers,
+            body=msg_json)
+        return conn.getresponse()
 
     def create_push_message(self, channel='system', data='', expire_after=''):
         """
@@ -209,9 +212,9 @@ class PushNotificationTestBase(AutopilotTestCase):
         """
         return self.get_iso_time()
 
-    def get_iso_time(self, year_offset=0, month_offset=0, day_offset=0, 
-            hour_offset=0, min_offset=0, sec_offset=0, tz_hour_offset=0, 
-            tz_min_offset=0):
+    def get_iso_time(self, year_offset=0, month_offset=0, day_offset=0,
+                     hour_offset=0, min_offset=0, sec_offset=0,
+                     tz_hour_offset=0, tz_min_offset=0):
         """
         Return an ISO8601 format date-time string, including time-zone
         offset: YYYY-MM-DDTHH:MM:SS-HH:MM
@@ -219,12 +222,12 @@ class PushNotificationTestBase(AutopilotTestCase):
         # calulate target time based on current time and format it
         now = datetime.datetime.now()
         target_time = datetime.datetime(
-            year=now.year+year_offset, 
-            month=now.month+month_offset, 
-            day=now.day+day_offset, 
-            hour=now.hour+hour_offset, 
-            minute=now.minute+min_offset, 
-            second=now.second+sec_offset)
+            year=now.year + year_offset,
+            month=now.month + month_offset,
+            day=now.day + day_offset,
+            hour=now.hour + hour_offset,
+            minute=now.minute + min_offset,
+            second=now.second + sec_offset)
         target_time_fmt = target_time.strftime('%Y-%m-%dT%H:%M:%S')
         # format time zone offset
         tz = datetime.time(
@@ -234,5 +237,3 @@ class PushNotificationTestBase(AutopilotTestCase):
         # combine target time and time zone offset
         iso_time = '{0}-{1}'.format(target_time_fmt, tz_fmt)
         return iso_time
-
-
