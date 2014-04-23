@@ -1,4 +1,4 @@
-ubuntu-push (0.2.1-0ubuntu1) UNRELEASED; urgency=high
+ubuntu-push (0.2.1+14.04.20140423.1-0ubuntu1) trusty; urgency=high
 
   [ Samuele Pedroni ]
   * gave the client the ability to get config from commandline
@@ -15,7 +15,7 @@ ubuntu-push (0.2.1-0ubuntu1) UNRELEASED; urgency=high
     autoredial. Also track the last autoredial, and set the delay flag if
     autoredial is re-called too quickly. (LP: #1309231)
 
- -- John Lenton <john.lenton@canonical.com>  Fri, 18 Apr 2014 10:42:31 +0100
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Wed, 23 Apr 2014 11:54:00 +0000
 
 ubuntu-push (0.2+14.04.20140411-0ubuntu1) trusty; urgency=medium
 
