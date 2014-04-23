@@ -2,7 +2,7 @@ ubuntu-push (0.2.1-0ubuntu1) UNRELEASED; urgency=high
 
   [ Samuele Pedroni ]
   * gave the client the ability to get config from commandline
-    ( => easier automated testing) (LP: #216466)
+    ( => easier automated testing) (LP: #1311600)
 
   [ John Lenton ]
   * Ensure ubuntu-push-client is the only one running in the session.
