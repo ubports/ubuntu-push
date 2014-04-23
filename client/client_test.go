@@ -19,10 +19,12 @@ package client
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -37,6 +39,7 @@ import (
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/config"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/util"
@@ -79,6 +82,7 @@ func mkHandler(text string) http.HandlerFunc {
 }
 
 func (cs *clientSuite) SetUpSuite(c *C) {
+	config.IgnoreParsedFlags = true // because configure() uses <flags>
 	cs.timeouts = util.SwapTimeouts([]time.Duration{0})
 	cs.leveldbPath = ""
 }
@@ -142,6 +146,16 @@ func (cs *clientSuite) TestConfigureWorks(c *C) {
 	c.Check(cli.config.ExchangeTimeout.TimeDuration(), Equals, time.Duration(10*time.Millisecond))
 }
 
+func (cs *clientSuite) TestConfigureWorksWithFlags(c *C) {
+	flag.CommandLine = flag.NewFlagSet("client", flag.ContinueOnError)
+	os.Args = []string{"client", "-addr", "foo:7777"}
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	c.Assert(cli.config, NotNil)
+	c.Check(cli.config.Addr, Equals, "foo:7777")
+}
+
 func (cs *clientSuite) TestConfigureSetsUpLog(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.log, IsNil)
@@ -163,7 +177,7 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	c.Check(cli.idder, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	c.Assert(cli.idder, DeepEquals, identifier.New())
+	c.Assert(cli.idder, FitsTypeOf, identifier.New())
 }
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {

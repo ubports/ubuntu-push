@@ -32,12 +32,13 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
-	//"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
+	"launchpad.net/ubuntu-push/util"
 )
 
 func TestSession(t *testing.T) { TestingT(t) }
@@ -214,6 +215,10 @@ func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
 	c.Check(sess, NotNil)
 	c.Check(err, IsNil)
 	c.Check(sess.fallbackHosts, DeepEquals, []string{"foo:443"})
+	// the session is happy and redial delayer is default
+	c.Check(sess.ShouldDelay(), Equals, false)
+	c.Check(fmt.Sprintf("%#v", sess.redialDelay), Equals, fmt.Sprintf("%#v", redialDelay))
+	c.Check(sess.redialDelays, DeepEquals, util.Timeouts())
 	// but no root CAs set
 	c.Check(sess.TLS.RootCAs, IsNil)
 	c.Check(sess.State(), Equals, Disconnected)
@@ -264,16 +269,17 @@ func (cs *clientSessionSuite) TestGetHostsFallback(c *C) {
 }
 
 type testHostGetter struct {
-	hosts []string
-	err   error
+	domain string
+	hosts  []string
+	err    error
 }
 
-func (thg *testHostGetter) Get() ([]string, error) {
-	return thg.hosts, thg.err
+func (thg *testHostGetter) Get() (*gethosts.Host, error) {
+	return &gethosts.Host{thg.domain, thg.hosts}, thg.err
 }
 
 func (cs *clientSessionSuite) TestGetHostsRemote(c *C) {
-	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	hostGetter := &testHostGetter{"example.com", []string{"foo:443", "bar:443"}, nil}
 	sess := &ClientSession{getHost: hostGetter, timeSince: time.Since}
 	err := sess.getHosts()
 	c.Assert(err, IsNil)
@@ -284,7 +290,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteError(c *C) {
 	sess, err := NewSession("", dummyConf, "", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	hostsErr := errors.New("failed")
-	hostGetter := &testHostGetter{nil, hostsErr}
+	hostGetter := &testHostGetter{"", nil, hostsErr}
 	sess.getHost = hostGetter
 	err = sess.getHosts()
 	c.Assert(err, Equals, hostsErr)
@@ -293,7 +299,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteError(c *C) {
 }
 
 func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
-	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	hostGetter := &testHostGetter{"example.com", []string{"foo:443", "bar:443"}, nil}
 	sess := &ClientSession{
 		getHost: hostGetter,
 		ClientSessionConfig: ClientSessionConfig{
@@ -318,7 +324,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
 }
 
 func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
-	hostGetter := &testHostGetter{[]string{"foo:443", "bar:443"}, nil}
+	hostGetter := &testHostGetter{"example.com", []string{"foo:443", "bar:443"}, nil}
 	sess := &ClientSession{
 		getHost: hostGetter,
 		ClientSessionConfig: ClientSessionConfig{
@@ -427,7 +433,9 @@ func (cs *clientSessionSuite) TestConnectFailsWithNoAddress(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	sess.deliveryHosts = []string{"nowhere"}
+	sess.clearShouldDelay()
 	err = sess.connect()
+	c.Check(sess.ShouldDelay(), Equals, true)
 	c.Check(err, ErrorMatches, ".*connect.*address.*")
 	c.Check(sess.State(), Equals, Error)
 }
@@ -439,7 +447,9 @@ func (cs *clientSessionSuite) TestConnectConnects(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	sess.deliveryHosts = []string{srv.Addr().String()}
+	sess.clearShouldDelay()
 	err = sess.connect()
+	c.Check(sess.ShouldDelay(), Equals, true)
 	c.Check(err, IsNil)
 	c.Check(sess.Connection, NotNil)
 	c.Check(sess.State(), Equals, Connected)
@@ -452,7 +462,9 @@ func (cs *clientSessionSuite) TestConnectSecondConnects(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	sess.deliveryHosts = []string{"nowhere", srv.Addr().String()}
+	sess.clearShouldDelay()
 	err = sess.connect()
+	c.Check(sess.ShouldDelay(), Equals, true)
 	c.Check(err, IsNil)
 	c.Check(sess.Connection, NotNil)
 	c.Check(sess.State(), Equals, Connected)
@@ -466,7 +478,9 @@ func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
 	srv.Close()
 	c.Assert(err, IsNil)
 	sess.deliveryHosts = []string{srv.Addr().String()}
+	sess.clearShouldDelay()
 	err = sess.connect()
+	c.Check(sess.ShouldDelay(), Equals, true)
 	c.Check(err, ErrorMatches, ".*connection refused")
 	c.Check(sess.State(), Equals, Error)
 }
@@ -548,6 +562,27 @@ func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
 	c.Check(<-ch, Not(Equals), 0)
 }
 
+func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
+	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	flag := false
+	sess.redialDelay = func(sess *ClientSession) time.Duration { flag = true; return 0 }
+	sess.AutoRedial(nil)
+	c.Check(flag, Equals, true)
+}
+
+func (cs *clientSessionSuite) TestAutoRedialSetsRedialDelayIfTooQuick(c *C) {
+	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.redialDelay = func(sess *ClientSession) time.Duration { return 0 }
+	sess.AutoRedial(nil)
+	c.Check(sess.ShouldDelay(), Equals, false)
+	sess.stopRedial()
+	sess.clearShouldDelay()
+	sess.AutoRedial(nil)
+	c.Check(sess.ShouldDelay(), Equals, true)
+}
+
 /****************************************************************
   handlePing() tests
 ****************************************************************/
@@ -592,6 +627,24 @@ func (s *msgSuite) TestHandlePingHandlesPongWriteError(c *C) {
 	c.Assert(len(s.downCh), Equals, 1)
 	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
 	c.Check(s.sess.State(), Equals, Error)
+}
+
+func (s *msgSuite) TestHandlePingClearsDelay(c *C) {
+	s.sess.setShouldDelay()
+	s.upCh <- nil // no error
+	c.Check(s.sess.handlePing(), IsNil)
+	c.Assert(len(s.downCh), Equals, 1)
+	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
+	c.Check(s.sess.ShouldDelay(), Equals, false)
+}
+
+func (s *msgSuite) TestHandlePingDoesNotClearsDelayOnError(c *C) {
+	s.sess.setShouldDelay()
+	s.upCh <- errors.New("Pong")
+	c.Check(s.sess.handlePing(), NotNil)
+	c.Assert(len(s.downCh), Equals, 1)
+	c.Check(<-s.downCh, Equals, protocol.PingPongMsg{Type: "pong"})
+	c.Check(s.sess.ShouldDelay(), Equals, true)
 }
 
 /****************************************************************
@@ -685,6 +738,32 @@ func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
 	// and nak'ed it
 	c.Check(len(s.downCh), Equals, 1)
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"nak"})
+}
+
+func (s *msgSuite) TestHandleBroadcastClearsDelay(c *C) {
+	s.sess.setShouldDelay()
+
+	msg := serverMsg{"broadcast", protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, IsNil)
+
+	c.Check(s.sess.ShouldDelay(), Equals, false)
+}
+
+func (s *msgSuite) TestHandleBroadcastDoesNotClearDelayOnError(c *C) {
+	s.sess.setShouldDelay()
+
+	msg := serverMsg{"broadcast", protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- errors.New("bcast")
+	c.Check(<-s.errCh, NotNil)
+
+	c.Check(s.sess.ShouldDelay(), Equals, true)
 }
 
 /****************************************************************
@@ -1087,8 +1166,63 @@ func (cs *clientSessionSuite) TestDialPanics(c *C) {
 
 var (
 	dialTestTimeout = 100 * time.Millisecond
-	dialTestConf    = ClientSessionConfig{ExchangeTimeout: dialTestTimeout}
+	dialTestConf    = ClientSessionConfig{
+		ExchangeTimeout: dialTestTimeout,
+		PEM:             helpers.TestCertPEMBlock,
+	}
 )
+
+func (cs *clientSessionSuite) TestDialBadServerName(c *C) {
+	// a borked server name
+	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
+	c.Assert(err, IsNil)
+	tlsCfg := &tls.Config{
+		Certificates:           []tls.Certificate{cert},
+		SessionTicketsDisabled: true,
+	}
+
+	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
+	c.Assert(err, IsNil)
+	// advertise
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := json.Marshal(map[string]interface{}{
+			"domain": "xyzzy", // <-- *** THIS *** is the bit that'll break it
+			"hosts":  []string{"nowhere", lst.Addr().String()},
+		})
+		if err != nil {
+			panic(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(b)
+	}))
+	defer ts.Close()
+
+	sess, err := NewSession(ts.URL, dialTestConf, "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	tconn := &testConn{}
+	sess.Connection = tconn
+
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	errCh := make(chan error, 1)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(net.Conn) protocol.Protocol { return proto }
+
+	go func() {
+		errCh <- sess.Dial()
+	}()
+
+	srv, err := lst.Accept()
+	c.Assert(err, IsNil)
+
+	// connect done
+
+	_, err = protocol.ReadWireFormatVersion(srv, dialTestTimeout)
+	c.Check(err, NotNil)
+
+	c.Check(<-errCh, NotNil)
+	c.Check(sess.State(), Equals, Error)
+}
 
 func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	// happy path thoughts
@@ -1104,7 +1238,8 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	// advertise
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := json.Marshal(map[string]interface{}{
-			"hosts": []string{"nowhere", lst.Addr().String()},
+			"domain": "localhost",
+			"hosts":  []string{"nowhere", lst.Addr().String()},
 		})
 		if err != nil {
 			panic(err)
@@ -1222,4 +1357,39 @@ func (cs *clientSessionSuite) TestDialWorksDirect(c *C) {
 	_, err = lst.Accept()
 	c.Assert(err, IsNil)
 	// connect done
+}
+
+/****************************************************************
+  redialDelay() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestShouldDelay(c *C) {
+	sess, err := NewSession("foo:443", dummyConf, "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	c.Check(sess.ShouldDelay(), Equals, false)
+	sess.setShouldDelay()
+	c.Check(sess.ShouldDelay(), Equals, true)
+	sess.clearShouldDelay()
+	c.Check(sess.ShouldDelay(), Equals, false)
+}
+
+func (cs *clientSessionSuite) TestRedialDelay(c *C) {
+	sess, err := NewSession("foo:443", dummyConf, "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.redialDelays = []time.Duration{17, 42}
+	n := 0
+	sess.redialJitter = func(time.Duration) time.Duration { n++; return 0 }
+	// we get increasing delays while we're unhappy
+	sess.setShouldDelay()
+	c.Check(redialDelay(sess), Equals, time.Duration(17))
+	c.Check(redialDelay(sess), Equals, time.Duration(42))
+	c.Check(redialDelay(sess), Equals, time.Duration(42))
+	// once we're happy, delays drop to 0
+	sess.clearShouldDelay()
+	c.Check(redialDelay(sess), Equals, time.Duration(0))
+	// and start again from the top if we become unhappy again
+	sess.setShouldDelay()
+	c.Check(redialDelay(sess), Equals, time.Duration(17))
+	// and redialJitter got called every time shouldDelay was true
+	c.Check(n, Equals, 4)
 }

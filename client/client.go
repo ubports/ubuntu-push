@@ -57,7 +57,7 @@ type ClientConfig struct {
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
 	// The logging level (one of "debug", "info", "error")
-	LogLevel string `json:"log_level"`
+	LogLevel logger.ConfigLogLevel `json:"log_level"`
 }
 
 // PushClient is the Ubuntu Push Notifications client-side daemon.
@@ -95,13 +95,13 @@ func NewPushClient(configPath string, leveldbPath string) *PushClient {
 
 // configure loads its configuration, and sets it up.
 func (client *PushClient) configure() error {
-	f, err := os.Open(client.configPath)
+	_, err := os.Stat(client.configPath)
 	if err != nil {
-		return fmt.Errorf("opening config: %v", err)
+		return fmt.Errorf("config: %v", err)
 	}
-	err = config.ReadConfig(f, &client.config)
+	err = config.ReadFiles(&client.config, client.configPath, "<flags>")
 	if err != nil {
-		return fmt.Errorf("reading config: %v", err)
+		return fmt.Errorf("config: %v", err)
 	}
 	// ignore spaces
 	client.config.Addr = strings.Replace(client.config.Addr, " ", "", -1)
@@ -110,7 +110,7 @@ func (client *PushClient) configure() error {
 	}
 
 	// later, we'll be specifying more logging options in the config file
-	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel)
+	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel.Level())
 
 	// overridden for testing
 	client.idder = identifier.New()
@@ -285,9 +285,6 @@ func (client *PushClient) handleNotification(msg *session.Notification) error {
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
 	nots := notifications.Raw(client.notificationsEndp, client.log)
 	body := "Tap to open the system updater."
-	if msg != nil {
-		body = fmt.Sprintf("[%d] %s", msg.TopLevel, body)
-	}
 	not_id, err := nots.Notify(
 		"ubuntu-push-client",               // app name
 		uint32(0),                          // id

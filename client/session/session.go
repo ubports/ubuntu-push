@@ -73,7 +73,7 @@ const (
 )
 
 type hostGetter interface {
-	Get() ([]string, error)
+	Get() (*gethosts.Host, error)
 }
 
 // ClientSessionConfig groups the client session configuration.
@@ -115,6 +115,26 @@ type ClientSession struct {
 	stateP *uint32
 	ErrCh  chan error
 	MsgCh  chan *Notification
+	// autoredial knobs
+	shouldDelayP    *uint32
+	lastAutoRedial  time.Time
+	redialDelay     func(*ClientSession) time.Duration
+	redialJitter    func(time.Duration) time.Duration
+	redialDelays    []time.Duration
+	redialDelaysIdx int
+}
+
+func redialDelay(sess *ClientSession) time.Duration {
+	if sess.ShouldDelay() {
+		t := sess.redialDelays[sess.redialDelaysIdx]
+		if len(sess.redialDelays) > sess.redialDelaysIdx+1 {
+			sess.redialDelaysIdx++
+		}
+		return t + sess.redialJitter(t)
+	} else {
+		sess.redialDelaysIdx = 0
+		return 0
+	}
 }
 
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
@@ -131,6 +151,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	if hostsEndpoint != "" {
 		getHost = gethosts.New(deviceId, hostsEndpoint, conf.ExchangeTimeout)
 	}
+	var shouldDelay uint32 = 0
 	sess := &ClientSession{
 		ClientSessionConfig: conf,
 		getHost:             getHost,
@@ -139,10 +160,14 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		Log:                 log,
 		Protocolator:        protocol.NewProtocol0,
 		Levels:              levels,
-		TLS:                 &tls.Config{InsecureSkipVerify: true}, // XXX
+		TLS:                 &tls.Config{},
 		stateP:              &state,
 		timeSince:           time.Since,
+		shouldDelayP:        &shouldDelay,
+		redialDelay:         redialDelay,
+		redialDelays:        util.Timeouts(),
 	}
+	sess.redialJitter = sess.Jitter
 	if sess.PEM != nil {
 		cp := x509.NewCertPool()
 		ok := cp.AppendCertsFromPEM(sess.PEM)
@@ -152,6 +177,18 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		sess.TLS.RootCAs = cp
 	}
 	return sess, nil
+}
+
+func (sess *ClientSession) ShouldDelay() bool {
+	return atomic.LoadUint32(sess.shouldDelayP) != 0
+}
+
+func (sess *ClientSession) setShouldDelay() {
+	atomic.StoreUint32(sess.shouldDelayP, uint32(1))
+}
+
+func (sess *ClientSession) clearShouldDelay() {
+	atomic.StoreUint32(sess.shouldDelayP, uint32(0))
 }
 
 func (sess *ClientSession) State() ClientSessionState {
@@ -180,14 +217,17 @@ func (sess *ClientSession) getHosts() error {
 		if sess.deliveryHosts != nil && sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
 			return nil
 		}
-		hosts, err := sess.getHost.Get()
+		host, err := sess.getHost.Get()
 		if err != nil {
 			sess.Log.Errorf("getHosts: %v", err)
 			sess.setState(Error)
 			return err
 		}
 		sess.deliveryHostsTimestamp = time.Now()
-		sess.deliveryHosts = hosts
+		sess.deliveryHosts = host.Hosts
+		if sess.TLS != nil {
+			sess.TLS.ServerName = host.Domain
+		}
 	} else {
 		sess.deliveryHosts = sess.fallbackHosts
 	}
@@ -234,6 +274,7 @@ func (sess *ClientSession) started() {
 // connect to a server using the configuration in the ClientSession
 // and set up the connection.
 func (sess *ClientSession) connect() error {
+	sess.setShouldDelay()
 	sess.startConnectionAttempt()
 	var err error
 	var conn net.Conn
@@ -263,7 +304,12 @@ func (sess *ClientSession) stopRedial() {
 
 func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 	sess.stopRedial()
+	if time.Since(sess.lastAutoRedial) < 2*time.Second {
+		sess.setShouldDelay()
+	}
+	time.Sleep(sess.redialDelay(sess))
 	sess.retrier = util.NewAutoRedialer(sess)
+	sess.lastAutoRedial = time.Now()
 	go func() { doneCh <- sess.retrier.Redial() }()
 }
 
@@ -289,6 +335,7 @@ func (sess *ClientSession) handlePing() error {
 	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
 	if err == nil {
 		sess.Log.Debugf("ping.")
+		sess.clearShouldDelay()
 	} else {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to pong: %s", err)
@@ -330,6 +377,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		sess.Log.Errorf("unable to ack broadcast: %s", err)
 		return err
 	}
+	sess.clearShouldDelay()
 	sess.Log.Debugf("broadcast chan:%v app:%v topLevel:%d payloads:%s",
 		bcast.ChanId, bcast.AppId, bcast.TopLevel, bcast.Payloads)
 	if bcast.ChanId == protocol.SystemChannelId {
