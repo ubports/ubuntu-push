@@ -85,17 +85,11 @@ func (cs *clientSuite) SetUpSuite(c *C) {
 	config.IgnoreParsedFlags = true // because configure() uses <flags>
 	cs.timeouts = util.SwapTimeouts([]time.Duration{0})
 	cs.leveldbPath = ""
-	getAuthorization = func() (string, error) {
-		return "some auth", nil
-	}
-	shouldGetAuth = true
 }
 
 func (cs *clientSuite) TearDownSuite(c *C) {
 	util.SwapTimeouts(cs.timeouts)
 	cs.timeouts = nil
-	getAuthorization = util.GetAuthorization
-	shouldGetAuth = false
 }
 
 func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
@@ -183,7 +177,7 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	c.Check(cli.idder, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	c.Assert(cli.idder, DeepEquals, identifier.New())
+	c.Assert(cli.idder, FitsTypeOf, identifier.New())
 }
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
@@ -204,14 +198,6 @@ func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.connCh, NotNil)
-}
-
-func (cs *clientSuite) TestConfigureSetsUpAuth(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	c.Check(cli.auth, Equals, "")
-	err := cli.configure()
-	c.Assert(err, IsNil)
-	c.Assert(cli.auth, Equals, "some auth")
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
@@ -279,9 +265,8 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExchangeTimeout:        10 * time.Millisecond,
 		HostsCachingExpiryTime: 1 * time.Hour,
 		ExpectAllRepairedTime:  30 * time.Minute,
-		PEM:           cli.pem,
-		Info:          info,
-		Authorization: "some auth",
+		PEM:  cli.pem,
+		Info: info,
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)

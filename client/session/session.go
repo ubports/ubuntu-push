@@ -38,7 +38,11 @@ import (
 	"launchpad.net/ubuntu-push/util"
 )
 
-var wireVersionBytes = []byte{protocol.ProtocolWireVersion}
+var (
+	wireVersionBytes = []byte{protocol.ProtocolWireVersion}
+	getAuthorization = util.GetAuthorization
+	shouldGetAuth    = false
+)
 
 type Notification struct {
 	TopLevel int64
@@ -84,7 +88,6 @@ type ClientSessionConfig struct {
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
 	Info                   map[string]interface{}
-	Authorization          string
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -118,6 +121,26 @@ type ClientSession struct {
 	MsgCh  chan *Notification
 	// authorization
 	auth string
+	// autoredial knobs
+	shouldDelayP    *uint32
+	lastAutoRedial  time.Time
+	redialDelay     func(*ClientSession) time.Duration
+	redialJitter    func(time.Duration) time.Duration
+	redialDelays    []time.Duration
+	redialDelaysIdx int
+}
+
+func redialDelay(sess *ClientSession) time.Duration {
+	if sess.ShouldDelay() {
+		t := sess.redialDelays[sess.redialDelaysIdx]
+		if len(sess.redialDelays) > sess.redialDelaysIdx+1 {
+			sess.redialDelaysIdx++
+		}
+		return t + sess.redialJitter(t)
+	} else {
+		sess.redialDelaysIdx = 0
+		return 0
+	}
 }
 
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
@@ -134,6 +157,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	if hostsEndpoint != "" {
 		getHost = gethosts.New(deviceId, hostsEndpoint, conf.ExchangeTimeout)
 	}
+	var shouldDelay uint32 = 0
 	sess := &ClientSession{
 		ClientSessionConfig: conf,
 		getHost:             getHost,
@@ -145,8 +169,11 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		TLS:                 &tls.Config{},
 		stateP:              &state,
 		timeSince:           time.Since,
-		auth:                conf.Authorization,
+		shouldDelayP:        &shouldDelay,
+		redialDelay:         redialDelay,
+		redialDelays:        util.Timeouts(),
 	}
+	sess.redialJitter = sess.Jitter
 	if sess.PEM != nil {
 		cp := x509.NewCertPool()
 		ok := cp.AppendCertsFromPEM(sess.PEM)
@@ -156,6 +183,18 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		sess.TLS.RootCAs = cp
 	}
 	return sess, nil
+}
+
+func (sess *ClientSession) ShouldDelay() bool {
+	return atomic.LoadUint32(sess.shouldDelayP) != 0
+}
+
+func (sess *ClientSession) setShouldDelay() {
+	atomic.StoreUint32(sess.shouldDelayP, uint32(1))
+}
+
+func (sess *ClientSession) clearShouldDelay() {
+	atomic.StoreUint32(sess.shouldDelayP, uint32(0))
 }
 
 func (sess *ClientSession) State() ClientSessionState {
@@ -201,6 +240,21 @@ func (sess *ClientSession) getHosts() error {
 	return nil
 }
 
+// checkAuthorization checks the authorization within the phone
+func (sess *ClientSession) checkAuthorization() error {
+	// grab the authorization string from the accounts
+	// TODO: remove this condition when we have a way to deal with failing authorizations
+	if shouldGetAuth {
+		auth, err := getAuthorization()
+		if err != nil {
+			// For now we just log the error, as we don't want to block unauthorized users
+			sess.Log.Errorf("unable to get the authorization token from the account: %v", err)
+		}
+		sess.auth = auth
+	}
+	return nil
+}
+
 func (sess *ClientSession) resetHosts() {
 	sess.deliveryHosts = nil
 }
@@ -241,6 +295,7 @@ func (sess *ClientSession) started() {
 // connect to a server using the configuration in the ClientSession
 // and set up the connection.
 func (sess *ClientSession) connect() error {
+	sess.setShouldDelay()
 	sess.startConnectionAttempt()
 	var err error
 	var conn net.Conn
@@ -270,7 +325,12 @@ func (sess *ClientSession) stopRedial() {
 
 func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 	sess.stopRedial()
+	if time.Since(sess.lastAutoRedial) < 2*time.Second {
+		sess.setShouldDelay()
+	}
+	time.Sleep(sess.redialDelay(sess))
 	sess.retrier = util.NewAutoRedialer(sess)
+	sess.lastAutoRedial = time.Now()
 	go func() { doneCh <- sess.retrier.Redial() }()
 }
 
@@ -296,6 +356,7 @@ func (sess *ClientSession) handlePing() error {
 	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
 	if err == nil {
 		sess.Log.Debugf("ping.")
+		sess.clearShouldDelay()
 	} else {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to pong: %s", err)
@@ -337,6 +398,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		sess.Log.Errorf("unable to ack broadcast: %s", err)
 		return err
 	}
+	sess.clearShouldDelay()
 	sess.Log.Debugf("broadcast chan:%v app:%v topLevel:%d payloads:%s",
 		bcast.ChanId, bcast.AppId, bcast.TopLevel, bcast.Payloads)
 	if bcast.ChanId == protocol.SystemChannelId {
@@ -453,13 +515,15 @@ func (sess *ClientSession) start() error {
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *ClientSession) run(closer func(), hostGetter, connecter, starter, looper func() error) error {
+func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter, starter, looper func() error) error {
 	closer()
-	err := hostGetter()
-	if err != nil {
+	if err := authChecker(); err != nil {
 		return err
 	}
-	err = connecter()
+	if err := hostGetter(); err != nil {
+		return err
+	}
+	err := connecter()
 	if err == nil {
 		err = starter()
 		if err == nil {
@@ -489,7 +553,7 @@ func (sess *ClientSession) Dial() error {
 		// keep on trying.
 		panic("can't Dial() without a protocol constructor.")
 	}
-	return sess.run(sess.doClose, sess.getHosts, sess.connect, sess.start, sess.loop)
+	return sess.run(sess.doClose, sess.checkAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
 func init() {

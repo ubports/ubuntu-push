@@ -41,3 +41,18 @@ func (s *IdentifierSuite) TestGenerate(c *C) {
 func (s *IdentifierSuite) TestIdentifierInterface(c *C) {
 	_ = []Id{New()}
 }
+
+// TestFailure checks that Identifier survives whoopsie shenanigans
+func (s *IdentifierSuite) TestIdentifierSurvivesShenanigans(c *C) {
+	count := 0
+	// using _Ctype* as a workaround for gocheck also having a C
+	gen := func(csp **_Ctype_char, errp **_Ctype_GError) {
+		count++
+		if count > 3 {
+			generator(csp, errp)
+		}
+	}
+	id := &Identifier{generator: gen}
+	id.Generate()
+	c.Check(id.String(), HasLen, 128)
+}
