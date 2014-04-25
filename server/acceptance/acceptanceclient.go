@@ -44,6 +44,7 @@ type ClientSession struct {
 	Levels          map[string]int64
 	Insecure        bool   // don't verify certs
 	Prefix          string // prefix for events
+	Auth            string
 	// connection
 	Connection net.Conn
 }
@@ -93,6 +94,7 @@ func (sess *ClientSession) Run(events chan<- string) error {
 			"device":  sess.Model,
 			"channel": sess.ImageChannel,
 		},
+		Authorization: sess.Auth,
 	})
 	if err != nil {
 		return err
