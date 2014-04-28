@@ -124,9 +124,9 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 // watch
 type racyEndpoint struct {
 	stateGot bool
-	maxTime time.Time
-	delta time.Duration
-	lock sync.RWMutex
+	maxTime  time.Time
+	delta    time.Duration
+	lock     sync.RWMutex
 }
 
 func (rep *racyEndpoint) GetProperty(prop string) (interface{}, error) {
@@ -160,9 +160,9 @@ func (rep *racyEndpoint) WatchSignal(member string, f func(...interface{}), d fu
 	return nil
 }
 
-func (*racyEndpoint) Close() {}
-func (*racyEndpoint) Dial() error { return nil }
-func (*racyEndpoint) String() string { return "racyEndpoint" }
+func (*racyEndpoint) Close()                                           {}
+func (*racyEndpoint) Dial() error                                      { return nil }
+func (*racyEndpoint) String() string                                   { return "racyEndpoint" }
 func (*racyEndpoint) Call(string, []interface{}, ...interface{}) error { return nil }
 
 var _ bus.Endpoint = (*racyEndpoint)(nil)
