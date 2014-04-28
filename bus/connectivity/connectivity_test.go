@@ -17,8 +17,15 @@
 package connectivity
 
 import (
+	"net/http/httptest"
+	"sync"
+	"testing"
+	"time"
+
 	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	testingbus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/config"
@@ -26,9 +33,6 @@ import (
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/util"
-	"net/http/httptest"
-	"testing"
-	"time"
 )
 
 // hook up gocheck
@@ -113,6 +117,76 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 	c.Check(cs.connAttempts, Equals, uint32(2))
 	c.Check(<-cs.networkStateCh, Equals, networkmanager.Connecting)
 	c.Check(<-cs.networkStateCh, Equals, networkmanager.ConnectedGlobal)
+}
+
+// a racyEndpoint is an endpoint that behaves differently depending on
+// how much time passes between getting the state and setting up the
+// watch
+type racyEndpoint struct {
+	stateGot bool
+	maxTime time.Time
+	delta time.Duration
+	lock sync.RWMutex
+}
+
+func (rep *racyEndpoint) GetProperty(prop string) (interface{}, error) {
+	switch prop {
+	case "state":
+		rep.lock.Lock()
+		defer rep.lock.Unlock()
+		rep.stateGot = true
+		rep.maxTime = time.Now().Add(rep.delta)
+		return uint32(networkmanager.Connecting), nil
+	case "PrimaryConnection":
+		return dbus.ObjectPath("/something"), nil
+	default:
+		return nil, nil
+	}
+}
+
+func (rep *racyEndpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
+	if member == "StateChanged" {
+		// we count never having gotten the state as happening "after" now.
+		ok := !rep.stateGot || time.Now().Before(rep.maxTime)
+		go func() {
+			rep.lock.RLock()
+			defer rep.lock.RUnlock()
+			if ok {
+				f(uint32(networkmanager.ConnectedGlobal))
+			}
+			d()
+		}()
+	}
+	return nil
+}
+
+func (*racyEndpoint) Close() {}
+func (*racyEndpoint) Dial() error { return nil }
+func (*racyEndpoint) String() string { return "racyEndpoint" }
+func (*racyEndpoint) Call(string, []interface{}, ...interface{}) error { return nil }
+
+var _ bus.Endpoint = (*racyEndpoint)(nil)
+
+// takeNext takes a value from given channel with a 1s timeout
+func takeNext(ch <-chan networkmanager.State) networkmanager.State {
+	select {
+	case <-time.After(time.Second):
+		panic("channel stuck: too long waiting")
+	case v := <-ch:
+		return v
+	}
+}
+
+// test that if the nm state goes from connecting to connected very
+// shortly after calling GetState, we don't lose the event.
+func (s *ConnSuite) TestStartAvoidsRace(c *C) {
+	for delta := time.Second; delta > 1; delta /= 2 {
+		rep := &racyEndpoint{delta: delta}
+		cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: rep}
+		f := Commentf("when delta=%s", delta)
+		c.Assert(cs.start(), Equals, networkmanager.Connecting, f)
+		c.Assert(takeNext(cs.networkStateCh), Equals, networkmanager.ConnectedGlobal, f)
+	}
 }
 
 /*

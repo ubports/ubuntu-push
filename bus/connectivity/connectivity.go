@@ -72,19 +72,20 @@ func (cs *connectedState) start() networkmanager.State {
 		cs.connAttempts += ar.Redial()
 		nm := networkmanager.New(cs.endp, cs.log)
 
-		// Get the current state.
-		initial = nm.GetState()
-		if initial == networkmanager.Unknown {
-			cs.log.Debugf("Failed to get state.")
-			goto Continue
-		}
-
 		// set up the watch
 		stateCh, err = nm.WatchState()
 		if err != nil {
 			cs.log.Debugf("failed to set up the state watch: %s", err)
 			goto Continue
 		}
+
+		// Get the current state.
+		initial = nm.GetState()
+		if initial == networkmanager.Unknown {
+			cs.log.Debugf("Failed to get state.")
+			goto Continue
+		}
+		cs.log.Debugf("got initial state of %s", initial)
 
 		primary = nm.GetPrimaryConnection()
 		cs.log.Debugf("primary connection starts as %#v", primary)
