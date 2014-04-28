@@ -147,10 +147,10 @@ func (rep *racyEndpoint) GetProperty(prop string) (interface{}, error) {
 func (rep *racyEndpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
 	if member == "StateChanged" {
 		// we count never having gotten the state as happening "after" now.
+		rep.lock.RLock()
+		defer rep.lock.RUnlock()
 		ok := !rep.stateGot || time.Now().Before(rep.maxTime)
 		go func() {
-			rep.lock.RLock()
-			defer rep.lock.RUnlock()
 			if ok {
 				f(uint32(networkmanager.ConnectedGlobal))
 			}
