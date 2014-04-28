@@ -74,6 +74,7 @@ type serverMsg struct {
 	Type string `json:"T"`
 	protocol.BroadcastMsg
 	protocol.NotificationsMsg
+	protocol.ConnWarnMsg
 }
 
 // Run the session with the server, emits a stream of events.
@@ -138,6 +139,8 @@ func (sess *ClientSession) Run(events chan<- string) error {
 				return err
 			}
 			events <- fmt.Sprintf("%sbroadcast chan:%v app:%v topLevel:%d payloads:%s", sess.Prefix, recv.ChanId, recv.AppId, recv.TopLevel, pack)
+		case "warn":
+			events <- fmt.Sprintf("%swarn %s", sess.Prefix, recv.Reason)
 		}
 	}
 	return nil
