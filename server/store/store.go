@@ -28,6 +28,11 @@ import (
 
 type InternalChannelId string
 
+func (icid InternalChannelId) BroadcastChannel() bool {
+	marker := icid[0]
+	return marker == 'B' || marker == '0'
+}
+
 var ErrUnknownChannel = errors.New("unknown channel name")
 var ErrFull = errors.New("channel is full")
 var ErrExpected128BitsHexRepr = errors.New("expected 128 bits hex repr")
@@ -38,7 +43,10 @@ func InternalChannelIdToHex(chanId InternalChannelId) string {
 	if chanId == SystemInternalChannelId {
 		return "0"
 	}
-	panic("general InternalChannelIdToHex not implemeted yet")
+	if !chanId.BroadcastChannel() {
+		panic("InternalChannelIdToHex is for broadcast channels")
+	}
+	return hex.EncodeToString([]byte(chanId)[1:])
 }
 
 var zero128 [16]byte
@@ -60,7 +68,9 @@ func HexToInternalChannelId(hexRepr string) (InternalChannelId, error) {
 	if idbytes == zero128 {
 		return SystemInternalChannelId, nil
 	}
-	return InternalChannelId(idbytes[:]), nil
+	// mark with B(roadcast) prefix
+	s := "B" + string(idbytes[:])
+	return InternalChannelId(s), nil
 }
 
 // PendingStore let store notifications into channels.
