@@ -33,7 +33,7 @@ var _ = Suite(&storeSuite{})
 
 func (s *storeSuite) TestInternalChannelIdToHex(c *C) {
 	c.Check(InternalChannelIdToHex(SystemInternalChannelId), Equals, protocol.SystemChannelId)
-	c.Check(InternalChannelIdToHex(InternalChannelId("B\xf1\xc9\xbf\x70\x96\x08\x4c\xb2\xa1\x54\x97\x9c\xe0\x0c\x7f\x50")), Equals, "f1c9bf7096084cb2a154979ce00c7f50")
+	c.Check(InternalChannelIdToHex(InternalChannelId("Bf1c9bf7096084cb2a154979ce00c7f50")), Equals, "f1c9bf7096084cb2a154979ce00c7f50")
 	c.Check(func() { InternalChannelIdToHex(InternalChannelId("U")) }, PanicMatches, "InternalChannelIdToHex is for broadcast channels")
 }
 
@@ -48,7 +48,7 @@ func (s *storeSuite) TestHexToInternalChannelId(c *C) {
 	i2, err := HexToInternalChannelId("f1c9bf7096084cb2a154979ce00c7f50")
 	c.Check(err, IsNil)
 	c.Check(i2.BroadcastChannel(), Equals, true)
-	c.Check(i2, Equals, InternalChannelId("B\xf1\xc9\xbf\x70\x96\x08\x4c\xb2\xa1\x54\x97\x9c\xe0\x0c\x7f\x50"))
+	c.Check(i2, Equals, InternalChannelId("Bf1c9bf7096084cb2a154979ce00c7f50"))
 	_, err = HexToInternalChannelId("01")
 	c.Check(err, Equals, ErrExpected128BitsHexRepr)
 	_, err = HexToInternalChannelId("abceddddddddddddddddzeeeeeeeeeee")

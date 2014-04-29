@@ -46,7 +46,7 @@ func InternalChannelIdToHex(chanId InternalChannelId) string {
 	if !chanId.BroadcastChannel() {
 		panic("InternalChannelIdToHex is for broadcast channels")
 	}
-	return hex.EncodeToString([]byte(chanId)[1:])
+	return string(chanId)[1:]
 }
 
 var zero128 [16]byte
@@ -69,7 +69,7 @@ func HexToInternalChannelId(hexRepr string) (InternalChannelId, error) {
 		return SystemInternalChannelId, nil
 	}
 	// mark with B(roadcast) prefix
-	s := "B" + string(idbytes[:])
+	s := "B" + hexRepr
 	return InternalChannelId(s), nil
 }
 
