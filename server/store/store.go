@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"launchpad.net/ubuntu-push/protocol"
 )
 
 type InternalChannelId string
@@ -70,7 +72,7 @@ type PendingStore interface {
 	AppendToChannel(chanId InternalChannelId, notification json.RawMessage, expiration time.Time) error
 	// GetChannelSnapshot gets all the current notifications and
 	// current top level in the channel.
-	GetChannelSnapshot(chanId InternalChannelId) (topLevel int64, payloads []json.RawMessage, err error)
+	GetChannelSnapshot(chanId InternalChannelId) (topLevel int64, notifications []protocol.Notification, err error)
 	// Close is to be called when done with the store.
 	Close()
 }

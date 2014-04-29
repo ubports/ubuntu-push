@@ -227,7 +227,7 @@ type testFailingStore struct {
 	countdownToFail int
 }
 
-func (sto *testFailingStore) GetChannelSnapshot(chanId store.InternalChannelId) (int64, []json.RawMessage, error) {
+func (sto *testFailingStore) GetChannelSnapshot(chanId store.InternalChannelId) (int64, []protocol.Notification, error) {
 	if sto.countdownToFail == 0 {
 		return 0, nil, errors.New("get channel snapshot fail")
 	}

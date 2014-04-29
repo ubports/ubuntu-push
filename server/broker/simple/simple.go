@@ -144,7 +144,7 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 	// find relevant channels, for now only system
 	channels := []store.InternalChannelId{store.SystemInternalChannelId}
 	for _, chanId := range channels {
-		topLevel, payloads, err := b.sto.GetChannelSnapshot(chanId)
+		topLevel, notifications, err := b.sto.GetChannelSnapshot(chanId)
 		if err != nil {
 			// next broadcast will try again
 			b.logger.Errorf("unsuccessful feed pending, get channel snapshot for %v: %v", chanId, err)
@@ -155,7 +155,7 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 			broadcastExchg := &broker.BroadcastExchange{
 				ChanId:               chanId,
 				TopLevel:             topLevel,
-				NotificationPayloads: payloads,
+				NotificationPayloads: protocol.ExtractPayloads(notifications),
 			}
 			broadcastExchg.Init()
 			sess.exchanges <- broadcastExchg
@@ -233,7 +233,7 @@ Loop:
 		case delivery := <-b.deliveryCh:
 			switch delivery.kind {
 			case broadcastDelivery:
-				topLevel, payloads, err := b.sto.GetChannelSnapshot(delivery.chanId)
+				topLevel, notifications, err := b.sto.GetChannelSnapshot(delivery.chanId)
 				if err != nil {
 					// next broadcast will try again
 					b.logger.Errorf("unsuccessful broadcast, get channel snapshot for %v: %v", delivery.chanId, err)
@@ -242,7 +242,7 @@ Loop:
 				broadcastExchg := &broker.BroadcastExchange{
 					ChanId:               delivery.chanId,
 					TopLevel:             topLevel,
-					NotificationPayloads: payloads,
+					NotificationPayloads: protocol.ExtractPayloads(notifications),
 				}
 				broadcastExchg.Init()
 				for _, sess := range b.registry {

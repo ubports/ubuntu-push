@@ -30,6 +30,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/store"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
@@ -142,11 +143,11 @@ type checkBrokerSending struct {
 }
 
 func (cbsend *checkBrokerSending) Broadcast(chanId store.InternalChannelId) {
-	top, payloads, err := cbsend.store.GetChannelSnapshot(chanId)
+	top, notifications, err := cbsend.store.GetChannelSnapshot(chanId)
 	cbsend.err = err
 	cbsend.chanId = chanId
 	cbsend.top = top
-	cbsend.payloads = payloads
+	cbsend.payloads = protocol.ExtractPayloads(notifications)
 }
 
 func (s *handlersSuite) TestDoBroadcast(c *C) {
