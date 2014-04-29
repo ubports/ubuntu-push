@@ -153,9 +153,9 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 		clientLevel := sess.levels[chanId]
 		if clientLevel != topLevel {
 			broadcastExchg := &broker.BroadcastExchange{
-				ChanId:               chanId,
-				TopLevel:             topLevel,
-				NotificationPayloads: protocol.ExtractPayloads(notifications),
+				ChanId:        chanId,
+				TopLevel:      topLevel,
+				Notifications: notifications,
 			}
 			broadcastExchg.Init()
 			sess.exchanges <- broadcastExchg
@@ -240,9 +240,9 @@ Loop:
 					continue Loop
 				}
 				broadcastExchg := &broker.BroadcastExchange{
-					ChanId:               delivery.chanId,
-					TopLevel:             topLevel,
-					NotificationPayloads: protocol.ExtractPayloads(notifications),
+					ChanId:        delivery.chanId,
+					TopLevel:      topLevel,
+					Notifications: notifications,
 				}
 				broadcastExchg.Init()
 				for _, sess := range b.registry {

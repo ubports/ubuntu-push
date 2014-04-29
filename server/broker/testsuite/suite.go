@@ -30,7 +30,7 @@ import (
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
-	helpers "launchpad.net/ubuntu-push/testing"
+	help "launchpad.net/ubuntu-push/testing"
 )
 
 // The expected interface for tested brokers.
@@ -51,11 +51,11 @@ type CommonBrokerSuite struct {
 	// Let us get to a broker.BroadcastExchange from an Exchange.
 	RevealBroadcastExchange func(broker.Exchange) *broker.BroadcastExchange
 	// private
-	testlog *helpers.TestLogger
+	testlog *help.TestLogger
 }
 
 func (s *CommonBrokerSuite) SetUpTest(c *C) {
-	s.testlog = helpers.NewTestLogger(c, "error")
+	s.testlog = help.NewTestLogger(c, "error")
 }
 
 var testBrokerConfig = &testing.TestBrokerConfig{10, 5}
@@ -203,10 +203,10 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg1 := <-sess1.SessionChannel():
 		c.Check(s.RevealBroadcastExchange(exchg1), DeepEquals, &broker.BroadcastExchange{
-			ChanId:               store.SystemInternalChannelId,
-			TopLevel:             1,
-			NotificationPayloads: []json.RawMessage{notification1},
-			Decoded:              []map[string]interface{}{decoded1},
+			ChanId:        store.SystemInternalChannelId,
+			TopLevel:      1,
+			Notifications: help.Ns(notification1),
+			Decoded:       []map[string]interface{}{decoded1},
 		})
 	}
 	select {
@@ -214,10 +214,10 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 		c.Fatal("taking too long to get broadcast exchange")
 	case exchg2 := <-sess2.SessionChannel():
 		c.Check(s.RevealBroadcastExchange(exchg2), DeepEquals, &broker.BroadcastExchange{
-			ChanId:               store.SystemInternalChannelId,
-			TopLevel:             1,
-			NotificationPayloads: []json.RawMessage{notification1},
-			Decoded:              []map[string]interface{}{decoded1},
+			ChanId:        store.SystemInternalChannelId,
+			TopLevel:      1,
+			Notifications: help.Ns(notification1),
+			Decoded:       []map[string]interface{}{decoded1},
 		})
 	}
 }

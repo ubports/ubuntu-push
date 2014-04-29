@@ -23,6 +23,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/protocol"
+	help "launchpad.net/ubuntu-push/testing"
 )
 
 type inMemorySuite struct{}
@@ -50,10 +51,6 @@ func (s *inMemorySuite) TestGetChannelSnapshotEmpty(c *C) {
 	c.Check(res, DeepEquals, []protocol.Notification(nil))
 }
 
-func N(payload json.RawMessage) protocol.Notification {
-	return protocol.Notification{Payload: payload}
-}
-
 func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshot(c *C) {
 	sto := NewInMemoryPendingStore()
 
@@ -67,7 +64,7 @@ func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshot(c *C) {
 	top, res, err := sto.GetChannelSnapshot(SystemInternalChannelId)
 	c.Assert(err, IsNil)
 	c.Check(top, Equals, int64(2))
-	c.Check(res, DeepEquals, []protocol.Notification{N(notification1), N(notification2)})
+	c.Check(res, DeepEquals, help.Ns(notification1, notification2))
 }
 
 func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshotWithExpiration(c *C) {
@@ -87,5 +84,5 @@ func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshotWithExpiration(c
 	top, res, err := sto.GetChannelSnapshot(SystemInternalChannelId)
 	c.Assert(err, IsNil)
 	c.Check(top, Equals, int64(2))
-	c.Check(res, DeepEquals, []protocol.Notification{N(notification1)})
+	c.Check(res, DeepEquals, help.Ns(notification1))
 }
