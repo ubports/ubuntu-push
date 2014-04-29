@@ -166,7 +166,7 @@ func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
 
 // Register registers a session with the broker. It feeds the session
 // pending notifications as well.
-func (b *SimpleBroker) Register(connect *protocol.ConnectMsg) (broker.BrokerSession, error) {
+func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, sessionId string) (broker.BrokerSession, error) {
 	// xxx sanity check DeviceId
 	model, err := broker.GetInfoString(connect, "device", "?")
 	if err != nil {

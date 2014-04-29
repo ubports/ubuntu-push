@@ -30,7 +30,7 @@ import (
 // through them.
 type Broker interface {
 	// Register the session.
-	Register(*protocol.ConnectMsg) (BrokerSession, error)
+	Register(connMsg *protocol.ConnectMsg, sessionId string) (BrokerSession, error)
 	// Unregister the session.
 	Unregister(BrokerSession)
 }

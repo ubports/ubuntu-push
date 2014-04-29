@@ -89,7 +89,7 @@ func (s *CommonBrokerSuite) TestRegistration(c *C) {
 			"device":  "model",
 			"channel": "daily",
 		},
-	})
+	}, "s1")
 	c.Assert(err, IsNil)
 	c.Assert(s.RevealSession(b, "dev-1"), Equals, sess)
 	c.Assert(sess.DeviceIdentifier(), Equals, "dev-1")
@@ -101,7 +101,7 @@ func (s *CommonBrokerSuite) TestRegistration(c *C) {
 	}))
 	b.Unregister(sess)
 	// just to make sure the unregister was processed
-	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: ""})
+	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: ""}, "s2")
 	c.Assert(err, IsNil)
 	c.Check(s.RevealSession(b, "dev-1"), IsNil)
 }
@@ -111,7 +111,7 @@ func (s *CommonBrokerSuite) TestRegistrationBrokenLevels(c *C) {
 	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
-	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1", Levels: map[string]int64{"z": 5}})
+	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1", Levels: map[string]int64{"z": 5}}, "s1")
 	c.Check(err, FitsTypeOf, &broker.ErrAbort{})
 }
 
@@ -123,11 +123,11 @@ func (s *CommonBrokerSuite) TestRegistrationInfoErrors(c *C) {
 	info := map[string]interface{}{
 		"device": -1,
 	}
-	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", Info: info})
+	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", Info: info}, "s1")
 	c.Check(err, Equals, broker.ErrUnexpectedValue)
 	info["device"] = "m"
 	info["channel"] = -1
-	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", Info: info})
+	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", Info: info}, "s2")
 	c.Check(err, Equals, broker.ErrUnexpectedValue)
 }
 
@@ -139,7 +139,7 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPending(c *C) {
 	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
-	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
+	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
 	c.Check(len(sess.SessionChannel()), Equals, 1)
 }
@@ -149,7 +149,7 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPendingError(c *C) {
 	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
-	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
+	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
 	// but
 	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful feed pending, get channel snapshot for 0: get channel snapshot fail\n")
@@ -160,9 +160,9 @@ func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
-	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
+	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
-	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
+	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s2")
 	c.Assert(err, IsNil)
 	// previous session got signaled by sending nil on its channel
 	var sentinel broker.Exchange
@@ -178,7 +178,7 @@ func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 	c.Assert(s.RevealSession(b, "dev-1"), Equals, sess2)
 	b.Unregister(sess1)
 	// just to make sure the unregister was processed
-	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: ""})
+	_, err = b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: ""}, "s3")
 	c.Assert(err, IsNil)
 	c.Check(s.RevealSession(b, "dev-1"), Equals, sess2)
 }
@@ -190,9 +190,9 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	b := s.MakeBroker(sto, testBrokerConfig, nil)
 	b.Start()
 	defer b.Stop()
-	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
+	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
-	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-2"})
+	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-2"}, "s2")
 	c.Assert(err, IsNil)
 	// add notification to channel *after* the registrations
 	muchLater := time.Now().Add(10 * time.Minute)
@@ -244,7 +244,7 @@ func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
 	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
-	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"})
+	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
 	b.Broadcast(store.SystemInternalChannelId)
 	select {

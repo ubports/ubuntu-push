@@ -36,7 +36,7 @@ type SessionConfig interface {
 }
 
 // sessionStart manages the start of the protocol session.
-func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig) (broker.BrokerSession, error) {
+func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig, sessionId string) (broker.BrokerSession, error) {
 	var connMsg protocol.ConnectMsg
 	proto.SetDeadline(time.Now().Add(cfg.ExchangeTimeout()))
 	err := proto.ReadMessage(&connMsg)
@@ -53,7 +53,7 @@ func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig
 	if err != nil {
 		return nil, err
 	}
-	return brkr.Register(&connMsg)
+	return brkr.Register(&connMsg, sessionId)
 }
 
 var errOneway = errors.New("oneway")
@@ -154,7 +154,7 @@ func Session(conn net.Conn, brkr broker.Broker, cfg SessionConfig, track Session
 		return track.End(&broker.ErrAbort{"unexpected wire format version"})
 	}
 	proto := protocol.NewProtocol0(conn)
-	sess, err := sessionStart(proto, brkr, cfg)
+	sess, err := sessionStart(proto, brkr, cfg, track.SessionId())
 	if err != nil {
 		return track.End(err)
 	}
