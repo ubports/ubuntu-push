@@ -56,3 +56,44 @@ func (s *storeSuite) TestHexToInternalChannelId(c *C) {
 	_, err = HexToInternalChannelId("f1c9bf7096084cb2a154979ce00c7f50ff")
 	c.Check(err, Equals, ErrExpected128BitsHexRepr)
 }
+
+func (s *storeSuite) TestUnicastInternalChannelId(c *C) {
+	chanId := UnicastInternalChannelId("user1", "dev2")
+	c.Check(chanId.BroadcastChannel(), Equals, false)
+	c.Check(chanId.UnicastChannel(), Equals, true)
+	u, d := chanId.UnicastUserAndDevice()
+	c.Check(u, Equals, "user1")
+	c.Check(d, Equals, "dev2")
+	c.Check(func() { SystemInternalChannelId.UnicastUserAndDevice() }, PanicMatches, "UnicastUserAndDevice is for unicast channels")
+}
+
+func (s *storeSuite) TestDropByMsgId(c *C) {
+	orig := []protocol.Notification{
+		protocol.Notification{MsgId: "a"},
+		protocol.Notification{MsgId: "b"},
+		protocol.Notification{MsgId: "c"},
+		protocol.Notification{MsgId: "d"},
+	}
+	// removing the continuous head
+	res := DropByMsgId(orig, orig[:3])
+	c.Check(res, DeepEquals, orig[3:])
+
+	// random removal
+	res = DropByMsgId(orig, orig[1:2])
+	c.Check(res, DeepEquals, []protocol.Notification{
+		protocol.Notification{MsgId: "a"},
+		protocol.Notification{MsgId: "c"},
+		protocol.Notification{MsgId: "d"},
+	})
+
+	// looks like removing the continuous head, but it isn't
+	res = DropByMsgId(orig, []protocol.Notification{
+		protocol.Notification{MsgId: "a"},
+		protocol.Notification{MsgId: "c"},
+		protocol.Notification{MsgId: "d"},
+	})
+	c.Check(res, DeepEquals, []protocol.Notification{
+		protocol.Notification{MsgId: "b"},
+	})
+
+}
