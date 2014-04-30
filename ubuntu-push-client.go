@@ -19,7 +19,6 @@ package main
 import (
 	"log"
 
-	"gopkg.in/qml.v0"
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/go-xdg/v0"
 
@@ -59,8 +58,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to open the levels database: %v", err)
 	}
-
-	qml.Init(nil)
 
 	cli := client.NewPushClient(cfgFname, lvlFname)
 	err = cli.Start()
