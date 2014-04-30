@@ -2,4 +2,3 @@
 debian/config.json /etc/xdg/ubuntu-push-client
 debian/ubuntu-push-client.conf /usr/share/upstart/sessions
 usr/bin/ubuntu-push => /usr/lib/ubuntu-push-client/ubuntu-push-client
-usr/lib/ubuntu-push-client/signing-helper => /usr/lib/ubuntu-push-client/signing-helper
