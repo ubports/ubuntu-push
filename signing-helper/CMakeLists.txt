@@ -22,7 +22,6 @@ add_executable (${SIGNING_EXE}
 qt5_use_modules (${SIGNING_EXE} DBus Network)
 
 target_link_libraries (${SIGNING_EXE}
-  -Wl,-rpath,${CMAKE_BINARY_DIR}/libubuntuoneauth
   ${UBUNTUONE_LDFLAGS})
 
 
@@ -36,3 +35,5 @@ add_custom_target(examples-valgrind-leaks
     COMMAND "valgrind --tool=memcheck --track-origins=yes --num-callers=40 --leak-resolution=high --leak-check=full ${CMAKE_CURRENT_BINARY_DIR}/${SIGNING_EXE}"
     DEPENDS ${SIGNING_EXE}
 )
+
+INSTALL_TARGETS( "lib/ubuntu-push-client/" ${SIGNING_EXE})
