@@ -154,6 +154,17 @@ type NotificationsMsg struct {
 	Notifications []Notification
 }
 
+// Reset resets the splitting state if the message storage is to be
+// reused.
+func (m *NotificationsMsg) Reset() {
+	// xxx
+}
+
+func (m *NotificationsMsg) Split() bool {
+	// xxx
+	return true
+}
+
 // A single unicast notification
 type Notification struct {
 	AppId string `json:"A"`

@@ -18,6 +18,7 @@ package broker_test // use a package test to avoid cyclic imports
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	stdtesting "testing"
@@ -265,4 +266,96 @@ func (s *exchangesSuite) TestConnMetaExchange(c *C) {
 	c.Check(string(marshalled), Equals, `{"T":"connwarn","Reason":"REASON"}`)
 
 	c.Check(func() { cbe.Acked(nil, true) }, PanicMatches, "Acked should not get invoked on ConnMetaExchange")
+}
+
+func (s *exchangesSuite) TestUnicastExchange(c *C) {
+	sess := &testing.TestBrokerSession{}
+	notifs := []protocol.Notification{
+		protocol.Notification{
+			MsgId:   "msg1",
+			AppId:   "app1",
+			Payload: json.RawMessage(`{"m": 1}`),
+		},
+		protocol.Notification{
+			MsgId:   "msg2",
+			AppId:   "app2",
+			Payload: json.RawMessage(`{"m": 2}`),
+		},
+	}
+	dropped := make(chan []protocol.Notification, 2)
+	exchg := &broker.UnicastExchange{
+		Get: func() ([]protocol.Notification, error) {
+			return notifs, nil
+		},
+		DropByMsgId: func(targets []protocol.Notification) error {
+			dropped <- targets
+			return nil
+		},
+	}
+	outMsg, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	// check
+	marshalled, err := json.Marshal(outMsg)
+	c.Assert(err, IsNil)
+	c.Check(string(marshalled), Equals, `{"T":"notifications","Notifications":[{"A":"app1","M":"msg1","P":{"m":1}},{"A":"app2","M":"msg2","P":{"m":2}}]}`)
+	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)
+	c.Assert(err, IsNil)
+	err = exchg.Acked(sess, true)
+	c.Assert(err, IsNil)
+	c.Check(dropped, HasLen, 1)
+	c.Check(<-dropped, DeepEquals, notifs)
+}
+
+func (s *exchangesSuite) TestUnicastExchangeAckMismatch(c *C) {
+	sess := &testing.TestBrokerSession{}
+	notifs := []protocol.Notification{}
+	dropped := make(chan []protocol.Notification, 2)
+	exchg := &broker.UnicastExchange{
+		Get: func() ([]protocol.Notification, error) {
+			return notifs, nil
+		},
+		DropByMsgId: func(targets []protocol.Notification) error {
+			dropped <- targets
+			return nil
+		},
+	}
+	_, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	err = json.Unmarshal([]byte(`{}`), inMsg)
+	c.Assert(err, IsNil)
+	err = exchg.Acked(sess, true)
+	c.Assert(err, Not(IsNil))
+	c.Check(dropped, HasLen, 0)
+}
+
+func (s *exchangesSuite) TestUnicastExchangeErrorOnPrepare(c *C) {
+	sess := &testing.TestBrokerSession{}
+	fail := errors.New("fail")
+	exchg := &broker.UnicastExchange{
+		Get: func() ([]protocol.Notification, error) {
+			return nil, fail
+		},
+	}
+	_, _, err := exchg.Prepare(sess)
+	c.Assert(err, Equals, fail)
+}
+
+func (s *exchangesSuite) TestUnicastExchangeErrorOnAcked(c *C) {
+	sess := &testing.TestBrokerSession{}
+	notifs := []protocol.Notification{}
+	fail := errors.New("fail")
+	exchg := &broker.UnicastExchange{
+		Get: func() ([]protocol.Notification, error) {
+			return notifs, nil
+		},
+		DropByMsgId: func(targets []protocol.Notification) error {
+			return fail
+		},
+	}
+	_, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)
+	c.Assert(err, IsNil)
+	err = exchg.Acked(sess, true)
+	c.Assert(err, Equals, fail)
 }

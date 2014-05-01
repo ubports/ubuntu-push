@@ -39,6 +39,8 @@ type Broker interface {
 type BrokerSending interface {
 	// Broadcast channel.
 	Broadcast(chanId store.InternalChannelId)
+	// Unicast over channels.
+	Unicast(chanIds ...store.InternalChannelId)
 }
 
 // Exchange leads the session through performing an exchange, typically delivery.
