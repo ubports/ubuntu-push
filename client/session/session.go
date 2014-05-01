@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,8 +41,6 @@ import (
 
 var (
 	wireVersionBytes = []byte{protocol.ProtocolWireVersion}
-	getAuthorization = util.GetAuthorization
-	shouldGetAuth    = false
 )
 
 type Notification struct {
@@ -88,6 +87,7 @@ type ClientSessionConfig struct {
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
 	Info                   map[string]interface{}
+	AuthHelper             []string
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -240,18 +240,24 @@ func (sess *ClientSession) getHosts() error {
 	return nil
 }
 
-// checkAuthorization checks the authorization within the phone
-func (sess *ClientSession) checkAuthorization() error {
-	// grab the authorization string from the accounts
-	// TODO: remove this condition when we have a way to deal with failing authorizations
-	if shouldGetAuth {
-		auth, err := getAuthorization()
-		if err != nil {
-			// For now we just log the error, as we don't want to block unauthorized users
-			sess.Log.Errorf("unable to get the authorization token from the account: %v", err)
-		}
-		sess.auth = auth
+// addAuthorization gets the authorization blob to send to the server
+// and adds it to the session.
+func (sess *ClientSession) addAuthorization() error {
+	sess.Log.Debugf("adding authorization")
+	// using a helper, for now at least
+	if len(sess.AuthHelper) == 0 {
+		// do nothing if helper is unset or empty
+		return nil
 	}
+
+	auth, err := exec.Command(sess.AuthHelper[0], sess.AuthHelper[1:]...).Output()
+	if err != nil {
+		// For now we just log the error, as we don't want to block unauthorized users
+		sess.Log.Errorf("unable to get the authorization token from the account: %v", err)
+	} else {
+		sess.auth = strings.TrimSpace(string(auth))
+	}
+
 	return nil
 }
 
@@ -553,7 +559,7 @@ func (sess *ClientSession) Dial() error {
 		// keep on trying.
 		panic("can't Dial() without a protocol constructor.")
 	}
-	return sess.run(sess.doClose, sess.checkAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
+	return sess.run(sess.doClose, sess.addAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
 func init() {

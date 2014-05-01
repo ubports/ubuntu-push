@@ -11,8 +11,6 @@ GODEPS = launchpad.net/gocheck
 GODEPS += launchpad.net/go-dbus/v1
 GODEPS += launchpad.net/go-xdg/v0
 GODEPS += code.google.com/p/gosqlite/sqlite3
-GODEPS += gopkg.in/qml.v0
-GODEPS += gopkg.in/niemeyer/uoneauth.v1
 
 TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
 
@@ -36,6 +34,7 @@ acceptance:
 
 build-client:
 	go build ubuntu-push-client.go
+	(cd signing-helper && cmake . && make)
 
 build-server-dev:
 	go build -o push-server-dev launchpad.net/ubuntu-push/server/dev

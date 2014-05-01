@@ -169,20 +169,8 @@ type clientSessionSuite struct {
 	lvls func() (levelmap.LevelMap, error)
 }
 
-func (cs *clientSessionSuite) SetUpSuite(c *C) {
-	getAuthorization = func() (string, error) {
-		return "some auth", nil
-	}
-	shouldGetAuth = true
-}
-
 func (cs *clientSessionSuite) SetUpTest(c *C) {
 	cs.log = helpers.NewTestLogger(c, "debug")
-}
-
-func (cs *clientSessionSuite) TearDownSuite(c *C) {
-	getAuthorization = util.GetAuthorization
-	shouldGetAuth = false
 }
 
 // in-memory level map testing
@@ -194,7 +182,6 @@ type clientSqlevelsSessionSuite struct{ clientSessionSuite }
 var _ = Suite(&clientSqlevelsSessionSuite{})
 
 func (cs *clientSqlevelsSessionSuite) SetUpSuite(c *C) {
-	cs.clientSessionSuite.SetUpSuite(c)
 	cs.lvls = func() (levelmap.LevelMap, error) { return levelmap.NewSqliteLevelMap(":memory:") }
 }
 
@@ -359,15 +346,40 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
 }
 
 /****************************************************************
-  checkAuthorization() tests
+  addAuthorization() tests
 ****************************************************************/
 
-func (cs *clientSessionSuite) TestChecksAuthorizationFromServer(c *C) {
-	sess := &ClientSession{}
+func (cs *clientSessionSuite) TestAddAuthorizationAddsAuthorization(c *C) {
+	sess := &ClientSession{Log: cs.log}
+	sess.AuthHelper = []string{"echo", "some auth"}
 	c.Assert(sess.auth, Equals, "")
-	err := sess.checkAuthorization()
+	err := sess.addAuthorization()
 	c.Assert(err, IsNil)
 	c.Check(sess.auth, Equals, "some auth")
+}
+
+func (cs *clientSessionSuite) TestAddAuthorizationIgnoresErrors(c *C) {
+	sess := &ClientSession{Log: cs.log}
+	sess.AuthHelper = []string{"sh", "-c", "echo hello; false"}
+
+	c.Assert(sess.auth, Equals, "")
+	err := sess.addAuthorization()
+	c.Assert(err, IsNil)
+	c.Check(sess.auth, Equals, "")
+}
+
+func (cs *clientSessionSuite) TestAddAuthorizationSkipsIfUnsetOrNil(c *C) {
+	sess := &ClientSession{Log: cs.log}
+	sess.AuthHelper = nil
+	c.Assert(sess.auth, Equals, "")
+	err := sess.addAuthorization()
+	c.Assert(err, IsNil)
+	c.Check(sess.auth, Equals, "")
+
+	sess.AuthHelper = []string{}
+	err = sess.addAuthorization()
+	c.Assert(err, IsNil)
+	c.Check(sess.auth, Equals, "")
 }
 
 /****************************************************************
