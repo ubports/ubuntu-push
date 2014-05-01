@@ -140,10 +140,7 @@ func (cbe *ConnMetaExchange) Acked(sess BrokerSession, done bool) error {
 // UnicastExchange leads a session through delivering a NOTIFICATIONS message.
 // For simplicity it is fully public.
 type UnicastExchange struct {
-	// Get retrieves the notifications to send
-	Get func() ([]protocol.Notification, error)
-	// DropByMsgId drops the sent notifications
-	DropByMsgId func([]protocol.Notification) error
+	ChanId store.InternalChannelId
 }
 
 // check interface already here
@@ -151,7 +148,7 @@ var _ Exchange = (*UnicastExchange)(nil)
 
 // Prepare session for a NOTIFICATIONS.
 func (sue *UnicastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
-	notifs, err := sue.Get()
+	_, notifs, err := sess.Get(sue.ChanId, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -168,7 +165,7 @@ func (sue *UnicastExchange) Acked(sess BrokerSession, done bool) error {
 	if scratchArea.ackMsg.Type != "ack" {
 		return &ErrAbort{"expected ACK message"}
 	}
-	err := sue.DropByMsgId(scratchArea.notificationsMsg.Notifications)
+	err := sess.DropByMsgId(sue.ChanId, scratchArea.notificationsMsg.Notifications)
 	if err != nil {
 		return err
 	}

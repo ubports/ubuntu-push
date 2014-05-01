@@ -269,7 +269,7 @@ func (s *exchangesSuite) TestConnMetaExchange(c *C) {
 }
 
 func (s *exchangesSuite) TestUnicastExchange(c *C) {
-	sess := &testing.TestBrokerSession{}
+	chanId1 := store.UnicastInternalChannelId("u1", "d1")
 	notifs := []protocol.Notification{
 		protocol.Notification{
 			MsgId:   "msg1",
@@ -283,15 +283,19 @@ func (s *exchangesSuite) TestUnicastExchange(c *C) {
 		},
 	}
 	dropped := make(chan []protocol.Notification, 2)
-	exchg := &broker.UnicastExchange{
-		Get: func() ([]protocol.Notification, error) {
-			return notifs, nil
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			c.Check(chanId, Equals, chanId1)
+			c.Check(cachedOk, Equals, false)
+			return 0, notifs, nil
 		},
-		DropByMsgId: func(targets []protocol.Notification) error {
+		DoDropByMsgId: func(chanId store.InternalChannelId, targets []protocol.Notification) error {
+			c.Check(chanId, Equals, chanId1)
 			dropped <- targets
 			return nil
 		},
 	}
+	exchg := &broker.UnicastExchange{chanId1}
 	outMsg, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	// check
@@ -307,18 +311,18 @@ func (s *exchangesSuite) TestUnicastExchange(c *C) {
 }
 
 func (s *exchangesSuite) TestUnicastExchangeAckMismatch(c *C) {
-	sess := &testing.TestBrokerSession{}
 	notifs := []protocol.Notification{}
 	dropped := make(chan []protocol.Notification, 2)
-	exchg := &broker.UnicastExchange{
-		Get: func() ([]protocol.Notification, error) {
-			return notifs, nil
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			return 0, notifs, nil
 		},
-		DropByMsgId: func(targets []protocol.Notification) error {
+		DoDropByMsgId: func(chanId store.InternalChannelId, targets []protocol.Notification) error {
 			dropped <- targets
 			return nil
 		},
 	}
+	exchg := &broker.UnicastExchange{}
 	_, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	err = json.Unmarshal([]byte(`{}`), inMsg)
@@ -329,29 +333,29 @@ func (s *exchangesSuite) TestUnicastExchangeAckMismatch(c *C) {
 }
 
 func (s *exchangesSuite) TestUnicastExchangeErrorOnPrepare(c *C) {
-	sess := &testing.TestBrokerSession{}
 	fail := errors.New("fail")
-	exchg := &broker.UnicastExchange{
-		Get: func() ([]protocol.Notification, error) {
-			return nil, fail
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			return 0, nil, fail
 		},
 	}
+	exchg := &broker.UnicastExchange{}
 	_, _, err := exchg.Prepare(sess)
 	c.Assert(err, Equals, fail)
 }
 
 func (s *exchangesSuite) TestUnicastExchangeErrorOnAcked(c *C) {
-	sess := &testing.TestBrokerSession{}
 	notifs := []protocol.Notification{}
 	fail := errors.New("fail")
-	exchg := &broker.UnicastExchange{
-		Get: func() ([]protocol.Notification, error) {
-			return notifs, nil
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			return 0, notifs, nil
 		},
-		DropByMsgId: func(targets []protocol.Notification) error {
+		DoDropByMsgId: func(chanId store.InternalChannelId, targets []protocol.Notification) error {
 			return fail
 		},
 	}
+	exchg := &broker.UnicastExchange{}
 	_, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)

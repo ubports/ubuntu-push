@@ -83,6 +83,10 @@ type BrokerSession interface {
 	Levels() LevelsMap
 	// ExchangeScratchArea returns the scratch area for exchanges.
 	ExchangeScratchArea() *ExchangesScratchArea
+	// Get gets the content of the channel with chanId.
+	Get(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error)
+	// DropByMsgId drops notifications from the channel chanId by message id.
+	DropByMsgId(chanId store.InternalChannelId, targets []protocol.Notification) error
 }
 
 // Session aborted error.
