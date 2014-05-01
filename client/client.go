@@ -26,7 +26,6 @@ import (
 	"os"
 	"strings"
 
-	"gopkg.in/qml.v0"
 	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -112,7 +111,6 @@ func (client *PushClient) configure() error {
 
 	// later, we'll be specifying more logging options in the config file
 	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel.Level())
-	qml.SetLogger(client.log)
 
 	// overridden for testing
 	client.idder = identifier.New()
