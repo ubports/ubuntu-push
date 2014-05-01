@@ -42,4 +42,7 @@ var _ = Suite(&commonBrokerSuite{testsuite.CommonBrokerSuite{
 	RevealBroadcastExchange: func(exchg broker.Exchange) *broker.BroadcastExchange {
 		return exchg.(*broker.BroadcastExchange)
 	},
+	RevealUnicastExchange: func(exchg broker.Exchange) *broker.UnicastExchange {
+		return exchg.(*broker.UnicastExchange)
+	},
 }})

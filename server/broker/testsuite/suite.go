@@ -50,6 +50,8 @@ type CommonBrokerSuite struct {
 	RevealSession func(broker.Broker, string) broker.BrokerSession
 	// Let us get to a broker.BroadcastExchange from an Exchange.
 	RevealBroadcastExchange func(broker.Exchange) *broker.BroadcastExchange
+	// Let us get to a broker.UnicastExchange from an Exchange.
+	RevealUnicastExchange func(broker.Exchange) *broker.UnicastExchange
 	// private
 	testlog *help.TestLogger
 }
@@ -235,6 +237,10 @@ func (sto *testFailingStore) GetChannelSnapshot(chanId store.InternalChannelId) 
 	return 0, nil, nil
 }
 
+func (sto *testFailingStore) DropByMsgId(chanId store.InternalChannelId, targets []protocol.Notification) error {
+	return errors.New("drop fail")
+}
+
 func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
 	logged := make(chan bool, 1)
 	s.testlog.SetLogEventCb(func(string) {
@@ -252,5 +258,83 @@ func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
 		c.Fatal("taking too long to log error")
 	case <-logged:
 	}
-	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful broadcast, get channel snapshot for 0: get channel snapshot fail\n")
+	c.Check(s.testlog.Captured(), Matches, "ERROR.*: get channel snapshot fail\n")
+}
+
+func (s *CommonBrokerSuite) TestUnicast(c *C) {
+	sto := store.NewInMemoryPendingStore()
+	notification1 := json.RawMessage(`{"m": "M1"}`)
+	notification2 := json.RawMessage(`{"m": "M2"}`)
+	chanId1 := store.UnicastInternalChannelId("dev1", "dev1")
+	chanId2 := store.UnicastInternalChannelId("dev2", "dev2")
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b.Start()
+	defer b.Stop()
+	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev1"}, "s1")
+	c.Assert(err, IsNil)
+	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev2"}, "s2")
+	c.Assert(err, IsNil)
+	// add notification to channel *after* the registrations
+	muchLater := time.Now().Add(10 * time.Minute)
+	sto.AppendToUnicastChannel(chanId1, "app1", notification1, "msg1", muchLater)
+	sto.AppendToUnicastChannel(chanId2, "app2", notification2, "msg2", muchLater)
+	b.Unicast(chanId2, chanId1)
+	select {
+	case <-time.After(5 * time.Second):
+		c.Fatal("taking too long to get unicast exchange")
+	case exchg1 := <-sess1.SessionChannel():
+		u1 := s.RevealUnicastExchange(exchg1)
+		c.Check(u1.ChanId, Equals, chanId1)
+	}
+	select {
+	case <-time.After(5 * time.Second):
+		c.Fatal("taking too long to get unicast exchange")
+	case exchg2 := <-sess2.SessionChannel():
+		u2 := s.RevealUnicastExchange(exchg2)
+		c.Check(u2.ChanId, Equals, chanId2)
+	}
+}
+
+func (s *CommonBrokerSuite) TestGetAndDrop(c *C) {
+	sto := store.NewInMemoryPendingStore()
+	notification1 := json.RawMessage(`{"m": "M1"}`)
+	chanId1 := store.UnicastInternalChannelId("dev3", "dev3")
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b.Start()
+	defer b.Stop()
+	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev3"}, "s1")
+	c.Assert(err, IsNil)
+	muchLater := time.Now().Add(10 * time.Minute)
+	sto.AppendToUnicastChannel(chanId1, "app1", notification1, "msg1", muchLater)
+	_, expected, err := sto.GetChannelSnapshot(chanId1)
+	c.Assert(err, IsNil)
+	_, notifs, err := sess1.Get(chanId1, false)
+	c.Check(notifs, HasLen, 1)
+	c.Check(notifs, DeepEquals, expected)
+	err = sess1.DropByMsgId(chanId1, notifs)
+	c.Assert(err, IsNil)
+	_, notifs, err = sess1.Get(chanId1, true)
+	c.Check(notifs, HasLen, 0)
+	_, expected, err = sto.GetChannelSnapshot(chanId1)
+	c.Assert(err, IsNil)
+	c.Check(expected, HasLen, 0)
+
+}
+
+func (s *CommonBrokerSuite) TestGetAndDropErrors(c *C) {
+	chanId1 := store.UnicastInternalChannelId("dev3", "dev3")
+	sto := &testFailingStore{countdownToFail: 1}
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
+	b.Start()
+	defer b.Stop()
+	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev3"}, "s1")
+	c.Assert(err, IsNil)
+	_, _, err = sess1.Get(chanId1, false)
+	c.Assert(err, ErrorMatches, "get channel snapshot fail")
+	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful, get channel snapshot for Udev3:dev3 \\(cachedOk=false\\): get channel snapshot fail\n")
+	s.testlog.ResetCapture()
+
+	err = sess1.DropByMsgId(chanId1, nil)
+	c.Assert(err, ErrorMatches, "drop fail")
+	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful, drop from channel Udev3:dev3: drop fail\n")
 }

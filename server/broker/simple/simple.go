@@ -46,6 +46,7 @@ type SimpleBroker struct {
 
 // simpleBrokerSession represents a session in the broker.
 type simpleBrokerSession struct {
+	broker       *SimpleBroker
 	registered   bool
 	deviceId     string
 	model        string
@@ -61,6 +62,7 @@ type deliveryKind int
 
 const (
 	broadcastDelivery deliveryKind = iota
+	unicastDelivery
 )
 
 // delivery holds all the information to request a delivery
@@ -91,6 +93,14 @@ func (sess *simpleBrokerSession) Levels() broker.LevelsMap {
 
 func (sess *simpleBrokerSession) ExchangeScratchArea() *broker.ExchangesScratchArea {
 	return &sess.exchgScratch
+}
+
+func (sess *simpleBrokerSession) Get(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+	return sess.broker.get(chanId, cachedOk)
+}
+
+func (sess *simpleBrokerSession) DropByMsgId(chanId store.InternalChannelId, targets []protocol.Notification) error {
+	return sess.broker.drop(chanId, targets)
 }
 
 // NewSimpleBroker makes a new SimpleBroker.
@@ -185,6 +195,7 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, sessionId string) 
 		levels[id] = v
 	}
 	sess := &simpleBrokerSession{
+		broker:       b,
 		deviceId:     connect.DeviceId,
 		model:        model,
 		imageChannel: imageChannel,
@@ -205,6 +216,24 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, sessionId string) 
 func (b *SimpleBroker) Unregister(s broker.BrokerSession) {
 	sess := s.(*simpleBrokerSession)
 	b.sessionCh <- sess
+}
+
+func (b *SimpleBroker) get(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+	topLevel, notifications, err := b.sto.GetChannelSnapshot(chanId)
+	if err != nil {
+		b.logger.Errorf("unsuccessful, get channel snapshot for %v (cachedOk=%v): %v", chanId, cachedOk, err)
+	}
+	return topLevel, notifications, err
+
+}
+
+func (b *SimpleBroker) drop(chanId store.InternalChannelId, targets []protocol.Notification) error {
+	err := b.sto.DropByMsgId(chanId, targets)
+	if err != nil {
+		b.logger.Errorf("unsuccessful, drop from channel %v: %v", chanId, err)
+	}
+	return err
+
 }
 
 // run runs the agent logic of the broker.
@@ -233,10 +262,9 @@ Loop:
 		case delivery := <-b.deliveryCh:
 			switch delivery.kind {
 			case broadcastDelivery:
-				topLevel, notifications, err := b.sto.GetChannelSnapshot(delivery.chanId)
+				topLevel, notifications, err := b.get(delivery.chanId, false)
 				if err != nil {
 					// next broadcast will try again
-					b.logger.Errorf("unsuccessful broadcast, get channel snapshot for %v: %v", delivery.chanId, err)
 					continue Loop
 				}
 				broadcastExchg := &broker.BroadcastExchange{
@@ -248,6 +276,13 @@ Loop:
 				for _, sess := range b.registry {
 					sess.exchanges <- broadcastExchg
 				}
+			case unicastDelivery:
+				chanId := delivery.chanId
+				_, devId := chanId.UnicastUserAndDevice()
+				sess := b.registry[devId]
+				if sess != nil {
+					sess.exchanges <- &broker.UnicastExchange{chanId}
+				}
 			}
 		}
 	}
@@ -258,5 +293,15 @@ func (b *SimpleBroker) Broadcast(chanId store.InternalChannelId) {
 	b.deliveryCh <- &delivery{
 		kind:   broadcastDelivery,
 		chanId: chanId,
+	}
+}
+
+// Unicast requests unicast for the channels.
+func (b *SimpleBroker) Unicast(chanIds ...store.InternalChannelId) {
+	for _, chanId := range chanIds {
+		b.deliveryCh <- &delivery{
+			kind:   unicastDelivery,
+			chanId: chanId,
+		}
 	}
 }
