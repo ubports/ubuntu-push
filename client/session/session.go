@@ -245,7 +245,7 @@ func (sess *ClientSession) getHosts() error {
 func (sess *ClientSession) addAuthorization() error {
 	sess.Log.Debugf("adding authorization")
 	// using a helper, for now at least
-	if sess.AuthHelper == nil || len(sess.AuthHelper) == 0 {
+	if len(sess.AuthHelper) == 0 {
 		// do nothing if helper is unset or empty
 		return nil
 	}
