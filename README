@@ -10,10 +10,6 @@ To setup Go dependencies, install the following dependencies:
 
                build-essential
                libsqlite3-dev
-               qtbase5-private-dev
-               qtdeclarative5-dev
-               libqt5opengl5-dev
-               libubuntuoneauth-2.0-dev
 
 and run:
 

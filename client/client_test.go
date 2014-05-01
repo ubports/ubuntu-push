@@ -265,8 +265,9 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExchangeTimeout:        10 * time.Millisecond,
 		HostsCachingExpiryTime: 1 * time.Hour,
 		ExpectAllRepairedTime:  30 * time.Minute,
-		PEM:  cli.pem,
-		Info: info,
+		PEM:        cli.pem,
+		Info:       info,
+		AuthHelper: []string{},
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)
@@ -276,6 +277,8 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		// field isn't empty/zero
 		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
 	}
+	// but AuthHelper really should be nil for now
+	expected.AuthHelper = nil
 	// finally compare
 	conf := cli.deriveSessionConfig(info)
 	c.Check(conf, DeepEquals, expected)
