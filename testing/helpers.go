@@ -18,6 +18,7 @@
 package testing
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +27,7 @@ import (
 	"sync"
 
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/protocol"
 )
 
 type captureHelper struct {
@@ -121,4 +123,13 @@ func SourceRelative(relativePath string) string {
 		dir = filepath.Join(root, dir[idx:])
 	}
 	return filepath.Join(dir, relativePath)
+}
+
+// Ns makes a []Notification from just payloads.
+func Ns(payloads ...json.RawMessage) []protocol.Notification {
+	res := make([]protocol.Notification, len(payloads))
+	for i := 0; i < len(payloads); i++ {
+		res[i].Payload = payloads[i]
+	}
+	return res
 }

@@ -33,6 +33,8 @@ var _ = Suite(&storeSuite{})
 
 func (s *storeSuite) TestInternalChannelIdToHex(c *C) {
 	c.Check(InternalChannelIdToHex(SystemInternalChannelId), Equals, protocol.SystemChannelId)
+	c.Check(InternalChannelIdToHex(InternalChannelId("Bf1c9bf7096084cb2a154979ce00c7f50")), Equals, "f1c9bf7096084cb2a154979ce00c7f50")
+	c.Check(func() { InternalChannelIdToHex(InternalChannelId("U")) }, PanicMatches, "InternalChannelIdToHex is for broadcast channels")
 }
 
 func (s *storeSuite) TestHexToInternalChannelId(c *C) {
@@ -42,13 +44,56 @@ func (s *storeSuite) TestHexToInternalChannelId(c *C) {
 	i1, err := HexToInternalChannelId("00000000000000000000000000000000")
 	c.Check(err, IsNil)
 	c.Check(i1, Equals, SystemInternalChannelId)
+	c.Check(i1.BroadcastChannel(), Equals, true)
 	i2, err := HexToInternalChannelId("f1c9bf7096084cb2a154979ce00c7f50")
 	c.Check(err, IsNil)
-	c.Check(i2, Equals, InternalChannelId("\xf1\xc9\xbf\x70\x96\x08\x4c\xb2\xa1\x54\x97\x9c\xe0\x0c\x7f\x50"))
+	c.Check(i2.BroadcastChannel(), Equals, true)
+	c.Check(i2, Equals, InternalChannelId("Bf1c9bf7096084cb2a154979ce00c7f50"))
 	_, err = HexToInternalChannelId("01")
 	c.Check(err, Equals, ErrExpected128BitsHexRepr)
 	_, err = HexToInternalChannelId("abceddddddddddddddddzeeeeeeeeeee")
 	c.Check(err, Equals, ErrExpected128BitsHexRepr)
 	_, err = HexToInternalChannelId("f1c9bf7096084cb2a154979ce00c7f50ff")
 	c.Check(err, Equals, ErrExpected128BitsHexRepr)
+}
+
+func (s *storeSuite) TestUnicastInternalChannelId(c *C) {
+	chanId := UnicastInternalChannelId("user1", "dev2")
+	c.Check(chanId.BroadcastChannel(), Equals, false)
+	c.Check(chanId.UnicastChannel(), Equals, true)
+	u, d := chanId.UnicastUserAndDevice()
+	c.Check(u, Equals, "user1")
+	c.Check(d, Equals, "dev2")
+	c.Check(func() { SystemInternalChannelId.UnicastUserAndDevice() }, PanicMatches, "UnicastUserAndDevice is for unicast channels")
+}
+
+func (s *storeSuite) TestDropByMsgId(c *C) {
+	orig := []protocol.Notification{
+		protocol.Notification{MsgId: "a"},
+		protocol.Notification{MsgId: "b"},
+		protocol.Notification{MsgId: "c"},
+		protocol.Notification{MsgId: "d"},
+	}
+	// removing the continuous head
+	res := DropByMsgId(orig, orig[:3])
+	c.Check(res, DeepEquals, orig[3:])
+
+	// random removal
+	res = DropByMsgId(orig, orig[1:2])
+	c.Check(res, DeepEquals, []protocol.Notification{
+		protocol.Notification{MsgId: "a"},
+		protocol.Notification{MsgId: "c"},
+		protocol.Notification{MsgId: "d"},
+	})
+
+	// looks like removing the continuous head, but it isn't
+	res = DropByMsgId(orig, []protocol.Notification{
+		protocol.Notification{MsgId: "a"},
+		protocol.Notification{MsgId: "c"},
+		protocol.Notification{MsgId: "d"},
+	})
+	c.Check(res, DeepEquals, []protocol.Notification{
+		protocol.Notification{MsgId: "b"},
+	})
+
 }

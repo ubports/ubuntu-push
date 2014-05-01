@@ -28,6 +28,7 @@ import (
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
+	help "launchpad.net/ubuntu-push/testing"
 )
 
 func TestBroker(t *stdtesting.T) { TestingT(t) }
@@ -40,11 +41,11 @@ func (s *exchangesSuite) TestBroadcastExchangeInit(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"a":"x"}`),
 			json.RawMessage(`[]`),
 			json.RawMessage(`{"a":"y"}`),
-		},
+		),
 	}
 	exchg.Init()
 	c.Check(exchg.Decoded, DeepEquals, []map[string]interface{}{
@@ -63,10 +64,10 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img1/m1":100}`),
 			json.RawMessage(`{"img2/m2":200}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -89,9 +90,9 @@ func (s *exchangesSuite) TestBroadcastExchangeEmpty(c *C) {
 		ImageChannel: "img1",
 	}
 	exchg := &broker.BroadcastExchange{
-		ChanId:               store.SystemInternalChannelId,
-		TopLevel:             3,
-		NotificationPayloads: []json.RawMessage{},
+		ChanId:        store.SystemInternalChannelId,
+		TopLevel:      3,
+		Notifications: []protocol.Notification{},
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -109,9 +110,9 @@ func (s *exchangesSuite) TestBroadcastExchangeEmptyButAhead(c *C) {
 		ImageChannel: "img1",
 	}
 	exchg := &broker.BroadcastExchange{
-		ChanId:               store.SystemInternalChannelId,
-		TopLevel:             3,
-		NotificationPayloads: []json.RawMessage{},
+		ChanId:        store.SystemInternalChannelId,
+		TopLevel:      3,
+		Notifications: []protocol.Notification{},
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -134,9 +135,9 @@ func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 
 	topLevel := int64(len(needsSplitting))
 	exchg := &broker.BroadcastExchange{
-		ChanId:               store.SystemInternalChannelId,
-		TopLevel:             topLevel,
-		NotificationPayloads: needsSplitting,
+		ChanId:        store.SystemInternalChannelId,
+		TopLevel:      topLevel,
+		Notifications: help.Ns(needsSplitting...),
 	}
 	exchg.Init()
 	outMsg, _, err := exchg.Prepare(sess)
@@ -153,10 +154,10 @@ func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 	exchg = &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: topLevel + 2,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img1/m1":"x"}`),
 			json.RawMessage(`{"img1/m1":"y"}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, _, err = exchg.Prepare(sess)
@@ -174,9 +175,9 @@ func (s *exchangesSuite) TestBroadcastExchangeAckMismatch(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img2/m1":1}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -203,10 +204,10 @@ func (s *exchangesSuite) TestBroadcastExchangeFilterByLevel(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img1/m1":100}`),
 			json.RawMessage(`{"img1/m1":101}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -230,11 +231,11 @@ func (s *exchangesSuite) TestBroadcastExchangeChannelFilter(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 5,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img1/m1":100}`),
 			json.RawMessage(`{"img2/m2":200}`),
 			json.RawMessage(`{"img1/m1":101}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)

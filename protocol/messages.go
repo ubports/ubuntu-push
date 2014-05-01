@@ -162,6 +162,19 @@ type Notification struct {
 	Payload json.RawMessage `json:"P"`
 }
 
+// ExtractPayloads gets only the payloads out of a slice of notications.
+func ExtractPayloads(notifications []Notification) []json.RawMessage {
+	n := len(notifications)
+	if n == 0 {
+		return nil
+	}
+	payloads := make([]json.RawMessage, n)
+	for i := 0; i < n; i++ {
+		payloads[i] = notifications[i].Payload
+	}
+	return payloads
+}
+
 // ACKnowledgement message
 type AckMsg struct {
 	Type string `json:"T"`
