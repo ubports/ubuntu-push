@@ -1,4 +1,5 @@
 #!/usr/bin/dh-exec
 debian/config.json /etc/xdg/ubuntu-push-client
 debian/ubuntu-push-client.conf /usr/share/upstart/sessions
+signing-helper/signing-helper /usr/lib/ubuntu-push-client
 usr/bin/ubuntu-push => /usr/lib/ubuntu-push-client/ubuntu-push-client
