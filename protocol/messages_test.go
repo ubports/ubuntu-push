@@ -123,3 +123,73 @@ func (s *messagesSuite) TestExtractPayloads(c *C) {
 	ns := []Notification{Notification{Payload: p1}, Notification{Payload: p2}}
 	c.Check(ExtractPayloads(ns), DeepEquals, []json.RawMessage{p1, p2})
 }
+
+func (s *messagesSuite) TestSplitNotificationsMsgNop(c *C) {
+	n := &NotificationsMsg{
+		Type: "notifications",
+		Notifications: []Notification{
+			Notification{"app1", "msg1", json.RawMessage(`{m:1}`)},
+			Notification{"app1", "msg1", json.RawMessage(`{m:2}`)},
+		},
+	}
+	done := n.Split()
+	c.Check(done, Equals, true)
+	c.Check(cap(n.Notifications), Equals, 2)
+	c.Check(len(n.Notifications), Equals, 2)
+}
+
+var payloadFmt2 = fmt.Sprintf(`{"b":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2-notificationOverhead-4-6)) // 4 = app1 6 = msg%03d
+
+func manyNotifications(c int) []Notification {
+	notifs := make([]Notification, 0, 1)
+	for i := 0; i < c; i++ {
+		notifs = append(notifs, Notification{
+			"app1",
+			fmt.Sprintf("msg%03d", i),
+			json.RawMessage(fmt.Sprintf(payloadFmt2, i)),
+		})
+	}
+	return notifs
+}
+
+func (s *messagesSuite) TestSplitNotificationsMsgMany(c *C) {
+	notifs := manyNotifications(33)
+	n := len(notifs)
+	// more interesting this way
+	c.Assert(cap(notifs), Not(Equals), n)
+	nm := &NotificationsMsg{
+		Type:          "notifications",
+		Notifications: notifs,
+	}
+	done := nm.Split()
+	c.Assert(done, Equals, false)
+	n1 := len(nm.Notifications)
+	buf, err := json.Marshal(nm)
+	c.Assert(err, IsNil)
+	c.Assert(len(buf) <= 65535, Equals, true)
+	c.Check(len(buf)+len(notifs[n1].Payload) > maxPayloadSize, Equals, true)
+	done = nm.Split()
+	c.Assert(done, Equals, true)
+	n2 := len(nm.Notifications)
+	c.Check(n1+n2, Equals, n)
+
+	notifs = manyNotifications(61)
+	n = len(notifs)
+	nm = &NotificationsMsg{
+		Type:          "notifications",
+		Notifications: notifs,
+	}
+	done = nm.Split()
+	c.Assert(done, Equals, false)
+	n1 = len(nm.Notifications)
+	done = nm.Split()
+	c.Assert(done, Equals, false)
+	n2 = len(nm.Notifications)
+	done = nm.Split()
+	c.Assert(done, Equals, true)
+	n3 := len(nm.Notifications)
+	c.Check(n1+n2+n3, Equals, n)
+	// reset
+	nm.Reset()
+	c.Check(nm.splitting, Equals, 0)
+}

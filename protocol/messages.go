@@ -20,6 +20,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // System channel id using a shortened hex-encoded form for the NIL UUID.
@@ -152,17 +153,40 @@ func (b *BroadcastMsg) Reset() {
 type NotificationsMsg struct {
 	Type          string `json:"T"`
 	Notifications []Notification
+	splitting     int
 }
 
 // Reset resets the splitting state if the message storage is to be
 // reused.
 func (m *NotificationsMsg) Reset() {
-	// xxx
+	m.splitting = 0
 }
 
 func (m *NotificationsMsg) Split() bool {
-	// xxx
+	if m.splitting != 0 {
+		m.Notifications = m.Notifications[len(m.Notifications):m.splitting]
+	}
+	notifs := m.Notifications
+	var size int
+	for i, notif := range notifs {
+		size += len(notif.Payload) + len(notif.AppId) + len(notif.MsgId) + notificationOverhead
+		if size > maxPayloadSize {
+			m.splitting = len(notifs)
+			m.Notifications = notifs[:i]
+			return false
+		}
+	}
 	return true
+}
+
+var notificationOverhead int
+
+func init() {
+	buf, err := json.Marshal(Notification{})
+	if err != nil {
+		panic(fmt.Errorf("failed to compute Notification marshal overhead: %v", err))
+	}
+	notificationOverhead = len(buf) - 4 // - 4 for the null from P(ayload)
 }
 
 // A single unicast notification
