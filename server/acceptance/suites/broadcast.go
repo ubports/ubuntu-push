@@ -29,13 +29,10 @@ import (
 	"launchpad.net/ubuntu-push/server/api"
 )
 
-// BroadCastAcceptanceSuite has tests about broadcast.
+// BroadcastAcceptanceSuite has tests about broadcast.
 type BroadcastAcceptanceSuite struct {
 	AcceptanceSuite
 }
-
-// Long after the end of the tests.
-var future = time.Now().Add(9 * time.Hour).Format(time.RFC3339)
 
 func (s *BroadcastAcceptanceSuite) TestBroadcastToConnected(c *C) {
 	events, errCh, stop := s.StartClient(c, "DEVB", nil)

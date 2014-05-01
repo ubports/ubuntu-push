@@ -59,3 +59,6 @@ var _ = Suite(&suites.PingPongAcceptanceSuite{suites.AcceptanceSuite{StartServer
 
 // broadcast
 var _ = Suite(&suites.BroadcastAcceptanceSuite{suites.AcceptanceSuite{StartServer: StartServer}})
+
+// unicast
+var _ = Suite(&suites.UnicastAcceptanceSuite{suites.AcceptanceSuite{StartServer: StartServer}, nil})

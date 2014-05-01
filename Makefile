@@ -11,6 +11,7 @@ GODEPS = launchpad.net/gocheck
 GODEPS += launchpad.net/go-dbus/v1
 GODEPS += launchpad.net/go-xdg/v0
 GODEPS += code.google.com/p/gosqlite/sqlite3
+GODEPS += launchpad.net/~ubuntu-push-hackers/ubuntu-push/go-uuid/uuid
 
 TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
 
