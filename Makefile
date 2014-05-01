@@ -34,6 +34,7 @@ acceptance:
 
 build-client:
 	go build ubuntu-push-client.go
+	(cd signing-helper && cmake . && make)
 
 build-server-dev:
 	go build -o push-server-dev launchpad.net/ubuntu-push/server/dev
