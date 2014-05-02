@@ -18,7 +18,9 @@
 package testing
 
 import (
+	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
+	"launchpad.net/ubuntu-push/server/store"
 )
 
 // Test implementation of BrokerSession.
@@ -29,6 +31,9 @@ type TestBrokerSession struct {
 	Exchanges    chan broker.Exchange
 	LevelsMap    broker.LevelsMap
 	exchgScratch broker.ExchangesScratchArea
+	// hooks
+	DoGet         func(store.InternalChannelId, bool) (int64, []protocol.Notification, error)
+	DoDropByMsgId func(store.InternalChannelId, []protocol.Notification) error
 }
 
 func (tbs *TestBrokerSession) DeviceIdentifier() string {
@@ -53,6 +58,14 @@ func (tbs *TestBrokerSession) Levels() broker.LevelsMap {
 
 func (tbs *TestBrokerSession) ExchangeScratchArea() *broker.ExchangesScratchArea {
 	return &tbs.exchgScratch
+}
+
+func (tbs *TestBrokerSession) Get(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+	return tbs.DoGet(chanId, cachedOk)
+}
+
+func (tbs *TestBrokerSession) DropByMsgId(chanId store.InternalChannelId, targets []protocol.Notification) error {
+	return tbs.DoDropByMsgId(chanId, targets)
 }
 
 // Test implementation of BrokerConfig.

@@ -28,8 +28,9 @@ import (
 
 // Scratch area for exchanges, sessions should hold one of these.
 type ExchangesScratchArea struct {
-	broadcastMsg protocol.BroadcastMsg
-	ackMsg       protocol.AckMsg
+	broadcastMsg     protocol.BroadcastMsg
+	notificationsMsg protocol.NotificationsMsg
+	ackMsg           protocol.AckMsg
 }
 
 // BroadcastExchange leads a session through delivering a BROADCAST.
@@ -134,4 +135,39 @@ func (cbe *ConnMetaExchange) Prepare(sess BrokerSession) (outMessage protocol.Sp
 // CONNBROKEN/WARN aren't acked.
 func (cbe *ConnMetaExchange) Acked(sess BrokerSession, done bool) error {
 	panic("Acked should not get invoked on ConnMetaExchange")
+}
+
+// UnicastExchange leads a session through delivering a NOTIFICATIONS message.
+// For simplicity it is fully public.
+type UnicastExchange struct {
+	ChanId store.InternalChannelId
+}
+
+// check interface already here
+var _ Exchange = (*UnicastExchange)(nil)
+
+// Prepare session for a NOTIFICATIONS.
+func (sue *UnicastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
+	_, notifs, err := sess.Get(sue.ChanId, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	scratchArea := sess.ExchangeScratchArea()
+	scratchArea.notificationsMsg.Reset()
+	scratchArea.notificationsMsg.Type = "notifications"
+	scratchArea.notificationsMsg.Notifications = notifs
+	return &scratchArea.notificationsMsg, &scratchArea.ackMsg, nil
+}
+
+// Acked deals with an ACK for a NOTIFICATIONS.
+func (sue *UnicastExchange) Acked(sess BrokerSession, done bool) error {
+	scratchArea := sess.ExchangeScratchArea()
+	if scratchArea.ackMsg.Type != "ack" {
+		return &ErrAbort{"expected ACK message"}
+	}
+	err := sess.DropByMsgId(sue.ChanId, scratchArea.notificationsMsg.Notifications)
+	if err != nil {
+		return err
+	}
+	return nil
 }

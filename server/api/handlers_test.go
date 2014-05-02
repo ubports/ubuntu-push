@@ -150,6 +150,10 @@ func (cbsend *checkBrokerSending) Broadcast(chanId store.InternalChannelId) {
 	cbsend.payloads = protocol.ExtractPayloads(notifications)
 }
 
+func (cbsend *checkBrokerSending) Unicast(chanIds ...store.InternalChannelId) {
+	// xxx later
+}
+
 func (s *handlersSuite) TestDoBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	bsend := &checkBrokerSending{store: sto}
@@ -267,6 +271,10 @@ type testBrokerSending struct {
 
 func (bsend testBrokerSending) Broadcast(chanId store.InternalChannelId) {
 	bsend.chanId <- chanId
+}
+
+func (bsend testBrokerSending) Unicast(chanIds ...store.InternalChannelId) {
+	// xxx later
 }
 
 func (s *handlersSuite) TestRespondsToBasicSystemBroadcast(c *C) {
