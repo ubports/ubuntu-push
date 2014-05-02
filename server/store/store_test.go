@@ -67,7 +67,7 @@ func (s *storeSuite) TestUnicastInternalChannelId(c *C) {
 	c.Check(func() { SystemInternalChannelId.UnicastUserAndDevice() }, PanicMatches, "UnicastUserAndDevice is for unicast channels")
 }
 
-func (s *storeSuite) TestDropByMsgId(c *C) {
+func (s *storeSuite) TestFilterOutByMsgId(c *C) {
 	orig := []protocol.Notification{
 		protocol.Notification{MsgId: "a"},
 		protocol.Notification{MsgId: "b"},
@@ -75,11 +75,11 @@ func (s *storeSuite) TestDropByMsgId(c *C) {
 		protocol.Notification{MsgId: "d"},
 	}
 	// removing the continuous head
-	res := DropByMsgId(orig, orig[:3])
+	res := FilterOutByMsgId(orig, orig[:3])
 	c.Check(res, DeepEquals, orig[3:])
 
 	// random removal
-	res = DropByMsgId(orig, orig[1:2])
+	res = FilterOutByMsgId(orig, orig[1:2])
 	c.Check(res, DeepEquals, []protocol.Notification{
 		protocol.Notification{MsgId: "a"},
 		protocol.Notification{MsgId: "c"},
@@ -87,7 +87,7 @@ func (s *storeSuite) TestDropByMsgId(c *C) {
 	})
 
 	// looks like removing the continuous head, but it isn't
-	res = DropByMsgId(orig, []protocol.Notification{
+	res = FilterOutByMsgId(orig, []protocol.Notification{
 		protocol.Notification{MsgId: "a"},
 		protocol.Notification{MsgId: "c"},
 		protocol.Notification{MsgId: "d"},
