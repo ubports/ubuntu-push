@@ -119,7 +119,7 @@ func (sto *InMemoryPendingStore) DropByMsgId(chanId InternalChannelId, targets [
 	for i, notif := range channel.notifications {
 		expById[notif.MsgId] = channel.expirations[i]
 	}
-	channel.notifications = DropByMsgId(channel.notifications, targets)
+	channel.notifications = FilterOutByMsgId(channel.notifications, targets)
 	exps := make([]time.Time, len(channel.notifications))
 	for i, notif := range channel.notifications {
 		exps[i] = expById[notif.MsgId]

@@ -114,9 +114,9 @@ type PendingStore interface {
 	Close()
 }
 
-// DropByMsgId returns the notifications from orig whose msg id is not
+// FilterOutByMsgId returns the notifications from orig whose msg id is not
 // mentioned in targets.
-func DropByMsgId(orig, targets []protocol.Notification) []protocol.Notification {
+func FilterOutByMsgId(orig, targets []protocol.Notification) []protocol.Notification {
 	n := len(orig)
 	t := len(targets)
 	// common case, removing the continuous head
