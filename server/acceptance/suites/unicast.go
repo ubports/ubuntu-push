@@ -38,7 +38,7 @@ func (s *UnicastAcceptanceSuite) associatedAuth(deviceId string) (userId string,
 	if s.AssociatedAuth != nil {
 		return s.AssociatedAuth(deviceId)
 	}
-	return "", ""
+	return deviceId, ""
 }
 
 func (s *UnicastAcceptanceSuite) TestUnicastToConnected(c *C) {
