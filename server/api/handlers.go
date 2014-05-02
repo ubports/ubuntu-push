@@ -19,11 +19,14 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
+
+	"launchpad.net/~ubuntu-push-hackers/ubuntu-push/go-uuid/uuid"
 
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/broker"
@@ -93,6 +96,11 @@ var (
 		ioError,
 		"Could not read request body",
 	}
+	ErrMissingIdField = &APIError{
+		http.StatusBadRequest,
+		invalidRequest,
+		"Missing id field",
+	}
 	ErrMissingData = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
@@ -130,10 +138,17 @@ var (
 	}
 )
 
-type Message struct {
-	Registration string          `json:"registration"`
-	CoalesceTag  string          `json:"coalesce_tag"`
-	Data         json.RawMessage `json:"data"`
+type castCommon struct {
+}
+
+type Unicast struct {
+	UserId   string `json:"userid"`
+	DeviceId string `json:"deviceid"`
+	AppId    string `json:"appid"`
+	//Registration string          `json:"registration"`
+	//CoalesceTag  string          `json:"coalesce_tag"`
+	ExpireOn string          `json:"expire_on"`
+	Data     json.RawMessage `json:"data"`
 }
 
 // Broadcast request JSON object.
@@ -198,11 +213,11 @@ func ReadBody(request *http.Request, maxBodySize int64) ([]byte, *APIError) {
 
 var zeroTime = time.Time{}
 
-func checkBroadcast(bcast *Broadcast) (time.Time, *APIError) {
-	if len(bcast.Data) == 0 {
+func checkCastCommon(data json.RawMessage, expireOn string) (time.Time, *APIError) {
+	if len(data) == 0 {
 		return zeroTime, ErrMissingData
 	}
-	expire, err := time.Parse(time.RFC3339, bcast.ExpireOn)
+	expire, err := time.Parse(time.RFC3339, expireOn)
 	if err != nil {
 		return zeroTime, ErrInvalidExpiration
 	}
@@ -210,6 +225,10 @@ func checkBroadcast(bcast *Broadcast) (time.Time, *APIError) {
 		return zeroTime, ErrPastExpiration
 	}
 	return expire, nil
+}
+
+func checkBroadcast(bcast *Broadcast) (time.Time, *APIError) {
+	return checkCastCommon(bcast.Data, bcast.ExpireOn)
 }
 
 type StoreForRequest func(w http.ResponseWriter, request *http.Request) (store.PendingStore, error)
@@ -232,6 +251,20 @@ func (ctx *context) getStore(w http.ResponseWriter, request *http.Request) (stor
 		return nil, ErrUnknown
 	}
 	return sto, nil
+}
+
+func (ctx *context) prepare(w http.ResponseWriter, request *http.Request, reqObj interface{}) (store.PendingStore, *APIError) {
+	body, apiErr := ReadBody(request, MaxRequestBodyBytes)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+
+	err := json.Unmarshal(body, reqObj)
+	if err != nil {
+		return nil, ErrMalformedJSONObject
+	}
+
+	return ctx.getStore(w, request)
 }
 
 type BroadcastHandler struct {
@@ -270,25 +303,73 @@ func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.R
 		}
 	}()
 
-	body, apiErr := ReadBody(request, MaxRequestBodyBytes)
-	if apiErr != nil {
-		return
-	}
+	broadcast := &Broadcast{}
 
-	sto, apiErr := h.getStore(writer, request)
+	sto, apiErr := h.prepare(writer, request, broadcast)
 	if apiErr != nil {
 		return
 	}
 	defer sto.Close()
 
-	broadcast := &Broadcast{}
-	err := json.Unmarshal(body, broadcast)
-	if err != nil {
-		apiErr = ErrMalformedJSONObject
+	apiErr = h.doBroadcast(sto, broadcast)
+	if apiErr != nil {
 		return
 	}
 
-	apiErr = h.doBroadcast(sto, broadcast)
+	writer.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(writer, `{"ok":true}`)
+}
+
+type UnicastHandler struct {
+	*context
+}
+
+func checkUnicast(ucast *Unicast) (time.Time, *APIError) {
+	if ucast.UserId == "" || ucast.DeviceId == "" || ucast.AppId == "" {
+		return zeroTime, ErrMissingIdField
+	}
+	return checkCastCommon(ucast.Data, ucast.ExpireOn)
+}
+
+// use a base64 encoded TimeUUID
+var generateMsgId = func() string {
+	return base64.StdEncoding.EncodeToString(uuid.NewUUID())
+}
+
+func (h *UnicastHandler) doUnicast(sto store.PendingStore, ucast *Unicast) *APIError {
+	expire, apiErr := checkUnicast(ucast)
+	if apiErr != nil {
+		return apiErr
+	}
+	chanId := store.UnicastInternalChannelId(ucast.UserId, ucast.DeviceId)
+	msgId := generateMsgId()
+	err := sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, expire)
+	if err != nil {
+		h.logger.Errorf("could not store notification: %v", err)
+		return ErrCouldNotStoreNotification
+	}
+
+	h.broker.Unicast(chanId)
+	return nil
+}
+
+func (h *UnicastHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	var apiErr *APIError
+	defer func() {
+		if apiErr != nil {
+			RespondError(writer, apiErr)
+		}
+	}()
+
+	unicast := &Unicast{}
+
+	sto, apiErr := h.prepare(writer, request, unicast)
+	if apiErr != nil {
+		return
+	}
+	defer sto.Close()
+
+	apiErr = h.doUnicast(sto, unicast)
 	if apiErr != nil {
 		return
 	}
@@ -306,5 +387,6 @@ func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSendin
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/broadcast", &BroadcastHandler{context: ctx})
+	mux.Handle("/notify", &UnicastHandler{context: ctx})
 	return mux
 }
