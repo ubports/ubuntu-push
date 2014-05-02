@@ -24,16 +24,11 @@ import (
 	"launchpad.net/ubuntu-push/protocol"
 )
 
-// one stored notification
-type notification struct {
-	protocol.Notification
-	expiration time.Time
-}
-
 // one stored channel
 type channel struct {
 	topLevel      int64
-	notifications []notification
+	notifications []protocol.Notification
+	expirations   []time.Time
 }
 
 // InMemoryPendingStore is a basic in-memory pending notification store.
@@ -56,20 +51,32 @@ func (sto *InMemoryPendingStore) GetInternalChannelId(name string) (InternalChan
 	return InternalChannelId(""), ErrUnknownChannel
 }
 
-func (sto *InMemoryPendingStore) AppendToChannel(chanId InternalChannelId, notificationPayload json.RawMessage, expiration time.Time) error {
+func (sto *InMemoryPendingStore) appendToChannel(chanId InternalChannelId, newNotification protocol.Notification, inc int64, expiration time.Time) error {
 	sto.lock.Lock()
 	defer sto.lock.Unlock()
 	prev := sto.store[chanId]
 	if prev == nil {
 		prev = &channel{}
 	}
-	prev.topLevel++
-	prev.notifications = append(prev.notifications, notification{
-		Notification: protocol.Notification{Payload: notificationPayload},
-		expiration:   expiration,
-	})
+	prev.topLevel += inc
+	prev.notifications = append(prev.notifications, newNotification)
+	prev.expirations = append(prev.expirations, expiration)
 	sto.store[chanId] = prev
 	return nil
+}
+
+func (sto *InMemoryPendingStore) AppendToChannel(chanId InternalChannelId, notificationPayload json.RawMessage, expiration time.Time) error {
+	newNotification := protocol.Notification{Payload: notificationPayload}
+	return sto.appendToChannel(chanId, newNotification, 1, expiration)
+}
+
+func (sto *InMemoryPendingStore) AppendToUnicastChannel(chanId InternalChannelId, appId string, notificationPayload json.RawMessage, msgId string, expiration time.Time) error {
+	newNotification := protocol.Notification{
+		Payload: notificationPayload,
+		AppId:   appId,
+		MsgId:   msgId,
+	}
+	return sto.appendToChannel(chanId, newNotification, 0, expiration)
 }
 
 func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (int64, []protocol.Notification, error) {
@@ -82,18 +89,43 @@ func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (i
 	topLevel := channel.topLevel
 	n := len(channel.notifications)
 	res := make([]protocol.Notification, 0, n)
+	exps := make([]time.Time, 0, n)
 	now := time.Now()
-	for _, notification := range channel.notifications {
-		if notification.expiration.Before(now) {
+	for i, expiration := range channel.expirations {
+		if expiration.Before(now) {
 			continue
 		}
-		res = append(res, notification.Notification)
+		res = append(res, channel.notifications[i])
+		exps = append(exps, expiration)
 	}
+	// store as well
+	channel.notifications = res
+	channel.expirations = exps
 	return topLevel, res, nil
 }
 
 func (sto *InMemoryPendingStore) Close() {
 	// ignored
+}
+
+func (sto *InMemoryPendingStore) DropByMsgId(chanId InternalChannelId, targets []protocol.Notification) error {
+	sto.lock.Lock()
+	defer sto.lock.Unlock()
+	channel, ok := sto.store[chanId]
+	if !ok {
+		return nil
+	}
+	expById := make(map[string]time.Time, len(channel.notifications))
+	for i, notif := range channel.notifications {
+		expById[notif.MsgId] = channel.expirations[i]
+	}
+	channel.notifications = FilterOutByMsgId(channel.notifications, targets)
+	exps := make([]time.Time, len(channel.notifications))
+	for i, notif := range channel.notifications {
+		exps[i] = expById[notif.MsgId]
+	}
+	channel.expirations = exps
+	return nil
 }
 
 // sanity check we implement the interface
