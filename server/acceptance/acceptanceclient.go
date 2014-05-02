@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"launchpad.net/ubuntu-push/protocol"
@@ -128,9 +129,24 @@ func (sess *ClientSession) Run(events chan<- string) error {
 			if sess.ReportPings {
 				events <- sess.Prefix + "ping"
 			}
+		case "notifications":
+			conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+			err := proto.WriteMessage(protocol.AckMsg{Type: "ack"})
+			if err != nil {
+				return err
+			}
+			parts := make([]string, len(recv.Notifications))
+			for i, notif := range recv.Notifications {
+				pack, err := json.Marshal(&notif.Payload)
+				if err != nil {
+					return err
+				}
+				parts[i] = fmt.Sprintf("app:%v payload:%s;", notif.AppId, pack)
+			}
+			events <- fmt.Sprintf("%sunicast %s", sess.Prefix, strings.Join(parts, " "))
 		case "broadcast":
 			conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-			err := proto.WriteMessage(protocol.PingPongMsg{Type: "ack"})
+			err := proto.WriteMessage(protocol.AckMsg{Type: "ack"})
 			if err != nil {
 				return err
 			}
