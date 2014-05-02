@@ -58,3 +58,39 @@ func (s *UnicastAcceptanceSuite) TestUnicastToConnected(c *C) {
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
+
+func (s *UnicastAcceptanceSuite) TestUnicastCorrectDistribution(c *C) {
+	userId1, auth1 := s.associatedAuth("DEV1")
+	userId2, auth2 := s.associatedAuth("DEV2")
+	// start 1st client
+	events1, errCh1, stop1 := s.StartClientAuth(c, "DEV1", nil, auth1)
+	// start 2nd client
+	events2, errCh2, stop2 := s.StartClientAuth(c, "DEV2", nil, auth2)
+	// unicast to one and the other
+	got, err := s.PostRequest("/notify", &api.Unicast{
+		UserId:   userId1,
+		DeviceId: "DEV1",
+		AppId:    "app1",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"to": 1}`),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
+	got, err = s.PostRequest("/notify", &api.Unicast{
+		UserId:   userId2,
+		DeviceId: "DEV2",
+		AppId:    "app1",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"to": 2}`),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
+	c.Check(NextEvent(events1, errCh1), Equals, `unicast app:app1 payload:{"to":1};`)
+	c.Check(NextEvent(events2, errCh2), Equals, `unicast app:app1 payload:{"to":2};`)
+	stop1()
+	stop2()
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh1), Equals, 0)
+	c.Check(len(errCh2), Equals, 0)
+}
