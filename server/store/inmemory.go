@@ -20,11 +20,13 @@ import (
 	"encoding/json"
 	"sync"
 	"time"
+
+	"launchpad.net/ubuntu-push/protocol"
 )
 
 // one stored notification
 type notification struct {
-	payload    json.RawMessage
+	protocol.Notification
 	expiration time.Time
 }
 
@@ -63,14 +65,14 @@ func (sto *InMemoryPendingStore) AppendToChannel(chanId InternalChannelId, notif
 	}
 	prev.topLevel++
 	prev.notifications = append(prev.notifications, notification{
-		payload:    notificationPayload,
-		expiration: expiration,
+		Notification: protocol.Notification{Payload: notificationPayload},
+		expiration:   expiration,
 	})
 	sto.store[chanId] = prev
 	return nil
 }
 
-func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (int64, []json.RawMessage, error) {
+func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (int64, []protocol.Notification, error) {
 	sto.lock.Lock()
 	defer sto.lock.Unlock()
 	channel, ok := sto.store[chanId]
@@ -79,13 +81,13 @@ func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (i
 	}
 	topLevel := channel.topLevel
 	n := len(channel.notifications)
-	res := make([]json.RawMessage, 0, n)
+	res := make([]protocol.Notification, 0, n)
 	now := time.Now()
 	for _, notification := range channel.notifications {
 		if notification.expiration.Before(now) {
 			continue
 		}
-		res = append(res, notification.payload)
+		res = append(res, notification.Notification)
 	}
 	return topLevel, res, nil
 }

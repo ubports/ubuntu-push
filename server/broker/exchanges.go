@@ -35,10 +35,10 @@ type ExchangesScratchArea struct {
 // BroadcastExchange leads a session through delivering a BROADCAST.
 // For simplicity it is fully public.
 type BroadcastExchange struct {
-	ChanId               store.InternalChannelId
-	TopLevel             int64
-	NotificationPayloads []json.RawMessage
-	Decoded              []map[string]interface{}
+	ChanId        store.InternalChannelId
+	TopLevel      int64
+	Notifications []protocol.Notification
+	Decoded       []map[string]interface{}
 }
 
 // check interface already here
@@ -46,18 +46,18 @@ var _ Exchange = (*BroadcastExchange)(nil)
 
 // Init ensures the BroadcastExchange is fully initialized for the sessions.
 func (sbe *BroadcastExchange) Init() {
-	decoded := make([]map[string]interface{}, len(sbe.NotificationPayloads))
+	decoded := make([]map[string]interface{}, len(sbe.Notifications))
 	sbe.Decoded = decoded
-	for i, p := range sbe.NotificationPayloads {
-		err := json.Unmarshal(p, &decoded[i])
+	for i, notif := range sbe.Notifications {
+		err := json.Unmarshal(notif.Payload, &decoded[i])
 		if err != nil {
 			decoded[i] = nil
 		}
 	}
 }
 
-func filterByLevel(clientLevel, topLevel int64, payloads []json.RawMessage) []json.RawMessage {
-	c := int64(len(payloads))
+func filterByLevel(clientLevel, topLevel int64, notifs []protocol.Notification) []protocol.Notification {
+	c := int64(len(notifs))
 	if c == 0 {
 		return nil
 	}
@@ -66,32 +66,32 @@ func filterByLevel(clientLevel, topLevel int64, payloads []json.RawMessage) []js
 		delta = 1
 	}
 	if delta < c {
-		return payloads[c-delta:]
+		return notifs[c-delta:]
 	} else {
-		return payloads
+		return notifs
 	}
 }
 
-func channelFilter(tag string, chanId store.InternalChannelId, payloads []json.RawMessage, decoded []map[string]interface{}) []json.RawMessage {
-	if len(payloads) != 0 && chanId == store.SystemInternalChannelId {
-		decoded := decoded[len(decoded)-len(payloads):]
+func channelFilter(tag string, chanId store.InternalChannelId, notifs []protocol.Notification, decoded []map[string]interface{}) []json.RawMessage {
+	if len(notifs) != 0 && chanId == store.SystemInternalChannelId {
+		decoded := decoded[len(decoded)-len(notifs):]
 		filtered := make([]json.RawMessage, 0)
 		for i, decoded1 := range decoded {
 			if _, ok := decoded1[tag]; ok {
-				filtered = append(filtered, payloads[i])
+				filtered = append(filtered, notifs[i].Payload)
 			}
 		}
-		payloads = filtered
+		return filtered
 	}
-	return payloads
+	return protocol.ExtractPayloads(notifs)
 }
 
 // Prepare session for a BROADCAST.
 func (sbe *BroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
 	clientLevel := sess.Levels()[sbe.ChanId]
-	payloads := filterByLevel(clientLevel, sbe.TopLevel, sbe.NotificationPayloads)
+	notifs := filterByLevel(clientLevel, sbe.TopLevel, sbe.Notifications)
 	tag := fmt.Sprintf("%s/%s", sess.DeviceImageChannel(), sess.DeviceImageModel())
-	payloads = channelFilter(tag, sbe.ChanId, payloads, sbe.Decoded)
+	payloads := channelFilter(tag, sbe.ChanId, notifs, sbe.Decoded)
 	if len(payloads) == 0 && sbe.TopLevel >= clientLevel {
 		// empty and don't need to force resync => do nothing
 		return nil, nil, ErrNop

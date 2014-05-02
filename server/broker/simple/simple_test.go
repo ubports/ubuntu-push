@@ -26,6 +26,7 @@ import (
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
+	help "launchpad.net/ubuntu-push/testing"
 )
 
 func TestSimple(t *stdtesting.T) { TestingT(t) }
@@ -58,10 +59,10 @@ func (s *simpleSuite) TestFeedPending(c *C) {
 	c.Assert(len(sess.exchanges), Equals, 1)
 	exchg1 := <-sess.exchanges
 	c.Check(exchg1, DeepEquals, &broker.BroadcastExchange{
-		ChanId:               store.SystemInternalChannelId,
-		TopLevel:             1,
-		NotificationPayloads: []json.RawMessage{notification1},
-		Decoded:              []map[string]interface{}{decoded1},
+		ChanId:        store.SystemInternalChannelId,
+		TopLevel:      1,
+		Notifications: help.Ns(notification1),
+		Decoded:       []map[string]interface{}{decoded1},
 	})
 }
 
