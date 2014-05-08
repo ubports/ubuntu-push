@@ -170,6 +170,13 @@ func (endp *testingEndpoint) String() string {
 func (tc *testingEndpoint) Close() {}
 
 func (tc *testingEndpoint) GrabName(allowReplacement bool) chan<- error {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
+	args := callArgs{Member: "::GrabName"}
+	args.Args = append(args.Args, allowReplacement)
+	tc.callArgs = append(tc.callArgs, args)
+
 	return nil
 }
 
