@@ -34,6 +34,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/systemimage"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
+	"launchpad.net/ubuntu-push/client/service"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/levelmap"
 	"launchpad.net/ubuntu-push/config"
@@ -79,6 +80,7 @@ type PushClient struct {
 	actionsCh          <-chan notifications.RawActionReply
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
+	service            *service.Service
 }
 
 var ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
@@ -348,10 +350,20 @@ func (client *PushClient) Loop() {
 		client.handleNotification, client.handleErr)
 }
 
+func (client *PushClient) startService() error {
+	if client.log == nil {
+		panic("service can't start without a log")
+	}
+	client.service = &service.Service{Log: client.log}
+	client.service.Start()
+	return nil
+}
+
 // Start calls doStart with the "real" starters
 func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
+		client.startService,
 		client.getDeviceId,
 		client.takeTheBus,
 		client.initSession,

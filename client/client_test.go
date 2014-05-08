@@ -285,6 +285,25 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 }
 
 /*****************************************************************
+    startService tests
+******************************************************************/
+
+func (cs *clientSuite) TestStartServiceWorks(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	c.Check(cli.service, IsNil)
+	c.Check(cli.startService(), IsNil)
+	c.Assert(cli.service, NotNil)
+	c.Check(cli.service.IsStarted, Equals, true)
+}
+
+func (cs *clientSuite) TestStartServicePanicsOnNilLog(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	c.Check(cli.log, IsNil)
+	c.Check(cli.startService, PanicMatches, `service can't start.*`)
+}
+
+/*****************************************************************
     getDeviceId tests
 ******************************************************************/
 
@@ -788,6 +807,8 @@ func (cs *clientSuite) TestStart(c *C) {
 
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	// before start, everything sucks:
+	// no service,
+	c.Check(cli.service, IsNil)
 	// no config,
 	c.Check(string(cli.config.Addr), Equals, "")
 	// no device id,
@@ -811,6 +832,8 @@ func (cs *clientSuite) TestStart(c *C) {
 	c.Check(cli.session, NotNil)
 	// and a bus,
 	c.Check(cli.notificationsEndp, NotNil)
+	// and a service,
+	c.Check(cli.service, NotNil)
 	// and everthying us just peachy!
 }
 
