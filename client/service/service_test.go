@@ -90,3 +90,13 @@ func (ss *serviceSuite) TestStartGrabsName(c *C) {
 	c.Assert(callArgs, HasLen, 1)
 	c.Check(callArgs[0].Member, Equals, "::GrabName")
 }
+
+func (ss *serviceSuite) TestStopClosesBus(c *C) {
+	bus := testibus.NewTestingEndpoint(condition.Work(true), nil)
+	svc := &Service{Bus: bus, Log: ss.log}
+	c.Assert(svc.Start(), IsNil)
+	svc.Stop()
+	callArgs := testibus.GetCallArgs(bus)
+	c.Assert(callArgs, HasLen, 2)
+	c.Check(callArgs[1].Member, Equals, "::Close")
+}
