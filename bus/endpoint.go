@@ -31,7 +31,7 @@ import (
 
 // bus.Endpoint represents the DBus connection itself.
 type Endpoint interface {
-	GrabName(allowReplacement bool) chan<- error
+	GrabName(allowReplacement bool) <-chan error
 	WatchSignal(member string, f func(...interface{}), d func()) error
 	Call(member string, args []interface{}, rvs ...interface{}) error
 	GetProperty(property string) (interface{}, error)
@@ -179,7 +179,7 @@ func (endp *endpoint) String() string {
 //
 // While the first result will be nil on success, successive results would
 // typically indicate another process trying to take over the name.
-func (endp *endpoint) GrabName(allowReplacement bool) chan<- error {
+func (endp *endpoint) GrabName(allowReplacement bool) <-chan error {
 	flags := dbus.NameFlagAllowReplacement | dbus.NameFlagReplaceExisting
 	if !allowReplacement {
 		flags = 0
