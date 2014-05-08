@@ -31,6 +31,7 @@ import (
 
 // bus.Endpoint represents the DBus connection itself.
 type Endpoint interface {
+	GrabName(allowReplacement bool) chan<- error
 	WatchSignal(member string, f func(...interface{}), d func()) error
 	Call(member string, args []interface{}, rvs ...interface{}) error
 	GetProperty(property string) (interface{}, error)
@@ -53,7 +54,7 @@ func newEndpoint(bus Bus, addr Address, log logger.Logger) *endpoint {
 }
 
 // ensure endpoint implements Endpoint
-var _ Endpoint = &endpoint{}
+var _ Endpoint = (*endpoint)(nil)
 
 /*
    public methods
@@ -171,6 +172,19 @@ func (endp *endpoint) Close() {
 // String() performs advanced endpoint stringification
 func (endp *endpoint) String() string {
 	return fmt.Sprintf("<Connection to %s %#v>", endp.bus, endp.addr)
+}
+
+// GrabName(...) takes over the name on the bus, reporting errors over the
+// returned channel.
+//
+// While the first result will be nil on success, successive results would
+// typically indicate another process trying to take over the name.
+func (endp *endpoint) GrabName(allowReplacement bool) chan<- error {
+	flags := dbus.NameFlagAllowReplacement | dbus.NameFlagReplaceExisting
+	if !allowReplacement {
+		flags = 0
+	}
+	return endp.bus.RequestName(endp.addr.Name, flags).C
 }
 
 /*

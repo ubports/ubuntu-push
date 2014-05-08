@@ -169,5 +169,9 @@ func (endp *testingEndpoint) String() string {
 // see Endpoint's Close. This one does nothing.
 func (tc *testingEndpoint) Close() {}
 
+func (tc *testingEndpoint) GrabName(allowReplacement bool) chan<- error {
+	return nil
+}
+
 // ensure testingEndpoint implements bus.Endpoint
-var _ bus.Endpoint = &testingEndpoint{}
+var _ bus.Endpoint = (*testingEndpoint)(nil)
