@@ -169,7 +169,7 @@ func (endp *testingEndpoint) String() string {
 // see Endpoint's Close. This one does nothing.
 func (tc *testingEndpoint) Close() {}
 
-func (tc *testingEndpoint) GrabName(allowReplacement bool) chan<- error {
+func (tc *testingEndpoint) GrabName(allowReplacement bool) <-chan error {
 	tc.callArgsLck.Lock()
 	defer tc.callArgsLck.Unlock()
 
