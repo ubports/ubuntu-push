@@ -173,3 +173,18 @@ func (s *TestingBusSuite) TestEndpointString(c *C) {
 	endp := NewTestingEndpoint(condition.Fail2Work(2), nil, "hello there")
 	c.Check(endp.String(), Matches, ".*Still Broken.*hello there.*")
 }
+
+// Test that GrabName updates callArgs
+func (s *TestingEndpointSuite) TestGrabNameUpdatesCallArgs(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true))
+	endp.GrabName(false)
+	endp.GrabName(true)
+	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{
+		{
+			Member: "::GrabName",
+			Args:   []interface{}{false},
+		}, {
+			Member: "::GrabName",
+			Args:   []interface{}{true},
+		}})
+}
