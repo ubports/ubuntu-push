@@ -294,7 +294,7 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	c.Check(cli.service, IsNil)
 	c.Check(cli.startService(), IsNil)
 	c.Assert(cli.service, NotNil)
-	c.Check(cli.service.IsStarted, Equals, true)
+	c.Check(cli.service.IsStarted(), Equals, true)
 }
 
 func (cs *clientSuite) TestStartServicePanicsOnNilLog(c *C) {
