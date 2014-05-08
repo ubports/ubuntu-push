@@ -9,11 +9,19 @@ import (
 )
 
 type Service struct {
-	lock      sync.RWMutex
-	isStarted bool
-	Log       logger.Logger
-	Bus       bus.Endpoint
+	lock  sync.RWMutex
+	state ServiceState
+	Log   logger.Logger
+	Bus   bus.Endpoint
 }
+
+type ServiceState uint8
+
+const (
+	StateUnknown ServiceState = iota
+	StateRunning
+	StateFinished
+)
 
 var (
 	NotConfigured  = errors.New("not configured")
@@ -25,16 +33,16 @@ var (
 	}
 )
 
-func (svc *Service) IsStarted() bool {
+func (svc *Service) IsRunning() bool {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
-	return svc.isStarted
+	return svc.state == StateRunning
 }
 
 func (svc *Service) Start() error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
-	if svc.isStarted {
+	if svc.state != StateUnknown {
 		return AlreadyStarted
 	}
 	if svc.Log == nil {
@@ -47,6 +55,27 @@ func (svc *Service) Start() error {
 	if err != nil {
 		return err
 	}
-	svc.isStarted = true
+	ch := svc.Bus.GrabName(true)
+	log := svc.Log
+	go func() {
+		for err := range ch {
+			if !svc.IsRunning() {
+				break
+			}
+			if err != nil {
+				log.Fatalf("name channel for %s got: %v", BusAddress.Name, err)
+			}
+		}
+	}()
+	svc.state = StateRunning
 	return nil
+}
+
+func (svc *Service) Stop() {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	if svc.Bus != nil {
+		svc.Bus.Close()
+	}
+	svc.state = StateFinished
 }
