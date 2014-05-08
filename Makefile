@@ -33,9 +33,16 @@ check-race:
 acceptance:
 	cd server/acceptance; ./acceptance.sh
 
-build-client:
-	go build ubuntu-push-client.go
-	(cd signing-helper && cmake . && make)
+build-client: ubuntu-push-client signing-helper/signing-helper
+
+%: %.go
+	go build $<
+
+signing-helper/Makefile: signing-helper/CMakeLists.txt signing-helper/signing-helper.cpp signing-helper/signing.h
+	cd signing-helper && (make clean || true) && cmake .
+
+signing-helper/signing-helper: signing-helper/Makefile signing-helper/signing-helper.cpp signing-helper/signing.h
+	cd signing-helper && make
 
 build-server-dev:
 	go build -o push-server-dev launchpad.net/ubuntu-push/server/dev
