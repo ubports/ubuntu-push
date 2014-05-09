@@ -28,7 +28,7 @@ var (
 	AlreadyStarted = errors.New("already started")
 	BusAddress     = bus.Address{
 		Interface: "com.ubuntu.PushNotifications",
-		Path:      "com/ubuntu/PushNotifications",
+		Path:      "/com/ubuntu/PushNotifications",
 		Name:      "com.ubuntu.PushNotifications",
 	}
 )
@@ -67,6 +67,7 @@ func (svc *Service) Start() error {
 			}
 		}
 	}()
+	svc.Bus.WatchMethod(bus.DispatchMap{})
 	svc.state = StateRunning
 	return nil
 }

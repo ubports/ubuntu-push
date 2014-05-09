@@ -29,10 +29,14 @@ import (
  *    Endpoint (and its implementation)
  */
 
+type BusMethod func([]interface{}) ([]interface{}, error)
+type DispatchMap map[string]BusMethod
+
 // bus.Endpoint represents the DBus connection itself.
 type Endpoint interface {
 	GrabName(allowReplacement bool) <-chan error
 	WatchSignal(member string, f func(...interface{}), d func()) error
+	WatchMethod(DispatchMap)
 	Call(member string, args []interface{}, rvs ...interface{}) error
 	GetProperty(property string) (interface{}, error)
 	Dial() error
@@ -185,6 +189,41 @@ func (endp *endpoint) GrabName(allowReplacement bool) <-chan error {
 		flags = 0
 	}
 	return endp.bus.RequestName(endp.addr.Name, flags).C
+}
+
+func (endp *endpoint) WatchMethod(dispatch DispatchMap) {
+	ch := make(chan *dbus.Message)
+	go func() {
+		var reply *dbus.Message
+
+		err_iface := endp.addr.Interface + ".Error"
+
+		for msg := range ch {
+			if msg.Interface != endp.addr.Interface {
+				continue
+			}
+			meth, ok := dispatch[msg.Member]
+			if !ok {
+				reply = dbus.NewErrorMessage(msg,
+					"org.freedesktop.DBus.Error.UnknownMethod", "Unknown method")
+				continue
+			}
+			args, err := meth(msg.AllArgs())
+			if err != nil {
+				reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
+			} else {
+				reply = dbus.NewMethodReturnMessage(msg)
+				reply.AppendArgs(args...)
+			}
+
+			err = endp.bus.Send(reply)
+			if err != nil {
+				// deal
+			}
+
+		}
+	}()
+	endp.bus.RegisterObjectPath(dbus.ObjectPath(endp.addr.Path), ch)
 }
 
 /*
