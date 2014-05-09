@@ -37,6 +37,7 @@ type Endpoint interface {
 	GrabName(allowReplacement bool) <-chan error
 	WatchSignal(member string, f func(...interface{}), d func()) error
 	WatchMethod(DispatchMap, ...interface{})
+	Signal(string, []interface{}) error
 	Call(member string, args []interface{}, rvs ...interface{}) error
 	GetProperty(property string) (interface{}, error)
 	Dial() error
@@ -191,6 +192,17 @@ func (endp *endpoint) GrabName(allowReplacement bool) <-chan error {
 	return endp.bus.RequestName(endp.addr.Name, flags).C
 }
 
+func (endp *endpoint) Signal(member string, args []interface{}) error {
+	msg := dbus.NewSignalMessage(dbus.ObjectPath(endp.addr.Path), endp.addr.Interface, member)
+	if args != nil {
+		err := msg.AppendArgs(args...)
+		if err != nil {
+			return err
+		}
+	}
+	return endp.bus.Send(msg)
+}
+
 func (endp *endpoint) WatchMethod(dispatch DispatchMap, extra ...interface{}) {
 	ch := make(chan *dbus.Message)
 	go func() {
@@ -209,7 +221,10 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap, extra ...interface{}) {
 					reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
 				} else {
 					reply = dbus.NewMethodReturnMessage(msg)
-					reply.AppendArgs(args...)
+					err = reply.AppendArgs(args...)
+					if err != nil {
+						reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
+					}
 				}
 			}
 			err := endp.bus.Send(reply)
