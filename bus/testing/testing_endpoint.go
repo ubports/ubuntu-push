@@ -187,5 +187,7 @@ func (tc *testingEndpoint) GrabName(allowReplacement bool) <-chan error {
 	return nil
 }
 
+func (*testingEndpoint) WatchMethod(bus.DispatchMap) {}
+
 // ensure testingEndpoint implements bus.Endpoint
 var _ bus.Endpoint = (*testingEndpoint)(nil)
