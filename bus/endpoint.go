@@ -199,24 +199,20 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap) {
 		err_iface := endp.addr.Interface + ".Error"
 
 		for msg := range ch {
-			if msg.Interface != endp.addr.Interface {
-				continue
-			}
 			meth, ok := dispatch[msg.Member]
-			if !ok {
+			if !ok || msg.Interface != endp.addr.Interface {
 				reply = dbus.NewErrorMessage(msg,
 					"org.freedesktop.DBus.Error.UnknownMethod", "Unknown method")
-				continue
-			}
-			args, err := meth(msg.AllArgs())
-			if err != nil {
-				reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
 			} else {
-				reply = dbus.NewMethodReturnMessage(msg)
-				reply.AppendArgs(args...)
+				args, err := meth(msg.AllArgs())
+				if err != nil {
+					reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
+				} else {
+					reply = dbus.NewMethodReturnMessage(msg)
+					reply.AppendArgs(args...)
+				}
 			}
-
-			err = endp.bus.Send(reply)
+			err := endp.bus.Send(reply)
 			if err != nil {
 				// deal
 			}
