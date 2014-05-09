@@ -89,7 +89,7 @@ var (
 	BadArgType  = errors.New("Bad argument type")
 )
 
-func Register(args []interface{}) ([]interface{}, error) {
+func Register(args []interface{}, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 1 {
 		return nil, BadArgCount
 	}
