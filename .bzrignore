@@ -13,3 +13,10 @@ debian/*.EX
 debian/*.substvars
 ubuntu-push-client
 push-server-dev
+signing-helper/CMakeCache.txt
+signing-helper/CMakeFiles
+signing-helper/Makefile
+signing-helper/cmake_install.cmake
+signing-helper/moc_signing.cpp
+signing-helper/signing-helper
+signing-helper/signing-helper_automoc.cpp
