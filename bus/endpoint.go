@@ -209,6 +209,9 @@ func (endp *endpoint) GrabName(allowReplacement bool) <-chan error {
 	return endp.bus.RequestName(endp.addr.Name, flags).C
 }
 
+// Signal() sends out a signal called <member> containing <args>.
+//
+// XXX: untested
 func (endp *endpoint) Signal(member string, args []interface{}) error {
 	msg := dbus.NewSignalMessage(dbus.ObjectPath(endp.addr.Path), endp.addr.Interface, member)
 	if args != nil {
