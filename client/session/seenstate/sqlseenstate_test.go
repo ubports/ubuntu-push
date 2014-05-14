@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package levelmap
+package seenstate
 
 import (
 	_ "code.google.com/p/gosqlite/sqlite3"
@@ -22,21 +22,21 @@ import (
 	. "launchpad.net/gocheck"
 )
 
-type sqlmSuite struct{ lmSuite }
+type sqlsSuite struct{ ssSuite }
 
-var _ = Suite(&sqlmSuite{})
+var _ = Suite(&sqlsSuite{})
 
-func (s *sqlmSuite) SetUpSuite(c *C) {
-	s.constructor = func() (LevelMap, error) { return NewSqliteLevelMap(":memory:") }
+func (s *sqlsSuite) SetUpSuite(c *C) {
+	s.constructor = func() (SeenState, error) { return NewSqliteSeenState(":memory:") }
 }
 
-func (s *sqlmSuite) TestNewCanFail(c *C) {
-	m, err := NewSqliteLevelMap("/does/not/exist")
-	c.Assert(m, IsNil)
+func (s *sqlsSuite) TestNewCanFail(c *C) {
+	sqls, err := NewSqliteSeenState("/does/not/exist")
+	c.Assert(sqls, IsNil)
 	c.Check(err, NotNil)
 }
 
-func (s *sqlmSuite) TestSetCanFail(c *C) {
+func (s *sqlsSuite) TestSetCanFail(c *C) {
 	dir := c.MkDir()
 	filename := dir + "test.db"
 	db, err := sql.Open("sqlite3", filename)
@@ -45,14 +45,14 @@ func (s *sqlmSuite) TestSetCanFail(c *C) {
 	_, err = db.Exec("CREATE TABLE level_map (foo)")
 	c.Assert(err, IsNil)
 	// <evil laughter>
-	m, err := NewSqliteLevelMap(filename)
+	sqls, err := NewSqliteSeenState(filename)
 	c.Check(err, IsNil)
-	c.Assert(m, NotNil)
-	err = m.Set("foo", 42)
+	c.Assert(sqls, NotNil)
+	err = sqls.SetLevel("foo", 42)
 	c.Check(err, ErrorMatches, "cannot set .*")
 }
 
-func (s *sqlmSuite) TestGetAllCanFail(c *C) {
+func (s *sqlsSuite) TestGetAllCanFail(c *C) {
 	dir := c.MkDir()
 	filename := dir + "test.db"
 	db, err := sql.Open("sqlite3", filename)
@@ -61,15 +61,15 @@ func (s *sqlmSuite) TestGetAllCanFail(c *C) {
 	_, err = db.Exec("CREATE TABLE level_map AS SELECT 'what'")
 	c.Assert(err, IsNil)
 	// <evil laughter>
-	m, err := NewSqliteLevelMap(filename)
+	sqls, err := NewSqliteSeenState(filename)
 	c.Check(err, IsNil)
-	c.Assert(m, NotNil)
-	all, err := m.GetAll()
+	c.Assert(sqls, NotNil)
+	all, err := sqls.GetAllLevels()
 	c.Check(all, IsNil)
 	c.Check(err, ErrorMatches, "cannot read level .*")
 }
 
-func (s *sqlmSuite) TestGetAllCanFailDifferently(c *C) {
+func (s *sqlsSuite) TestGetAllCanFailDifferently(c *C) {
 	dir := c.MkDir()
 	filename := dir + "test.db"
 	db, err := sql.Open("sqlite3", filename)
@@ -83,10 +83,10 @@ func (s *sqlmSuite) TestGetAllCanFailDifferently(c *C) {
 	_, err = db.Exec("DROP TABLE foo")
 	c.Assert(err, IsNil)
 	// <evil laughter>
-	m, err := NewSqliteLevelMap(filename)
+	sqls, err := NewSqliteSeenState(filename)
 	c.Check(err, IsNil)
-	c.Assert(m, NotNil)
-	all, err := m.GetAll()
+	c.Assert(sqls, NotNil)
+	all, err := sqls.GetAllLevels()
 	c.Check(all, IsNil)
 	c.Check(err, ErrorMatches, "cannot retrieve levels .*")
 }

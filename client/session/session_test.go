@@ -33,7 +33,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/client/gethosts"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -156,17 +156,17 @@ func (c *testProtocol) WriteMessage(src interface{}) error {
 	return nil
 }
 
-// brokenLevelMap is a LevelMap that always breaks
-type brokenLevelMap struct{}
+// brokenSeenState is a SeenState that always breaks
+type brokenSeenState struct{}
 
-func (*brokenLevelMap) Set(string, int64) error           { return errors.New("broken.") }
-func (*brokenLevelMap) GetAll() (map[string]int64, error) { return nil, errors.New("broken.") }
+func (*brokenSeenState) SetLevel(string, int64) error            { return errors.New("broken.") }
+func (*brokenSeenState) GetAllLevels() (map[string]int64, error) { return nil, errors.New("broken.") }
 
 /////
 
 type clientSessionSuite struct {
 	log  *helpers.TestLogger
-	lvls func() (levelmap.LevelMap, error)
+	lvls func() (seenstate.SeenState, error)
 }
 
 func (cs *clientSessionSuite) SetUpTest(c *C) {
@@ -174,7 +174,7 @@ func (cs *clientSessionSuite) SetUpTest(c *C) {
 }
 
 // in-memory level map testing
-var _ = Suite(&clientSessionSuite{lvls: levelmap.NewLevelMap})
+var _ = Suite(&clientSessionSuite{lvls: seenstate.NewSeenState})
 
 // sqlite level map testing
 type clientSqlevelsSessionSuite struct{ clientSessionSuite }
@@ -182,7 +182,7 @@ type clientSqlevelsSessionSuite struct{ clientSessionSuite }
 var _ = Suite(&clientSqlevelsSessionSuite{})
 
 func (cs *clientSqlevelsSessionSuite) SetUpSuite(c *C) {
-	cs.lvls = func() (levelmap.LevelMap, error) { return levelmap.NewSqliteLevelMap(":memory:") }
+	cs.lvls = func() (seenstate.SeenState, error) { return seenstate.NewSqliteSeenState(":memory:") }
 }
 
 /****************************************************************
@@ -248,8 +248,8 @@ func (cs *clientSessionSuite) TestNewSessionBadPEMFileContentFails(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (cs *clientSessionSuite) TestNewSessionBadLevelMapFails(c *C) {
-	ferr := func() (levelmap.LevelMap, error) { return nil, errors.New("Busted.") }
+func (cs *clientSessionSuite) TestNewSessionBadSeenStateFails(c *C) {
+	ferr := func() (seenstate.SeenState, error) { return nil, errors.New("Busted.") }
 	sess, err := NewSession("", dummyConf, "wah", ferr, cs.log)
 	c.Check(sess, IsNil)
 	c.Assert(err, NotNil)
@@ -637,7 +637,7 @@ func (s *msgSuite) SetUpTest(c *C) {
 	conf := ClientSessionConfig{
 		ExchangeTimeout: time.Millisecond,
 	}
-	s.sess, err = NewSession("", conf, "wah", levelmap.NewLevelMap, helpers.NewTestLogger(c, "debug"))
+	s.sess, err = NewSession("", conf, "wah", seenstate.NewSeenState, helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	s.sess.Connection = &testConn{Name: "TestHandle*"}
 	s.errCh = make(chan error, 1)
@@ -718,7 +718,7 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 		},
 	})
 	// and finally, the session keeps track of the levels
-	levels, err := s.sess.Levels.GetAll()
+	levels, err := s.sess.SeenState.GetAllLevels()
 	c.Check(err, IsNil)
 	c.Check(levels, DeepEquals, map[string]int64{"0": 2})
 }
@@ -757,7 +757,7 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 }
 
 func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
-	s.sess.Levels = &brokenLevelMap{}
+	s.sess.SeenState = &brokenSeenState{}
 	msg := serverMsg{"broadcast",
 		protocol.BroadcastMsg{
 			Type:     "broadcast",
@@ -1008,7 +1008,7 @@ func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
 func (cs *clientSessionSuite) TestStartFailsIfGetLevelsFails(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	sess.Levels = &brokenLevelMap{}
+	sess.SeenState = &brokenSeenState{}
 	sess.Connection = &testConn{Name: "TestStartConnectMessageFails"}
 	errCh := make(chan error, 1)
 	upCh := make(chan interface{}, 5)
@@ -1451,7 +1451,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	// ...get bubbled up,
 	c.Check(<-sess.BroadcastCh, NotNil)
 	// and their TopLevel remembered
-	levels, err := sess.Levels.GetAll()
+	levels, err := sess.SeenState.GetAllLevels()
 	c.Check(err, IsNil)
 	c.Check(levels, DeepEquals, map[string]int64{"0": 2})
 

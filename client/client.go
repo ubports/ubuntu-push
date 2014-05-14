@@ -35,7 +35,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/systemimage"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/client/session"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
@@ -192,7 +192,7 @@ func (client *PushClient) initSession() error {
 	}
 	sess, err := session.NewSession(client.config.Addr,
 		client.deriveSessionConfig(info), client.deviceId,
-		client.levelMapFactory, client.log)
+		client.seenStateFactory, client.log)
 	if err != nil {
 		return err
 	}
@@ -200,12 +200,12 @@ func (client *PushClient) initSession() error {
 	return nil
 }
 
-// levelmapFactory returns a levelMap for the session
-func (client *PushClient) levelMapFactory() (levelmap.LevelMap, error) {
+// seenStateFactory returns a SeenState for the session
+func (client *PushClient) seenStateFactory() (seenstate.SeenState, error) {
 	if client.leveldbPath == "" {
-		return levelmap.NewLevelMap()
+		return seenstate.NewSeenState()
 	} else {
-		return levelmap.NewSqliteLevelMap(client.leveldbPath)
+		return seenstate.NewSqliteSeenState(client.leveldbPath)
 	}
 }
 
