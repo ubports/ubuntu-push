@@ -291,6 +291,7 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
+	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
 	c.Check(cli.service, IsNil)
 	c.Check(cli.startService(), IsNil)
 	c.Assert(cli.service, NotNil)
@@ -298,10 +299,17 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	cli.service.Stop()
 }
 
-func (cs *clientSuite) TestStartServicePanicsOnNilLog(c *C) {
+func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	c.Check(cli.log, IsNil)
-	c.Check(cli.startService, PanicMatches, `service can't start.*`)
+	c.Check(cli.startService(), NotNil)
+}
+
+func (cs *clientSuite) TestStartServiceErrorsOnBusDialFail(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	c.Check(cli.startService(), NotNil)
 }
 
 /*****************************************************************
