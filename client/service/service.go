@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"os"
 	"sync"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -68,7 +69,9 @@ func (svc *Service) Start() error {
 			}
 		}
 	}()
-	svc.Bus.WatchMethod(bus.DispatchMap{})
+	svc.Bus.WatchMethod(bus.DispatchMap{
+		"Register": Register,
+	})
 	svc.state = StateRunning
 	return nil
 }
@@ -80,4 +83,26 @@ func (svc *Service) Stop() {
 		svc.Bus.Close()
 	}
 	svc.state = StateFinished
+}
+
+var (
+	BadArgCount = errors.New("Wrong number of arguments")
+	BadArgType  = errors.New("Bad argument type")
+)
+
+func Register(args []interface{}, _ []interface{}) ([]interface{}, error) {
+	if len(args) != 1 {
+		return nil, BadArgCount
+	}
+	appname, ok := args[0].(string)
+	if !ok {
+		return nil, BadArgType
+	}
+
+	rv := os.Getenv("PUSH_REG_" + appname)
+	if rv == "" {
+		rv = "this-is-an-opaque-block-of-random-bits-i-promise"
+	}
+
+	return []interface{}{rv}, nil
 }
