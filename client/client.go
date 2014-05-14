@@ -80,6 +80,7 @@ type PushClient struct {
 	actionsCh          <-chan notifications.RawActionReply
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
+	serviceEndpoint    bus.Endpoint
 	service            *service.Service
 }
 
@@ -351,12 +352,12 @@ func (client *PushClient) Loop() {
 }
 
 func (client *PushClient) startService() error {
-	if client.log == nil {
-		panic("service can't start without a log")
+	if client.serviceEndpoint == nil {
+		client.serviceEndpoint = bus.SessionBus.Endpoint(service.BusAddress, client.log)
 	}
-	client.service = service.NewService(nil, client.log)
-	client.service.Start()
-	return nil
+
+	client.service = service.NewService(client.serviceEndpoint, client.log)
+	return client.service.Start()
 }
 
 // Start calls doStart with the "real" starters
