@@ -39,25 +39,15 @@ class NotificationData:
     Device last update
     Data for the notification
     """
-    channel = None
-    build_number = None
-    device = None
-    last_update = None
-    version = None
-    data = None
 
-    @classmethod
-    def from_dbus_info(cls, dbus_info=None):
-        """
-        Create a new object based on dbus_info if provided
-        """
-        nd = NotificationData()
-        if dbus_info is not None:
-            nd.device = dbus_info[1]
-            nd.channel = dbus_info[2]
-            nd.last_update = dbus_info[3]
-            nd.build_number = dbus_info[4]['version']
-        return nd
+    def __init__(self, channel=None, device=None, build_number=None,
+        last_update=None, version=None, data=None):
+        self.channel = channel
+        self.build_number = build_number
+        self.device = device
+        self.last_update = last_update
+        self.version = version
+        self.data = data
 
     def inc_build_number(self):
         """

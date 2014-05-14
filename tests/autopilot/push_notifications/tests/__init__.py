@@ -14,8 +14,8 @@ import json
 import os
 import datetime
 import subprocess
-import dbus
 import copy
+import systemimage.config as sys_info
 
 from autopilot.testcase import AutopilotTestCase
 from push_notifications.data import PushNotificationMessage
@@ -53,7 +53,7 @@ class PushNotificationTestBase(AutopilotTestCase):
         self.restart_push_client()
         # validate that the initialisation push message is displayed
         self.validate_push_message(self.DEFAULT_DISPLAY_MESSAGE)
-        # dbus
+        # get system info
         self.get_device_info()
 
     def create_notification_data_copy(self):
@@ -65,14 +65,17 @@ class PushNotificationTestBase(AutopilotTestCase):
     def get_device_info(self):
         """
         Discover the device's model and build info
+        Store in NotificationData object
         """
-        system_bus = dbus.SystemBus()
-        info_service = system_bus.get_object(
-            'com.canonical.SystemImage', '/Service')
-        info = info_service.Info()
-        # Create a NotificationData object based on the dbus info
-        self.notification_data = NotificationData.from_dbus_info(
-            dbus_info=info)
+        # Create a NotificationData object based on system info
+        # channel info needs to be read from file
+        channel_config_file = '/etc/system-image/channel.ini'
+        self.config.read(channel_config_file)
+        channel = self.config['service']['channel']
+        self.notification_data = NotificationData(
+            device=sys_info.config.device,
+            channel=channel,
+            build_number=sys_info.config.build_number)
 
     def read_config_file(self):
         """
