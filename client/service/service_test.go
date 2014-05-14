@@ -119,6 +119,7 @@ func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 
 func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	os.Setenv("PUSH_REG_stuff", "42")
+	defer os.Setenv("PUSH_REG_stuff", "")
 
 	reg, err := Register([]interface{}{"stuff"}, nil)
 	c.Assert(reg, HasLen, 1)
