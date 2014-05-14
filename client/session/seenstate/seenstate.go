@@ -14,31 +14,31 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package levelmap holds implementations of the LevelMap that the client
+// Package seenstate holds implementations of the SeenState that the client
 // session uses to keep track of what messages it has seen.
-package levelmap
+package seenstate
 
-type LevelMap interface {
+type SeenState interface {
 	// Set() (re)sets the given level to the given value.
-	Set(level string, top int64) error
+	SetLevel(level string, top int64) error
 	// GetAll() returns a "simple" map of the current levels.
-	GetAll() (map[string]int64, error)
+	GetAllLevels() (map[string]int64, error)
 }
 
 type mapLevelMap map[string]int64
 
-func (m *mapLevelMap) Set(level string, top int64) error {
+func (m *mapLevelMap) SetLevel(level string, top int64) error {
 	(*m)[level] = top
 	return nil
 }
-func (m *mapLevelMap) GetAll() (map[string]int64, error) {
+func (m *mapLevelMap) GetAllLevels() (map[string]int64, error) {
 	return map[string]int64(*m), nil
 }
 
-var _ LevelMap = &mapLevelMap{}
+var _ SeenState = (*mapLevelMap)(nil)
 
-// NewLevelMap returns an implementation of LevelMap that is memory-based and
+// NewSeenState returns an implementation of SeenState that is memory-based and
 // does not save state.
-func NewLevelMap() (LevelMap, error) {
+func NewSeenState() (SeenState, error) {
 	return &mapLevelMap{}, nil
 }
