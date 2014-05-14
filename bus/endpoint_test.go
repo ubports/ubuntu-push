@@ -37,7 +37,7 @@ func (s *EndpointSuite) SetUpTest(c *C) {
 // testing amenities (already talked about it with jamesh)
 
 // Tests that we can connect to the *actual* system bus.
-// XXX maybe connect to a mock/fake/etc bus?
+// XXX: maybe connect to a mock/fake/etc bus?
 func (s *EndpointSuite) TestDial(c *C) {
 	// if somebody's set up the env var, assume it's "live"
 	if os.Getenv("DBUS_SYSTEM_BUS_ADDRESS") == "" {

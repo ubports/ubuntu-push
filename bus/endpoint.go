@@ -63,9 +63,14 @@ var _ Endpoint = (*endpoint)(nil)
 
 /*
    public methods
+
+XXX:   these are almost entirely untested, as that would need
+XXX:   integration tests we are currently missing.
 */
 
 // Dial() (re)establishes the connection with dbus
+//
+// XXX: mostly untested
 func (endp *endpoint) Dial() error {
 	bus, err := dbus.Connect(endp.busT.(concreteBus).dbusType())
 	if err != nil {
@@ -112,6 +117,8 @@ func (endp *endpoint) Dial() error {
 // with the unpacked value. If it's unable to set up the watch it returns an
 // error. If the watch fails once established, d() is called. Typically f()
 // sends the values over a channel, and d() would close the channel.
+//
+// XXX: untested
 func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
 	watch, err := endp.proxy.WatchSignal(endp.addr.Interface, member)
 	if err != nil {
@@ -128,6 +135,8 @@ func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func(
 // interface provided when creating the endpoint). args can be built
 // using bus.Args(...). The return value is unpacked into rvs before being
 // returned.
+//
+// XXX: untested
 func (endp *endpoint) Call(member string, args []interface{}, rvs ...interface{}) error {
 	msg, err := endp.proxy.Call(endp.addr.Interface, member, args...)
 	if err != nil {
@@ -144,6 +153,8 @@ func (endp *endpoint) Call(member string, args []interface{}, rvs ...interface{}
 // to read a given property on the name, path and interface provided when
 // creating the endpoint. The return value is unpacked into a dbus.Variant,
 // and its value returned.
+//
+// XXX: untested
 func (endp *endpoint) GetProperty(property string) (interface{}, error) {
 	msg, err := endp.proxy.Call("org.freedesktop.DBus.Properties", "Get", endp.addr.Interface, property)
 	if err != nil {
@@ -166,6 +177,8 @@ func (endp *endpoint) GetProperty(property string) (interface{}, error) {
 }
 
 // Close the connection to dbus.
+//
+// XXX: untested
 func (endp *endpoint) Close() {
 	if endp.bus != nil {
 		endp.bus.Close()
@@ -175,15 +188,19 @@ func (endp *endpoint) Close() {
 }
 
 // String() performs advanced endpoint stringification
+//
+// XXX: untested
 func (endp *endpoint) String() string {
 	return fmt.Sprintf("<Connection to %s %#v>", endp.bus, endp.addr)
 }
 
-// GrabName(...) takes over the name on the bus, reporting errors over the
+// GrabName() takes over the name on the bus, reporting errors over the
 // returned channel.
 //
 // While the first result will be nil on success, successive results would
 // typically indicate another process trying to take over the name.
+//
+// XXX: untested
 func (endp *endpoint) GrabName(allowReplacement bool) <-chan error {
 	flags := dbus.NameFlagAllowReplacement | dbus.NameFlagReplaceExisting
 	if !allowReplacement {
@@ -203,6 +220,10 @@ func (endp *endpoint) Signal(member string, args []interface{}) error {
 	return endp.bus.Send(msg)
 }
 
+// WatchMethod() uses the given DispatchMap to answer incoming method
+// calls.
+//
+// XXX: untested
 func (endp *endpoint) WatchMethod(dispatch DispatchMap, extra ...interface{}) {
 	ch := make(chan *dbus.Message)
 	go func() {
@@ -242,6 +263,8 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap, extra ...interface{}) {
 */
 
 // unpackOneMsg unpacks the value from the response msg
+//
+// XXX: untested
 func (endp *endpoint) unpackOneMsg(msg *dbus.Message, member string) []interface{} {
 	var varmap map[string]dbus.Variant
 	if err := msg.Args(&varmap); err != nil {
@@ -251,6 +274,8 @@ func (endp *endpoint) unpackOneMsg(msg *dbus.Message, member string) []interface
 }
 
 // unpackMessages unpacks the value from the watch
+//
+// XXX: untested
 func (endp *endpoint) unpackMessages(watch *dbus.SignalWatch, f func(...interface{}), d func(), member string) {
 	for {
 		msg, ok := <-watch.C
