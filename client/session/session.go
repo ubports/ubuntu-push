@@ -33,7 +33,7 @@ import (
 	"time"
 
 	"launchpad.net/ubuntu-push/client/gethosts"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
@@ -95,7 +95,7 @@ type ClientSession struct {
 	// configuration
 	DeviceId string
 	ClientSessionConfig
-	Levels       levelmap.LevelMap
+	SeenState    seenstate.SeenState
 	Protocolator func(net.Conn) protocol.Protocol
 	// hosts
 	getHost                hostGetter
@@ -145,10 +145,10 @@ func redialDelay(sess *ClientSession) time.Duration {
 }
 
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
-	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
+	deviceId string, seenStateFactory func() (seenstate.SeenState, error),
 	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
-	levels, err := levelmapFactory()
+	seenState, err := seenStateFactory()
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		DeviceId:            deviceId,
 		Log:                 log,
 		Protocolator:        protocol.NewProtocol0,
-		Levels:              levels,
+		SeenState:           seenState,
 		TLS:                 &tls.Config{},
 		stateP:              &state,
 		timeSince:           time.Since,
@@ -390,7 +390,7 @@ func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *BroadcastNotificat
 
 // handle "broadcast" messages
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
-	err := sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
+	err := sess.SeenState.SetLevel(bcast.ChanId, bcast.TopLevel)
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to set level: %v", err)
@@ -502,7 +502,7 @@ func (sess *ClientSession) start() error {
 	}
 	proto := sess.Protocolator(conn)
 	proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-	levels, err := sess.Levels.GetAll()
+	levels, err := sess.SeenState.GetAllLevels()
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to start: get levels: %v", err)
