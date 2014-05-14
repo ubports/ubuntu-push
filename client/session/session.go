@@ -43,7 +43,7 @@ var (
 	wireVersionBytes = []byte{protocol.ProtocolWireVersion}
 )
 
-type Notification struct {
+type BroadcastNotification struct {
 	TopLevel int64
 	Decoded  []map[string]interface{}
 }
@@ -116,9 +116,10 @@ type ClientSession struct {
 	pingInterval time.Duration
 	retrier      util.AutoRedialer
 	// status
-	stateP *uint32
-	ErrCh  chan error
-	MsgCh  chan *Notification
+	stateP          *uint32
+	ErrCh           chan error
+	BroadcastCh     chan *BroadcastNotification
+	NotificationsCh chan *protocol.Notification
 	// authorization
 	auth string
 	// autoredial knobs
@@ -370,7 +371,7 @@ func (sess *ClientSession) handlePing() error {
 	return err
 }
 
-func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *Notification {
+func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *BroadcastNotification {
 	decoded := make([]map[string]interface{}, 0)
 	for _, p := range bcast.Payloads {
 		var v map[string]interface{}
@@ -381,7 +382,7 @@ func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *Notification {
 		}
 		decoded = append(decoded, v)
 	}
-	return &Notification{
+	return &BroadcastNotification{
 		TopLevel: bcast.TopLevel,
 		Decoded:  decoded,
 	}
@@ -409,11 +410,33 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		bcast.ChanId, bcast.AppId, bcast.TopLevel, bcast.Payloads)
 	if bcast.ChanId == protocol.SystemChannelId {
 		// the system channel id, the only one we care about for now
-		sess.Log.Debugf("sending it over")
-		sess.MsgCh <- sess.decodeBroadcast(bcast)
-		sess.Log.Debugf("sent it over")
+		sess.Log.Debugf("sending bcast over")
+		sess.BroadcastCh <- sess.decodeBroadcast(bcast)
+		sess.Log.Debugf("sent bcast over")
 	} else {
 		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)
+	}
+	return nil
+}
+
+// handle "notifications" messages
+func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
+	// the server assumes if we ack the broadcast, we've updated
+	// our state. Hence the order.
+	err := sess.proto.WriteMessage(protocol.AckMsg{"ack"})
+	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to ack notifications: %s", err)
+		return err
+	}
+	sess.clearShouldDelay()
+	for i := range ucast.Notifications {
+		notif := &ucast.Notifications[i]
+		sess.Log.Debugf("unicast app:%v msg:%s payload:%s",
+			notif.AppId, notif.MsgId, notif.Payload)
+		sess.Log.Debugf("sending ucast over")
+		sess.NotificationsCh <- notif
+		sess.Log.Debugf("sent ucast over")
 	}
 	return nil
 }
@@ -449,6 +472,8 @@ func (sess *ClientSession) loop() error {
 			err = sess.handlePing()
 		case "broadcast":
 			err = sess.handleBroadcast(&recv)
+		case "notifications":
+			err = sess.handleNotifications(&recv)
 		case "connbroken":
 			err = sess.handleConnBroken(&recv)
 		}
@@ -534,7 +559,8 @@ func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter
 		err = starter()
 		if err == nil {
 			sess.ErrCh = make(chan error, 1)
-			sess.MsgCh = make(chan *Notification)
+			sess.BroadcastCh = make(chan *BroadcastNotification)
+			sess.NotificationsCh = make(chan *protocol.Notification)
 			go func() { sess.ErrCh <- looper() }()
 		}
 	}

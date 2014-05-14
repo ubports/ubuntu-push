@@ -645,7 +645,8 @@ func (s *msgSuite) SetUpTest(c *C) {
 	s.downCh = make(chan interface{}, 5)
 	s.sess.proto = &testProtocol{up: s.upCh, down: s.downCh}
 	// make the message channel buffered
-	s.sess.MsgCh = make(chan *Notification, 5)
+	s.sess.BroadcastCh = make(chan *BroadcastNotification, 5)
+	s.sess.NotificationsCh = make(chan *protocol.Notification, 5)
 }
 
 func (s *msgSuite) TestHandlePingWorks(c *C) {
@@ -704,8 +705,8 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
-	c.Assert(len(s.sess.MsgCh), Equals, 1)
-	c.Check(<-s.sess.MsgCh, DeepEquals, &Notification{
+	c.Assert(len(s.sess.BroadcastCh), Equals, 1)
+	c.Check(<-s.sess.BroadcastCh, DeepEquals, &BroadcastNotification{
 		TopLevel: 2,
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{
@@ -752,7 +753,7 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, IsNil)
-	c.Check(len(s.sess.MsgCh), Equals, 0)
+	c.Check(len(s.sess.BroadcastCh), Equals, 0)
 }
 
 func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
@@ -770,7 +771,7 @@ func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
 	// start returns with error
 	c.Check(<-s.errCh, Not(Equals), nil)
 	// no message sent out
-	c.Check(len(s.sess.MsgCh), Equals, 0)
+	c.Check(len(s.sess.BroadcastCh), Equals, 0)
 	// and nak'ed it
 	c.Check(len(s.downCh), Equals, 1)
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"nak"})
@@ -799,6 +800,59 @@ func (s *msgSuite) TestHandleBroadcastDoesNotClearDelayOnError(c *C) {
 	s.upCh <- errors.New("bcast")
 	c.Check(<-s.errCh, NotNil)
 
+	c.Check(s.sess.ShouldDelay(), Equals, true)
+}
+
+/****************************************************************
+  handleNotifications() tests
+****************************************************************/
+
+func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
+	s.sess.setShouldDelay()
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	n2 := protocol.Notification{
+		AppId:   "app2",
+		MsgId:   "b",
+		Payload: json.RawMessage(`{"m": 2}`),
+	}
+	msg := serverMsg{"notifications",
+		protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{
+			Notifications: []protocol.Notification{n1, n2},
+		}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, Equals, nil)
+	c.Check(s.sess.ShouldDelay(), Equals, false)
+	c.Assert(len(s.sess.NotificationsCh), Equals, 2)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n1)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+}
+
+func (s *msgSuite) TestHandleNotificationsBadAckWrite(c *C) {
+	s.sess.setShouldDelay()
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	msg := serverMsg{"notifications",
+		protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{
+			Notifications: []protocol.Notification{n1},
+		}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	failure := errors.New("ACK ACK ACK")
+	s.upCh <- failure
+	c.Assert(<-s.errCh, Equals, failure)
+	c.Check(s.sess.State(), Equals, Error)
+	// didn't get to clear
 	c.Check(s.sess.ShouldDelay(), Equals, true)
 }
 
@@ -891,6 +945,26 @@ func (s *loopSuite) TestLoopBroadcast(c *C) {
 	}
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	s.upCh <- b
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	failure := errors.New("ack")
+	s.upCh <- failure
+	c.Check(<-s.errCh, Equals, failure)
+}
+
+func (s *loopSuite) TestLoopNotifications(c *C) {
+	c.Check(s.sess.State(), Equals, Running)
+
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	msg := &protocol.NotificationsMsg{
+		Type:          "notifications",
+		Notifications: []protocol.Notification{n1},
+	}
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	s.upCh <- msg
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	failure := errors.New("ack")
 	s.upCh <- failure
@@ -1155,24 +1229,24 @@ func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
 func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	// just to make a point: until here we haven't set ErrCh & MsgCh (no
+	// just to make a point: until here we haven't set ErrCh & BroadcastCh (no
 	// biggie if this stops being true)
 	c.Check(sess.ErrCh, IsNil)
-	c.Check(sess.MsgCh, IsNil)
+	c.Check(sess.BroadcastCh, IsNil)
 	failureCh := make(chan error) // must be unbuffered
-	notf := &Notification{}
+	notf := &BroadcastNotification{}
 	err = sess.run(
 		func() {},
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
-		func() error { sess.MsgCh <- notf; return <-failureCh })
+		func() error { sess.BroadcastCh <- notf; return <-failureCh })
 	c.Check(err, Equals, nil)
 	// if run doesn't error it sets up the channels
 	c.Assert(sess.ErrCh, NotNil)
-	c.Assert(sess.MsgCh, NotNil)
-	c.Check(<-sess.MsgCh, Equals, notf)
+	c.Assert(sess.BroadcastCh, NotNil)
+	c.Check(<-sess.BroadcastCh, Equals, notf)
 	failure := errors.New("TestRunRunsEvenIfLoopFails")
 	failureCh <- failure
 	c.Check(<-sess.ErrCh, Equals, failure)
@@ -1375,7 +1449,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	c.Check(takeNext(downCh), Equals, protocol.AckMsg{"ack"})
 	upCh <- nil
 	// ...get bubbled up,
-	c.Check(<-sess.MsgCh, NotNil)
+	c.Check(<-sess.BroadcastCh, NotNil)
 	// and their TopLevel remembered
 	levels, err := sess.Levels.GetAll()
 	c.Check(err, IsNil)
