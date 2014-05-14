@@ -17,6 +17,7 @@
 package service
 
 import (
+	"os"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -90,4 +91,39 @@ func (ss *serviceSuite) TestStopClosesBus(c *C) {
 	callArgs := testibus.GetCallArgs(ss.bus)
 	c.Assert(callArgs, HasLen, 2)
 	c.Check(callArgs[1].Member, Equals, "::Close")
+}
+
+// registration tests
+
+func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
+	for i, arg := range [][]interface{}{
+		nil,                 // no args
+		[]interface{}{},     // still no args
+		[]interface{}{42},   // bad arg type
+		[]interface{}{1, 2}, // too many args
+	} {
+		reg, err := Register(arg, nil)
+		c.Check(reg, IsNil, Commentf("iteration #%d", i))
+		c.Check(err, NotNil, Commentf("iteration #%d", i))
+	}
+}
+
+func (ss *serviceSuite) TestRegistrationWorks(c *C) {
+	reg, err := Register([]interface{}{"this"}, nil)
+	c.Assert(reg, HasLen, 1)
+	regs, ok := reg[0].(string)
+	c.Check(ok, Equals, true)
+	c.Check(regs, Not(Equals), "")
+	c.Check(err, IsNil)
+}
+
+func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
+	os.Setenv("PUSH_REG_stuff", "42")
+
+	reg, err := Register([]interface{}{"stuff"}, nil)
+	c.Assert(reg, HasLen, 1)
+	regs, ok := reg[0].(string)
+	c.Check(ok, Equals, true)
+	c.Check(regs, Equals, "42")
+	c.Check(err, IsNil)
 }
