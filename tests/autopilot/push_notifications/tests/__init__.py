@@ -17,13 +17,13 @@ import subprocess
 import copy
 import systemimage.config as sys_info
 
-from autopilot.testcase import AutopilotTestCase
+from unity8.shell.tests import UnityTestCase
 from push_notifications.data import PushNotificationMessage
 from push_notifications.data import NotificationData
 from push_notifications import config
 
 
-class PushNotificationTestBase(AutopilotTestCase):
+class PushNotificationTestBase(UnityTestCase):
     """
     Base class for push notification test cases
     """
@@ -31,7 +31,6 @@ class PushNotificationTestBase(AutopilotTestCase):
     PUSH_CLIENT_DEFAULT_CONFIG_FILE = '/etc/xdg/ubuntu-push-client/config.json'
     PUSH_CLIENT_CONFIG_FILE = '~/.config/ubuntu-push-client/config.json'
     PUSH_SERVER_BROADCAST_URL = '/broadcast'
-    DEFAULT_DISPLAY_MESSAGE = 'There\'s an updated system image.'
     PUSH_MIME_TYPE = 'application/json'
     SECTION_DEFAULT = 'default'
     KEY_ENVIRONMENT = 'environment'
@@ -51,10 +50,18 @@ class PushNotificationTestBase(AutopilotTestCase):
         self.write_client_test_config()
         # restart the push client
         self.restart_push_client()
-        # validate that the initialisation push message is displayed
-        self.validate_push_message(self.DEFAULT_DISPLAY_MESSAGE)
         # get system info
         self.get_device_info()
+        # unlock device
+        self.unity = self.launch_unity()
+        self.unlock_greeter()
+
+    def unlock_greeter(self):
+        """
+        Unlock the greeter to display home screen
+        """
+        greeter = self.main_window.get_greeter()
+        greeter.swipe()
 
     def create_notification_data_copy(self):
         """
@@ -179,11 +186,6 @@ class PushNotificationTestBase(AutopilotTestCase):
             channel=channel,
             data=data,
             expire_after=expire_after)
-
-    def validate_push_message(self, display_message, timeout=10):
-        """
-        Validate that a notification message is displayed on screen
-        """
 
     def get_past_iso_time(self):
         """

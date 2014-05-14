@@ -16,11 +16,22 @@ from push_notifications.tests import PushNotificationTestBase
 class TestPushClient(PushNotificationTestBase):
     """ Tests a Push notification can be sent and received """
 
+    DEFAULT_DISPLAY_MESSAGE = 'There\'s an updated system image.'
+
     def _validate_response(self, response, expected_status_code=200):
         """
         Validate the received response status code against expected code
         """
         self.assertThat(response.status, Equals(expected_status_code))
+
+    def _validate_notification_message_displayed(self,
+            msg_text=DEFAULT_DISPLAY_MESSAGE):
+        """
+        Validate that the notification is displayed
+        """
+        dialog = self.main_window.wait_select_single('Notification',
+            objectName='notification1')
+        self.assertEqual(msg_text, dialog.summary)
 
     def test_broadcast_push_notification(self):
         """
@@ -36,8 +47,9 @@ class TestPushClient(PushNotificationTestBase):
         # send the notification message to the server and check response
         response = self.send_push_broadcast_notification(msg.json())
         self._validate_response(response)
-
-        # TODO validate that message is received on client
+        # validate dialog is displayed
+        self._validate_notification_message_displayed(
+            self.DEFAULT_DISPLAY_MESSAGE)
 
     def test_expired_broadcast_push_notification(self):
         """
