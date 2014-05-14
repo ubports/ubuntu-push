@@ -35,6 +35,10 @@ var (
 	}
 )
 
+func NewService(bus bus.Endpoint, log logger.Logger) *Service {
+	return &Service{Log: log, Bus: bus}
+}
+
 func (svc *Service) IsRunning() bool {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
@@ -47,11 +51,8 @@ func (svc *Service) Start() error {
 	if svc.state != StateUnknown {
 		return AlreadyStarted
 	}
-	if svc.Log == nil {
+	if svc.Log == nil || svc.Bus == nil {
 		return NotConfigured
-	}
-	if svc.Bus == nil {
-		svc.Bus = bus.SessionBus.Endpoint(BusAddress, svc.Log)
 	}
 	err := svc.Bus.Dial()
 	if err != nil {
