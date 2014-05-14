@@ -38,7 +38,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/systemimage"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/client/session"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -420,21 +420,21 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 }
 
 /*****************************************************************
-    levelmapFactory tests
+    seenStateFactory tests
 ******************************************************************/
 
-func (cs *clientSuite) TestLevelMapFactoryNoDbPath(c *C) {
+func (cs *clientSuite) TestSeenStateFactoryNoDbPath(c *C) {
 	cli := NewPushClient(cs.configPath, "")
-	ln, err := cli.levelMapFactory()
+	ln, err := cli.seenStateFactory()
 	c.Assert(err, IsNil)
-	c.Check(fmt.Sprintf("%T", ln), Equals, "*levelmap.mapLevelMap")
+	c.Check(fmt.Sprintf("%T", ln), Equals, "*seenstate.mapLevelMap")
 }
 
-func (cs *clientSuite) TestLevelMapFactoryWithDbPath(c *C) {
+func (cs *clientSuite) TestSeenStateFactoryWithDbPath(c *C) {
 	cli := NewPushClient(cs.configPath, ":memory:")
-	ln, err := cli.levelMapFactory()
+	ln, err := cli.seenStateFactory()
 	c.Assert(err, IsNil)
-	c.Check(fmt.Sprintf("%T", ln), Equals, "*levelmap.sqliteLevelMap")
+	c.Check(fmt.Sprintf("%T", ln), Equals, "*seenstate.sqliteSeenState")
 }
 
 /*****************************************************************
@@ -470,7 +470,7 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log)
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, seenstate.NewSeenState, cs.log)
 	cli.session.Dial()
 	cli.hasConnectivity = true
 
@@ -483,7 +483,7 @@ func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, levelmap.NewLevelMap, cs.log)
+	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, seenstate.NewSeenState, cs.log)
 	cli.hasConnectivity = true
 
 	cli.handleConnState(false)

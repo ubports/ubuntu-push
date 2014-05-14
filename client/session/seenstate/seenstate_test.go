@@ -14,41 +14,41 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package levelmap
+package seenstate
 
 import (
 	. "launchpad.net/gocheck"
 	"testing"
 )
 
-func TestLevelMap(t *testing.T) { TestingT(t) }
+func TestSeenState(t *testing.T) { TestingT(t) }
 
-type lmSuite struct {
-	constructor func() (LevelMap, error)
+type ssSuite struct {
+	constructor func() (SeenState, error)
 }
 
-var _ = Suite(&lmSuite{})
+var _ = Suite(ssSuite{})
 
-func (s *lmSuite) SetUpSuite(c *C) {
-	s.constructor = NewLevelMap
+func (s *ssSuite) SetUpSuite(c *C) {
+	s.constructor = NewSeenState
 }
 
-func (s *lmSuite) TestAllTheThings(c *C) {
+func (s *ssSuite) TestAllTheLevelThings(c *C) {
 	var err error
-	var lm LevelMap
-	// checks NewLevelMap returns a LevelMap
-	lm, err = s.constructor()
+	var ss SeenState
+	// checks NewSeenState returns a SeenState
+	ss, err = s.constructor()
 	// and that it works
 	c.Assert(err, IsNil)
 	// setting a couple of things, sets them
-	c.Check(lm.Set("this", 12), IsNil)
-	c.Check(lm.Set("that", 42), IsNil)
-	all, err := lm.GetAll()
+	c.Check(ss.SetLevel("this", 12), IsNil)
+	c.Check(ss.SetLevel("that", 42), IsNil)
+	all, err := ss.GetAllLevels()
 	c.Check(err, IsNil)
 	c.Check(all, DeepEquals, map[string]int64{"this": 12, "that": 42})
 	// re-setting one of them, resets it
-	c.Check(lm.Set("this", 999), IsNil)
-	all, err = lm.GetAll()
+	c.Check(ss.SetLevel("this", 999), IsNil)
+	all, err = ss.GetAllLevels()
 	c.Check(err, IsNil)
 	c.Check(all, DeepEquals, map[string]int64{"this": 999, "that": 42})
 	// huzzah
