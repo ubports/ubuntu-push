@@ -40,7 +40,7 @@ func (ss *serviceSuite) SetUpSuite(c *C) {
 }
 
 func (ss *serviceSuite) TestStart(c *C) {
-	svc := &Service{Log: ss.log}
+	svc := NewService(nil, ss.log)
 	c.Check(svc.IsRunning(), Equals, false)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.IsRunning(), Equals, true)
@@ -48,19 +48,19 @@ func (ss *serviceSuite) TestStart(c *C) {
 }
 
 func (ss *serviceSuite) TestStartTwice(c *C) {
-	svc := &Service{Log: ss.log}
+	svc := NewService(nil, ss.log)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.Start(), Equals, AlreadyStarted)
 	svc.Stop()
 }
 
 func (ss *serviceSuite) TestStartNoLog(c *C) {
-	svc := &Service{}
+	svc := NewService(nil, nil)
 	c.Check(svc.Start(), Equals, NotConfigured)
 }
 
 func (ss *serviceSuite) TestStartConnectsBus(c *C) {
-	svc := &Service{Log: ss.log}
+	svc := NewService(nil, ss.log)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.Bus, NotNil)
 	svc.Stop()
@@ -68,7 +68,7 @@ func (ss *serviceSuite) TestStartConnectsBus(c *C) {
 
 func (ss *serviceSuite) TestStartDoesNotOverwriteBus(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true), nil)
-	svc := &Service{Bus: bus, Log: ss.log}
+	svc := NewService(bus, ss.log)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.Bus, Equals, bus)
 	svc.Stop()
@@ -76,14 +76,14 @@ func (ss *serviceSuite) TestStartDoesNotOverwriteBus(c *C) {
 
 func (ss *serviceSuite) TestStartFailsOnBusDialFailure(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	svc := &Service{Bus: bus, Log: ss.log}
+	svc := NewService(bus, ss.log)
 	c.Check(svc.Start(), ErrorMatches, `.*(?i)cond said no.*`)
 	svc.Stop()
 }
 
 func (ss *serviceSuite) TestStartGrabsName(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true), nil)
-	svc := &Service{Bus: bus, Log: ss.log}
+	svc := NewService(bus, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	callArgs := testibus.GetCallArgs(bus)
 	defer svc.Stop()
@@ -93,7 +93,7 @@ func (ss *serviceSuite) TestStartGrabsName(c *C) {
 
 func (ss *serviceSuite) TestStopClosesBus(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true), nil)
-	svc := &Service{Bus: bus, Log: ss.log}
+	svc := NewService(bus, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	svc.Stop()
 	callArgs := testibus.GetCallArgs(bus)

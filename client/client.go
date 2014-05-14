@@ -354,7 +354,7 @@ func (client *PushClient) startService() error {
 	if client.log == nil {
 		panic("service can't start without a log")
 	}
-	client.service = &service.Service{Log: client.log}
+	client.service = service.NewService(nil, client.log)
 	client.service.Start()
 	return nil
 }

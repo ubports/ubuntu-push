@@ -33,6 +33,10 @@ var (
 	}
 )
 
+func NewService(bus bus.Endpoint, log logger.Logger) *Service {
+	return &Service{Log: log, Bus: bus}
+}
+
 func (svc *Service) IsRunning() bool {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
