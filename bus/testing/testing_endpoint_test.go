@@ -102,7 +102,11 @@ func (s *TestingEndpointSuite) TestWatchDestructor(c *C) {
 func (s *TestingEndpointSuite) TestCloser(c *C) {
 	endp := NewTestingEndpoint(nil, condition.Work(true))
 	endp.Close()
-	// ... yay?
+	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{
+		{
+			Member: "::Close",
+			Args:   nil,
+		}})
 }
 
 // Test that WatchSignal() with a negative condition returns an error.

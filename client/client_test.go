@@ -285,6 +285,34 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 }
 
 /*****************************************************************
+    startService tests
+******************************************************************/
+
+func (cs *clientSuite) TestStartServiceWorks(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	c.Check(cli.service, IsNil)
+	c.Check(cli.startService(), IsNil)
+	c.Assert(cli.service, NotNil)
+	c.Check(cli.service.IsRunning(), Equals, true)
+	cli.service.Stop()
+}
+
+func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	c.Check(cli.log, IsNil)
+	c.Check(cli.startService(), NotNil)
+}
+
+func (cs *clientSuite) TestStartServiceErrorsOnBusDialFail(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	c.Check(cli.startService(), NotNil)
+}
+
+/*****************************************************************
     getDeviceId tests
 ******************************************************************/
 
@@ -788,6 +816,8 @@ func (cs *clientSuite) TestStart(c *C) {
 
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	// before start, everything sucks:
+	// no service,
+	c.Check(cli.service, IsNil)
 	// no config,
 	c.Check(string(cli.config.Addr), Equals, "")
 	// no device id,
@@ -811,7 +841,10 @@ func (cs *clientSuite) TestStart(c *C) {
 	c.Check(cli.session, NotNil)
 	// and a bus,
 	c.Check(cli.notificationsEndp, NotNil)
+	// and a service,
+	c.Check(cli.service, NotNil)
 	// and everthying us just peachy!
+	cli.service.Stop() // cleanup
 }
 
 func (cs *clientSuite) TestStartCanFail(c *C) {

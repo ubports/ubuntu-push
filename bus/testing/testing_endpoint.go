@@ -166,8 +166,15 @@ func (endp *testingEndpoint) String() string {
 		endp.dialCond, endp.callCond, endp.retvals)
 }
 
-// see Endpoint's Close. This one does nothing.
-func (tc *testingEndpoint) Close() {}
+// see Endpoint's Close. This one does nothing beyond registering
+// being called.
+func (tc *testingEndpoint) Close() {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
+	args := callArgs{Member: "::Close"}
+	tc.callArgs = append(tc.callArgs, args)
+}
 
 func (tc *testingEndpoint) GrabName(allowReplacement bool) <-chan error {
 	tc.callArgsLck.Lock()
