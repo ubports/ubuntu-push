@@ -232,7 +232,7 @@ func (client *PushClient) handleErr(err error) {
 	}
 }
 
-// filterNotification finds out if the notification is about an actual
+// filterBroadcastNotification finds out if the notification is about an actual
 // upgrade for the device. It expects msg.Decoded entries to look
 // like:
 //
@@ -240,7 +240,7 @@ func (client *PushClient) handleErr(err error) {
 // "IMAGE-CHANNEL/DEVICE-MODEL": [BUILD-NUMBER, CHANNEL-ALIAS]
 // ...
 // }
-func (client *PushClient) filterNotification(msg *session.Notification) bool {
+func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNotification) bool {
 	n := len(msg.Decoded)
 	if n == 0 {
 		return false
@@ -276,8 +276,8 @@ func (client *PushClient) filterNotification(msg *session.Notification) bool {
 }
 
 // handleNotification deals with receiving a notification
-func (client *PushClient) handleNotification(msg *session.Notification) error {
-	if !client.filterNotification(msg) {
+func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
+	if !client.filterBroadcastNotification(msg) {
 		return nil
 	}
 	action_id := ACTION_ID_SNOWFLAKE
@@ -314,15 +314,17 @@ func (client *PushClient) handleClick(action_id string) error {
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, notifhandler func(*session.Notification) error, errhandler func(error)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, errhandler func(error)) {
 	for {
 		select {
 		case state := <-client.connCh:
 			connhandler(state)
 		case action := <-client.actionsCh:
 			clickhandler(action.ActionId)
-		case msg := <-client.session.MsgCh:
-			notifhandler(msg)
+		case bcast := <-client.session.BroadcastCh:
+			bcasthandler(bcast)
+		case _ = <-client.session.NotificationsCh:
+			// xxx implement me
 		case err := <-client.session.ErrCh:
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
@@ -345,7 +347,7 @@ func (client *PushClient) doStart(fs ...func() error) error {
 // Loop calls doLoop with the "real" handlers
 func (client *PushClient) Loop() {
 	client.doLoop(client.handleConnState, client.handleClick,
-		client.handleNotification, client.handleErr)
+		client.handleBroadcastNotification, client.handleErr)
 }
 
 // Start calls doStart with the "real" starters

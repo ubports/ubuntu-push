@@ -463,7 +463,7 @@ func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
 }
 
 /*****************************************************************
-   filterNotification tests
+   filterBroadcastNotification tests
 ******************************************************************/
 
 var siInfoRes = &systemimage.InfoResult{
@@ -473,23 +473,23 @@ var siInfoRes = &systemimage.InfoResult{
 	LastUpdate:  "Unknown",
 }
 
-func (cs *clientSuite) TestFilterNotification(c *C) {
+func (cs *clientSuite) TestFilterBroadcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	// empty
-	msg := &session.Notification{}
-	c.Check(cli.filterNotification(msg), Equals, false)
+	msg := &session.BroadcastNotification{}
+	c.Check(cli.filterBroadcastNotification(msg), Equals, false)
 	// same build number
-	msg = &session.Notification{
+	msg = &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{
 				"daily/mako": []interface{}{float64(102), "tubular"},
 			},
 		},
 	}
-	c.Check(cli.filterNotification(msg), Equals, false)
+	c.Check(cli.filterBroadcastNotification(msg), Equals, false)
 	// higher build number and pick last
-	msg = &session.Notification{
+	msg = &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{
 				"daily/mako": []interface{}{float64(102), "tubular"},
@@ -499,9 +499,9 @@ func (cs *clientSuite) TestFilterNotification(c *C) {
 			},
 		},
 	}
-	c.Check(cli.filterNotification(msg), Equals, true)
+	c.Check(cli.filterBroadcastNotification(msg), Equals, true)
 	// going backward by a margin, assume switch of alias
-	msg = &session.Notification{
+	msg = &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{
 				"daily/mako": []interface{}{float64(102), "tubular"},
@@ -511,47 +511,47 @@ func (cs *clientSuite) TestFilterNotification(c *C) {
 			},
 		},
 	}
-	c.Check(cli.filterNotification(msg), Equals, true)
+	c.Check(cli.filterBroadcastNotification(msg), Equals, true)
 }
 
-func (cs *clientSuite) TestFilterNotificationRobust(c *C) {
+func (cs *clientSuite) TestFilterBroadcastNotificationRobust(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
-	msg := &session.Notification{
+	msg := &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{},
 		},
 	}
-	c.Check(cli.filterNotification(msg), Equals, false)
+	c.Check(cli.filterBroadcastNotification(msg), Equals, false)
 	for _, broken := range []interface{}{
 		5,
 		[]interface{}{},
 		[]interface{}{55},
 	} {
-		msg := &session.Notification{
+		msg := &session.BroadcastNotification{
 			Decoded: []map[string]interface{}{
 				map[string]interface{}{
 					"daily/mako": broken,
 				},
 			},
 		}
-		c.Check(cli.filterNotification(msg), Equals, false)
+		c.Check(cli.filterBroadcastNotification(msg), Equals, false)
 	}
 }
 
 /*****************************************************************
-    handleNotification tests
+    handleBroadcastNotification tests
 ******************************************************************/
 
 var (
-	positiveNotification = &session.Notification{
+	positiveBroadcastNotification = &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{
 				"daily/mako": []interface{}{float64(103), "tubular"},
 			},
 		},
 	}
-	negativeNotification = &session.Notification{
+	negativeBroadcastNotification = &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{
 				"daily/mako": []interface{}{float64(102), "tubular"},
@@ -560,13 +560,13 @@ var (
 	}
 )
 
-func (cs *clientSuite) TestHandleNotification(c *C) {
+func (cs *clientSuite) TestHandleBroadcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
-	c.Check(cli.handleNotification(positiveNotification), IsNil)
+	c.Check(cli.handleBroadcastNotification(positiveBroadcastNotification), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
@@ -574,26 +574,26 @@ func (cs *clientSuite) TestHandleNotification(c *C) {
 	c.Check(cs.log.Captured(), Matches, `.* got notification id \d+\s*`)
 }
 
-func (cs *clientSuite) TestHandleNotificationNothingToDo(c *C) {
+func (cs *clientSuite) TestHandleBroadcastNotificationNothingToDo(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
-	c.Check(cli.handleNotification(negativeNotification), IsNil)
+	c.Check(cli.handleBroadcastNotification(negativeBroadcastNotification), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 0)
 	c.Check(cs.log.Captured(), Matches, "")
 }
 
-func (cs *clientSuite) TestHandleNotificationFail(c *C) {
+func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
-	c.Check(cli.handleNotification(positiveNotification), NotNil)
+	c.Check(cli.handleBroadcastNotification(positiveBroadcastNotification), NotNil)
 }
 
 /*****************************************************************
@@ -632,7 +632,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	c.Assert(cli.initSession(), IsNil)
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) { ch <- true }, func(_ string) error { return nil }, func(_ *session.Notification) error { return nil }, func(error) {})
+	go cli.doLoop(func(bool) { ch <- true }, func(_ string) error { return nil }, func(_ *session.BroadcastNotification) error { return nil }, func(error) {})
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -646,7 +646,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli.actionsCh = aCh
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func(_ string) error { ch <- true; return nil }, func(_ *session.Notification) error { return nil }, func(error) {})
+	go cli.doLoop(func(bool) {}, func(_ string) error { ch <- true; return nil }, func(_ *session.BroadcastNotification) error { return nil }, func(error) {})
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -655,11 +655,11 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
-	cli.session.MsgCh = make(chan *session.Notification, 1)
-	cli.session.MsgCh <- &session.Notification{}
+	cli.session.BroadcastCh = make(chan *session.BroadcastNotification, 1)
+	cli.session.BroadcastCh <- &session.BroadcastNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func(_ string) error { return nil }, func(_ *session.Notification) error { ch <- true; return nil }, func(error) {})
+	go cli.doLoop(func(bool) {}, func(_ string) error { return nil }, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, func(error) {})
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -672,7 +672,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli.session.ErrCh <- nil
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func(_ string) error { return nil }, func(_ *session.Notification) error { return nil }, func(error) { ch <- true })
+	go cli.doLoop(func(bool) {}, func(_ string) error { return nil }, func(_ *session.BroadcastNotification) error { return nil }, func(error) { ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -722,7 +722,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
 
-	cli.session.MsgCh = make(chan *session.Notification)
+	cli.session.BroadcastCh = make(chan *session.BroadcastNotification)
 	cli.session.ErrCh = make(chan error)
 
 	// we use tick() to make sure things have been through the
@@ -755,8 +755,8 @@ func (cs *clientSuite) TestLoop(c *C) {
 	tick()
 	c.Check(cli.hasConnectivity, Equals, false)
 
-	//  * session.MsgCh to the notifications handler
-	cli.session.MsgCh <- positiveNotification
+	//  * session.BroadcastCh to the notifications handler
+	cli.session.BroadcastCh <- positiveBroadcastNotification
 	tick()
 	nargs := testibus.GetCallArgs(cli.notificationsEndp)
 	c.Check(nargs, HasLen, 1)
