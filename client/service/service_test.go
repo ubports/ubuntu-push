@@ -80,7 +80,7 @@ func (ss *serviceSuite) TestStartGrabsName(c *C) {
 	c.Assert(svc.Start(), IsNil)
 	callArgs := testibus.GetCallArgs(ss.bus)
 	defer svc.Stop()
-	c.Assert(callArgs, HasLen, 1)
+	c.Assert(callArgs, NotNil)
 	c.Check(callArgs[0].Member, Equals, "::GrabName")
 }
 
@@ -89,27 +89,30 @@ func (ss *serviceSuite) TestStopClosesBus(c *C) {
 	c.Assert(svc.Start(), IsNil)
 	svc.Stop()
 	callArgs := testibus.GetCallArgs(ss.bus)
-	c.Assert(callArgs, HasLen, 2)
-	c.Check(callArgs[1].Member, Equals, "::Close")
+	c.Assert(callArgs, NotNil)
+	c.Check(callArgs[len(callArgs)-1].Member, Equals, "::Close")
 }
 
 // registration tests
 
 func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
-	for i, arg := range [][]interface{}{
-		nil,                 // no args
-		[]interface{}{},     // still no args
-		[]interface{}{42},   // bad arg type
-		[]interface{}{1, 2}, // too many args
+	for i, s := range []struct {
+		args []interface{}
+		errt error
+	}{
+		{nil, BadArgCount},                 // no args
+		{[]interface{}{}, BadArgCount},     // still no args
+		{[]interface{}{42}, BadArgType},    // bad arg type
+		{[]interface{}{1, 2}, BadArgCount}, // too many args
 	} {
-		reg, err := Register(arg, nil)
+		reg, err := new(Service).Register(s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
-		c.Check(err, NotNil, Commentf("iteration #%d", i))
+		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
 }
 
 func (ss *serviceSuite) TestRegistrationWorks(c *C) {
-	reg, err := Register([]interface{}{"this"}, nil)
+	reg, err := new(Service).Register([]interface{}{"this"}, nil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
@@ -121,10 +124,89 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	os.Setenv("PUSH_REG_stuff", "42")
 	defer os.Setenv("PUSH_REG_stuff", "")
 
-	reg, err := Register([]interface{}{"stuff"}, nil)
+	reg, err := new(Service).Register([]interface{}{"stuff"}, nil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
 	c.Check(regs, Equals, "42")
 	c.Check(err, IsNil)
+}
+
+//
+// Injection tests
+
+func (ss *serviceSuite) TestInjectWorks(c *C) {
+	svc := NewService(ss.bus, ss.log)
+	rvs, err := svc.Inject([]interface{}{"hello", "world"}, nil)
+	c.Assert(err, IsNil)
+	c.Check(rvs, IsNil)
+	rvs, err = svc.Inject([]interface{}{"hello", "there"}, nil)
+	c.Assert(err, IsNil)
+	c.Check(rvs, IsNil)
+	c.Assert(svc.mbox, HasLen, 1)
+	c.Assert(svc.mbox["hello"], HasLen, 2)
+	c.Check(svc.mbox["hello"][0], Equals, "world")
+	c.Check(svc.mbox["hello"][1], Equals, "there")
+
+	// and check it fired the right signal (twice)
+	callArgs := testibus.GetCallArgs(ss.bus)
+	c.Assert(callArgs, HasLen, 2)
+	c.Check(callArgs[0].Member, Equals, "::Signal")
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"Notification", []interface{}{"hello"}})
+	c.Check(callArgs[1], DeepEquals, callArgs[0])
+}
+
+func (ss *serviceSuite) TestInjectFailsIfBadArgs(c *C) {
+	for i, s := range []struct {
+		args []interface{}
+		errt error
+	}{
+		{nil, BadArgCount},
+		{[]interface{}{}, BadArgCount},
+		{[]interface{}{1}, BadArgCount},
+		{[]interface{}{1, 2}, BadArgType},
+		{[]interface{}{"1", 2}, BadArgType},
+		{[]interface{}{1, "2"}, BadArgType},
+		{[]interface{}{1, 2, 3}, BadArgCount},
+	} {
+		reg, err := new(Service).Inject(s.args, nil)
+		c.Check(reg, IsNil, Commentf("iteration #%d", i))
+		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
+	}
+}
+
+//
+// Notifications tests
+func (ss *serviceSuite) TestNotificationsWorks(c *C) {
+	svc := NewService(ss.bus, ss.log)
+	nots, err := svc.Notifications([]interface{}{"hello"}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(nots, NotNil)
+	c.Assert(nots, HasLen, 1)
+	c.Check(nots[0], HasLen, 0)
+	if svc.mbox == nil {
+		svc.mbox = make(map[string][]string)
+	}
+	svc.mbox["hello"] = append(svc.mbox["hello"], "this", "thing")
+	nots, err = svc.Notifications([]interface{}{"hello"}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(nots, NotNil)
+	c.Assert(nots, HasLen, 1)
+	c.Check(nots[0], DeepEquals, []string{"this", "thing"})
+}
+
+func (ss *serviceSuite) TestNotificationsFailsIfBadArgs(c *C) {
+	for i, s := range []struct {
+		args []interface{}
+		errt error
+	}{
+		{nil, BadArgCount},                 // no args
+		{[]interface{}{}, BadArgCount},     // still no args
+		{[]interface{}{42}, BadArgType},    // bad arg type
+		{[]interface{}{1, 2}, BadArgCount}, // too many args
+	} {
+		reg, err := new(Service).Notifications(s.args, nil)
+		c.Check(reg, IsNil, Commentf("iteration #%d", i))
+		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
+	}
 }
