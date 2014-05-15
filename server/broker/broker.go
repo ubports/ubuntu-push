@@ -87,6 +87,10 @@ type BrokerSession interface {
 	Get(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error)
 	// DropByMsgId drops notifications from the channel chanId by message id.
 	DropByMsgId(chanId store.InternalChannelId, targets []protocol.Notification) error
+	// Feed feeds exchange into the session.
+	Feed(Exchange)
+	// InternalChannelId() returns the channel id corresponding to the session.
+	InternalChannelId() store.InternalChannelId
 }
 
 // Session aborted error.

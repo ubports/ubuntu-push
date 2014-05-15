@@ -295,7 +295,7 @@ func (s *exchangesSuite) TestUnicastExchange(c *C) {
 			return nil
 		},
 	}
-	exchg := &broker.UnicastExchange{chanId1}
+	exchg := &broker.UnicastExchange{ChanId: chanId1, CachedOk: false}
 	outMsg, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	// check
@@ -311,7 +311,7 @@ func (s *exchangesSuite) TestUnicastExchange(c *C) {
 }
 
 func (s *exchangesSuite) TestUnicastExchangeAckMismatch(c *C) {
-	notifs := []protocol.Notification{}
+	notifs := []protocol.Notification{protocol.Notification{}}
 	dropped := make(chan []protocol.Notification, 2)
 	sess := &testing.TestBrokerSession{
 		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
@@ -344,8 +344,22 @@ func (s *exchangesSuite) TestUnicastExchangeErrorOnPrepare(c *C) {
 	c.Assert(err, Equals, fail)
 }
 
+func (s *exchangesSuite) TestUnicastExchangeCachedOkNop(c *C) {
+	chanId1 := store.UnicastInternalChannelId("u1", "d1")
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			c.Check(chanId, Equals, chanId1)
+			c.Check(cachedOk, Equals, true)
+			return 0, nil, nil
+		},
+	}
+	exchg := &broker.UnicastExchange{ChanId: chanId1, CachedOk: true}
+	_, _, err := exchg.Prepare(sess)
+	c.Assert(err, Equals, broker.ErrNop)
+}
+
 func (s *exchangesSuite) TestUnicastExchangeErrorOnAcked(c *C) {
-	notifs := []protocol.Notification{}
+	notifs := []protocol.Notification{protocol.Notification{}}
 	fail := errors.New("fail")
 	sess := &testing.TestBrokerSession{
 		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
@@ -362,4 +376,80 @@ func (s *exchangesSuite) TestUnicastExchangeErrorOnAcked(c *C) {
 	c.Assert(err, IsNil)
 	err = exchg.Acked(sess, true)
 	c.Assert(err, Equals, fail)
+}
+
+func (s *exchangesSuite) TestFeedPending(c *C) {
+	bcast1 := json.RawMessage(`{"m": "M"}`)
+	decoded1 := map[string]interface{}{"m": "M"}
+	sess := &testing.TestBrokerSession{
+		Exchanges: make(chan broker.Exchange, 5),
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			switch chanId {
+			case store.SystemInternalChannelId:
+				return 1, help.Ns(bcast1), nil
+			default:
+				return 0, nil, nil
+			}
+		},
+	}
+	err := broker.FeedPending(sess)
+	c.Assert(err, IsNil)
+	c.Assert(len(sess.Exchanges), Equals, 2)
+	exchg1 := <-sess.Exchanges
+	c.Check(exchg1, DeepEquals, &broker.BroadcastExchange{
+		ChanId:        store.SystemInternalChannelId,
+		TopLevel:      1,
+		Notifications: help.Ns(bcast1),
+		Decoded:       []map[string]interface{}{decoded1},
+	})
+	exchg2 := <-sess.Exchanges
+	c.Check(exchg2, DeepEquals, &broker.UnicastExchange{
+		ChanId:   sess.InternalChannelId(),
+		CachedOk: true,
+	})
+}
+
+func (s *exchangesSuite) TestFeedPendingSystemChanNop(c *C) {
+	bcast1 := json.RawMessage(`{"m": "M"}`)
+	sess := &testing.TestBrokerSession{
+		LevelsMap: map[store.InternalChannelId]int64{
+			store.SystemInternalChannelId: 1,
+		},
+		Exchanges: make(chan broker.Exchange, 5),
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			switch chanId {
+			case store.SystemInternalChannelId:
+				return 1, help.Ns(bcast1), nil
+			default:
+				return 0, nil, nil
+			}
+		},
+	}
+	err := broker.FeedPending(sess)
+	c.Assert(err, IsNil)
+	c.Check(len(sess.Exchanges), Equals, 1)
+	exchg1 := <-sess.Exchanges
+	c.Check(exchg1, FitsTypeOf, &broker.UnicastExchange{})
+}
+
+func (s *exchangesSuite) TestFeedPendingSystemChanFail(c *C) {
+	sess := &testing.TestBrokerSession{
+		LevelsMap: map[store.InternalChannelId]int64{
+			store.SystemInternalChannelId: 1,
+		},
+		Exchanges: make(chan broker.Exchange, 5),
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			switch chanId {
+			case store.SystemInternalChannelId:
+				return 0, nil, errors.New("fail")
+			default:
+				return 0, nil, nil
+			}
+		},
+	}
+	err := broker.FeedPending(sess)
+	c.Assert(err, IsNil)
+	c.Check(len(sess.Exchanges), Equals, 1)
+	exchg1 := <-sess.Exchanges
+	c.Check(exchg1, FitsTypeOf, &broker.UnicastExchange{})
 }
