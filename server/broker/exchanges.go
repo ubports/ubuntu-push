@@ -19,6 +19,7 @@ package broker
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/store"
@@ -33,6 +34,10 @@ type ExchangesScratchArea struct {
 	ackMsg           protocol.AckMsg
 }
 
+type BaseExchange struct {
+	Timestamp time.Time
+}
+
 // BroadcastExchange leads a session through delivering a BROADCAST.
 // For simplicity it is fully public.
 type BroadcastExchange struct {
@@ -40,6 +45,7 @@ type BroadcastExchange struct {
 	TopLevel      int64
 	Notifications []protocol.Notification
 	Decoded       []map[string]interface{}
+	BaseExchange
 }
 
 // check interface already here
@@ -142,6 +148,7 @@ func (cbe *ConnMetaExchange) Acked(sess BrokerSession, done bool) error {
 type UnicastExchange struct {
 	ChanId   store.InternalChannelId
 	CachedOk bool
+	BaseExchange
 }
 
 // check interface already here
@@ -197,6 +204,6 @@ func FeedPending(sess BrokerSession) error {
 			sess.Feed(broadcastExchg)
 		}
 	}
-	sess.Feed(&UnicastExchange{sess.InternalChannelId(), true})
+	sess.Feed(&UnicastExchange{ChanId: sess.InternalChannelId(), CachedOk: true})
 	return nil
 }

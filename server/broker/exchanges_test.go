@@ -295,7 +295,7 @@ func (s *exchangesSuite) TestUnicastExchange(c *C) {
 			return nil
 		},
 	}
-	exchg := &broker.UnicastExchange{chanId1, false}
+	exchg := &broker.UnicastExchange{ChanId: chanId1, CachedOk: false}
 	outMsg, inMsg, err := exchg.Prepare(sess)
 	c.Assert(err, IsNil)
 	// check
@@ -353,7 +353,7 @@ func (s *exchangesSuite) TestUnicastExchangeCachedOkNop(c *C) {
 			return 0, nil, nil
 		},
 	}
-	exchg := &broker.UnicastExchange{chanId1, true}
+	exchg := &broker.UnicastExchange{ChanId: chanId1, CachedOk: true}
 	_, _, err := exchg.Prepare(sess)
 	c.Assert(err, Equals, broker.ErrNop)
 }
@@ -404,8 +404,8 @@ func (s *exchangesSuite) TestFeedPending(c *C) {
 	})
 	exchg2 := <-sess.Exchanges
 	c.Check(exchg2, DeepEquals, &broker.UnicastExchange{
-		sess.InternalChannelId(),
-		true,
+		ChanId:   sess.InternalChannelId(),
+		CachedOk: true,
 	})
 }
 

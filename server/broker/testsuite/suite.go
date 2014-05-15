@@ -159,7 +159,7 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPendingError(c *C) {
 
 func clearOfPending(c *C, sess broker.BrokerSession) {
 	c.Assert(len(sess.SessionChannel()) >= 1, Equals, true)
-	<- sess.SessionChannel()
+	<-sess.SessionChannel()
 }
 
 func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {

@@ -265,7 +265,7 @@ Loop:
 				_, devId := chanId.UnicastUserAndDevice()
 				sess := b.registry[devId]
 				if sess != nil {
-					sess.exchanges <- &broker.UnicastExchange{chanId, false}
+					sess.exchanges <- &broker.UnicastExchange{ChanId: chanId, CachedOk: false}
 				}
 			}
 		}
