@@ -100,7 +100,9 @@ func (s *messagesSuite) TestSplitBroadcastMsgManyParts(c *C) {
 	c.Check(b.TopLevel, Equals, int64(n))
 	c.Check(n1+n2+n3, Equals, n)
 	// reset
+	b.Type = ""
 	b.Reset()
+	c.Check(b.Type, Equals, "broadcast")
 	c.Check(b.splitting, Equals, 0)
 }
 
@@ -190,6 +192,8 @@ func (s *messagesSuite) TestSplitNotificationsMsgMany(c *C) {
 	n3 := len(nm.Notifications)
 	c.Check(n1+n2+n3, Equals, n)
 	// reset
+	nm.Type = ""
 	nm.Reset()
+	c.Check(nm.Type, Equals, "notifications")
 	c.Check(nm.splitting, Equals, 0)
 }

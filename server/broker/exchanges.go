@@ -106,7 +106,6 @@ func (sbe *BroadcastExchange) Prepare(sess BrokerSession) (outMessage protocol.S
 
 	scratchArea := sess.ExchangeScratchArea()
 	scratchArea.broadcastMsg.Reset()
-	scratchArea.broadcastMsg.Type = "broadcast"
 	// xxx need an AppId as well, later
 	scratchArea.broadcastMsg.ChanId = store.InternalChannelIdToHex(sbe.ChanId)
 	scratchArea.broadcastMsg.TopLevel = sbe.TopLevel
@@ -165,7 +164,6 @@ func (sue *UnicastExchange) Prepare(sess BrokerSession) (outMessage protocol.Spl
 	}
 	scratchArea := sess.ExchangeScratchArea()
 	scratchArea.notificationsMsg.Reset()
-	scratchArea.notificationsMsg.Type = "notifications"
 	scratchArea.notificationsMsg.Notifications = notifs
 	return &scratchArea.notificationsMsg, &scratchArea.ackMsg, nil
 }

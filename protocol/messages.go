@@ -144,8 +144,9 @@ func (m *BroadcastMsg) Split() bool {
 }
 
 // Reset resets the splitting state if the message storage is to be
-// reused.
+// reused and sets the proper Type.
 func (b *BroadcastMsg) Reset() {
+	b.Type = "broadcast"
 	b.splitting = 0
 }
 
@@ -157,8 +158,9 @@ type NotificationsMsg struct {
 }
 
 // Reset resets the splitting state if the message storage is to be
-// reused.
+// reused and sets the proper Type.
 func (m *NotificationsMsg) Reset() {
+	m.Type = "notifications"
 	m.splitting = 0
 }
 
