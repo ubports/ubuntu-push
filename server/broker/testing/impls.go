@@ -68,6 +68,14 @@ func (tbs *TestBrokerSession) DropByMsgId(chanId store.InternalChannelId, target
 	return tbs.DoDropByMsgId(chanId, targets)
 }
 
+func (tbs *TestBrokerSession) Feed(exchg broker.Exchange) {
+	tbs.Exchanges <- exchg
+}
+
+func (tbs *TestBrokerSession) InternalChannelId() store.InternalChannelId {
+	return store.UnicastInternalChannelId(tbs.DeviceId, tbs.DeviceId)
+}
+
 // Test implementation of BrokerConfig.
 type TestBrokerConfig struct {
 	ConfigSessionQueueSize uint

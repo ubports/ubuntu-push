@@ -103,6 +103,14 @@ func (sess *simpleBrokerSession) DropByMsgId(chanId store.InternalChannelId, tar
 	return sess.broker.drop(chanId, targets)
 }
 
+func (sess *simpleBrokerSession) Feed(exchg broker.Exchange) {
+	sess.exchanges <- exchg
+}
+
+func (sess *simpleBrokerSession) InternalChannelId() store.InternalChannelId {
+	return store.UnicastInternalChannelId(sess.deviceId, sess.deviceId)
+}
+
 // NewSimpleBroker makes a new SimpleBroker.
 func NewSimpleBroker(sto store.PendingStore, cfg broker.BrokerConfig, logger logger.Logger) *SimpleBroker {
 	sessionCh := make(chan *simpleBrokerSession, cfg.BrokerQueueSize())
@@ -150,30 +158,6 @@ func (b *SimpleBroker) Running() bool {
 	return b.running
 }
 
-func (b *SimpleBroker) feedPending(sess *simpleBrokerSession) error {
-	// find relevant channels, for now only system
-	channels := []store.InternalChannelId{store.SystemInternalChannelId}
-	for _, chanId := range channels {
-		topLevel, notifications, err := b.sto.GetChannelSnapshot(chanId)
-		if err != nil {
-			// next broadcast will try again
-			b.logger.Errorf("unsuccessful feed pending, get channel snapshot for %v: %v", chanId, err)
-			continue
-		}
-		clientLevel := sess.levels[chanId]
-		if clientLevel != topLevel {
-			broadcastExchg := &broker.BroadcastExchange{
-				ChanId:        chanId,
-				TopLevel:      topLevel,
-				Notifications: notifications,
-			}
-			broadcastExchg.Init()
-			sess.exchanges <- broadcastExchg
-		}
-	}
-	return nil
-}
-
 // Register registers a session with the broker. It feeds the session
 // pending notifications as well.
 func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, sessionId string) (broker.BrokerSession, error) {
@@ -205,7 +189,7 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, sessionId string) 
 	}
 	b.sessionCh <- sess
 	<-sess.done
-	err = b.feedPending(sess)
+	err = broker.FeedPending(sess)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +265,7 @@ Loop:
 				_, devId := chanId.UnicastUserAndDevice()
 				sess := b.registry[devId]
 				if sess != nil {
-					sess.exchanges <- &broker.UnicastExchange{chanId}
+					sess.exchanges <- &broker.UnicastExchange{chanId, false}
 				}
 			}
 		}

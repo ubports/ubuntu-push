@@ -140,7 +140,8 @@ func (cbe *ConnMetaExchange) Acked(sess BrokerSession, done bool) error {
 // UnicastExchange leads a session through delivering a NOTIFICATIONS message.
 // For simplicity it is fully public.
 type UnicastExchange struct {
-	ChanId store.InternalChannelId
+	ChanId   store.InternalChannelId
+	CachedOk bool
 }
 
 // check interface already here
@@ -148,9 +149,12 @@ var _ Exchange = (*UnicastExchange)(nil)
 
 // Prepare session for a NOTIFICATIONS.
 func (sue *UnicastExchange) Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error) {
-	_, notifs, err := sess.Get(sue.ChanId, false)
+	_, notifs, err := sess.Get(sue.ChanId, sue.CachedOk)
 	if err != nil {
 		return nil, nil, err
+	}
+	if len(notifs) == 0 {
+		return nil, nil, ErrNop
 	}
 	scratchArea := sess.ExchangeScratchArea()
 	scratchArea.notificationsMsg.Reset()
@@ -169,5 +173,30 @@ func (sue *UnicastExchange) Acked(sess BrokerSession, done bool) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+// FeedPending feeds exchanges covering pending notifications into the session.
+func FeedPending(sess BrokerSession) error {
+	// find relevant channels, for now only system
+	channels := []store.InternalChannelId{store.SystemInternalChannelId}
+	for _, chanId := range channels {
+		topLevel, notifications, err := sess.Get(chanId, true)
+		if err != nil {
+			// next broadcast will try again
+			continue
+		}
+		clientLevel := sess.Levels()[chanId]
+		if clientLevel != topLevel {
+			broadcastExchg := &BroadcastExchange{
+				ChanId:        chanId,
+				TopLevel:      topLevel,
+				Notifications: notifications,
+			}
+			broadcastExchg.Init()
+			sess.Feed(broadcastExchg)
+		}
+	}
+	sess.Feed(&UnicastExchange{sess.InternalChannelId(), true})
 	return nil
 }

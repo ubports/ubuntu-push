@@ -143,7 +143,7 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPending(c *C) {
 	defer b.Stop()
 	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
-	c.Check(len(sess.SessionChannel()), Equals, 1)
+	c.Check(len(sess.SessionChannel()), Equals, 2)
 }
 
 func (s *CommonBrokerSuite) TestRegistrationFeedPendingError(c *C) {
@@ -154,7 +154,12 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPendingError(c *C) {
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
 	// but
-	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful feed pending, get channel snapshot for 0: get channel snapshot fail\n")
+	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful, get channel snapshot for 0 \\(cachedOk=true\\): get channel snapshot fail\n")
+}
+
+func clearOfPending(c *C, sess broker.BrokerSession) {
+	c.Assert(len(sess.SessionChannel()) >= 1, Equals, true)
+	<- sess.SessionChannel()
 }
 
 func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
@@ -164,6 +169,7 @@ func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
+	clearOfPending(c, sess1)
 	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s2")
 	c.Assert(err, IsNil)
 	// previous session got signaled by sending nil on its channel
@@ -194,8 +200,10 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
+	clearOfPending(c, sess1)
 	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-2"}, "s2")
 	c.Assert(err, IsNil)
+	clearOfPending(c, sess2)
 	// add notification to channel *after* the registrations
 	muchLater := time.Now().Add(10 * time.Minute)
 	sto.AppendToChannel(store.SystemInternalChannelId, notification1, muchLater)
@@ -250,8 +258,9 @@ func (s *CommonBrokerSuite) TestBroadcastFail(c *C) {
 	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
-	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
+	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, "s1")
 	c.Assert(err, IsNil)
+	clearOfPending(c, sess)
 	b.Broadcast(store.SystemInternalChannelId)
 	select {
 	case <-time.After(5 * time.Second):
@@ -272,8 +281,10 @@ func (s *CommonBrokerSuite) TestUnicast(c *C) {
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev1"}, "s1")
 	c.Assert(err, IsNil)
+	clearOfPending(c, sess1)
 	sess2, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev2"}, "s2")
 	c.Assert(err, IsNil)
+	clearOfPending(c, sess2)
 	// add notification to channel *after* the registrations
 	muchLater := time.Now().Add(10 * time.Minute)
 	sto.AppendToUnicastChannel(chanId1, "app1", notification1, "msg1", muchLater)
@@ -337,4 +348,21 @@ func (s *CommonBrokerSuite) TestGetAndDropErrors(c *C) {
 	err = sess1.DropByMsgId(chanId1, nil)
 	c.Assert(err, ErrorMatches, "drop fail")
 	c.Check(s.testlog.Captured(), Matches, "ERROR unsuccessful, drop from channel Udev3:dev3: drop fail\n")
+}
+
+func (s *CommonBrokerSuite) TestSessionFeed(c *C) {
+	sto := store.NewInMemoryPendingStore()
+	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b.Start()
+	defer b.Stop()
+	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev3"}, "s1")
+	c.Assert(err, IsNil)
+	clearOfPending(c, sess1)
+	bcast := &broker.BroadcastExchange{ChanId: store.SystemInternalChannelId, TopLevel: 99}
+	sess1.Feed(bcast)
+	c.Check(s.RevealBroadcastExchange(<-sess1.SessionChannel()), DeepEquals, bcast)
+
+	ucast := &broker.UnicastExchange{ChanId: store.UnicastInternalChannelId("dev21", "dev21"), CachedOk: true}
+	sess1.Feed(ucast)
+	c.Check(s.RevealUnicastExchange(<-sess1.SessionChannel()), DeepEquals, ucast)
 }
