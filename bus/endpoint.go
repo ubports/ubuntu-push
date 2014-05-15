@@ -37,6 +37,7 @@ type Endpoint interface {
 	GrabName(allowReplacement bool) <-chan error
 	WatchSignal(member string, f func(...interface{}), d func()) error
 	WatchMethod(DispatchMap, ...interface{})
+	Signal(string, []interface{}) error
 	Call(member string, args []interface{}, rvs ...interface{}) error
 	GetProperty(property string) (interface{}, error)
 	Dial() error
@@ -208,6 +209,27 @@ func (endp *endpoint) GrabName(allowReplacement bool) <-chan error {
 	return endp.bus.RequestName(endp.addr.Name, flags).C
 }
 
+// Signal() sends out a signal called <member> containing <args>.
+//
+// XXX: untested
+func (endp *endpoint) Signal(member string, args []interface{}) error {
+	msg := dbus.NewSignalMessage(dbus.ObjectPath(endp.addr.Path), endp.addr.Interface, member)
+	if args != nil {
+		err := msg.AppendArgs(args...)
+		if err != nil {
+			endp.log.Errorf("unable to build dbus signal message: %v", err)
+			return err
+		}
+	}
+	err := endp.bus.Send(msg)
+	if err != nil {
+		endp.log.Errorf("unable to send dbus signal: %v", err)
+	} else {
+		endp.log.Debugf("sent dbus signal %s(%#v)", member, args)
+	}
+	return nil
+}
+
 // WatchMethod() uses the given DispatchMap to answer incoming method
 // calls.
 //
@@ -224,18 +246,26 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap, extra ...interface{}) {
 			if !ok || msg.Interface != endp.addr.Interface {
 				reply = dbus.NewErrorMessage(msg,
 					"org.freedesktop.DBus.Error.UnknownMethod", "Unknown method")
+				endp.log.Errorf("WatchMethod: unknown method %s", msg.Member)
 			} else {
-				args, err := meth(msg.AllArgs(), extra)
+				args := msg.AllArgs()
+				rvals, err := meth(args, extra)
 				if err != nil {
 					reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
+					endp.log.Errorf("WatchMethod: %s(%#v, %#v) failure: %#v", msg.Member, args, extra, err)
 				} else {
+					endp.log.Debugf("WatchMethod: %s(%#v, %#v) success: %#v", msg.Member, args, extra, rvals)
 					reply = dbus.NewMethodReturnMessage(msg)
-					reply.AppendArgs(args...)
+					err = reply.AppendArgs(rvals...)
+					if err != nil {
+						endp.log.Errorf("WatchMethod: unable to build dbus response message: %v", err)
+						reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
+					}
 				}
 			}
 			err := endp.bus.Send(reply)
 			if err != nil {
-				// deal
+				endp.log.Errorf("WatchMethod: unable to send reply: %v", err)
 			}
 
 		}
