@@ -115,13 +115,13 @@ func (s *UnicastAcceptanceSuite) TestUnicastPending(c *C) {
 }
 
 func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
-	userId, auth := s.associatedAuth("DEV3")
+	userId, auth := s.associatedAuth("DEV2")
 	// send bunch of unicasts that will be pending
 	payloadFmt := fmt.Sprintf(`{"serial":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
 	for i := 0; i < 32; i++ {
 		got, err := s.PostRequest("/notify", &api.Unicast{
 			UserId:   userId,
-			DeviceId: "DEV3",
+			DeviceId: "DEV2",
 			AppId:    "app1",
 			ExpireOn: future,
 			Data:     json.RawMessage(fmt.Sprintf(payloadFmt, i)),
@@ -130,7 +130,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 		c.Assert(got, Matches, ".*ok.*")
 	}
 
-	events, errCh, stop := s.StartClientAuth(c, "DEV3", nil, auth)
+	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
 	// gettting pending on connect
 	n := 0
 	for {
