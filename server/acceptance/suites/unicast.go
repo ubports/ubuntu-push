@@ -94,3 +94,24 @@ func (s *UnicastAcceptanceSuite) TestUnicastCorrectDistribution(c *C) {
 	c.Check(len(errCh1), Equals, 0)
 	c.Check(len(errCh2), Equals, 0)
 }
+
+func (s *UnicastAcceptanceSuite) TestUnicastPending(c *C) {
+	// send unicast that will be pending
+	userId, auth := s.associatedAuth("DEV1")
+	got, err := s.PostRequest("/notify", &api.Unicast{
+		UserId:   userId,
+		DeviceId: "DEV1",
+		AppId:    "app1",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"a": 42}`),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, ".*ok.*")
+
+	// get pending on connect
+	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth)
+	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"a":42};`)
+	stop()
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}

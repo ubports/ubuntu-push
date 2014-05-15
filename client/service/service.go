@@ -12,6 +12,7 @@ import (
 type Service struct {
 	lock  sync.RWMutex
 	state ServiceState
+	mbox  map[string][]string
 	Log   logger.Logger
 	Bus   bus.Endpoint
 }
@@ -70,8 +71,10 @@ func (svc *Service) Start() error {
 		}
 	}()
 	svc.Bus.WatchMethod(bus.DispatchMap{
-		"Register": Register,
-	})
+		"Register":      svc.Register,
+		"Notifications": svc.Notifications,
+		"Inject":        svc.Inject,
+	}, svc)
 	svc.state = StateRunning
 	return nil
 }
@@ -90,7 +93,7 @@ var (
 	BadArgType  = errors.New("Bad argument type")
 )
 
-func Register(args []interface{}, _ []interface{}) ([]interface{}, error) {
+func (svc *Service) Register(args []interface{}, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 1 {
 		return nil, BadArgCount
 	}
@@ -105,4 +108,50 @@ func Register(args []interface{}, _ []interface{}) ([]interface{}, error) {
 	}
 
 	return []interface{}{rv}, nil
+}
+
+func (svc *Service) Notifications(args []interface{}, _ []interface{}) ([]interface{}, error) {
+	if len(args) != 1 {
+		return nil, BadArgCount
+	}
+	appname, ok := args[0].(string)
+	if !ok {
+		return nil, BadArgType
+	}
+
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+
+	if svc.mbox == nil {
+		return []interface{}{[]string(nil)}, nil
+	}
+	msgs := svc.mbox[appname]
+	delete(svc.mbox, appname)
+
+	return []interface{}{msgs}, nil
+}
+
+func (svc *Service) Inject(args []interface{}, _ []interface{}) ([]interface{}, error) {
+	if len(args) != 2 {
+		return nil, BadArgCount
+	}
+	appname, ok := args[0].(string)
+	if !ok {
+		return nil, BadArgType
+	}
+	notif, ok := args[1].(string)
+	if !ok {
+		return nil, BadArgType
+	}
+
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	if svc.mbox == nil {
+		svc.mbox = make(map[string][]string)
+	}
+	svc.mbox[appname] = append(svc.mbox[appname], notif)
+
+	svc.Bus.Signal("Notification", []interface{}{appname})
+
+	return nil, nil
 }
