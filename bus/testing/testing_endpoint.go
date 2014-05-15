@@ -187,8 +187,25 @@ func (tc *testingEndpoint) GrabName(allowReplacement bool) <-chan error {
 	return nil
 }
 
-func (*testingEndpoint) WatchMethod(bus.DispatchMap, ...interface{})    {}
-func (*testingEndpoint) Signal(member string, args []interface{}) error { return nil }
+func (tc *testingEndpoint) WatchMethod(dispatch bus.DispatchMap, extra ...interface{}) {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
+	args := callArgs{Member: "::WatchMethod"}
+	args.Args = append(args.Args, dispatch, extra)
+	tc.callArgs = append(tc.callArgs, args)
+}
+
+func (tc *testingEndpoint) Signal(member string, args []interface{}) error {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
+	callargs := callArgs{Member: "::Signal"}
+	callargs.Args = append(callargs.Args, member, args)
+	tc.callArgs = append(tc.callArgs, callargs)
+
+	return nil
+}
 
 // ensure testingEndpoint implements bus.Endpoint
 var _ bus.Endpoint = (*testingEndpoint)(nil)
