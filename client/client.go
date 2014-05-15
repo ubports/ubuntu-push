@@ -34,8 +34,9 @@ import (
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/systemimage"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
+	"launchpad.net/ubuntu-push/client/service"
 	"launchpad.net/ubuntu-push/client/session"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
@@ -79,6 +80,8 @@ type PushClient struct {
 	actionsCh          <-chan notifications.RawActionReply
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
+	serviceEndpoint    bus.Endpoint
+	service            *service.Service
 }
 
 var ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
@@ -192,7 +195,7 @@ func (client *PushClient) initSession() error {
 	}
 	sess, err := session.NewSession(client.config.Addr,
 		client.deriveSessionConfig(info), client.deviceId,
-		client.levelMapFactory, client.log)
+		client.seenStateFactory, client.log)
 	if err != nil {
 		return err
 	}
@@ -200,12 +203,12 @@ func (client *PushClient) initSession() error {
 	return nil
 }
 
-// levelmapFactory returns a levelMap for the session
-func (client *PushClient) levelMapFactory() (levelmap.LevelMap, error) {
+// seenStateFactory returns a SeenState for the session
+func (client *PushClient) seenStateFactory() (seenstate.SeenState, error) {
 	if client.leveldbPath == "" {
-		return levelmap.NewLevelMap()
+		return seenstate.NewSeenState()
 	} else {
-		return levelmap.NewSqliteLevelMap(client.leveldbPath)
+		return seenstate.NewSqliteSeenState(client.leveldbPath)
 	}
 }
 
@@ -232,7 +235,7 @@ func (client *PushClient) handleErr(err error) {
 	}
 }
 
-// filterNotification finds out if the notification is about an actual
+// filterBroadcastNotification finds out if the notification is about an actual
 // upgrade for the device. It expects msg.Decoded entries to look
 // like:
 //
@@ -240,7 +243,7 @@ func (client *PushClient) handleErr(err error) {
 // "IMAGE-CHANNEL/DEVICE-MODEL": [BUILD-NUMBER, CHANNEL-ALIAS]
 // ...
 // }
-func (client *PushClient) filterNotification(msg *session.Notification) bool {
+func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNotification) bool {
 	n := len(msg.Decoded)
 	if n == 0 {
 		return false
@@ -276,8 +279,8 @@ func (client *PushClient) filterNotification(msg *session.Notification) bool {
 }
 
 // handleNotification deals with receiving a notification
-func (client *PushClient) handleNotification(msg *session.Notification) error {
-	if !client.filterNotification(msg) {
+func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
+	if !client.filterBroadcastNotification(msg) {
 		return nil
 	}
 	action_id := ACTION_ID_SNOWFLAKE
@@ -314,15 +317,17 @@ func (client *PushClient) handleClick(action_id string) error {
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, notifhandler func(*session.Notification) error, errhandler func(error)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, errhandler func(error)) {
 	for {
 		select {
 		case state := <-client.connCh:
 			connhandler(state)
 		case action := <-client.actionsCh:
 			clickhandler(action.ActionId)
-		case msg := <-client.session.MsgCh:
-			notifhandler(msg)
+		case bcast := <-client.session.BroadcastCh:
+			bcasthandler(bcast)
+		case _ = <-client.session.NotificationsCh:
+			// xxx implement me
 		case err := <-client.session.ErrCh:
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
@@ -345,13 +350,23 @@ func (client *PushClient) doStart(fs ...func() error) error {
 // Loop calls doLoop with the "real" handlers
 func (client *PushClient) Loop() {
 	client.doLoop(client.handleConnState, client.handleClick,
-		client.handleNotification, client.handleErr)
+		client.handleBroadcastNotification, client.handleErr)
+}
+
+func (client *PushClient) startService() error {
+	if client.serviceEndpoint == nil {
+		client.serviceEndpoint = bus.SessionBus.Endpoint(service.BusAddress, client.log)
+	}
+
+	client.service = service.NewService(client.serviceEndpoint, client.log)
+	return client.service.Start()
 }
 
 // Start calls doStart with the "real" starters
 func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
+		client.startService,
 		client.getDeviceId,
 		client.takeTheBus,
 		client.initSession,

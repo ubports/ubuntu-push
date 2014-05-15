@@ -33,7 +33,7 @@ import (
 	"time"
 
 	"launchpad.net/ubuntu-push/client/gethosts"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
@@ -43,7 +43,7 @@ var (
 	wireVersionBytes = []byte{protocol.ProtocolWireVersion}
 )
 
-type Notification struct {
+type BroadcastNotification struct {
 	TopLevel int64
 	Decoded  []map[string]interface{}
 }
@@ -95,7 +95,7 @@ type ClientSession struct {
 	// configuration
 	DeviceId string
 	ClientSessionConfig
-	Levels       levelmap.LevelMap
+	SeenState    seenstate.SeenState
 	Protocolator func(net.Conn) protocol.Protocol
 	// hosts
 	getHost                hostGetter
@@ -116,9 +116,10 @@ type ClientSession struct {
 	pingInterval time.Duration
 	retrier      util.AutoRedialer
 	// status
-	stateP *uint32
-	ErrCh  chan error
-	MsgCh  chan *Notification
+	stateP          *uint32
+	ErrCh           chan error
+	BroadcastCh     chan *BroadcastNotification
+	NotificationsCh chan *protocol.Notification
 	// authorization
 	auth string
 	// autoredial knobs
@@ -144,10 +145,10 @@ func redialDelay(sess *ClientSession) time.Duration {
 }
 
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
-	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
+	deviceId string, seenStateFactory func() (seenstate.SeenState, error),
 	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
-	levels, err := levelmapFactory()
+	seenState, err := seenStateFactory()
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		DeviceId:            deviceId,
 		Log:                 log,
 		Protocolator:        protocol.NewProtocol0,
-		Levels:              levels,
+		SeenState:           seenState,
 		TLS:                 &tls.Config{},
 		stateP:              &state,
 		timeSince:           time.Since,
@@ -370,7 +371,7 @@ func (sess *ClientSession) handlePing() error {
 	return err
 }
 
-func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *Notification {
+func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *BroadcastNotification {
 	decoded := make([]map[string]interface{}, 0)
 	for _, p := range bcast.Payloads {
 		var v map[string]interface{}
@@ -381,7 +382,7 @@ func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *Notification {
 		}
 		decoded = append(decoded, v)
 	}
-	return &Notification{
+	return &BroadcastNotification{
 		TopLevel: bcast.TopLevel,
 		Decoded:  decoded,
 	}
@@ -389,7 +390,7 @@ func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *Notification {
 
 // handle "broadcast" messages
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
-	err := sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
+	err := sess.SeenState.SetLevel(bcast.ChanId, bcast.TopLevel)
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to set level: %v", err)
@@ -409,11 +410,40 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		bcast.ChanId, bcast.AppId, bcast.TopLevel, bcast.Payloads)
 	if bcast.ChanId == protocol.SystemChannelId {
 		// the system channel id, the only one we care about for now
-		sess.Log.Debugf("sending it over")
-		sess.MsgCh <- sess.decodeBroadcast(bcast)
-		sess.Log.Debugf("sent it over")
+		sess.Log.Debugf("sending bcast over")
+		sess.BroadcastCh <- sess.decodeBroadcast(bcast)
+		sess.Log.Debugf("sent bcast over")
 	} else {
 		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)
+	}
+	return nil
+}
+
+// handle "notifications" messages
+func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
+	notifs, err := sess.SeenState.FilterBySeen(ucast.Notifications)
+	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to record msgs seen: %v", err)
+		sess.proto.WriteMessage(protocol.AckMsg{"nak"})
+		return err
+	}
+	// the server assumes if we ack the broadcast, we've updated
+	// our state. Hence the order.
+	err = sess.proto.WriteMessage(protocol.AckMsg{"ack"})
+	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to ack notifications: %s", err)
+		return err
+	}
+	sess.clearShouldDelay()
+	for i := range notifs {
+		notif := &notifs[i]
+		sess.Log.Debugf("unicast app:%v msg:%s payload:%s",
+			notif.AppId, notif.MsgId, notif.Payload)
+		sess.Log.Debugf("sending ucast over")
+		sess.NotificationsCh <- notif
+		sess.Log.Debugf("sent ucast over")
 	}
 	return nil
 }
@@ -449,6 +479,8 @@ func (sess *ClientSession) loop() error {
 			err = sess.handlePing()
 		case "broadcast":
 			err = sess.handleBroadcast(&recv)
+		case "notifications":
+			err = sess.handleNotifications(&recv)
 		case "connbroken":
 			err = sess.handleConnBroken(&recv)
 		}
@@ -477,7 +509,7 @@ func (sess *ClientSession) start() error {
 	}
 	proto := sess.Protocolator(conn)
 	proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-	levels, err := sess.Levels.GetAll()
+	levels, err := sess.SeenState.GetAllLevels()
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to start: get levels: %v", err)
@@ -534,7 +566,8 @@ func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter
 		err = starter()
 		if err == nil {
 			sess.ErrCh = make(chan error, 1)
-			sess.MsgCh = make(chan *Notification)
+			sess.BroadcastCh = make(chan *BroadcastNotification)
+			sess.NotificationsCh = make(chan *protocol.Notification)
 			go func() { sess.ErrCh <- looper() }()
 		}
 	}

@@ -33,7 +33,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/client/gethosts"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -156,17 +156,20 @@ func (c *testProtocol) WriteMessage(src interface{}) error {
 	return nil
 }
 
-// brokenLevelMap is a LevelMap that always breaks
-type brokenLevelMap struct{}
+// brokenSeenState is a SeenState that always breaks
+type brokenSeenState struct{}
 
-func (*brokenLevelMap) Set(string, int64) error           { return errors.New("broken.") }
-func (*brokenLevelMap) GetAll() (map[string]int64, error) { return nil, errors.New("broken.") }
+func (*brokenSeenState) SetLevel(string, int64) error            { return errors.New("broken.") }
+func (*brokenSeenState) GetAllLevels() (map[string]int64, error) { return nil, errors.New("broken.") }
+func (*brokenSeenState) FilterBySeen([]protocol.Notification) ([]protocol.Notification, error) {
+	return nil, errors.New("broken.")
+}
 
 /////
 
 type clientSessionSuite struct {
 	log  *helpers.TestLogger
-	lvls func() (levelmap.LevelMap, error)
+	lvls func() (seenstate.SeenState, error)
 }
 
 func (cs *clientSessionSuite) SetUpTest(c *C) {
@@ -174,7 +177,7 @@ func (cs *clientSessionSuite) SetUpTest(c *C) {
 }
 
 // in-memory level map testing
-var _ = Suite(&clientSessionSuite{lvls: levelmap.NewLevelMap})
+var _ = Suite(&clientSessionSuite{lvls: seenstate.NewSeenState})
 
 // sqlite level map testing
 type clientSqlevelsSessionSuite struct{ clientSessionSuite }
@@ -182,7 +185,7 @@ type clientSqlevelsSessionSuite struct{ clientSessionSuite }
 var _ = Suite(&clientSqlevelsSessionSuite{})
 
 func (cs *clientSqlevelsSessionSuite) SetUpSuite(c *C) {
-	cs.lvls = func() (levelmap.LevelMap, error) { return levelmap.NewSqliteLevelMap(":memory:") }
+	cs.lvls = func() (seenstate.SeenState, error) { return seenstate.NewSqliteSeenState(":memory:") }
 }
 
 /****************************************************************
@@ -248,8 +251,8 @@ func (cs *clientSessionSuite) TestNewSessionBadPEMFileContentFails(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (cs *clientSessionSuite) TestNewSessionBadLevelMapFails(c *C) {
-	ferr := func() (levelmap.LevelMap, error) { return nil, errors.New("Busted.") }
+func (cs *clientSessionSuite) TestNewSessionBadSeenStateFails(c *C) {
+	ferr := func() (seenstate.SeenState, error) { return nil, errors.New("Busted.") }
 	sess, err := NewSession("", dummyConf, "wah", ferr, cs.log)
 	c.Check(sess, IsNil)
 	c.Assert(err, NotNil)
@@ -637,7 +640,7 @@ func (s *msgSuite) SetUpTest(c *C) {
 	conf := ClientSessionConfig{
 		ExchangeTimeout: time.Millisecond,
 	}
-	s.sess, err = NewSession("", conf, "wah", levelmap.NewLevelMap, helpers.NewTestLogger(c, "debug"))
+	s.sess, err = NewSession("", conf, "wah", seenstate.NewSeenState, helpers.NewTestLogger(c, "debug"))
 	c.Assert(err, IsNil)
 	s.sess.Connection = &testConn{Name: "TestHandle*"}
 	s.errCh = make(chan error, 1)
@@ -645,7 +648,8 @@ func (s *msgSuite) SetUpTest(c *C) {
 	s.downCh = make(chan interface{}, 5)
 	s.sess.proto = &testProtocol{up: s.upCh, down: s.downCh}
 	// make the message channel buffered
-	s.sess.MsgCh = make(chan *Notification, 5)
+	s.sess.BroadcastCh = make(chan *BroadcastNotification, 5)
+	s.sess.NotificationsCh = make(chan *protocol.Notification, 5)
 }
 
 func (s *msgSuite) TestHandlePingWorks(c *C) {
@@ -704,8 +708,8 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
-	c.Assert(len(s.sess.MsgCh), Equals, 1)
-	c.Check(<-s.sess.MsgCh, DeepEquals, &Notification{
+	c.Assert(len(s.sess.BroadcastCh), Equals, 1)
+	c.Check(<-s.sess.BroadcastCh, DeepEquals, &BroadcastNotification{
 		TopLevel: 2,
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{
@@ -717,7 +721,7 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 		},
 	})
 	// and finally, the session keeps track of the levels
-	levels, err := s.sess.Levels.GetAll()
+	levels, err := s.sess.SeenState.GetAllLevels()
 	c.Check(err, IsNil)
 	c.Check(levels, DeepEquals, map[string]int64{"0": 2})
 }
@@ -752,11 +756,11 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, IsNil)
-	c.Check(len(s.sess.MsgCh), Equals, 0)
+	c.Check(len(s.sess.BroadcastCh), Equals, 0)
 }
 
-func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
-	s.sess.Levels = &brokenLevelMap{}
+func (s *msgSuite) TestHandleBroadcastBrokenSeenState(c *C) {
+	s.sess.SeenState = &brokenSeenState{}
 	msg := serverMsg{"broadcast",
 		protocol.BroadcastMsg{
 			Type:     "broadcast",
@@ -769,8 +773,9 @@ func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
 	s.upCh <- nil // ack ok
 	// start returns with error
 	c.Check(<-s.errCh, Not(Equals), nil)
+	c.Check(s.sess.State(), Equals, Error)
 	// no message sent out
-	c.Check(len(s.sess.MsgCh), Equals, 0)
+	c.Check(len(s.sess.BroadcastCh), Equals, 0)
 	// and nak'ed it
 	c.Check(len(s.downCh), Equals, 1)
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"nak"})
@@ -799,6 +804,118 @@ func (s *msgSuite) TestHandleBroadcastDoesNotClearDelayOnError(c *C) {
 	s.upCh <- errors.New("bcast")
 	c.Check(<-s.errCh, NotNil)
 
+	c.Check(s.sess.ShouldDelay(), Equals, true)
+}
+
+/****************************************************************
+  handleNotifications() tests
+****************************************************************/
+
+func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
+	s.sess.setShouldDelay()
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	n2 := protocol.Notification{
+		AppId:   "app2",
+		MsgId:   "b",
+		Payload: json.RawMessage(`{"m": 2}`),
+	}
+	msg := serverMsg{"notifications",
+		protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{
+			Notifications: []protocol.Notification{n1, n2},
+		}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, Equals, nil)
+	c.Check(s.sess.ShouldDelay(), Equals, false)
+	c.Assert(len(s.sess.NotificationsCh), Equals, 2)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n1)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+}
+
+func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	n2 := protocol.Notification{
+		AppId:   "app2",
+		MsgId:   "b",
+		Payload: json.RawMessage(`{"m": 2}`),
+	}
+	msg := serverMsg{"notifications",
+		protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{
+			Notifications: []protocol.Notification{n1, n2},
+		}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, Equals, nil)
+	c.Assert(len(s.sess.NotificationsCh), Equals, 2)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n1)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+
+	// second time they get ignored
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, Equals, nil)
+	c.Assert(len(s.sess.NotificationsCh), Equals, 0)
+}
+
+func (s *msgSuite) TestHandleNotificationsBadAckWrite(c *C) {
+	s.sess.setShouldDelay()
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	msg := serverMsg{"notifications",
+		protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{
+			Notifications: []protocol.Notification{n1},
+		}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	failure := errors.New("ACK ACK ACK")
+	s.upCh <- failure
+	c.Assert(<-s.errCh, Equals, failure)
+	c.Check(s.sess.State(), Equals, Error)
+	// didn't get to clear
+	c.Check(s.sess.ShouldDelay(), Equals, true)
+}
+
+func (s *msgSuite) TestHandleNotificationsBrokenSeenState(c *C) {
+	s.sess.setShouldDelay()
+	s.sess.SeenState = &brokenSeenState{}
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	msg := serverMsg{"notifications",
+		protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{
+			Notifications: []protocol.Notification{n1},
+		}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	s.upCh <- nil // ack ok
+	// start returns with error
+	c.Check(<-s.errCh, Not(Equals), nil)
+	c.Check(s.sess.State(), Equals, Error)
+	// no message sent out
+	c.Check(len(s.sess.NotificationsCh), Equals, 0)
+	// and nak'ed it
+	c.Check(len(s.downCh), Equals, 1)
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"nak"})
+	// didn't get to clear
 	c.Check(s.sess.ShouldDelay(), Equals, true)
 }
 
@@ -897,6 +1014,26 @@ func (s *loopSuite) TestLoopBroadcast(c *C) {
 	c.Check(<-s.errCh, Equals, failure)
 }
 
+func (s *loopSuite) TestLoopNotifications(c *C) {
+	c.Check(s.sess.State(), Equals, Running)
+
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	msg := &protocol.NotificationsMsg{
+		Type:          "notifications",
+		Notifications: []protocol.Notification{n1},
+	}
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	s.upCh <- msg
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	failure := errors.New("ack")
+	s.upCh <- failure
+	c.Check(<-s.errCh, Equals, failure)
+}
+
 func (s *loopSuite) TestLoopConnBroken(c *C) {
 	c.Check(s.sess.State(), Equals, Running)
 	broken := protocol.ConnBrokenMsg{
@@ -934,7 +1071,7 @@ func (cs *clientSessionSuite) TestStartFailsIfWriteFails(c *C) {
 func (cs *clientSessionSuite) TestStartFailsIfGetLevelsFails(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	sess.Levels = &brokenLevelMap{}
+	sess.SeenState = &brokenSeenState{}
 	sess.Connection = &testConn{Name: "TestStartConnectMessageFails"}
 	errCh := make(chan error, 1)
 	upCh := make(chan interface{}, 5)
@@ -1155,24 +1292,24 @@ func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
 func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 	sess, err := NewSession("", dummyConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	// just to make a point: until here we haven't set ErrCh & MsgCh (no
+	// just to make a point: until here we haven't set ErrCh & BroadcastCh (no
 	// biggie if this stops being true)
 	c.Check(sess.ErrCh, IsNil)
-	c.Check(sess.MsgCh, IsNil)
+	c.Check(sess.BroadcastCh, IsNil)
 	failureCh := make(chan error) // must be unbuffered
-	notf := &Notification{}
+	notf := &BroadcastNotification{}
 	err = sess.run(
 		func() {},
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
-		func() error { sess.MsgCh <- notf; return <-failureCh })
+		func() error { sess.BroadcastCh <- notf; return <-failureCh })
 	c.Check(err, Equals, nil)
 	// if run doesn't error it sets up the channels
 	c.Assert(sess.ErrCh, NotNil)
-	c.Assert(sess.MsgCh, NotNil)
-	c.Check(<-sess.MsgCh, Equals, notf)
+	c.Assert(sess.BroadcastCh, NotNil)
+	c.Check(<-sess.BroadcastCh, Equals, notf)
 	failure := errors.New("TestRunRunsEvenIfLoopFails")
 	failureCh <- failure
 	c.Check(<-sess.ErrCh, Equals, failure)
@@ -1375,9 +1512,9 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	c.Check(takeNext(downCh), Equals, protocol.AckMsg{"ack"})
 	upCh <- nil
 	// ...get bubbled up,
-	c.Check(<-sess.MsgCh, NotNil)
+	c.Check(<-sess.BroadcastCh, NotNil)
 	// and their TopLevel remembered
-	levels, err := sess.Levels.GetAll()
+	levels, err := sess.SeenState.GetAllLevels()
 	c.Check(err, IsNil)
 	c.Check(levels, DeepEquals, map[string]int64{"0": 2})
 
