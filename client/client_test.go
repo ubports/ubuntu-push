@@ -427,7 +427,7 @@ func (cs *clientSuite) TestSeenStateFactoryNoDbPath(c *C) {
 	cli := NewPushClient(cs.configPath, "")
 	ln, err := cli.seenStateFactory()
 	c.Assert(err, IsNil)
-	c.Check(fmt.Sprintf("%T", ln), Equals, "*seenstate.mapLevelMap")
+	c.Check(fmt.Sprintf("%T", ln), Equals, "*seenstate.memSeenState")
 }
 
 func (cs *clientSuite) TestSeenStateFactoryWithDbPath(c *C) {

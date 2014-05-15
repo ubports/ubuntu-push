@@ -161,6 +161,9 @@ type brokenSeenState struct{}
 
 func (*brokenSeenState) SetLevel(string, int64) error            { return errors.New("broken.") }
 func (*brokenSeenState) GetAllLevels() (map[string]int64, error) { return nil, errors.New("broken.") }
+func (*brokenSeenState) FilterBySeen([]protocol.Notification) ([]protocol.Notification, error) {
+	return nil, errors.New("broken.")
+}
 
 /////
 
@@ -756,7 +759,7 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 	c.Check(len(s.sess.BroadcastCh), Equals, 0)
 }
 
-func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
+func (s *msgSuite) TestHandleBroadcastBrokenSeenState(c *C) {
 	s.sess.SeenState = &brokenSeenState{}
 	msg := serverMsg{"broadcast",
 		protocol.BroadcastMsg{
@@ -770,6 +773,7 @@ func (s *msgSuite) TestHandleBroadcastWrongBrokenLevelmap(c *C) {
 	s.upCh <- nil // ack ok
 	// start returns with error
 	c.Check(<-s.errCh, Not(Equals), nil)
+	c.Check(s.sess.State(), Equals, Error)
 	// no message sent out
 	c.Check(len(s.sess.BroadcastCh), Equals, 0)
 	// and nak'ed it
@@ -834,6 +838,38 @@ func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
 }
 
+func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	n2 := protocol.Notification{
+		AppId:   "app2",
+		MsgId:   "b",
+		Payload: json.RawMessage(`{"m": 2}`),
+	}
+	msg := serverMsg{"notifications",
+		protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{
+			Notifications: []protocol.Notification{n1, n2},
+		}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, Equals, nil)
+	c.Assert(len(s.sess.NotificationsCh), Equals, 2)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n1)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+
+	// second time they get ignored
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, Equals, nil)
+	c.Assert(len(s.sess.NotificationsCh), Equals, 0)
+}
+
 func (s *msgSuite) TestHandleNotificationsBadAckWrite(c *C) {
 	s.sess.setShouldDelay()
 	n1 := protocol.Notification{
@@ -852,6 +888,33 @@ func (s *msgSuite) TestHandleNotificationsBadAckWrite(c *C) {
 	s.upCh <- failure
 	c.Assert(<-s.errCh, Equals, failure)
 	c.Check(s.sess.State(), Equals, Error)
+	// didn't get to clear
+	c.Check(s.sess.ShouldDelay(), Equals, true)
+}
+
+func (s *msgSuite) TestHandleNotificationsBrokenSeenState(c *C) {
+	s.sess.setShouldDelay()
+	s.sess.SeenState = &brokenSeenState{}
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	msg := serverMsg{"notifications",
+		protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{
+			Notifications: []protocol.Notification{n1},
+		}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	s.upCh <- nil // ack ok
+	// start returns with error
+	c.Check(<-s.errCh, Not(Equals), nil)
+	c.Check(s.sess.State(), Equals, Error)
+	// no message sent out
+	c.Check(len(s.sess.NotificationsCh), Equals, 0)
+	// and nak'ed it
+	c.Check(len(s.downCh), Equals, 1)
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"nak"})
 	// didn't get to clear
 	c.Check(s.sess.ShouldDelay(), Equals, true)
 }
