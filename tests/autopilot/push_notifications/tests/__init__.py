@@ -16,8 +16,10 @@ import datetime
 import subprocess
 import copy
 import systemimage.config as sys_info
+import time
 
 from unity8.shell.tests import UnityTestCase
+import unity8.process_helpers as unity8_helpers
 from push_notifications.data import PushNotificationMessage
 from push_notifications.data import NotificationData
 from push_notifications import config
@@ -40,6 +42,7 @@ class PushNotificationTestBase(UnityTestCase):
 
     def setUp(self):
         """
+        Setup phase executed before each test
         Start the client running with the correct server config
         """
         # setup
@@ -52,16 +55,46 @@ class PushNotificationTestBase(UnityTestCase):
         self.restart_push_client()
         # get system info
         self.get_device_info()
-        # unlock device
+        # start unity and unlock device
         self.unity = self.launch_unity()
-        self.unlock_greeter()
+        #self.unlock_greeter()
+
+    def _press_power_button(self):
+        import evdev
+        uinput = evdev.UInput(name='push-autopilot-power-button',
+                          devnode='/dev/autopilot-uinput')
+        # One press and release to turn screen off (locking unity)
+        uinput.write(evdev.ecodes.EV_KEY, evdev.ecodes.KEY_POWER, 1)
+        uinput.write(evdev.ecodes.EV_KEY, evdev.ecodes.KEY_POWER, 0)
+        uinput.syn()
+
+    def lock_greeter(self):
+        """
+        Lock the device to display greeter screen
+        """
+        print('locking delay...')
+        time.sleep(10)
+        print('Locking greeter')
+        #unity8_helpers.lock_unity(self.unity)
+        self._press_power_button()
+        print('screen should be off')
+        time.sleep(5)
+        print('turning on')
+        self._press_power_button()
+        print('screen should be on')
+        time.sleep(5)
+        print('Greeter should be locked')
+        greeter = self.main_window.get_greeter()
+        if not greeter.created:
+            raise RuntimeWarning('Greeter is not displayed')
 
     def unlock_greeter(self):
         """
         Unlock the greeter to display home screen
         """
-        greeter = self.main_window.get_greeter()
-        greeter.swipe()
+        unity8_helpers.unlock_unity(self.unity)
+        #greeter = self.main_window.get_greeter()
+        #greeter.swipe()
 
     def create_notification_data_copy(self):
         """
