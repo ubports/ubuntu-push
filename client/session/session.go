@@ -421,17 +421,24 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 
 // handle "notifications" messages
 func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
+	notifs, err := sess.SeenState.FilterBySeen(ucast.Notifications)
+	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to record msgs seen: %v", err)
+		sess.proto.WriteMessage(protocol.AckMsg{"nak"})
+		return err
+	}
 	// the server assumes if we ack the broadcast, we've updated
 	// our state. Hence the order.
-	err := sess.proto.WriteMessage(protocol.AckMsg{"ack"})
+	err = sess.proto.WriteMessage(protocol.AckMsg{"ack"})
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to ack notifications: %s", err)
 		return err
 	}
 	sess.clearShouldDelay()
-	for i := range ucast.Notifications {
-		notif := &ucast.Notifications[i]
+	for i := range notifs {
+		notif := &notifs[i]
 		sess.Log.Debugf("unicast app:%v msg:%s payload:%s",
 			notif.AppId, notif.MsgId, notif.Payload)
 		sess.Log.Debugf("sending ucast over")

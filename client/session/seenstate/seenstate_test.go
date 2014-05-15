@@ -17,8 +17,11 @@
 package seenstate
 
 import (
-	. "launchpad.net/gocheck"
 	"testing"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/protocol"
 )
 
 func TestSeenState(t *testing.T) { TestingT(t) }
@@ -27,7 +30,7 @@ type ssSuite struct {
 	constructor func() (SeenState, error)
 }
 
-var _ = Suite(ssSuite{})
+var _ = Suite(&ssSuite{})
 
 func (s *ssSuite) SetUpSuite(c *C) {
 	s.constructor = NewSeenState
@@ -52,4 +55,32 @@ func (s *ssSuite) TestAllTheLevelThings(c *C) {
 	c.Check(err, IsNil)
 	c.Check(all, DeepEquals, map[string]int64{"this": 999, "that": 42})
 	// huzzah
+}
+
+func (s *ssSuite) TestFilterBySeen(c *C) {
+	var err error
+	var ss SeenState
+	ss, err = s.constructor()
+	// and that it works
+	c.Assert(err, IsNil)
+	n1 := protocol.Notification{MsgId: "m1"}
+	n2 := protocol.Notification{MsgId: "m2"}
+	n3 := protocol.Notification{MsgId: "m3"}
+	n4 := protocol.Notification{MsgId: "m4"}
+	n5 := protocol.Notification{MsgId: "m5"}
+
+	res, err := ss.FilterBySeen([]protocol.Notification{n1, n2, n3})
+	c.Assert(err, IsNil)
+	// everything wasn't seen yet
+	c.Check(res, DeepEquals, []protocol.Notification{n1, n2, n3})
+
+	res, err = ss.FilterBySeen([]protocol.Notification{n1, n3, n4, n5})
+	c.Assert(err, IsNil)
+	// already seen n1-n3 removed
+	c.Check(res, DeepEquals, []protocol.Notification{n4, n5})
+
+	// corner case
+	res, err = ss.FilterBySeen([]protocol.Notification{})
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 0)
 }

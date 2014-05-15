@@ -17,9 +17,13 @@
 package seenstate
 
 import (
-	_ "code.google.com/p/gosqlite/sqlite3"
 	"database/sql"
 	"fmt"
+	"strings"
+
+	_ "code.google.com/p/gosqlite/sqlite3"
+
+	"launchpad.net/ubuntu-push/protocol"
 )
 
 type sqliteSeenState struct {
@@ -36,6 +40,10 @@ func NewSqliteSeenState(filename string) (SeenState, error) {
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS level_map (level text primary key, top integer)")
 	if err != nil {
 		return nil, fmt.Errorf("cannot (re)create sqlite level map table: %v", err)
+	}
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS seen_msgs (id text primary key)")
+	if err != nil {
+		return nil, fmt.Errorf("cannot (re)create sqlite seen msgs table: %v", err)
 	}
 	return &sqliteSeenState{db}, nil
 }
@@ -63,4 +71,31 @@ func (ps *sqliteSeenState) GetAllLevels() (map[string]int64, error) {
 		m[level] = top
 	}
 	return m, nil
+}
+
+func (ps *sqliteSeenState) dropPrevThan(msgId string) error {
+	_, err := ps.db.Exec("DELETE FROM seen_msgs WHERE rowid < (SELECT rowid FROM seen_msgs WHERE id = ?)", msgId)
+	return err
+}
+
+func (ps *sqliteSeenState) FilterBySeen(notifs []protocol.Notification) ([]protocol.Notification, error) {
+	if len(notifs) == 0 {
+		return nil, nil
+	}
+	acc := make([]protocol.Notification, 0, len(notifs))
+	for _, notif := range notifs {
+		_, err := ps.db.Exec("INSERT INTO seen_msgs (id) VALUES (?)", notif.MsgId)
+		if err != nil {
+			if strings.HasSuffix(err.Error(), "UNIQUE constraint failed: seen_msgs.id") {
+				continue
+			}
+			return nil, fmt.Errorf("cannot insert %#v in seen msgs: %v", notif.MsgId, err)
+		}
+		acc = append(acc, notif)
+	}
+	err := ps.dropPrevThan(notifs[0].MsgId)
+	if err != nil {
+		return nil, fmt.Errorf("cannot delete obsolete seen msgs: %v", err)
+	}
+	return acc, nil
 }

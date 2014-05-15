@@ -18,27 +18,53 @@
 // session uses to keep track of what messages it has seen.
 package seenstate
 
+import (
+	"launchpad.net/ubuntu-push/protocol"
+)
+
 type SeenState interface {
 	// Set() (re)sets the given level to the given value.
 	SetLevel(level string, top int64) error
 	// GetAll() returns a "simple" map of the current levels.
 	GetAllLevels() (map[string]int64, error)
+	// FilterBySeen filters notifications already seen, keep track
+	// of them as well
+	FilterBySeen([]protocol.Notification) ([]protocol.Notification, error)
 }
 
-type mapLevelMap map[string]int64
+type memSeenState struct {
+	levels   map[string]int64
+	seenMsgs map[string]bool
+}
 
-func (m *mapLevelMap) SetLevel(level string, top int64) error {
-	(*m)[level] = top
+func (m *memSeenState) SetLevel(level string, top int64) error {
+	m.levels[level] = top
 	return nil
 }
-func (m *mapLevelMap) GetAllLevels() (map[string]int64, error) {
-	return map[string]int64(*m), nil
+func (m *memSeenState) GetAllLevels() (map[string]int64, error) {
+	return m.levels, nil
 }
 
-var _ SeenState = (*mapLevelMap)(nil)
+func (m *memSeenState) FilterBySeen(notifs []protocol.Notification) ([]protocol.Notification, error) {
+	acc := make([]protocol.Notification, 0, len(notifs))
+	for _, notif := range notifs {
+		seen := m.seenMsgs[notif.MsgId]
+		if seen {
+			continue
+		}
+		m.seenMsgs[notif.MsgId] = true
+		acc = append(acc, notif)
+	}
+	return acc, nil
+}
+
+var _ SeenState = (*memSeenState)(nil)
 
 // NewSeenState returns an implementation of SeenState that is memory-based and
 // does not save state.
 func NewSeenState() (SeenState, error) {
-	return &mapLevelMap{}, nil
+	return &memSeenState{
+		levels:   make(map[string]int64),
+		seenMsgs: make(map[string]bool),
+	}, nil
 }
