@@ -96,20 +96,23 @@ func (ss *serviceSuite) TestStopClosesBus(c *C) {
 // registration tests
 
 func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
-	for i, arg := range [][]interface{}{
-		nil,                 // no args
-		[]interface{}{},     // still no args
-		[]interface{}{42},   // bad arg type
-		[]interface{}{1, 2}, // too many args
+	for i, s := range []struct {
+		args []interface{}
+		errt error
+	}{
+		{nil, BadArgCount},                 // no args
+		{[]interface{}{}, BadArgCount},     // still no args
+		{[]interface{}{42}, BadArgType},    // bad arg type
+		{[]interface{}{1, 2}, BadArgCount}, // too many args
 	} {
-		reg, err := Register(arg, nil)
+		reg, err := new(Service).Register(s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
-		c.Check(err, NotNil, Commentf("iteration #%d", i))
+		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
 }
 
 func (ss *serviceSuite) TestRegistrationWorks(c *C) {
-	reg, err := Register([]interface{}{"this"}, nil)
+	reg, err := new(Service).Register([]interface{}{"this"}, nil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
@@ -121,7 +124,7 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	os.Setenv("PUSH_REG_stuff", "42")
 	defer os.Setenv("PUSH_REG_stuff", "")
 
-	reg, err := Register([]interface{}{"stuff"}, nil)
+	reg, err := new(Service).Register([]interface{}{"stuff"}, nil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
