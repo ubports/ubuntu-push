@@ -268,14 +268,16 @@ func readOneConfig(accu map[string]json.RawMessage, cfgPath string) error {
 
 // used to implement -cfg@=
 type readConfigAtVal struct {
+	path string
 	accu map[string]json.RawMessage
 }
 
 func (v *readConfigAtVal) String() string {
-	return "<config.json>"
+	return v.path
 }
 
 func (v *readConfigAtVal) Set(path string) error {
+	v.path = path
 	return readOneConfig(v.accu, path)
 }
 
@@ -292,7 +294,7 @@ func readUsingFlags(accu map[string]json.RawMessage, destValue reflect.Value) er
 		help := destField.fld.Tag.Get("help")
 		flag.Var(&val{destField, accu}, destField.configName(), help)
 	}
-	flag.Var(&readConfigAtVal{accu}, "cfg@", "get config values from file")
+	flag.Var(&readConfigAtVal{"<config.json>", accu}, "cfg@", "get config values from file")
 	flag.Parse()
 	return nil
 }
@@ -301,17 +303,25 @@ func readUsingFlags(accu map[string]json.RawMessage, destValue reflect.Value) er
 // command line was already parsed.
 var IgnoreParsedFlags = false
 
-// ReadFiles reads configuration from a set of files. The string
-// "<flags>" can be used as a pseudo file-path, it will consider
-// command line flags, invoking flag.Parse(). Among those the flag
-// -cfg@=FILE can be used to get further config values from FILE.
-func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
+// ReadFilesDefaults reads configuration from a set of files. The
+// string "<flags>" can be used as a pseudo file-path, it will
+// consider command line flags, invoking flag.Parse(). Among those the
+// flag -cfg@=FILE can be used to get further config values from FILE.
+// Defaults for fields can be given through a map[string]interface{}.
+func ReadFilesDefaults(destConfig interface{}, defls map[string]interface{}, cfgFpaths ...string) error {
 	destValue, err := checkDestConfig("destConfig", destConfig)
 	if err != nil {
 		return err
 	}
 	// do the parsing in two phases for better error handling
 	p1 := make(map[string]json.RawMessage)
+	for field, value := range defls {
+		b, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		p1[field] = json.RawMessage(b)
+	}
 	readOne := false
 	for _, cfgPath := range cfgFpaths {
 		if cfgPath == "<flags>" {
@@ -334,6 +344,13 @@ func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
 		return fmt.Errorf("no config to read")
 	}
 	return fillDestConfig(destValue, p1)
+}
+
+// ReadFiles reads configuration from a set of files exactly like
+// ReadFilesDefaults but no defaults can be given making all fields
+// mandatory.
+func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
+	return ReadFilesDefaults(destConfig, nil, cfgFpaths...)
 }
 
 // CompareConfigs compares the two given configuration structures. It returns a list of differing fields or nil if the config contents are the same.
