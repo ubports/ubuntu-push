@@ -144,6 +144,12 @@ func (svc *Service) inject(args []interface{}, _ []interface{}) ([]interface{}, 
 		return nil, BadArgType
 	}
 
+	svc.Inject(appname, notif)
+
+	return nil, nil
+}
+
+func (svc *Service) Inject(appname string, notif string) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
@@ -151,7 +157,5 @@ func (svc *Service) inject(args []interface{}, _ []interface{}) ([]interface{}, 
 	}
 	svc.mbox[appname] = append(svc.mbox[appname], notif)
 
-	svc.Bus.Signal("Notification", []interface{}{appname})
-
-	return nil, nil
+	return svc.Bus.Signal("Notification", []interface{}{appname})
 }

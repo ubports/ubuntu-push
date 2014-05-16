@@ -626,6 +626,26 @@ func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
 }
 
 /*****************************************************************
+    handleUnicastNotification tests
+******************************************************************/
+
+var notif = &protocol.Notification{AppId: "hello", Payload: []byte("loaded"), MsgId: "42"}
+
+func (cs *clientSuite) TestHandleUcastNotification(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+	cli.log = cs.log
+	cli.serviceEndpoint = endp
+	c.Assert(cli.startService(), IsNil)
+	c.Check(cli.handleUnicastNotification(notif), IsNil)
+	// check we sent the notification
+	args := testibus.GetCallArgs(endp)
+	c.Assert(len(args), Not(Equals), 0)
+	c.Check(args[len(args)-1].Member, Equals, "::Signal")
+	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "hello".*`)
+}
+
+/*****************************************************************
     handleClick tests
 ******************************************************************/
 
