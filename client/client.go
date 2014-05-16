@@ -42,6 +42,7 @@ import (
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
 )
@@ -287,7 +288,7 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 	return false
 }
 
-// handleNotification deals with receiving a notification
+// handleBroadcastNotification deals with receiving a broadcast notification
 func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
 	if !client.filterBroadcastNotification(msg) {
 		return nil
@@ -315,6 +316,12 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 	return nil
 }
 
+// handleUnicastNotification deals with receiving a unicast notification
+func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
+	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
+	return client.service.Inject(msg.AppId, string(msg.Payload))
+}
+
 // handleClick deals with the user clicking a notification
 func (client *PushClient) handleClick(action_id string) error {
 	if action_id != ACTION_ID_SNOWFLAKE {
@@ -326,7 +333,7 @@ func (client *PushClient) handleClick(action_id string) error {
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, errhandler func(error)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(*protocol.Notification) error, errhandler func(error)) {
 	for {
 		select {
 		case state := <-client.connCh:
@@ -335,8 +342,8 @@ func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(strin
 			clickhandler(action.ActionId)
 		case bcast := <-client.session.BroadcastCh:
 			bcasthandler(bcast)
-		case _ = <-client.session.NotificationsCh:
-			// xxx implement me
+		case ucast := <-client.session.NotificationsCh:
+			ucasthandler(ucast)
 		case err := <-client.session.ErrCh:
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
@@ -358,8 +365,11 @@ func (client *PushClient) doStart(fs ...func() error) error {
 
 // Loop calls doLoop with the "real" handlers
 func (client *PushClient) Loop() {
-	client.doLoop(client.handleConnState, client.handleClick,
-		client.handleBroadcastNotification, client.handleErr)
+	client.doLoop(client.handleConnState,
+		client.handleClick,
+		client.handleBroadcastNotification,
+		client.handleUnicastNotification,
+		client.handleErr)
 }
 
 func (client *PushClient) startService() error {

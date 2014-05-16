@@ -40,6 +40,7 @@ import (
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/util"
@@ -635,6 +636,26 @@ func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
 }
 
 /*****************************************************************
+    handleUnicastNotification tests
+******************************************************************/
+
+var notif = &protocol.Notification{AppId: "hello", Payload: []byte("loaded"), MsgId: "42"}
+
+func (cs *clientSuite) TestHandleUcastNotification(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+	cli.log = cs.log
+	cli.serviceEndpoint = endp
+	c.Assert(cli.startService(), IsNil)
+	c.Check(cli.handleUnicastNotification(notif), IsNil)
+	// check we sent the notification
+	args := testibus.GetCallArgs(endp)
+	c.Assert(len(args), Not(Equals), 0)
+	c.Check(args[len(args)-1].Member, Equals, "::Signal")
+	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "hello".*`)
+}
+
+/*****************************************************************
     handleClick tests
 ******************************************************************/
 
@@ -661,6 +682,12 @@ func (cs *clientSuite) TestHandleClick(c *C) {
     doLoop tests
 ******************************************************************/
 
+var nopConn = func(bool) {}
+var nopClick = func(string) error { return nil }
+var nopBcast = func(*session.BroadcastNotification) error { return nil }
+var nopUcast = func(*protocol.Notification) error { return nil }
+var nopError = func(error) {}
+
 func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
@@ -670,7 +697,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	c.Assert(cli.initSession(), IsNil)
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) { ch <- true }, func(_ string) error { return nil }, func(_ *session.BroadcastNotification) error { return nil }, func(error) {})
+	go cli.doLoop(func(bool) { ch <- true }, nopClick, nopBcast, nopUcast, nopError)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -684,11 +711,11 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli.actionsCh = aCh
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func(_ string) error { ch <- true; return nil }, func(_ *session.BroadcastNotification) error { return nil }, func(error) {})
+	go cli.doLoop(nopConn, func(_ string) error { ch <- true; return nil }, nopBcast, nopUcast, nopError)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
-func (cs *clientSuite) TestDoLoopNotif(c *C) {
+func (cs *clientSuite) TestDoLoopBroadcast(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
@@ -697,7 +724,20 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.session.BroadcastCh <- &session.BroadcastNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func(_ string) error { return nil }, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, func(error) {})
+	go cli.doLoop(nopConn, nopClick, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopError)
+	c.Check(takeNextBool(ch), Equals, true)
+}
+
+func (cs *clientSuite) TestDoLoopNotif(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
+	c.Assert(cli.initSession(), IsNil)
+	cli.session.NotificationsCh = make(chan *protocol.Notification, 1)
+	cli.session.NotificationsCh <- &protocol.Notification{}
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(nopConn, nopClick, nopBcast, func(*protocol.Notification) error { ch <- true; return nil }, nopError)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -710,7 +750,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli.session.ErrCh <- nil
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) {}, func(_ string) error { return nil }, func(_ *session.BroadcastNotification) error { return nil }, func(error) { ch <- true })
+	go cli.doLoop(nopConn, nopClick, nopBcast, nopUcast, func(error) { ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
