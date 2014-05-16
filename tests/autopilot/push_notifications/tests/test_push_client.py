@@ -25,13 +25,13 @@ class TestPushClient(PushNotificationTestBase):
         self.assertThat(response.status, Equals(expected_status_code))
 
     def _validate_notification_displayed(self,
-            msg_text=DEFAULT_DISPLAY_MESSAGE):
+                                         msg_text=DEFAULT_DISPLAY_MESSAGE):
         """
         Validate that the notification is displayed
         Return the dialog object
         """
-        dialog = self.main_window.wait_select_single('Notification',
-            objectName='notification1')
+        dialog = self.main_window.wait_select_single(
+            'Notification', objectName='notification1')
         self.assertEqual(msg_text, dialog.summary)
         return dialog
 
@@ -44,11 +44,11 @@ class TestPushClient(PushNotificationTestBase):
         found = True
         try:
             if wait is True:
-                self.main_window.wait_select_single('Notification',
-                    objectName='notification1')
+                self.main_window.wait_select_single(
+                    'Notification', objectName='notification1')
             else:
-                self.main_window.select_single('Notification',
-                    objectName='notification1')
+                self.main_window.select_single(
+                    'Notification', objectName='notification1')
         except dbus.StateNotFoundError:
             found = False
         self.assertFalse(found)
@@ -172,4 +172,3 @@ class TestPushClient(PushNotificationTestBase):
         self._validate_response(response)
         # validate no notification is displayed
         self._validate_notification_not_displayed()
-

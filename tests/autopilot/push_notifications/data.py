@@ -41,7 +41,7 @@ class NotificationData:
     """
 
     def __init__(self, channel=None, device=None, build_number=None,
-        last_update=None, version=None, data=None):
+                 last_update=None, version=None, data=None):
         self.channel = channel
         self.build_number = build_number
         self.device = device

@@ -100,7 +100,8 @@ class PushClientController:
         """
         start/stop/restart the ubuntu-push-client using initctl
         """
-        subprocess.call(['initctl', command, 'ubuntu-push-client'],
+        subprocess.call(
+            ['initctl', command, 'ubuntu-push-client'],
             stdout=subprocess.DEVNULL)
 
     def _stop_push_client(self):
@@ -128,6 +129,8 @@ class PushNotificationHelper:
     Utility class to create and send push notification messages
     """
 
+    DEFAULT_BROADCAST_URL = '/broadcast'
+
     def get_device_info(self):
         """
         Discover the device's model and build info
@@ -146,15 +149,12 @@ class PushNotificationHelper:
             channel=channel,
             build_number=sys_info.config.build_number)
 
-    def send_push_broadcast_notification(self, msg_json, server_addr, url=None):
+    def send_push_broadcast_notification(self, msg_json, server_addr,
+                                         url=DEFAULT_BROADCAST_URL):
         """
         Send the specified push message to the server broadcast url
         using an HTTP POST command
         """
-        # apply a default url if none is provided
-        default_broadcast_url = '/broadcast'
-        if url is None:
-            url = default_broadcast_url
         headers = {'Content-type': 'application/json'}
         conn = http.HTTPConnection(server_addr)
         conn.request(

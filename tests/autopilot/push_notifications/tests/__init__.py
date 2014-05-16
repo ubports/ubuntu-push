@@ -67,7 +67,7 @@ class PushNotificationTestBase(UnityTestCase):
     def press_power_button(self):
         import evdev
         uinput = evdev.UInput(name='push-autopilot-power-button',
-                          devnode='/dev/autopilot-uinput')
+                              devnode='/dev/autopilot-uinput')
         # One press and release to turn screen off (locking unity)
         uinput.write(evdev.ecodes.EV_KEY, evdev.ecodes.KEY_POWER, 1)
         uinput.write(evdev.ecodes.EV_KEY, evdev.ecodes.KEY_POWER, 0)
@@ -98,4 +98,3 @@ class PushNotificationTestBase(UnityTestCase):
         Unlock the greeter to display home screen
         """
         unity8_helpers.unlock_unity(self.unity)
-
