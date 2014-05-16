@@ -45,7 +45,7 @@ type configuration struct {
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: acceptancclient [options] <config.json> <device id>\n")
+		fmt.Fprintf(os.Stderr, "Usage: acceptancclient [options] <device id>\n")
 		flag.PrintDefaults()
 	}
 	missingArg := func(what string) {
@@ -53,23 +53,18 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	flag.Parse()
+	cfg := &configuration{}
+	err := config.ReadFilesDefaults(cfg, map[string]interface{}{
+		"exchange_timeout": "5s",
+		"cert_pem_file":    "",
+	}, "<flags>")
+	if err != nil {
+		log.Fatalf("reading config: %v", err)
+	}
 	narg := flag.NArg()
 	switch {
 	case narg < 1:
-		missingArg("config file")
-	case narg < 2:
 		missingArg("device-id")
-	}
-	configFName := flag.Arg(0)
-	f, err := os.Open(configFName)
-	if err != nil {
-		log.Fatalf("reading config: %v", err)
-	}
-	cfg := &configuration{}
-	err = config.ReadConfig(f, cfg)
-	if err != nil {
-		log.Fatalf("reading config: %v", err)
 	}
 	session := &acceptance.ClientSession{
 		ExchangeTimeout: cfg.ExchangeTimeout.TimeDuration(),
@@ -81,13 +76,14 @@ func main() {
 		ReportPings:  *reportPingsFlag,
 		Insecure:     *insecureFlag,
 	}
-	log.Printf("with: %#v", session)
 	if !*insecureFlag {
-		session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(configFName))
+		cfgFpath := flag.Lookup("cfg@").Value.String()
+		session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(cfgFpath))
 		if err != nil {
 			log.Fatalf("reading CertPEMFile: %v", err)
 		}
 	}
+	log.Printf("with: %#v", session)
 	err = session.Dial()
 	if err != nil {
 		log.Fatalln(err)
