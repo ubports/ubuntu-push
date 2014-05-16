@@ -76,14 +76,15 @@ func main() {
 		ReportPings:  *reportPingsFlag,
 		Insecure:     *insecureFlag,
 	}
-	if !*insecureFlag {
-		cfgFpath := flag.Lookup("cfg@").Value.String()
-		session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(cfgFpath))
+	log.Printf("with: %#v", session)
+	if !*insecureFlag && cfg.CertPEMFile != "" {
+		cfgDir := filepath.Dir(flag.Lookup("cfg@").Value.String())
+		log.Printf("cert: %v relToDir: %v", cfg.CertPEMFile, cfgDir)
+		session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, cfgDir)
 		if err != nil {
 			log.Fatalf("reading CertPEMFile: %v", err)
 		}
 	}
-	log.Printf("with: %#v", session)
 	err = session.Dial()
 	if err != nil {
 		log.Fatalln(err)
