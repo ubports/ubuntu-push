@@ -1,3 +1,21 @@
+/*
+ Copyright 2013-2014 Canonical Ltd.
+
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of the GNU General Public License version 3, as published
+ by the Free Software Foundation.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranties of
+ MERCHANTABILITY, SATISFACTORY QUALITY, or FITNESS FOR A PARTICULAR
+ PURPOSE.  See the GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License along
+ with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// package service implements the dbus-level service with which client
+// applications are expected to interact.
 package service
 
 import (
@@ -9,6 +27,7 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 )
 
+// Service is the dbus api
 type Service struct {
 	lock  sync.RWMutex
 	state ServiceState
@@ -17,12 +36,13 @@ type Service struct {
 	Bus   bus.Endpoint
 }
 
+// the service can be in a numnber of states
 type ServiceState uint8
 
 const (
-	StateUnknown ServiceState = iota
-	StateRunning
-	StateFinished
+	StateUnknown  ServiceState = iota
+	StateRunning               // Start() has been successfully called
+	StateFinished              // Stop() has been successfully called
 )
 
 var (
@@ -35,16 +55,19 @@ var (
 	}
 )
 
+// NewService() builds a new service and returns it.
 func NewService(bus bus.Endpoint, log logger.Logger) *Service {
 	return &Service{Log: log, Bus: bus}
 }
 
+// IsRunning() returns whether the service's state is StateRunning
 func (svc *Service) IsRunning() bool {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
 	return svc.state == StateRunning
 }
 
+// Start() dials the bus, grab the name, and listens for method calls.
 func (svc *Service) Start() error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
@@ -66,7 +89,8 @@ func (svc *Service) Start() error {
 				break
 			}
 			if err != nil {
-				log.Fatalf("name channel for %s got: %v", BusAddress.Name, err)
+				log.Fatalf("name channel for %s got: %v",
+					BusAddress.Name, err)
 			}
 		}
 	}()
@@ -79,6 +103,7 @@ func (svc *Service) Start() error {
 	return nil
 }
 
+// Stop() closes the bus and sets the state to StateFinished
 func (svc *Service) Stop() {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
@@ -149,6 +174,8 @@ func (svc *Service) inject(args []interface{}, _ []interface{}) ([]interface{}, 
 	return nil, nil
 }
 
+// Inject() signals to an application over dbus that a notification
+// has arrived.
 func (svc *Service) Inject(appname string, notif string) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
