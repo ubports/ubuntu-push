@@ -7,11 +7,10 @@
 
 """Tests for Push Notifications client"""
 
-from __future__ import absolute_import
-
 from testtools.matchers import Equals
 from push_notifications.tests import PushNotificationTestBase
 from autopilot.introspection import dbus
+
 
 class TestPushClient(PushNotificationTestBase):
     """ Tests a Push notification can be sent and received """
@@ -57,9 +56,10 @@ class TestPushClient(PushNotificationTestBase):
         # increment the build number to trigger an update
         msg_data.inc_build_number()
         # create message based on the data
-        msg = self.create_push_message(data=msg_data.json())
+        msg = self.push_helper.create_push_message(data=msg_data.json())
         # send the notification message to the server and check response
-        response = self.send_push_broadcast_notification(msg.json())
+        response = self.push_helper.send_push_broadcast_notification(
+            msg.json(), self.test_config.server_listener_addr)
         self._validate_response(response)
 
     def _press_notification_dialog(self, dialog):
@@ -83,7 +83,7 @@ class TestPushClient(PushNotificationTestBase):
         # press dialog to dismiss
         self._press_notification_dialog(dialog)
         # check the dialog is no longer displayed
-        #self._validate_notification_not_displayed(wait=False)
+        self._validate_notification_not_displayed(wait=False)
 
     def test_broadcast_push_notification(self):
         """
@@ -100,7 +100,7 @@ class TestPushClient(PushNotificationTestBase):
         # press dialog to dismiss
         self._press_notification_dialog(dialog)
         # check the dialog is no longer displayed
-        #self._validate_notification_not_displayed(wait=False)
+        self._validate_notification_not_displayed(wait=False)
 
     def test_expired_broadcast_push_notification(self):
         """
@@ -109,9 +109,12 @@ class TestPushClient(PushNotificationTestBase):
         self.unlock_greeter()
         msg_data = self.create_notification_data_copy()
         msg_data.inc_build_number()
-        msg = self.create_push_message(data=msg_data.json(),
-            expire_after=self.get_past_iso_time())
-        response = self.send_push_broadcast_notification(msg.json())
+        msg = self.push_helper.create_push_message(
+            data=msg_data.json(),
+            expire_after=self.push_helper.get_past_iso_time())
+        response = self.push_helper.send_push_broadcast_notification(
+            msg.json(),
+            self.test_config.server_listener_addr)
         # 400 status is received for an expired message
         self._validate_response(response, expected_status_code=400)
         # validate no notification is displayed
@@ -124,8 +127,10 @@ class TestPushClient(PushNotificationTestBase):
         self.unlock_greeter()
         msg_data = self.create_notification_data_copy()
         msg_data.dec_build_number()
-        msg = self.create_push_message(data=msg_data.json())
-        response = self.send_push_broadcast_notification(msg.json())
+        msg = self.push_helper.create_push_message(data=msg_data.json())
+        response = self.push_helper.send_push_broadcast_notification(
+            msg.json(),
+            self.test_config.server_listener_addr)
         self._validate_response(response)
         # validate no notification is displayed
         self._validate_notification_not_displayed()
@@ -136,8 +141,10 @@ class TestPushClient(PushNotificationTestBase):
         """
         self.unlock_greeter()
         msg_data = self.create_notification_data_copy()
-        msg = self.create_push_message(data=msg_data.json())
-        response = self.send_push_broadcast_notification(msg.json())
+        msg = self.push_helper.create_push_message(data=msg_data.json())
+        response = self.push_helper.send_push_broadcast_notification(
+            msg.json(),
+            self.test_config.server_listener_addr)
         self._validate_response(response)
         # validate no notification is displayed
         self._validate_notification_not_displayed()
