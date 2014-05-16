@@ -322,7 +322,7 @@ func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 	cli.idder = identifier.New()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), IsNil)
-	c.Check(cli.deviceId, HasLen, 128)
+	c.Check(cli.deviceId, HasLen, 40)
 }
 
 func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
@@ -331,6 +331,16 @@ func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
 	cli.idder = idtesting.Failing()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), NotNil)
+}
+
+func (cs *clientSuite) TestGetDeviceIdWhoopsieDoesTheUnexpected(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	settable := idtesting.Settable()
+	cli.idder = settable
+	settable.Set("not-hex")
+	c.Check(cli.deviceId, Equals, "")
+	c.Check(cli.getDeviceId(), ErrorMatches, "whoopsie id should be hex: .*")
 }
 
 /*****************************************************************

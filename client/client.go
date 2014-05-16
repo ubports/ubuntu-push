@@ -19,6 +19,9 @@
 package client
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -158,7 +161,13 @@ func (client *PushClient) getDeviceId() error {
 	if err != nil {
 		return err
 	}
-	client.deviceId = client.idder.String()
+	baseId := client.idder.String()
+	b, err := hex.DecodeString(baseId)
+	if err != nil {
+		return fmt.Errorf("whoopsie id should be hex: %v", err)
+	}
+	h := sha256.Sum224(b)
+	client.deviceId = base64.StdEncoding.EncodeToString(h[:])
 	return nil
 }
 
