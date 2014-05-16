@@ -105,14 +105,14 @@ func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
 		{[]interface{}{42}, BadArgType},    // bad arg type
 		{[]interface{}{1, 2}, BadArgCount}, // too many args
 	} {
-		reg, err := new(Service).Register(s.args, nil)
+		reg, err := new(Service).register(s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
 }
 
 func (ss *serviceSuite) TestRegistrationWorks(c *C) {
-	reg, err := new(Service).Register([]interface{}{"this"}, nil)
+	reg, err := new(Service).register([]interface{}{"this"}, nil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
@@ -124,7 +124,7 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	os.Setenv("PUSH_REG_stuff", "42")
 	defer os.Setenv("PUSH_REG_stuff", "")
 
-	reg, err := new(Service).Register([]interface{}{"stuff"}, nil)
+	reg, err := new(Service).register([]interface{}{"stuff"}, nil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
@@ -137,10 +137,10 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 
 func (ss *serviceSuite) TestInjectWorks(c *C) {
 	svc := NewService(ss.bus, ss.log)
-	rvs, err := svc.Inject([]interface{}{"hello", "world"}, nil)
+	rvs, err := svc.inject([]interface{}{"hello", "world"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
-	rvs, err = svc.Inject([]interface{}{"hello", "there"}, nil)
+	rvs, err = svc.inject([]interface{}{"hello", "there"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
 	c.Assert(svc.mbox, HasLen, 1)
@@ -169,7 +169,7 @@ func (ss *serviceSuite) TestInjectFailsIfBadArgs(c *C) {
 		{[]interface{}{1, "2"}, BadArgType},
 		{[]interface{}{1, 2, 3}, BadArgCount},
 	} {
-		reg, err := new(Service).Inject(s.args, nil)
+		reg, err := new(Service).inject(s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
@@ -179,7 +179,7 @@ func (ss *serviceSuite) TestInjectFailsIfBadArgs(c *C) {
 // Notifications tests
 func (ss *serviceSuite) TestNotificationsWorks(c *C) {
 	svc := NewService(ss.bus, ss.log)
-	nots, err := svc.Notifications([]interface{}{"hello"}, nil)
+	nots, err := svc.notifications([]interface{}{"hello"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(nots, NotNil)
 	c.Assert(nots, HasLen, 1)
@@ -188,7 +188,7 @@ func (ss *serviceSuite) TestNotificationsWorks(c *C) {
 		svc.mbox = make(map[string][]string)
 	}
 	svc.mbox["hello"] = append(svc.mbox["hello"], "this", "thing")
-	nots, err = svc.Notifications([]interface{}{"hello"}, nil)
+	nots, err = svc.notifications([]interface{}{"hello"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(nots, NotNil)
 	c.Assert(nots, HasLen, 1)
@@ -205,7 +205,7 @@ func (ss *serviceSuite) TestNotificationsFailsIfBadArgs(c *C) {
 		{[]interface{}{42}, BadArgType},    // bad arg type
 		{[]interface{}{1, 2}, BadArgCount}, // too many args
 	} {
-		reg, err := new(Service).Notifications(s.args, nil)
+		reg, err := new(Service).notifications(s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}

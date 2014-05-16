@@ -71,9 +71,9 @@ func (svc *Service) Start() error {
 		}
 	}()
 	svc.Bus.WatchMethod(bus.DispatchMap{
-		"Register":      svc.Register,
-		"Notifications": svc.Notifications,
-		"Inject":        svc.Inject,
+		"Register":      svc.register,
+		"Notifications": svc.notifications,
+		"Inject":        svc.inject,
 	}, svc)
 	svc.state = StateRunning
 	return nil
@@ -93,7 +93,7 @@ var (
 	BadArgType  = errors.New("Bad argument type")
 )
 
-func (svc *Service) Register(args []interface{}, _ []interface{}) ([]interface{}, error) {
+func (svc *Service) register(args []interface{}, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 1 {
 		return nil, BadArgCount
 	}
@@ -110,7 +110,7 @@ func (svc *Service) Register(args []interface{}, _ []interface{}) ([]interface{}
 	return []interface{}{rv}, nil
 }
 
-func (svc *Service) Notifications(args []interface{}, _ []interface{}) ([]interface{}, error) {
+func (svc *Service) notifications(args []interface{}, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 1 {
 		return nil, BadArgCount
 	}
@@ -131,7 +131,7 @@ func (svc *Service) Notifications(args []interface{}, _ []interface{}) ([]interf
 	return []interface{}{msgs}, nil
 }
 
-func (svc *Service) Inject(args []interface{}, _ []interface{}) ([]interface{}, error) {
+func (svc *Service) inject(args []interface{}, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 2 {
 		return nil, BadArgCount
 	}
