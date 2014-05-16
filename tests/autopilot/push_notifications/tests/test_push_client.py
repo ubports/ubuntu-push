@@ -10,6 +10,7 @@
 from testtools.matchers import Equals
 from push_notifications.tests import PushNotificationTestBase
 from autopilot.introspection import dbus
+import time
 
 
 class TestPushClient(PushNotificationTestBase):
@@ -36,7 +37,9 @@ class TestPushClient(PushNotificationTestBase):
 
     def _validate_notification_not_displayed(self, wait=True):
         """
-        Validate that the notification is not displayed in the given timeout
+        Validate that the notification is not displayed
+        If wait is True then wait for default timeout period
+        If wait is False then do not wait at all
         """
         found = True
         try:
@@ -51,6 +54,10 @@ class TestPushClient(PushNotificationTestBase):
         self.assertFalse(found)
 
     def _send_valid_push_message(self):
+        """
+        Send a valid push message which should trigger a notification
+        to be displayed on the client
+        """
         # create a copy of the device's build info
         msg_data = self.create_notification_data_copy()
         # increment the build number to trigger an update
@@ -62,11 +69,39 @@ class TestPushClient(PushNotificationTestBase):
             msg.json(), self.test_config.server_listener_addr)
         self._validate_response(response)
 
+    def _validate_and_dismiss_notification_dialog(self, message):
+        """
+        Validate a notification dialog is displayed and dismiss it
+        """
+        # validate dialog
+        dialog = self._validate_notification_displayed(message)
+        # press dialog to dismiss
+        self._press_notification_dialog(dialog)
+        # check the dialog is no longer displayed
+        self._validate_notification_not_displayed(wait=False)
+
     def _press_notification_dialog(self, dialog):
         """
         Press the dialog to dismiss it
         """
         self.touch.tap_object(dialog)
+
+    def test_broadcast_push_notification_screen_off(self):
+        """
+        Send a push message whilst the device's screen is turned off
+        Notification should still be displayed when it is turned on
+        """
+        # Turn display off
+        self.press_power_button()
+        # send message
+        self._send_valid_push_message()
+        # wait before turning screen on
+        time.sleep(5)
+        # Turn display on
+        self.press_power_button()
+
+        self._validate_and_dismiss_notification_dialog(
+            self.DEFAULT_DISPLAY_MESSAGE)
 
     def test_broadcast_push_notification_locked_greeter(self):
         """
@@ -75,15 +110,9 @@ class TestPushClient(PushNotificationTestBase):
         whist the greeter screen is displayed
         """
         # Assumes greeter starts in locked state
-        # send message
         self._send_valid_push_message()
-        # validate dialog
-        dialog = self._validate_notification_displayed(
+        self._validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
-        # press dialog to dismiss
-        self._press_notification_dialog(dialog)
-        # check the dialog is no longer displayed
-        self._validate_notification_not_displayed(wait=False)
 
     def test_broadcast_push_notification(self):
         """
@@ -94,13 +123,8 @@ class TestPushClient(PushNotificationTestBase):
         self.unlock_greeter()
         # send message
         self._send_valid_push_message()
-        # validate dialog
-        dialog = self._validate_notification_displayed(
+        self._validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
-        # press dialog to dismiss
-        self._press_notification_dialog(dialog)
-        # check the dialog is no longer displayed
-        self._validate_notification_not_displayed(wait=False)
 
     def test_expired_broadcast_push_notification(self):
         """
