@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -90,7 +91,11 @@ type PushClient struct {
 	service            *service.Service
 }
 
-var ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
+var (
+	system_update_url   = "settings:///system/system-update"
+	ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
+	ACTION_ID_BROADCAST = ACTION_ID_SNOWFLAKE + system_update_url
+)
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
@@ -291,26 +296,30 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 	return false
 }
 
+func (client *PushClient) sendNotification(action_id, icon, summary, body string) (uint32, error) {
+	a := []string{action_id, "Switch to app"} // action value not visible on the phone
+	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
+	nots := notifications.Raw(client.notificationsEndp, client.log)
+	return nots.Notify(
+		"ubuntu-push-client", // app name
+		uint32(0),            // id
+		icon,                 // icon
+		summary,              // summary
+		body,                 // body
+		a,                    // actions
+		h,                    // hints
+		int32(10*1000),       // timeout (ms)
+	)
+}
+
 // handleBroadcastNotification deals with receiving a broadcast notification
 func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
 	if !client.filterBroadcastNotification(msg) {
 		return nil
 	}
-	action_id := ACTION_ID_SNOWFLAKE
-	a := []string{action_id, "Go get it!"} // action value not visible on the phone
-	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
-	nots := notifications.Raw(client.notificationsEndp, client.log)
-	body := "Tap to open the system updater."
-	not_id, err := nots.Notify(
-		"ubuntu-push-client",               // app name
-		uint32(0),                          // id
-		"update_manager_icon",              // icon
-		"There's an updated system image.", // summary
-		body,           // body
-		a,              // actions
-		h,              // hints
-		int32(10*1000), // timeout (ms)
-	)
+	not_id, err := client.sendNotification(ACTION_ID_BROADCAST,
+		"update_manager_icon", "There's an updated system image.",
+		"Tap to open the system updater.")
 	if err != nil {
 		client.log.Errorf("showing notification: %s", err)
 		return err
@@ -322,17 +331,25 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.service.Inject(msg.AppId, string(msg.Payload))
+	return client.service.Inject(msg.AppId, msg.Payload)
 }
 
 // handleClick deals with the user clicking a notification
 func (client *PushClient) handleClick(action_id string) error {
-	if action_id != ACTION_ID_SNOWFLAKE {
+	// “The string is a stark data structure and everywhere it is passed
+	// there is much duplication of process. It is a perfect vehicle for
+	// hiding information.”
+	//
+	// From ACM's SIGPLAN publication, (September, 1982), Article
+	// "Epigrams in Programming", by Alan J. Perlis of Yale University.
+	url := strings.TrimPrefix(action_id, ACTION_ID_SNOWFLAKE)
+	if len(url) == len(action_id) || len(url) == 0 {
+		// it didn't start with the prefix
 		return nil
 	}
 	// it doesn't get much simpler...
 	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
-	return urld.DispatchURL("settings:///system/system-update")
+	return urld.DispatchURL(url)
 }
 
 // doLoop connects events with their handlers
@@ -375,12 +392,42 @@ func (client *PushClient) Loop() {
 		client.handleErr)
 }
 
+// these are the currently supported fields of a unicast message
+type UnicastMessage struct {
+	Icon    string          `json:"icon"`
+	Body    string          `json:"body"`
+	Summary string          `json:"summary"`
+	URL     string          `json:"url"`
+	Blob    json.RawMessage `json:"blob"`
+}
+
+func (client *PushClient) messageHandler(message []byte) error {
+	var umsg = new(UnicastMessage)
+	err := json.Unmarshal(message, &umsg)
+	if err != nil {
+		client.log.Errorf("unable to unmarshal message: %v", err)
+		return err
+	}
+
+	not_id, err := client.sendNotification(
+		ACTION_ID_SNOWFLAKE+umsg.URL,
+		umsg.Icon, umsg.Summary, umsg.Body)
+
+	if err != nil {
+		client.log.Errorf("showing notification: %s", err)
+		return err
+	}
+	client.log.Debugf("got notification id %d", not_id)
+	return nil
+}
+
 func (client *PushClient) startService() error {
 	if client.serviceEndpoint == nil {
 		client.serviceEndpoint = bus.SessionBus.Endpoint(service.BusAddress, client.log)
 	}
 
 	client.service = service.NewService(client.serviceEndpoint, client.log)
+	client.service.SetMessageHandler(client.messageHandler)
 	return client.service.Start()
 }
 

@@ -29,11 +29,12 @@ import (
 
 // Service is the dbus api
 type Service struct {
-	lock  sync.RWMutex
-	state ServiceState
-	mbox  map[string][]string
-	Log   logger.Logger
-	Bus   bus.Endpoint
+	lock       sync.RWMutex
+	state      ServiceState
+	mbox       map[string][][]byte
+	msgHandler func([]byte) error
+	Log        logger.Logger
+	Bus        bus.Endpoint
 }
 
 // the service can be in a numnber of states
@@ -58,6 +59,20 @@ var (
 // NewService() builds a new service and returns it.
 func NewService(bus bus.Endpoint, log logger.Logger) *Service {
 	return &Service{Log: log, Bus: bus}
+}
+
+// SetMessageHandler() sets the message-handling callback
+func (svc *Service) SetMessageHandler(callback func([]byte) error) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	svc.msgHandler = callback
+}
+
+// GetMessageHandler() returns the (possibly nil) messaging handler callback
+func (svc *Service) GetMessageHandler() func([]byte) error {
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
+	return svc.msgHandler
 }
 
 // IsRunning() returns whether the service's state is StateRunning
@@ -169,20 +184,28 @@ func (svc *Service) inject(args []interface{}, _ []interface{}) ([]interface{}, 
 		return nil, BadArgType
 	}
 
-	svc.Inject(appname, notif)
+	svc.Inject(appname, []byte(notif))
 
 	return nil, nil
 }
 
 // Inject() signals to an application over dbus that a notification
 // has arrived.
-func (svc *Service) Inject(appname string, notif string) error {
+func (svc *Service) Inject(appname string, notif []byte) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
-		svc.mbox = make(map[string][]string)
+		svc.mbox = make(map[string][][]byte)
 	}
 	svc.mbox[appname] = append(svc.mbox[appname], notif)
+	if svc.msgHandler != nil {
+		err := svc.msgHandler(notif)
+		if err != nil {
+			svc.Log.Errorf("msgHandler returned %v", err)
+			return err
+		}
+		svc.Log.Debugf("call to msgHandler successful")
+	}
 
 	return svc.Bus.Signal("Notification", []interface{}{appname})
 }

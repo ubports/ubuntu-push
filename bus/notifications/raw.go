@@ -22,6 +22,8 @@ package notifications
 // this is the lower-level api
 
 import (
+	"errors"
+
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/logger"
@@ -68,6 +70,9 @@ func (raw *RawNotifications) Notify(
 	timeout int32) (uint32, error) {
 	// that's a long argument list! Take a breather.
 	//
+	if raw.bus == nil {
+		return 0, errors.New("unconfigured (missing bus)")
+	}
 	var res uint32
 	err := raw.bus.Call("Notify", bus.Args(app_name, reuse_id, icon,
 		summary, body, actions, hints, timeout), &res)

@@ -299,6 +299,7 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	c.Check(cli.startService(), IsNil)
 	c.Assert(cli.service, NotNil)
 	c.Check(cli.service.IsRunning(), Equals, true)
+	c.Check(cli.service.GetMessageHandler(), NotNil)
 	cli.service.Stop()
 }
 
@@ -641,17 +642,19 @@ func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
     handleUnicastNotification tests
 ******************************************************************/
 
-var notif = &protocol.Notification{AppId: "hello", Payload: []byte("loaded"), MsgId: "42"}
+var notif = &protocol.Notification{AppId: "hello", Payload: []byte(`{"url": "xyzzy"}`), MsgId: "42"}
 
 func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+	svcEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	cli.log = cs.log
-	cli.serviceEndpoint = endp
+	cli.serviceEndpoint = svcEndp
+	notsEndp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	cli.notificationsEndp = notsEndp
 	c.Assert(cli.startService(), IsNil)
 	c.Check(cli.handleUnicastNotification(notif), IsNil)
 	// check we sent the notification
-	args := testibus.GetCallArgs(endp)
+	args := testibus.GetCallArgs(svcEndp)
 	c.Assert(len(args), Not(Equals), 0)
 	c.Check(args[len(args)-1].Member, Equals, "::Signal")
 	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "hello".*`)
@@ -672,12 +675,19 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 0)
 	// check we worked with the right action id
-	c.Check(cli.handleClick(ACTION_ID_SNOWFLAKE), IsNil)
+	c.Check(cli.handleClick(ACTION_ID_BROADCAST), IsNil)
 	// check we sent the notification
 	args = testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
-	c.Check(args[0].Args, DeepEquals, []interface{}{"settings:///system/system-update"})
+	c.Check(args[0].Args, DeepEquals, []interface{}{system_update_url})
+	// check we worked with the right action id
+	c.Check(cli.handleClick(ACTION_ID_SNOWFLAKE+"foo"), IsNil)
+	// check we sent the notification
+	args = testibus.GetCallArgs(endp)
+	c.Assert(args, HasLen, 2)
+	c.Check(args[1].Member, Equals, "DispatchURL")
+	c.Check(args[1].Args, DeepEquals, []interface{}{"foo"})
 }
 
 /*****************************************************************
@@ -819,7 +829,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
 
 	//  * actionsCh to the click handler/url dispatcher
-	aCh <- notifications.RawActionReply{ActionId: ACTION_ID_SNOWFLAKE}
+	aCh <- notifications.RawActionReply{ActionId: ACTION_ID_BROADCAST}
 	tick()
 	uargs := testibus.GetCallArgs(cli.urlDispatcherEndp)
 	c.Assert(uargs, HasLen, 1)
@@ -888,7 +898,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and now everthing is better! We have a config,
 	c.Check(string(cli.config.Addr), Equals, ":0")
 	// and a device id,
-	c.Check(cli.deviceId, HasLen, 128)
+	c.Check(cli.deviceId, HasLen, 40)
 	// and a session,
 	c.Check(cli.session, NotNil)
 	// and a bus,
@@ -905,4 +915,39 @@ func (cs *clientSuite) TestStartCanFail(c *C) {
 	err := cli.Start()
 	// and it works. Err. Doesn't.
 	c.Check(err, NotNil)
+}
+
+func (cs *clientSuite) TestMessageHandler(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	cli.notificationsEndp = endp
+	cli.log = cs.log
+	err := cli.messageHandler([]byte(`{"icon": "icon-value", "summary": "summary-value", "body": "body-value"}`))
+	c.Assert(err, IsNil)
+	args := testibus.GetCallArgs(endp)
+	c.Assert(args, HasLen, 1)
+	c.Check(args[0].Member, Equals, "Notify")
+	c.Check(args[0].Args[0], Equals, "ubuntu-push-client")
+	c.Check(args[0].Args[2], Equals, "icon-value")
+	c.Check(args[0].Args[3], Equals, "summary-value")
+	c.Check(args[0].Args[4], Equals, "body-value")
+}
+
+func (cs *clientSuite) TestMessageHandlerReportsUnmarshalErrors(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+
+	err := cli.messageHandler([]byte(`{"broken`))
+	c.Check(err, NotNil)
+	c.Check(cs.log.Captured(), Matches, "(?msi).*unable to unmarshal message:.*")
+}
+
+func (cs *clientSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
+	cli.notificationsEndp = endp
+	cli.log = cs.log
+	err := cli.messageHandler([]byte(`{}`))
+	c.Assert(err, NotNil)
+	c.Check(cs.log.Captured(), Matches, "(?msi).*showing notification: no way$")
 }
