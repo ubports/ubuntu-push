@@ -61,6 +61,8 @@ type ClientConfig struct {
 	ExpectAllRepairedTime  config.ConfigTimeDuration `json:"expect_all_repaired"` // worth retrying all servers after
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
+	// How to invoke the auth helper
+	AuthHelper []string `json:"auth_helper"`
 	// The logging level (one of "debug", "info", "error")
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
 }
@@ -151,8 +153,9 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		ExchangeTimeout:        client.config.ExchangeTimeout.TimeDuration(),
 		HostsCachingExpiryTime: client.config.HostsCachingExpiryTime.TimeDuration(),
 		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
-		PEM:  client.pem,
-		Info: info,
+		PEM:        client.pem,
+		Info:       info,
+		AuthHelper: client.config.AuthHelper,
 	}
 }
 
