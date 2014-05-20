@@ -681,6 +681,13 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Check(args[0].Args, DeepEquals, []interface{}{"settings:///system/system-update"})
+	// check we worked with the right action id
+	c.Check(cli.handleClick(ACTION_ID_SNOWFLAKE+"foo"), IsNil)
+	// check we sent the notification
+	args = testibus.GetCallArgs(endp)
+	c.Assert(args, HasLen, 2)
+	c.Check(args[1].Member, Equals, "DispatchURL")
+	c.Check(args[1].Args, DeepEquals, []interface{}{"foo"})
 }
 
 /*****************************************************************
