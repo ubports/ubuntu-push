@@ -173,6 +173,40 @@ func (s *configSuite) TestReadFilesErrors(c *C) {
 	c.Check(err, NotNil)
 }
 
+type testConfig2 struct {
+	A int
+	B string
+	C []string `json:"c_list"`
+	D ConfigTimeDuration
+}
+
+func (s *configSuite) TestReadFilesDefaults(c *C) {
+	var cfg testConfig2
+	tmpDir := c.MkDir()
+	emptyCfgPath := filepath.Join(tmpDir, "e.json")
+	err := ioutil.WriteFile(emptyCfgPath, []byte("{}"), os.ModePerm)
+	c.Assert(err, IsNil)
+	err = ReadFilesDefaults(&cfg, map[string]interface{}{
+		"a":      42,
+		"b":      "foo",
+		"c_list": []string{"bar", "baz"},
+		"d":      "3s",
+	}, emptyCfgPath)
+	c.Check(err, IsNil)
+	c.Check(cfg.A, Equals, 42)
+	c.Check(cfg.B, Equals, "foo")
+	c.Check(cfg.C, DeepEquals, []string{"bar", "baz"})
+	c.Check(cfg.D.TimeDuration(), Equals, 3*time.Second)
+}
+
+func (s *configSuite) TestReadFilesDefaultsError(c *C) {
+	var cfg testConfig2
+	err := ReadFilesDefaults(&cfg, map[string]interface{}{
+		"a": make(chan int),
+	})
+	c.Assert(err, NotNil)
+}
+
 type B struct {
 	BFld int
 }
@@ -191,13 +225,6 @@ func (s *configSuite) TestTraverseStruct(c *C) {
 		i++
 	}
 	c.Check(a, DeepEquals, A{1, B{2}, 0})
-}
-
-type testConfig2 struct {
-	A int
-	B string
-	C []string `json:"c_list"`
-	D ConfigTimeDuration
 }
 
 func (s *configSuite) TestCompareConfig(c *C) {
@@ -304,6 +331,7 @@ func (s *configFlagsSuite) TestReadFilesAndFlagsConfigAtSupport(c *C) {
 	c.Check(cfg.A, Equals, 42)
 	c.Check(cfg.B, Equals, "x")
 	c.Check(cfg.C, DeepEquals, []string{"y", "z"})
+	c.Check(flag.Lookup("cfg@").Value.String(), Equals, cfgPath)
 }
 
 func (s *configFlagsSuite) TestReadUsingFlagsHelp(c *C) {

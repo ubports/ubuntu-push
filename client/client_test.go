@@ -106,6 +106,7 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"addr":            ":0",
 		"cert_pem_file":   pem_file,
 		"recheck_timeout": "3h",
+		"auth_helper":     []string{},
 		"log_level":       "debug",
 	}
 	for k, v := range overrides {
@@ -255,6 +256,9 @@ func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"auth_helper": []string{"auth", "helper"},
+	})
 	info := map[string]interface{}{
 		"foo": 1,
 	}
@@ -268,7 +272,7 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExpectAllRepairedTime:  30 * time.Minute,
 		PEM:        cli.pem,
 		Info:       info,
-		AuthHelper: []string{},
+		AuthHelper: []string{"auth", "helper"},
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)
@@ -278,8 +282,6 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		// field isn't empty/zero
 		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
 	}
-	// but AuthHelper really should be nil for now
-	expected.AuthHelper = nil
 	// finally compare
 	conf := cli.deriveSessionConfig(info)
 	c.Check(conf, DeepEquals, expected)
@@ -324,7 +326,7 @@ func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 	cli.idder = identifier.New()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), IsNil)
-	c.Check(cli.deviceId, HasLen, 128)
+	c.Check(cli.deviceId, HasLen, 40)
 }
 
 func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
@@ -333,6 +335,16 @@ func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
 	cli.idder = idtesting.Failing()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), NotNil)
+}
+
+func (cs *clientSuite) TestGetDeviceIdWhoopsieDoesTheUnexpected(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	settable := idtesting.Settable()
+	cli.idder = settable
+	settable.Set("not-hex")
+	c.Check(cli.deviceId, Equals, "")
+	c.Check(cli.getDeviceId(), ErrorMatches, "whoopsie id should be hex: .*")
 }
 
 /*****************************************************************
@@ -879,7 +891,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and now everthing is better! We have a config,
 	c.Check(string(cli.config.Addr), Equals, ":0")
 	// and a device id,
-	c.Check(cli.deviceId, HasLen, 128)
+	c.Check(cli.deviceId, HasLen, 40)
 	// and a session,
 	c.Check(cli.session, NotNil)
 	// and a bus,

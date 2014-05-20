@@ -18,13 +18,11 @@ package suites
 
 import (
 	"encoding/json"
-	//"fmt"
-	//"strings"
-	//"time"
+	"fmt"
+	"strings"
 
 	. "launchpad.net/gocheck"
 
-	//"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/api"
 )
 
@@ -111,6 +109,40 @@ func (s *UnicastAcceptanceSuite) TestUnicastPending(c *C) {
 	// get pending on connect
 	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth)
 	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"a":42};`)
+	stop()
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}
+
+func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
+	userId, auth := s.associatedAuth("DEV2")
+	// send bunch of unicasts that will be pending
+	payloadFmt := fmt.Sprintf(`{"serial":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
+	for i := 0; i < 32; i++ {
+		got, err := s.PostRequest("/notify", &api.Unicast{
+			UserId:   userId,
+			DeviceId: "DEV2",
+			AppId:    "app1",
+			ExpireOn: future,
+			Data:     json.RawMessage(fmt.Sprintf(payloadFmt, i)),
+		})
+		c.Assert(err, IsNil)
+		c.Assert(got, Matches, ".*ok.*")
+	}
+
+	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
+	// gettting pending on connect
+	n := 0
+	for {
+		evt := NextEvent(events, errCh)
+		c.Check(evt, Matches, "unicast app:app1 .*")
+		n += 1
+		if strings.Contains(evt, `"serial":31`) {
+			break
+		}
+	}
+	// was split
+	c.Check(n > 1, Equals, true)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
