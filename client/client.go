@@ -91,7 +91,11 @@ type PushClient struct {
 	service            *service.Service
 }
 
-var ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
+var (
+	system_update_url   = "settings:///system/system-update"
+	ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
+	ACTION_ID_BROADCAST = ACTION_ID_SNOWFLAKE + system_update_url
+)
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
@@ -313,7 +317,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 	if !client.filterBroadcastNotification(msg) {
 		return nil
 	}
-	not_id, err := client.sendNotification(ACTION_ID_SNOWFLAKE,
+	not_id, err := client.sendNotification(ACTION_ID_BROADCAST,
 		"update_manager_icon", "There's an updated system image.",
 		"Tap to open the system updater.")
 	if err != nil {
@@ -339,12 +343,9 @@ func (client *PushClient) handleClick(action_id string) error {
 	// From ACM's SIGPLAN publication, (September, 1982), Article
 	// "Epigrams in Programming", by Alan J. Perlis of Yale University.
 	url := strings.TrimPrefix(action_id, ACTION_ID_SNOWFLAKE)
-	if len(url) == len(action_id) {
+	if len(url) == len(action_id) || len(url) == 0 {
 		// it didn't start with the prefix
 		return nil
-	}
-	if len(url) == 0 {
-		url = "settings:///system/system-update"
 	}
 	// it doesn't get much simpler...
 	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
@@ -397,8 +398,7 @@ type UnicastMessage struct {
 	Body    string          `json:"body"`
 	Summary string          `json:"summary"`
 	URL     string          `json:"url"`
-	AppId   string          `json:"app_id"`
-	Payload json.RawMessage `json:"payload"`
+	Blob    json.RawMessage `json:"blob"`
 }
 
 func (client *PushClient) messageHandler(message []byte) error {

@@ -675,12 +675,12 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 0)
 	// check we worked with the right action id
-	c.Check(cli.handleClick(ACTION_ID_SNOWFLAKE), IsNil)
+	c.Check(cli.handleClick(ACTION_ID_BROADCAST), IsNil)
 	// check we sent the notification
 	args = testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
-	c.Check(args[0].Args, DeepEquals, []interface{}{"settings:///system/system-update"})
+	c.Check(args[0].Args, DeepEquals, []interface{}{system_update_url})
 	// check we worked with the right action id
 	c.Check(cli.handleClick(ACTION_ID_SNOWFLAKE+"foo"), IsNil)
 	// check we sent the notification
@@ -829,7 +829,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
 
 	//  * actionsCh to the click handler/url dispatcher
-	aCh <- notifications.RawActionReply{ActionId: ACTION_ID_SNOWFLAKE}
+	aCh <- notifications.RawActionReply{ActionId: ACTION_ID_BROADCAST}
 	tick()
 	uargs := testibus.GetCallArgs(cli.urlDispatcherEndp)
 	c.Assert(uargs, HasLen, 1)
