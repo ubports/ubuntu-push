@@ -17,6 +17,7 @@
 package service
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -145,8 +146,8 @@ func (ss *serviceSuite) TestInjectWorks(c *C) {
 	c.Check(rvs, IsNil)
 	c.Assert(svc.mbox, HasLen, 1)
 	c.Assert(svc.mbox["hello"], HasLen, 2)
-	c.Check(svc.mbox["hello"][0], Equals, "world")
-	c.Check(svc.mbox["hello"][1], Equals, "there")
+	c.Check(svc.mbox["hello"][0], DeepEquals, []byte("world"))
+	c.Check(svc.mbox["hello"][1], DeepEquals, []byte("there"))
 
 	// and check it fired the right signal (twice)
 	callArgs := testibus.GetCallArgs(ss.bus)
@@ -185,14 +186,14 @@ func (ss *serviceSuite) TestNotificationsWorks(c *C) {
 	c.Assert(nots, HasLen, 1)
 	c.Check(nots[0], HasLen, 0)
 	if svc.mbox == nil {
-		svc.mbox = make(map[string][]string)
+		svc.mbox = make(map[string][][]byte)
 	}
-	svc.mbox["hello"] = append(svc.mbox["hello"], "this", "thing")
+	svc.mbox["hello"] = append(svc.mbox["hello"], []byte("this"), []byte("thing"))
 	nots, err = svc.notifications([]interface{}{"hello"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(nots, NotNil)
 	c.Assert(nots, HasLen, 1)
-	c.Check(nots[0], DeepEquals, []string{"this", "thing"})
+	c.Check(nots[0], DeepEquals, [][]byte{[]byte("this"), []byte("thing")})
 }
 
 func (ss *serviceSuite) TestNotificationsFailsIfBadArgs(c *C) {
@@ -209,4 +210,29 @@ func (ss *serviceSuite) TestNotificationsFailsIfBadArgs(c *C) {
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
+}
+
+func (ss *serviceSuite) TestMessageHandler(c *C) {
+	svc := new(Service)
+	c.Assert(svc.msgHandler, IsNil)
+	var ext = []byte{}
+	e := errors.New("Hello")
+	f := func(s []byte) error { ext = s; return e }
+	c.Check(svc.GetMessageHandler(), IsNil)
+	svc.SetMessageHandler(f)
+	c.Check(svc.GetMessageHandler(), NotNil)
+	c.Check(svc.msgHandler([]byte("37")), Equals, e)
+	c.Check(ext, DeepEquals, []byte("37"))
+}
+
+func (ss *serviceSuite) TestInjectCallsMessageHandler(c *C) {
+	var ext = []byte{}
+	svc := NewService(ss.bus, ss.log)
+	f := func(s []byte) error { ext = s; return nil }
+	svc.SetMessageHandler(f)
+	c.Check(svc.Inject("stuff", []byte("{}")), IsNil)
+	c.Check(ext, DeepEquals, []byte("{}"))
+	err := errors.New("ouch")
+	svc.SetMessageHandler(func([]byte) error { return err })
+	c.Check(svc.Inject("stuff", []byte("{}")), Equals, err)
 }
