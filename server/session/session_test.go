@@ -216,11 +216,6 @@ func (s *sessionSuite) TestSessionStartMismatch(c *C) {
 	c.Check(err, DeepEquals, &broker.ErrAbort{"expected CONNECT message"})
 }
 
-var cfg5msPingInterval2msExchangeTout = &testSessionConfig{
-	pingInterval:    5 * time.Millisecond,
-	exchangeTimeout: 2 * time.Millisecond,
-}
-
 func (s *sessionSuite) TestSessionLoop(c *C) {
 	track := &testTracker{NewTracker(s.testlog), make(chan interface{}, 2)}
 	errCh := make(chan error, 1)
@@ -229,21 +224,26 @@ func (s *sessionSuite) TestSessionLoop(c *C) {
 	tp := &testProtocol{up, down}
 	sess := &testing.TestBrokerSession{}
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, track)
+		errCh <- sessionLoop(tp, sess, cfg10msPingInterval5msExchangeTout, track)
 	}()
-	c.Check(takeNext(down), Equals, "deadline 2ms")
+	c.Check(takeNext(down), Equals, "deadline 5ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
 	up <- nil // no write error
 	up <- protocol.PingPongMsg{Type: "pong"}
-	c.Check(takeNext(down), Equals, "deadline 2ms")
+	c.Check(takeNext(down), Equals, "deadline 5ms")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
 	up <- nil // no write error
 	up <- io.ErrUnexpectedEOF
 	err := <-errCh
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
 	c.Check(track.interval, HasLen, 2)
-	c.Check((<-track.interval).(time.Duration) <= 8*time.Millisecond, Equals, true)
-	c.Check((<-track.interval).(time.Duration) <= 8*time.Millisecond, Equals, true)
+	c.Check((<-track.interval).(time.Duration) <= 16*time.Millisecond, Equals, true)
+	c.Check((<-track.interval).(time.Duration) <= 16*time.Millisecond, Equals, true)
+}
+
+var cfg5msPingInterval2msExchangeTout = &testSessionConfig{
+	pingInterval:    5 * time.Millisecond,
+	exchangeTimeout: 2 * time.Millisecond,
 }
 
 func (s *sessionSuite) TestSessionLoopWriteError(c *C) {
