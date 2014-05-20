@@ -69,7 +69,7 @@ func main() {
 	session := &acceptance.ClientSession{
 		ExchangeTimeout: cfg.ExchangeTimeout.TimeDuration(),
 		ServerAddr:      cfg.Addr.HostPort(),
-		DeviceId:        flag.Arg(1),
+		DeviceId:        flag.Arg(0),
 		// flags
 		Model:        *deviceModel,
 		ImageChannel: *imageChannel,
