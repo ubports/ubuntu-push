@@ -31,7 +31,7 @@ import (
 type Service struct {
 	lock       sync.RWMutex
 	state      ServiceState
-	mbox       map[string][][]byte
+	mbox       map[string][]string
 	msgHandler func([]byte) error
 	Log        logger.Logger
 	Bus        bus.Endpoint
@@ -184,9 +184,7 @@ func (svc *Service) inject(args []interface{}, _ []interface{}) ([]interface{}, 
 		return nil, BadArgType
 	}
 
-	svc.Inject(appname, []byte(notif))
-
-	return nil, nil
+	return nil, svc.Inject(appname, []byte(notif))
 }
 
 // Inject() signals to an application over dbus that a notification
@@ -195,9 +193,9 @@ func (svc *Service) Inject(appname string, notif []byte) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
-		svc.mbox = make(map[string][][]byte)
+		svc.mbox = make(map[string][]string)
 	}
-	svc.mbox[appname] = append(svc.mbox[appname], notif)
+	svc.mbox[appname] = append(svc.mbox[appname], string(notif))
 	if svc.msgHandler != nil {
 		err := svc.msgHandler(notif)
 		if err != nil {
