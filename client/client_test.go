@@ -106,6 +106,7 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"addr":            ":0",
 		"cert_pem_file":   pem_file,
 		"recheck_timeout": "3h",
+		"auth_helper":     []string{},
 		"log_level":       "debug",
 	}
 	for k, v := range overrides {
@@ -255,6 +256,9 @@ func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"auth_helper": []string{"auth", "helper"},
+	})
 	info := map[string]interface{}{
 		"foo": 1,
 	}
@@ -268,7 +272,7 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExpectAllRepairedTime:  30 * time.Minute,
 		PEM:        cli.pem,
 		Info:       info,
-		AuthHelper: []string{},
+		AuthHelper: []string{"auth", "helper"},
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)
@@ -278,8 +282,6 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		// field isn't empty/zero
 		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
 	}
-	// but AuthHelper really should be nil for now
-	expected.AuthHelper = nil
 	// finally compare
 	conf := cli.deriveSessionConfig(info)
 	c.Check(conf, DeepEquals, expected)
