@@ -239,9 +239,9 @@ func (ss *serviceSuite) TestInjectCallsMessageHandler(c *C) {
 	svc := NewService(ss.bus, ss.log)
 	f := func(s []byte) error { ext = s; return nil }
 	svc.SetMessageHandler(f)
-	c.Check(svc.Inject("stuff", []byte("{}")), IsNil)
+	c.Check(svc.Inject("stuff", "{}"), IsNil)
 	c.Check(ext, DeepEquals, []byte("{}"))
 	err := errors.New("ouch")
 	svc.SetMessageHandler(func([]byte) error { return err })
-	c.Check(svc.Inject("stuff", []byte("{}")), Equals, err)
+	c.Check(svc.Inject("stuff", "{}"), Equals, err)
 }
