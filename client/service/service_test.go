@@ -157,6 +157,15 @@ func (ss *serviceSuite) TestInjectWorks(c *C) {
 	c.Check(callArgs[1], DeepEquals, callArgs[0])
 }
 
+func (ss *serviceSuite) TestInjectFailsIfInjectFails(c *C) {
+	bus := testibus.NewTestingEndpoint(condition.Work(true),
+		condition.Work(false))
+	svc := NewService(bus, ss.log)
+	svc.SetMessageHandler(func([]byte) error { return errors.New("fail") })
+	_, err := svc.inject([]interface{}{"hello", "xyzzy"}, nil)
+	c.Check(err, NotNil)
+}
+
 func (ss *serviceSuite) TestInjectFailsIfBadArgs(c *C) {
 	for i, s := range []struct {
 		args []interface{}
