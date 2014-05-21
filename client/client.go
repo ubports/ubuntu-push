@@ -331,7 +331,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.service.Inject(msg.AppId, msg.Payload)
+	return client.service.Inject(msg.AppId, string(msg.Payload))
 }
 
 // handleClick deals with the user clicking a notification
