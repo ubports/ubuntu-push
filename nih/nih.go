@@ -41,22 +41,16 @@ func Quote(s []byte) []byte {
 
 func Unquote(s []byte) []byte {
 	out := make([]byte, 0, len(s))
-	is_quote := false
 
 	for i := 0; i < len(s); i++ {
-		if is_quote {
-			num, err := strconv.ParseUint(string(s[i:i+2]), 16, 8)
+		if s[i] == '_' {
+			num, err := strconv.ParseUint(string(s[i+1:i+3]), 16, 8)
 			if err == nil {
 				out = append(out, byte(num))
 			}
-			is_quote = false
-			i++
+			i += 2
 		} else {
-			if s[i] == '_' {
-				is_quote = true
-			} else {
-				out = append(out, s[i])
-			}
+			out = append(out, s[i])
 		}
 	}
 
