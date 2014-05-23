@@ -14,10 +14,16 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// package nih reimplements libnih-dbus's nih_dbus_path's path element
+// quoting.
+//
+// Reimplementing libnih is a wonderful exercise that everybody should persue
+// at least thrice.
 package nih
 
 import "strconv"
 
+// Quote() takes a byte slice and quotes it á la libnih.
 func Quote(s []byte) []byte {
 	if len(s) == 0 {
 		return []byte{'_'}
@@ -39,11 +45,15 @@ func Quote(s []byte) []byte {
 	return out
 }
 
+// Quote() takes a byte slice and undoes the damage done to it by the quoting.
 func Unquote(s []byte) []byte {
 	out := make([]byte, 0, len(s))
 
 	for i := 0; i < len(s); i++ {
 		if s[i] == '_' {
+			if len(s) < i+3 {
+				break
+			}
 			num, err := strconv.ParseUint(string(s[i+1:i+3]), 16, 8)
 			if err == nil {
 				out = append(out, byte(num))

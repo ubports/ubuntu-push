@@ -38,10 +38,20 @@ func (ns *nihSuite) TestQuote(c *C) {
 		{[]byte("test"), []byte("test")},
 		{[]byte("foo/bar.baz"), []byte("foo_2fbar_2ebaz")},
 		{[]byte("test_thing"), []byte("test_5fthing")},
-		{nil, []byte{'_'}},
+		{[]byte("\x01\x0f\x10\xff"), []byte("_01_0f_10_ff")},
+		{[]byte{}, []byte{'_'}},
 	} {
-		c.Check(string(s.quoted), Equals, cnih.Quote(s.raw), Commentf("iter %d", i))
-		c.Check(Quote(s.raw), DeepEquals, s.quoted, Commentf("iter %d", i))
-		c.Check(string(Quote(s.raw)), Equals, cnih.Quote(s.raw), Commentf("iter %d", i))
+		c.Check(string(s.quoted), Equals, cnih.Quote(s.raw), Commentf("iter %d (%s)", i, string(s.quoted)))
+		c.Check(string(Quote(s.raw)), DeepEquals, string(s.quoted), Commentf("iter %d (%s)", i, string(s.quoted)))
+		c.Check(Unquote(s.quoted), DeepEquals, s.raw, Commentf("iter %d (%s)", i, string(s.quoted)))
+		c.Check(string(Quote(s.raw)), Equals, cnih.Quote(s.raw), Commentf("iter %d (%s)", i, string(s.quoted)))
+	}
+
+	// check one cnih doesn't like
+	c.Check(Quote([]byte{0}), DeepEquals, []byte("_00"))
+
+	// check we don't panic with some weird ones
+	for i, s := range []string{"foo_", "foo_a", "foo_zz"} {
+		c.Check(Unquote([]byte(s)), DeepEquals, []byte("foo"), Commentf("iter %d (%s)", i, s))
 	}
 }
