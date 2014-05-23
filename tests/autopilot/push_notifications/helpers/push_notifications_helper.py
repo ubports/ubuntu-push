@@ -53,6 +53,7 @@ class PushClientController:
 
     PUSH_CLIENT_DEFAULT_CONFIG_FILE = '/etc/xdg/ubuntu-push-client/config.json'
     PUSH_CLIENT_CONFIG_FILE = '~/.config/ubuntu-push-client/config.json'
+    TEST_CERT_PATH = '../config/testing.cert'
 
     def restart_push_client_using_config(self, client_config=None):
         """
@@ -81,6 +82,8 @@ class PushClientController:
             config = json.load(config_file)
         # change server address
         config['addr'] = client_config.server_device_addr
+        # add certificate file
+        config['cert_pem_file'] = self._get_abs_test_cert_file_path()
         # write the config json out to the ~.local address
         abs_config_file = self._get_abs_local_config_file_path()
         config_dir = os.path.dirname(abs_config_file)
@@ -89,6 +92,12 @@ class PushClientController:
         with open(abs_config_file, 'w+') as outfile:
             json.dump(config, outfile, indent=4)
             outfile.close()
+
+    def _get_abs_test_cert_file_path(self):
+        """
+        Return absolut path of test certificate
+        """
+        return os.path.abspath(self.TEST_CERT_PATH)
 
     def _get_abs_local_config_file_path(self):
         """
