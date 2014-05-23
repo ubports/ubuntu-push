@@ -483,6 +483,11 @@ func (sess *ClientSession) loop() error {
 			err = sess.handleNotifications(&recv)
 		case "connbroken":
 			err = sess.handleConnBroken(&recv)
+		case "warn":
+			// XXX: current message "warn" should be "connwarn"
+			fallthrough
+		case "connwarn":
+			sess.Log.Errorf("server sent warning: %s", recv.Reason)
 		}
 		if err != nil {
 			return err
