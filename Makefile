@@ -18,8 +18,8 @@ TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|
 fetchdeps: .has-fetched-deps
 
 .has-fetched-deps: PACKAGE_DEPS
-	@touch $@
 	@$(MAKE) --no-print-directory refetchdeps
+	@touch $@
 
 refetchdeps:
 	sudo apt-get install $$( grep -v '^#' PACKAGE_DEPS )
