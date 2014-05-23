@@ -1,3 +1,4 @@
+# See the README for what this file is and how to use it.
 build-essential
 cmake
 libdbus-1-dev

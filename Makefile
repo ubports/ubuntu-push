@@ -22,7 +22,7 @@ fetchdeps: .has-fetched-deps
 	@$(MAKE) --no-print-directory refetchdeps
 
 refetchdeps:
-	sudo apt-get install $$( cat PACKAGE_DEPS )
+	sudo apt-get install $$( grep -v '^#' PACKAGE_DEPS )
 
 bootstrap:
 	$(RM) -r $(GOPATH)/pkg
