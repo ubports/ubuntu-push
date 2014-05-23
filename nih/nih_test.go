@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/nih/cnih"
 )
 
 func TestNIH(t *testing.T) { TestingT(t) }
@@ -38,8 +40,8 @@ func (ns *nihSuite) TestQuote(c *C) {
 		{[]byte("test_thing"), []byte("test_5fthing")},
 		{nil, []byte{'_'}},
 	} {
-		c.Check(string(s.quoted), Equals, cuote(s.raw), Commentf("iter %d", i))
+		c.Check(string(s.quoted), Equals, cnih.Quote(s.raw), Commentf("iter %d", i))
 		c.Check(Quote(s.raw), DeepEquals, s.quoted, Commentf("iter %d", i))
-		c.Check(string(Quote(s.raw)), Equals, cuote(s.raw), Commentf("iter %d", i))
+		c.Check(string(Quote(s.raw)), Equals, cnih.Quote(s.raw), Commentf("iter %d", i))
 	}
 }

@@ -1,4 +1,4 @@
-package nih
+package cnih
 
 /*
 #cgo pkg-config: dbus-1 libnih libnih-dbus
@@ -16,7 +16,7 @@ import (
 	"unsafe"
 )
 
-func cuote(s []byte) string {
+func Quote(s []byte) string {
 	cs := C.CString(string(s))
 	defer C.free(unsafe.Pointer(cs))
 

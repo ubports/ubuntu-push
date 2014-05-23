@@ -5,7 +5,7 @@ PROJECT=launchpad.net/ubuntu-push
 
 mktpl () {
     for f in GoFiles CgoFiles; do
-        echo -n '{{join .'$f' "\\n"}}'
+        echo '{{join .'$f' "\\n"}}'
     done
 }
 
