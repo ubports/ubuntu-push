@@ -21,3 +21,4 @@ signing-helper/moc_signing.cpp
 signing-helper/signing-helper
 signing-helper/signing-helper_automoc.cpp
 .has-fetched-deps
+.*.deps

@@ -44,8 +44,13 @@ acceptance:
 
 build-client: ubuntu-push-client signing-helper/signing-helper
 
+.%.deps: %
+	$(SH) scripts/deps.sh $<
+
 %: %.go
 	go build $<
+
+include .ubuntu-push-client.go.deps
 
 signing-helper/Makefile: signing-helper/CMakeLists.txt signing-helper/signing-helper.cpp signing-helper/signing.h
 	cd signing-helper && (make clean || true) && cmake .
