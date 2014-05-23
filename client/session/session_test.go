@@ -1045,6 +1045,31 @@ func (s *loopSuite) TestLoopConnBroken(c *C) {
 	c.Check(<-s.errCh, NotNil)
 }
 
+func (s *loopSuite) TestLoopConnWarn(c *C) {
+	warn := protocol.ConnWarnMsg{
+		Type:   "warn",
+		Reason: "XXX",
+	}
+	connwarn := protocol.ConnWarnMsg{
+		Type:   "connwarn",
+		Reason: "REASON",
+	}
+	failure := errors.New("warn")
+	log := s.sess.Log.(*helpers.TestLogger)
+
+	c.Check(s.sess.State(), Equals, Running)
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	log.ResetCapture()
+	s.upCh <- warn
+	s.upCh <- connwarn
+	s.upCh <- failure
+	c.Check(<-s.errCh, Equals, failure)
+	c.Check(log.Captured(),
+		Matches, `(?ms).* warning: XXX$.*`)
+	c.Check(log.Captured(),
+		Matches, `(?ms).* warning: REASON$`)
+}
+
 /****************************************************************
   start() tests
 ****************************************************************/
