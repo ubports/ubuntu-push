@@ -6,6 +6,7 @@ package cnih
 #include <nih/alloc.h>
 #include <libnih-dbus.h>
 
+// a small wrapper because cgo doesn't handle varargs
 char *cuote (const char *id) {
     return nih_dbus_path (NULL, "", id, NULL);
 }
