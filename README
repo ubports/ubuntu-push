@@ -6,17 +6,23 @@ Protocol, client, and development code for Ubuntu Push Notifications.
 The code expects to be checked out as launchpad.net/ubuntu-push in a Go
 workspace, see "go help gopath".
 
-To setup Go dependencies, install the following dependencies:
+You need a somewhat long list of dependencies, as well as a working Go
+development environment. THe Ubuntu packagenames for these are listed
+in the file PACKAGE_DEPS.
 
-               build-essential
-               libsqlite3-dev
+On Ubuntu, if you have sudo, you can have all those installed for you
+by do doing
 
-and run:
+    make fetchdeps
 
-   make bootstrap
+Once you have the packaged dependencies you can get the Go
+dependencies via
 
-To run tests, install libglib2.0-dev, libgcrypt11-dev, libwhoopsie-dev,
-and run:
+    make bootstrap
+
+and then you're set. Good luck!
+
+To run the tests:
 
    make check
 

@@ -15,6 +15,15 @@ GODEPS += launchpad.net/~ubuntu-push-hackers/ubuntu-push/go-uuid/uuid
 
 TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
 
+fetchdeps: .has-fetched-deps
+
+.has-fetched-deps: PACKAGE_DEPS
+	@$(MAKE) --no-print-directory refetchdeps
+	@touch $@
+
+refetchdeps:
+	sudo apt-get install $$( grep -v '^#' PACKAGE_DEPS )
+
 bootstrap:
 	$(RM) -r $(GOPATH)/pkg
 	mkdir -p $(GOPATH)/bin
@@ -35,8 +44,13 @@ acceptance:
 
 build-client: ubuntu-push-client signing-helper/signing-helper
 
+.%.deps: %
+	$(SH) scripts/deps.sh $<
+
 %: %.go
 	go build $<
+
+include .ubuntu-push-client.go.deps
 
 signing-helper/Makefile: signing-helper/CMakeLists.txt signing-helper/signing-helper.cpp signing-helper/signing.h
 	cd signing-helper && (make clean || true) && cmake .
@@ -78,4 +92,5 @@ protocol-diagrams: protocol/state-diag-client.svg protocol/state-diag-session.sv
 
 .PHONY: bootstrap check check-race format check-format \
 	acceptance build-client build server-dev run-server-dev \
-	coverage-summary coverage-html protocol-diagrams
+	coverage-summary coverage-html protocol-diagrams \
+	fetchdeps refetchdeps
