@@ -5,15 +5,15 @@
 # under the terms of the GNU General Public License version 3, as published
 # by the Free Software Foundation.
 
-"""Tests for Push Notifications client"""
+"""Tests broadcast push notifications sent to the client"""
 
 import time
 from push_notifications.tests import PushNotificationTestBase
 
 
-class TestPushClient(PushNotificationTestBase):
+class TestPushClientBroadcast(PushNotificationTestBase):
     """
-    Test cases for push notifications
+    Test cases for broadcast push notifications
     """
 
     def test_broadcast_push_notification_screen_off(self):
@@ -21,6 +21,7 @@ class TestPushClient(PushNotificationTestBase):
         Send a push message whilst the device's screen is turned off
         Notification should still be displayed when it is turned on
         """
+        # Assumes greeter starts in locked state
         # Turn display off
         self.press_power_button()
         # send message

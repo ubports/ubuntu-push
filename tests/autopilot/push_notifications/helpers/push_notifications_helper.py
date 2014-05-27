@@ -75,14 +75,15 @@ class PushClientController:
 
     def _write_client_test_config(self, client_config):
         """
-        Write the test server address to client config file
+        Write the test server address and certificate path
+        to client config file
         """
         # read the original push client config file
         with open(self.PUSH_CLIENT_DEFAULT_CONFIG_FILE) as config_file:
             config = json.load(config_file)
         # change server address
         config['addr'] = client_config.server_device_addr
-        # add certificate file
+        # add certificate file path
         config['cert_pem_file'] = push_config.get_cert_file()
         # write the config json out to the ~.local address
         # creating the directory if it doesn't already exist
