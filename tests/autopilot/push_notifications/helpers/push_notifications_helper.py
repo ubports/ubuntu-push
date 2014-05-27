@@ -17,6 +17,7 @@ from push_notifications.data import PushNotificationMessage
 from push_notifications.data import NotificationData
 from push_notifications import config as push_config
 
+
 class PushClientConfig:
     """
     Container class to read and hold all required server config
