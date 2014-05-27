@@ -14,7 +14,8 @@ from unity8.shell.tests import UnityTestCase
 import unity8.process_helpers as unity8_helpers
 from push_notifications import config as push_config
 import push_notifications.helpers.push_notifications_helper as push_helper
-from testtools.matchers import Equals
+from testtools.matchers import Equals, NotEquals
+from autopilot.matchers import Eventually
 from autopilot.introspection import dbus
 
 
@@ -90,16 +91,30 @@ class PushNotificationTestBase(UnityTestCase):
         """
         self.assertThat(response.status, Equals(expected_status_code))
 
-    def validate_notification_displayed(self,
-                                        msg_text=DEFAULT_DISPLAY_MESSAGE):
+    def _assert_notification_dialog(self, notification, summary=None, body=None,
+            icon=True, secondary_icon=False, opacity=None):
         """
-        Validate that the notification is displayed
-        Return the dialog object
+        Assert that the properties of the notification are as
+        expected
         """
-        dialog = self.main_window.wait_select_single(
-            'Notification', objectName='notification1')
-        self.assertEqual(msg_text, dialog.summary)
-        return dialog
+        if summary is not None:
+            self.assertThat(notification.summary, Eventually(Equals(summary)))
+        if body is not None:
+            self.assertThat(notification.body, Eventually(Equals(body)))
+        if opacity is not None:
+            self.assertThat(notification.opacity, Eventually(Equals(opacity)))
+
+        if icon:
+            self.assertThat(notification.iconSource, Eventually(NotEquals('')))
+        else:
+            self.assertThat(notification.iconSource, Eventually(Equals('')))
+
+        if secondary_icon:
+            self.assertThat(notification.secondaryIconSource,
+                Eventually(NotEquals('')))
+        else:
+            self.assertThat(notification.secondaryIconSource,
+                Eventually(Equals('')))
 
     def validate_notification_not_displayed(self, wait=True):
         """
@@ -135,12 +150,29 @@ class PushNotificationTestBase(UnityTestCase):
             msg.json(), self.test_config.server_listener_addr)
         self.validate_response(response)
 
+    def get_notification_dialog(self, wait=True):
+        """
+        Get the notification dialog being displaye on screen
+        If wait is True then wait for default timeout period
+        If wait is False then do not wait at all
+        """
+        if wait is True:
+            dialog = self.main_window.wait_select_single(
+                'Notification', objectName='notification1')
+        else:
+            dialog = self.main_window.select_single(
+                'Notification', objectName='notification1')
+        return dialog
+
     def validate_and_dismiss_notification_dialog(self, message):
         """
         Validate a notification dialog is displayed and dismiss it
         """
+        # get the dialog
+        dialog = self.get_notification_dialog()
         # validate dialog
-        dialog = self.validate_notification_displayed(message)
+        self._assert_notification_dialog(
+            dialog, summary=self.DEFAULT_DISPLAY_MESSAGE)
         # press dialog to dismiss
         self.press_notification_dialog(dialog)
         # check the dialog is no longer displayed
