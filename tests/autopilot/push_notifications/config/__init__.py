@@ -9,7 +9,6 @@
 import os
 
 CONFIG_FILE = 'push.conf'
-TESTING_CERT_FILE = 'testing.cert'
 
 
 def get_config_file():
@@ -20,9 +19,9 @@ def get_config_file():
     return os.path.join(config_dir, CONFIG_FILE)
 
 
-def get_cert_file():
+def get_cert_file(cert_file_name):
     """
     Return the path for the testing certificate file
     """
     config_dir = os.path.dirname(__file__)
-    return os.path.join(config_dir, TESTING_CERT_FILE)
+    return os.path.join(config_dir, cert_file_name)

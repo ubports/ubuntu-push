@@ -21,11 +21,15 @@ from push_notifications import config as push_config
 class PushClientConfig:
     """
     Container class to read and hold all required server config
+    - Server listener address
+    - Server device address
+    - Certificate PEM file path
     """
     KEY_ADDR = 'addr'
     KEY_LISTENER_PORT = 'listener_port'
     KEY_DEVICE_PORT = 'device_port'
     KEY_CONFIG = 'config'
+    KEY_CERT_PEM_FILE = 'cert_pem_file'
 
     def __init__(self, config_file_path):
         """
@@ -45,6 +49,9 @@ class PushClientConfig:
         addr_fmt = '{0}:{1}'
         self.server_listener_addr = addr_fmt.format(server_addr, listener_port)
         self.server_device_addr = addr_fmt.format(server_addr, device_port)
+        # get the absolute cert pem file path
+        self.cert_pem_file = push_config.get_cert_file(
+            parser[self.KEY_CONFIG][self.KEY_CERT_PEM_FILE])
 
 
 class PushClientController:
@@ -54,7 +61,6 @@ class PushClientController:
 
     PUSH_CLIENT_DEFAULT_CONFIG_FILE = '/etc/xdg/ubuntu-push-client/config.json'
     PUSH_CLIENT_CONFIG_FILE = '~/.config/ubuntu-push-client/config.json'
-    TEST_CERT_PATH = '../config/testing.cert'
 
     def restart_push_client_using_config(self, client_config=None):
         """
@@ -85,7 +91,7 @@ class PushClientController:
         # change server address
         config['addr'] = client_config.server_device_addr
         # add certificate file path
-        config['cert_pem_file'] = push_config.get_cert_file()
+        config['cert_pem_file'] = client_config.cert_pem_file
         # write the config json out to the ~.local address
         # creating the directory if it doesn't already exist
         abs_config_file = self._get_abs_local_config_file_path()

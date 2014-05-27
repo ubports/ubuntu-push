@@ -9,7 +9,6 @@
 
 
 import copy
-import time
 
 from unity8.shell.tests import UnityTestCase
 import unity8.process_helpers as unity8_helpers
@@ -79,26 +78,6 @@ class PushNotificationTestBase(UnityTestCase):
         uinput.write(evdev.ecodes.EV_KEY, evdev.ecodes.KEY_POWER, 0)
         uinput.syn()
 
-    def lock_greeter(self):
-        """
-        Lock the device to display greeter screen
-        """
-        print('locking delay...')
-        time.sleep(10)
-        print('Locking greeter')
-        #unity8_helpers.lock_unity(self.unity)
-        self.press_power_button()
-        print('screen should be off')
-        time.sleep(5)
-        print('turning on')
-        self.press_power_button()
-        print('screen should be on')
-        time.sleep(5)
-        print('Greeter should be locked')
-        greeter = self.main_window.get_greeter()
-        if not greeter.created:
-            raise RuntimeWarning('Greeter is not displayed')
-
     def unlock_greeter(self):
         """
         Unlock the greeter to display home screen
@@ -112,7 +91,7 @@ class PushNotificationTestBase(UnityTestCase):
         self.assertThat(response.status, Equals(expected_status_code))
 
     def validate_notification_displayed(self,
-                                         msg_text=DEFAULT_DISPLAY_MESSAGE):
+                                        msg_text=DEFAULT_DISPLAY_MESSAGE):
         """
         Validate that the notification is displayed
         Return the dialog object

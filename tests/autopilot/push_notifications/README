@@ -13,10 +13,7 @@ To configure and build the server:
 3) cd push/src/launchpad.net
 4) bzr branch lp:ubuntu-push
 5) Edit ubuntu-push/sampleconfigs/dev.json:
-	"addr": "192.168.1.2:9090",
-   The ip should be changed to match your current environment
-   - use 127.0.0.1 if the client is also going to be running on the same machine as the server
-   - use real ip address if the client is going to be running on a different machine on the same network
+    "addr": "192.168.1.2:9090",
 5) cd ubuntu-push
 6) make bootstrap
 7) make run-server-dev
@@ -28,36 +25,32 @@ To configure and build the server:
 To configure the client:
 ------------------------
 
-Note: Tests must be run as root user
-
-1) sudo apt-get install ubuntu-push-client
-2) bzr branch lp:ubuntu-push
-3) Edit ubuntu-push/tests/autopilot/push_notifications/config/push.conf:
-   [default]
-   environment = remote
-   [remote]
-   addr = 192.168.1.2
-   listener_port = 8080
-   device_port = 9090
-
-   The environment can be toggled using the 'environment' setting under [default] section. The addr and port settings for the chosen environment shold match required.
-
-4) cd ubuntu-push/tests/autopilot
-5) autopilot3 list push_notifications
-6) autopilot3 run push_notifications
+1) bzr branch lp:ubuntu-push
+2) Edit ip address and ports to match environment: ubuntu-push/tests/autopilot/push_notifications/config/push.conf:
+    [config]
+    addr = 192.168.1.2
+    listener_port = 8080
+    device_port = 9090
+    cert_pem_file = testing.cert
+3) cd ubuntu-push/tests/autopilot
+4) autopilot3 list push_notifications
+5) autopilot3 run push_notifications
 
 ----------------
 Troubleshooting:
 ----------------
 
 1) Ping from client to server to ensure connectivity is correct
-2) Delete .local/share/ubuntu-push-client/levels.db if no notifications are being displayed
-3) To send a notification manually:
+2) Delete ~/.local/share/ubuntu-push-client/levels.db if no notifications are being displayed:
+    rm ~/.local/share-ubuntu-push-client/levels.db
+3) Check client log file at ~/.cache/upstart/ubuntu-push-client.log:
+    tail -f --line=30 ~/.cache/upstart/ubuntu-push-client.log
+4) To send a notification manually:
      echo '{"channel":"system", "data": {"ubuntu-touch/trusty-proposed/mako": [297, ""]}, "expire_on": "2015-12-19T16:39:57-08:00"}' | POST -c application/json http://192.168.1.2:8080/broadcast
    Response should be:
      {"ok":true}
    Note that:
-     - The channel and device names must match the client. 
+     - The channel and device names must match the client.
      - The build number must be greater than current installed version in order to trigger an update message.
      - The expiration time must be in the future.
 

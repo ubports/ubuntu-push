@@ -27,11 +27,10 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # send message
         self.send_valid_push_message()
         # wait before turning screen on
+        # NOTE: If wait is 10 secs the notification is not displayed?
         time.sleep(2)
         # Turn display on
         self.press_power_button()
-        # wait to make sure dialog is displayed
-        time.sleep(2)
         self.validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
 
@@ -62,12 +61,15 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         """
         Send an expired broadcast notification message to server
         """
+        # Assumes greeter starts in locked state
         self.unlock_greeter()
+        # create notification message using past expiry time
         msg_data = self.create_notification_data_copy()
         msg_data.inc_build_number()
         msg = self.push_helper.create_push_message(
             data=msg_data.json(),
             expire_after=self.push_helper.get_past_iso_time())
+        # send message
         response = self.push_helper.send_push_broadcast_notification(
             msg.json(),
             self.test_config.server_listener_addr)
@@ -80,7 +82,9 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         """
         Send an old version broadcast notification message to server
         """
+        # Assumes greeter starts in locked state
         self.unlock_greeter()
+        # create notification message using previous build number
         msg_data = self.create_notification_data_copy()
         msg_data.dec_build_number()
         msg = self.push_helper.create_push_message(data=msg_data.json())
@@ -95,7 +99,9 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         """
         Send an equal version broadcast notification message to server
         """
+        # Assumes greeter starts in locked state
         self.unlock_greeter()
+        # create notification message using equal build number
         msg_data = self.create_notification_data_copy()
         msg = self.push_helper.create_push_message(data=msg_data.json())
         response = self.push_helper.send_push_broadcast_notification(

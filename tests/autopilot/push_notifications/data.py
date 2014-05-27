@@ -13,11 +13,8 @@ class PushNotificationMessage:
     Class to hold all the details required for a
     push notification message
     """
-    channel = None
-    expire_after = None
-    data = None
 
-    def __init__(self, channel='system', data='', expire_after=''):
+    def __init__(self, channel='system', data=None, expire_after=None):
         self.channel = channel
         self.data = data
         self.expire_after = expire_after
@@ -32,12 +29,12 @@ class PushNotificationMessage:
 
 class NotificationData:
     """
-    Class to represent notification data including
-    Device software channel
-    Device build number
-    Device model
-    Device last update
-    Data for the notification
+    Class to represent notification data including:
+    - Device software channel
+    - Device build number
+    - Device model
+    - Device last update
+    - Data for the notification
     """
 
     def __init__(self, channel=None, device=None, build_number=None,
