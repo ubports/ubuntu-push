@@ -15,7 +15,7 @@ import systemimage.config as sys_info
 
 from push_notifications.data import PushNotificationMessage
 from push_notifications.data import NotificationData
-
+from push_notifications import config as push_config
 
 class PushClientConfig:
     """
@@ -83,8 +83,9 @@ class PushClientController:
         # change server address
         config['addr'] = client_config.server_device_addr
         # add certificate file
-        config['cert_pem_file'] = self._get_abs_test_cert_file_path()
+        config['cert_pem_file'] = push_config.get_cert_file()
         # write the config json out to the ~.local address
+        # creating the directory if it doesn't already exist
         abs_config_file = self._get_abs_local_config_file_path()
         config_dir = os.path.dirname(abs_config_file)
         if not os.path.exists(config_dir):
@@ -92,12 +93,6 @@ class PushClientController:
         with open(abs_config_file, 'w+') as outfile:
             json.dump(config, outfile, indent=4)
             outfile.close()
-
-    def _get_abs_test_cert_file_path(self):
-        """
-        Return absolut path of test certificate
-        """
-        return os.path.abspath(self.TEST_CERT_PATH)
 
     def _get_abs_local_config_file_path(self):
         """
