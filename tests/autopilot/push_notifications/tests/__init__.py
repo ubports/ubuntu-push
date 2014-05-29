@@ -9,14 +9,15 @@
 
 
 import copy
+import evdev
 
+from testtools.matchers import Equals, NotEquals
+from autopilot.matchers import Eventually
+from autopilot.introspection import dbus
 from unity8.shell.tests import UnityTestCase
 import unity8.process_helpers as unity8_helpers
 from push_notifications import config as push_config
 import push_notifications.helpers.push_notifications_helper as push_helper
-from testtools.matchers import Equals, NotEquals
-from autopilot.matchers import Eventually
-from autopilot.introspection import dbus
 
 
 class PushNotificationTestBase(UnityTestCase):
@@ -31,8 +32,8 @@ class PushNotificationTestBase(UnityTestCase):
         Executed once before all the tests run
         Restart the push client using the test config
         """
-        test_config_file = push_config.get_config_file()
-        test_config = push_helper.PushClientConfig(test_config_file)
+        test_config = push_helper.PushClientConfig()
+        test_config.read_config(push_config.get_config_file())
         push_client_controller = push_helper.PushClientController()
         push_client_controller.restart_push_client_using_config(test_config)
 
@@ -53,25 +54,29 @@ class PushNotificationTestBase(UnityTestCase):
         super(PushNotificationTestBase, self).setUp()
 
         # read and store the test config data
-        test_config_file = push_config.get_config_file()
-        self.test_config = push_helper.PushClientConfig(test_config_file)
+        self.test_config = push_helper.PushClientConfig()
+        self.test_config.read_config(push_config.get_config_file())
         # create a push helper object which will do all the message sending
         self.push_helper = push_helper.PushNotificationHelper()
         # get and store device and build info
-        self.notification_data = self.push_helper.get_device_info()
+        self.device_data = self.push_helper.get_device_info()
         # start unity8
         self.unity = self.launch_unity()
         # dismiss any outstanding dialog
         self.dismiss_outstanding_dialog()
 
-    def create_notification_data_copy(self):
+    def create_device_info_copy(self):
         """
-        Return a copy of the device's notification data
+        Return a copy of the device's model and build data
+        :return: DeviceNotificationData object containging device's model
+                 and build data
         """
-        return copy.deepcopy(self.notification_data)
+        return copy.deepcopy(self.device_data)
 
     def press_power_button(self):
-        import evdev
+        """
+        Simulate a power key press event
+        """
         uinput = evdev.UInput(name='push-autopilot-power-button',
                               devnode='/dev/autopilot-uinput')
         # One press and release to turn screen off (locking unity)
@@ -88,14 +93,23 @@ class PushNotificationTestBase(UnityTestCase):
     def validate_response(self, response, expected_status_code=200):
         """
         Validate the received response status code against expected code
+        :param response: response to validate
+        :param expected_status_code: value of expected http status code
         """
         self.assertThat(response.status, Equals(expected_status_code))
 
-    def _assert_notification_dialog(self, notification, summary=None, body=None,
-            icon=True, secondary_icon=False, opacity=None):
+    def _assert_notification_dialog(self, notification, summary=None,
+                                    body=None, icon=True, secondary_icon=False,
+                                    opacity=None):
         """
         Assert that the properties of the notification are as
         expected
+        :param notification: notification object to validate
+        :param summary: expected notification summary value
+        :param body: expected notification body value
+        :param icon: expected icon status
+        :param secondary_icon: expected secondary icon status
+        :param opacity: expected opacity value
         """
         if summary is not None:
             self.assertThat(notification.summary, Eventually(Equals(summary)))
@@ -105,22 +119,25 @@ class PushNotificationTestBase(UnityTestCase):
             self.assertThat(notification.opacity, Eventually(Equals(opacity)))
 
         if icon:
-            self.assertThat(notification.iconSource, Eventually(NotEquals('')))
+            self.assertThat(
+                notification.iconSource, Eventually(NotEquals('')))
         else:
-            self.assertThat(notification.iconSource, Eventually(Equals('')))
+            self.assertThat(
+                notification.iconSource, Eventually(Equals('')))
 
         if secondary_icon:
-            self.assertThat(notification.secondaryIconSource,
-                Eventually(NotEquals('')))
+            self.assertThat(
+                notification.secondaryIconSource, Eventually(NotEquals('')))
         else:
-            self.assertThat(notification.secondaryIconSource,
-                Eventually(Equals('')))
+            self.assertThat(
+                notification.secondaryIconSource, Eventually(Equals('')))
 
     def validate_notification_not_displayed(self, wait=True):
         """
         Validate that the notification is not displayed
         If wait is True then wait for default timeout period
         If wait is False then do not wait at all
+        :param wait: wait status
         """
         found = True
         try:
@@ -134,20 +151,21 @@ class PushNotificationTestBase(UnityTestCase):
             found = False
         self.assertFalse(found)
 
-    def send_valid_push_message(self):
+    def send_push_broadcast_message(self):
         """
-        Send a valid push message which should trigger a notification
+        Send a push broadcast message which should trigger a notification
         to be displayed on the client
         """
         # create a copy of the device's build info
-        msg_data = self.create_notification_data_copy()
+        device_info = self.create_device_info_copy()
         # increment the build number to trigger an update
-        msg_data.inc_build_number()
-        # create message based on the data
-        msg = self.push_helper.create_push_message(data=msg_data.json())
+        device_info.inc_build_number()
+        # create push message based on the device data
+        push_msg = self.push_helper.create_push_message(
+            data=device_info.json())
         # send the notification message to the server and check response
         response = self.push_helper.send_push_broadcast_notification(
-            msg.json(), self.test_config.server_listener_addr)
+            push_msg.json(), self.test_config.server_listener_addr)
         self.validate_response(response)
 
     def get_notification_dialog(self, wait=True):
@@ -155,6 +173,8 @@ class PushNotificationTestBase(UnityTestCase):
         Get the notification dialog being displaye on screen
         If wait is True then wait for default timeout period
         If wait is False then do not wait at all
+        :param wait: wait status
+        :return: dialog introspection object
         """
         if wait is True:
             dialog = self.main_window.wait_select_single(
@@ -167,12 +187,13 @@ class PushNotificationTestBase(UnityTestCase):
     def validate_and_dismiss_notification_dialog(self, message):
         """
         Validate a notification dialog is displayed and dismiss it
+        :param message: expected message displayed in summary
         """
         # get the dialog
         dialog = self.get_notification_dialog()
         # validate dialog
         self._assert_notification_dialog(
-            dialog, summary=self.DEFAULT_DISPLAY_MESSAGE)
+            dialog, summary=message)
         # press dialog to dismiss
         self.press_notification_dialog(dialog)
         # check the dialog is no longer displayed

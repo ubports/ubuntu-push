@@ -15,21 +15,28 @@ class PushNotificationMessage:
     """
 
     def __init__(self, channel='system', data=None, expire_after=None):
+        """
+        Constructor
+        :param channel: Name of channel
+        :param data: Data value
+        :param expire_after: expiration time
+        """
         self.channel = channel
         self.data = data
         self.expire_after = expire_after
 
     def json(self):
         """
-        Return json representation of message
+        Return JSON representation of message
+        :return: JSON representation of message
         """
         json_str = '{{"channel":"{0}", "data":{{{1}}}, "expire_on":"{2}"}}'
         return json_str.format(self.channel, self.data, self.expire_after)
 
 
-class NotificationData:
+class DeviceNotificationData:
     """
-    Class to represent notification data including:
+    Class to represent device's data used for sending notification, including:
     - Device software channel
     - Device build number
     - Device model
@@ -39,6 +46,15 @@ class NotificationData:
 
     def __init__(self, channel=None, device=None, build_number=None,
                  last_update=None, version=None, data=None):
+        """
+        Constructor
+        :param channel: Name of channel
+        :param device: Name of device
+        :param build_number: Build number
+        :param last_update: Last update time
+        :param version: Build version
+        :param data: Device specific data
+        """
         self.channel = channel
         self.build_number = build_number
         self.device = device
@@ -62,6 +78,7 @@ class NotificationData:
         """
         Return json representation of info based:
         "IMAGE-CHANNEL/DEVICE-MODEL": [BUILD-NUMBER, CHANNEL-ALIAS]"
+        :return: JSON representation of device data
         """
         json_str = '"{0}/{1}": [{2}, "{3}"]'
         return json_str.format(self.channel, self.device, self.build_number,

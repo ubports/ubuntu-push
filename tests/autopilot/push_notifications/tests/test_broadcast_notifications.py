@@ -25,7 +25,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # Turn display off
         self.press_power_button()
         # send message
-        self.send_valid_push_message()
+        self.send_push_broadcast_message()
         # wait before turning screen on
         # NOTE: If wait is 10 secs the notification is not displayed?
         time.sleep(2)
@@ -41,7 +41,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         whist the greeter screen is displayed
         """
         # Assumes greeter starts in locked state
-        self.send_valid_push_message()
+        self.send_push_broadcast_message()
         self.validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
 
@@ -53,7 +53,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         # send message
-        self.send_valid_push_message()
+        self.send_push_broadcast_message()
         self.validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
 
@@ -64,14 +64,14 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         # create notification message using past expiry time
-        msg_data = self.create_notification_data_copy()
-        msg_data.inc_build_number()
-        msg = self.push_helper.create_push_message(
-            data=msg_data.json(),
+        device_info = self.create_device_info_copy()
+        device_info.inc_build_number()
+        push_msg = self.push_helper.create_push_message(
+            data=device_info.json(),
             expire_after=self.push_helper.get_past_iso_time())
         # send message
         response = self.push_helper.send_push_broadcast_notification(
-            msg.json(),
+            push_msg.json(),
             self.test_config.server_listener_addr)
         # 400 status is received for an expired message
         self.validate_response(response, expected_status_code=400)
@@ -85,11 +85,12 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         # create notification message using previous build number
-        msg_data = self.create_notification_data_copy()
-        msg_data.dec_build_number()
-        msg = self.push_helper.create_push_message(data=msg_data.json())
+        device_info = self.create_device_info_copy()
+        device_info.dec_build_number()
+        push_msg = self.push_helper.create_push_message(
+            data=device_info.json())
         response = self.push_helper.send_push_broadcast_notification(
-            msg.json(),
+            push_msg.json(),
             self.test_config.server_listener_addr)
         self.validate_response(response)
         # validate no notification is displayed
@@ -102,10 +103,11 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         # create notification message using equal build number
-        msg_data = self.create_notification_data_copy()
-        msg = self.push_helper.create_push_message(data=msg_data.json())
+        device_info = self.create_device_info_copy()
+        push_msg = self.push_helper.create_push_message(
+            data=device_info.json())
         response = self.push_helper.send_push_broadcast_notification(
-            msg.json(),
+            push_msg.json(),
             self.test_config.server_listener_addr)
         self.validate_response(response)
         # validate no notification is displayed

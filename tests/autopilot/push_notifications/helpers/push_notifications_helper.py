@@ -14,7 +14,7 @@ import subprocess
 import systemimage.config as sys_info
 
 from push_notifications.data import PushNotificationMessage
-from push_notifications.data import NotificationData
+from push_notifications.data import DeviceNotificationData
 from push_notifications import config as push_config
 
 
@@ -31,17 +31,12 @@ class PushClientConfig:
     KEY_CONFIG = 'config'
     KEY_CERT_PEM_FILE = 'cert_pem_file'
 
-    def __init__(self, config_file_path):
+    def read_config(self, config_file_path):
         """
-        Open the file and read the config
+        Open the specified file and read and save required config values
+        :param config_file_path: path to required config file
         """
         parser = configparser.ConfigParser()
-        self.read_config(parser, config_file_path)
-
-    def read_config(self, parser, config_file_path):
-        """
-        Open the file and read the config
-        """
         parser.read(config_file_path)
         server_addr = parser[self.KEY_CONFIG][self.KEY_ADDR]
         device_port = parser[self.KEY_CONFIG][self.KEY_DEVICE_PORT]
@@ -49,7 +44,6 @@ class PushClientConfig:
         addr_fmt = '{0}:{1}'
         self.server_listener_addr = addr_fmt.format(server_addr, listener_port)
         self.server_device_addr = addr_fmt.format(server_addr, device_port)
-        # get the absolute cert pem file path
         self.cert_pem_file = push_config.get_cert_file(
             parser[self.KEY_CONFIG][self.KEY_CERT_PEM_FILE])
 
@@ -66,6 +60,8 @@ class PushClientController:
         """
         Restart the push client using the config provided
         If the config is none then revert to default client behaviour
+        :param client_config: PushClientConfig object containing
+                              required config
         """
         if client_config is None:
             # just delete the local custom config file
@@ -83,7 +79,9 @@ class PushClientController:
     def _write_client_test_config(self, client_config):
         """
         Write the test server address and certificate path
-        to client config file
+        to the client config file
+        :param client_config: PushClientConfig object containing
+                              required config
         """
         # read the original push client config file
         with open(self.PUSH_CLIENT_DEFAULT_CONFIG_FILE) as config_file:
@@ -147,16 +145,16 @@ class PushNotificationHelper:
         """
         Discover the device's model and build info
         - device name e.g. mako
-        - channel name e.g. ubuntu-touch/trusty-proposed
+        - channel name e.g. ubuntu-touch/utopic-proposed
         - build_number e.g. 101
-        Return a NotificationData object containing info
+        :return: DeviceNotificationData object containing device info
         """
         # channel info needs to be read from file
         parser = configparser.ConfigParser()
         channel_config_file = '/etc/system-image/channel.ini'
         parser.read(channel_config_file)
         channel = parser['service']['channel']
-        return NotificationData(
+        return DeviceNotificationData(
             device=sys_info.config.device,
             channel=channel,
             build_number=sys_info.config.build_number)
@@ -166,6 +164,8 @@ class PushNotificationHelper:
         """
         Send the specified push message to the server broadcast url
         using an HTTP POST command
+        :param msg_json: JSON representation of message to send
+        :param url: destination server url to send message to
         """
         headers = {'Content-type': 'application/json'}
         conn = http.HTTPConnection(server_addr)
@@ -176,12 +176,17 @@ class PushNotificationHelper:
             body=msg_json)
         return conn.getresponse()
 
-    def create_push_message(self, channel='system', data='', expire_after=''):
+    def create_push_message(self, channel='system', data=None,
+                            expire_after=None):
         """
-        Return a new push msg
+        Return a new push message
         If no expiry time is given, a future date will be assigned
+        :param channel: name of the channel
+        :param data: data value of the message
+        :param expire_after: expiry time for message
+        :return: PushNotificationMessage object containing specified parameters
         """
-        if expire_after == '':
+        if expire_after is None:
             expire_after = self.get_future_iso_time()
         return PushNotificationMessage(
             channel=channel,
@@ -224,6 +229,15 @@ class PushNotificationHelper:
         """
         Return an ISO8601 format date-time string, including time-zone
         offset: YYYY-MM-DDTHH:MM:SS-HH:MM
+        :param year_offset: number of years to offset
+        :param month_offset: number of months to offset
+        :param day_offset: number of days to offset
+        :param hour_offset: number of hours to offset
+        :param min_offset: number of minutes to offset
+        :param sec_offset: number of seconds to offset
+        :param tz_hour_offset: number of hours to offset time zone
+        :param tz_min_offset: number of minutes to offset time zone
+        :return: string representation of required time in ISO8601 format
         """
         # calulate target time based on current time and format it
         now = datetime.datetime.now()

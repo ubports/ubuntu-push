@@ -53,4 +53,5 @@ Troubleshooting:
      - The channel and device names must match the client.
      - The build number must be greater than current installed version in order to trigger an update message.
      - The expiration time must be in the future.
+5) Make sure unity8-autopilot is installed
 
