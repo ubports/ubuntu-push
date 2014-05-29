@@ -12,11 +12,15 @@ To configure and build the server:
 2) mkdir -p push/src/launchpad.net
 3) cd push/src/launchpad.net
 4) bzr branch lp:ubuntu-push
-5) Edit ubuntu-push/sampleconfigs/dev.json:
+5) Edit ubuntu-push/sampleconfigs/dev.json with the correct server IP address and ports.
+   E.g. for a server IP address 192.168.1.2 use:
     "addr": "192.168.1.2:9090",
-5) cd ubuntu-push
-6) make bootstrap
-7) make run-server-dev
+    "http_addr": "192.168.1.2:8080",
+6) cd ubuntu-push
+7) ensure all dependencies are installed: sudo apt-get build-dep ubuntu-push
+8) install additional cm tools: sudo apt-get install git mercurial
+9) make bootstrap
+10) make run-server-dev
    Following output should be observed:
      INFO listening for http on 192.168.1.2:8080
      INFO listening for devices on 192.168.1.2:9090
