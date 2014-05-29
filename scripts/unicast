@@ -1,6 +1,6 @@
 #!/usr/bin/python
 """
-send broadcast to channel with payload data
+send unicast to reg with payload data
 """
 import argparse
 import json
