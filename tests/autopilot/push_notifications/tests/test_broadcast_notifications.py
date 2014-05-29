@@ -27,7 +27,6 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # send message
         self.send_push_broadcast_message()
         # wait before turning screen on
-        # NOTE: If wait is 10 secs the notification is not displayed?
         time.sleep(2)
         # Turn display on
         self.press_power_button()
