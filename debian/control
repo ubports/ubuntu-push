@@ -1,7 +1,7 @@
 Source: ubuntu-push
 Section: net
 Priority: optional
-X-Original-Maintainer: John Lenton <john.lenton@canonical.com>
+XSBC-Original-Maintainer: John Lenton <john.lenton@canonical.com>
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: debhelper (>= 9),
                dh-exec (>= 0.3),
