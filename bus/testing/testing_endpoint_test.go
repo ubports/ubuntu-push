@@ -76,6 +76,24 @@ func (s *TestingEndpointSuite) TestCallArgs(c *C) {
 		[]callArgs{{"what", []interface{}{"is", "this", "thing"}}})
 }
 
+// Test that Call() fails but does not explode when asked to return values
+// that can't be packed into a dbus message.
+func (s *TestingEndpointSuite) TestCallFailsOnBadRetval(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true), Equals)
+	var r uint32
+	e := endp.Call("what", bus.Args(), &r)
+	c.Check(e, NotNil)
+}
+
+// Test that Call() fails but does not explode when given an improper result
+// destination (one into which the dbus response can't be stuffed).
+func (s *TestingEndpointSuite) TestCallFailsOnBadArg(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true), 1)
+	r := func() {}
+	e := endp.Call("what", bus.Args(), &r)
+	c.Check(e, NotNil)
+}
+
 // Test that WatchSignal() with a positive condition sends the provided return
 // values over the channel.
 func (s *TestingEndpointSuite) TestWatch(c *C) {
