@@ -59,19 +59,21 @@ class PushNotificationTestBase(UnityTestCase):
         # create a push helper object which will do all the message sending
         self.push_helper = push_helper.PushNotificationHelper()
         # get and store device and build info
-        self.device_data = self.push_helper.get_device_info()
+        self.device_info = self.push_helper.get_device_info()
         # start unity8
+        self._qml_mock_enabled = False
+        self._data_dirs_mock_enabled = False
         self.unity = self.launch_unity()
         # dismiss any outstanding dialog
         self.dismiss_outstanding_dialog()
 
     def create_device_info_copy(self):
         """
-        Return a copy of the device's model and build data
+        Return a copy of the device's model and build info
         :return: DeviceNotificationData object containging device's model
-                 and build data
+                 and build info
         """
-        return copy.deepcopy(self.device_data)
+        return copy.deepcopy(self.device_info)
 
     def press_power_button(self):
         """
