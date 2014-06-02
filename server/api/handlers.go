@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"time"
 
-	"launchpad.net/~ubuntu-push-hackers/ubuntu-push/go-uuid/uuid"
+	"code.google.com/p/go-uuid/uuid"
 
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/server/broker"
