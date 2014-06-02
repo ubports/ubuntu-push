@@ -79,9 +79,8 @@ clean:
 	$(RM) push-server-dev
 	$(RM) $(TOBUILD:.go=)
 
-# this won't work if we get fancy in .bzrignore
 distclean:
-	grep -v ^# .bzrignore | xargs $(RM) -rv --
+	bzr clean-tree --verbose --ignored --force
 
 coverage-summary:
 	go test $(TESTFLAGS) -a -cover $(TOTEST)
