@@ -1,7 +1,7 @@
 Source: ubuntu-push
 Section: net
 Priority: optional
-X-Original-Maintainer: John Lenton <john.lenton@canonical.com>
+XSBC-Original-Maintainer: John Lenton <john.lenton@canonical.com>
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: debhelper (>= 9),
                dh-exec (>= 0.3),
@@ -11,10 +11,13 @@ Build-Depends: debhelper (>= 9),
                golang-go-xdg-dev,
                golang-gocheck-dev,
                golang-gosqlite-dev,
+               golang-uuid-dev,
                libgcrypt11-dev,
                libglib2.0-dev (>= 2.31.6),
                libwhoopsie-dev,
                libubuntuoneauth-2.0-dev,
+               libdbus-1-dev,
+               libnih-dbus-dev,
                cmake,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push

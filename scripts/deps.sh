@@ -24,5 +24,5 @@ norm () {
     tr "\n" " " | sed -r -e "s|$PROJECT/?||g" -e 's/ *$//'
 }
 
-out=".$1.deps"
+out="$1.deps"
 ( echo -n "${1%.go} ${out}: "; indirects $(echo $1 | norm) | norm ) > "$out"
