@@ -24,7 +24,6 @@ class PushNotificationTestBase(UnityTestCase):
     """
     Base class for push notification test cases
     """
-    DEFAULT_DISPLAY_MESSAGE = 'There\'s an updated system image.'
 
     @classmethod
     def setUpClass(cls):

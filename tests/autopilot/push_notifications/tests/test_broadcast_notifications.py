@@ -16,6 +16,8 @@ class TestPushClientBroadcast(PushNotificationTestBase):
     Test cases for broadcast push notifications
     """
 
+    DEFAULT_DISPLAY_MESSAGE = 'There\'s an updated system image.'
+
     def test_broadcast_push_notification_screen_off(self):
         """
         Send a push message whilst the device's screen is turned off
