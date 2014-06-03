@@ -33,6 +33,7 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <QUrlQuery>
 
 #include "ssoservice.h"
 #include "token.h"
@@ -64,9 +65,22 @@ namespace UbuntuOne {
     {
         qDebug() << "Credentials found, signing url.";
 
-        QString authHeader = token.signUrl(this->url, QStringLiteral("GET"), true);
+        QUrlQuery query = QUrlQuery(token.signUrl(this->url, QStringLiteral("GET"), true));
 
-        std::cout << authHeader.toStdString() << "\n";
+        std::cout << "Authorization: OAuth "
+                  << "oauth_consumer_key=\""
+                  << query.queryItemValue("oauth_consumer_key").toStdString() << "\","
+                  << "oauth_token=\""
+                  << query.queryItemValue("oauth_token").toStdString() << "\","
+                  << "oauth_signature_method=\""
+                  << query.queryItemValue("oauth_signature_method").toStdString() << "\","
+                  << "oauth_signature=\""
+                  << query.queryItemValue("oauth_signature").toStdString() << "\","
+                  << "oauth_timestamp=\""
+                  << query.queryItemValue("oauth_timestamp").toStdString() << "\","
+                  << "oauth_nonce=\""
+                  << query.queryItemValue("oauth_nonce").toStdString() << "\","
+                  << "oauth_version=\"1.0\"";
         QCoreApplication::instance()->exit(0);
 
     }
