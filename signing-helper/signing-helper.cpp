@@ -67,7 +67,7 @@ namespace UbuntuOne {
 
         QUrlQuery query = QUrlQuery(token.signUrl(this->url, QStringLiteral("POST"), true));
 
-        std::cout << "Authorization: OAuth "
+        std::cout << "OAuth "
                   << "oauth_consumer_key=\""
                   << query.queryItemValue("oauth_consumer_key").toStdString() << "\","
                   << "oauth_token=\""
