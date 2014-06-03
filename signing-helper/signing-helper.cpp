@@ -80,7 +80,7 @@ namespace UbuntuOne {
                   << query.queryItemValue("oauth_timestamp").toStdString() << "\","
                   << "oauth_nonce=\""
                   << query.queryItemValue("oauth_nonce").toStdString() << "\","
-                  << "oauth_version=\"1.0\"";
+                  << "oauth_version=\"1.0\"\n";
         QCoreApplication::instance()->exit(0);
 
     }
