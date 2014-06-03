@@ -65,7 +65,7 @@ namespace UbuntuOne {
     {
         qDebug() << "Credentials found, signing url.";
 
-        QUrlQuery query = QUrlQuery(token.signUrl(this->url, QStringLiteral("GET"), true));
+        QUrlQuery query = QUrlQuery(token.signUrl(this->url, QStringLiteral("POST"), true));
 
         std::cout << "Authorization: OAuth "
                   << "oauth_consumer_key=\""
