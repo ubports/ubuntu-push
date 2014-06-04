@@ -7,17 +7,16 @@
 
 """push-notifications autopilot tests."""
 
-
 import copy
+
 import evdev
 
-from testtools.matchers import Equals, NotEquals
-from autopilot.matchers import Eventually
 from autopilot.introspection import dbus
-from unity8.shell.tests import UnityTestCase
-import unity8.process_helpers as unity8_helpers
+from autopilot.matchers import Eventually
 from push_notifications import config as push_config
 import push_notifications.helpers.push_notifications_helper as push_helper
+from testtools.matchers import Equals, NotEquals
+from unity8.shell.tests import UnityTestCase
 
 
 class PushNotificationTestBase(UnityTestCase):
@@ -31,8 +30,8 @@ class PushNotificationTestBase(UnityTestCase):
         Executed once before all the tests run
         Restart the push client using the test config
         """
-        test_config = push_helper.PushClientConfig()
-        test_config.read_config(push_config.get_config_file())
+        test_config = push_helper.PushClientConfig.read_config(
+            push_config.get_config_file())
         push_client_controller = push_helper.PushClientController()
         push_client_controller.restart_push_client_using_config(test_config)
 
@@ -53,8 +52,8 @@ class PushNotificationTestBase(UnityTestCase):
         super(PushNotificationTestBase, self).setUp()
 
         # read and store the test config data
-        self.test_config = push_helper.PushClientConfig()
-        self.test_config.read_config(push_config.get_config_file())
+        self.test_config = push_helper.PushClientConfig.read_config(
+            push_config.get_config_file())
         # create a push helper object which will do all the message sending
         self.push_helper = push_helper.PushNotificationHelper()
         # get and store device and build info
@@ -89,7 +88,7 @@ class PushNotificationTestBase(UnityTestCase):
         """
         Unlock the greeter to display home screen
         """
-        unity8_helpers.unlock_unity(self.unity)
+        self.main_window.get_greeter().swipe()
 
     def validate_response(self, response, expected_status_code=200):
         """
@@ -163,10 +162,10 @@ class PushNotificationTestBase(UnityTestCase):
         device_info.inc_build_number()
         # create push message based on the device data
         push_msg = self.push_helper.create_push_message(
-            data=device_info.json())
+            data=device_info.to_json())
         # send the notification message to the server and check response
         response = self.push_helper.send_push_broadcast_notification(
-            push_msg.json(), self.test_config.server_listener_addr)
+            push_msg.to_json(), self.test_config.server_listener_addr)
         self.validate_response(response)
 
     def get_notification_dialog(self, wait=True):

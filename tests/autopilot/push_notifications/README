@@ -40,6 +40,16 @@ To configure the client:
 4) autopilot3 list push_notifications
 5) autopilot3 run push_notifications
 
+-------------
+DEPENDENCIES:
+-------------
+
+The test suite requires the following dependencies to be installed:
+python3-evdev
+python3-autopilot
+unity8-autopilot
+system-image-common
+
 ----------------
 Troubleshooting:
 ----------------

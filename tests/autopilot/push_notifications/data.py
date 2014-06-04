@@ -25,7 +25,7 @@ class PushNotificationMessage:
         self.data = data
         self.expire_after = expire_after
 
-    def json(self):
+    def to_json(self):
         """
         Return JSON representation of message
         :return: JSON representation of message
@@ -74,7 +74,7 @@ class DeviceNotificationData:
         """
         self.build_number = str(int(self.build_number) - 1)
 
-    def json(self):
+    def to_json(self):
         """
         Return json representation of info based:
         "IMAGE-CHANNEL/DEVICE-MODEL": [BUILD-NUMBER, CHANNEL-ALIAS]"

@@ -6,16 +6,18 @@
 # by the Free Software Foundation.
 
 import configparser
+import datetime
 import http.client as http
 import json
 import os
-import datetime
 import subprocess
 import systemimage.config as sys_info
 
-from push_notifications.data import PushNotificationMessage
-from push_notifications.data import DeviceNotificationData
 from push_notifications import config as push_config
+from push_notifications.data import (
+    PushNotificationMessage,
+    DeviceNotificationData
+)
 
 
 class PushClientConfig:
@@ -25,27 +27,34 @@ class PushClientConfig:
     - Server device address
     - Certificate PEM file path
     """
-    KEY_ADDR = 'addr'
-    KEY_LISTENER_PORT = 'listener_port'
-    KEY_DEVICE_PORT = 'device_port'
-    KEY_CONFIG = 'config'
-    KEY_CERT_PEM_FILE = 'cert_pem_file'
 
-    def read_config(self, config_file_path):
+    @staticmethod
+    def read_config(config_file_path):
         """
-        Open the specified file and read and save required config values
+        Return PushClientConfig object containing all test config parameters
+        which have been read from specified config file.
         :param config_file_path: path to required config file
+        :return: PushClientConfig object containing all config parameters
         """
+        KEY_ADDR = 'addr'
+        KEY_LISTENER_PORT = 'listener_port'
+        KEY_DEVICE_PORT = 'device_port'
+        KEY_CONFIG = 'config'
+        KEY_CERT_PEM_FILE = 'cert_pem_file'
+
+        config = PushClientConfig()
         parser = configparser.ConfigParser()
         parser.read(config_file_path)
-        server_addr = parser[self.KEY_CONFIG][self.KEY_ADDR]
-        device_port = parser[self.KEY_CONFIG][self.KEY_DEVICE_PORT]
-        listener_port = parser[self.KEY_CONFIG][self.KEY_LISTENER_PORT]
+        server_addr = parser[KEY_CONFIG][KEY_ADDR]
+        device_port = parser[KEY_CONFIG][KEY_DEVICE_PORT]
+        listener_port = parser[KEY_CONFIG][KEY_LISTENER_PORT]
         addr_fmt = '{0}:{1}'
-        self.server_listener_addr = addr_fmt.format(server_addr, listener_port)
-        self.server_device_addr = addr_fmt.format(server_addr, device_port)
-        self.cert_pem_file = push_config.get_cert_file(
-            parser[self.KEY_CONFIG][self.KEY_CERT_PEM_FILE])
+        config.server_listener_addr = addr_fmt.format(
+            server_addr, listener_port)
+        config.server_device_addr = addr_fmt.format(server_addr, device_port)
+        config.cert_pem_file = push_config.get_cert_file(
+            parser[KEY_CONFIG][KEY_CERT_PEM_FILE])
+        return config
 
 
 class PushClientController:

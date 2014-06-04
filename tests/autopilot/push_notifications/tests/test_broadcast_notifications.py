@@ -68,11 +68,11 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         device_info = self.create_device_info_copy()
         device_info.inc_build_number()
         push_msg = self.push_helper.create_push_message(
-            data=device_info.json(),
+            data=device_info.to_json(),
             expire_after=self.push_helper.get_past_iso_time())
         # send message
         response = self.push_helper.send_push_broadcast_notification(
-            push_msg.json(),
+            push_msg.to_json(),
             self.test_config.server_listener_addr)
         # 400 status is received for an expired message
         self.validate_response(response, expected_status_code=400)
@@ -89,9 +89,9 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         device_info = self.create_device_info_copy()
         device_info.dec_build_number()
         push_msg = self.push_helper.create_push_message(
-            data=device_info.json())
+            data=device_info.to_json())
         response = self.push_helper.send_push_broadcast_notification(
-            push_msg.json(),
+            push_msg.to_json(),
             self.test_config.server_listener_addr)
         self.validate_response(response)
         # validate no notification is displayed
@@ -106,9 +106,9 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # create notification message using equal build number
         device_info = self.create_device_info_copy()
         push_msg = self.push_helper.create_push_message(
-            data=device_info.json())
+            data=device_info.to_json())
         response = self.push_helper.send_push_broadcast_notification(
-            push_msg.json(),
+            push_msg.to_json(),
             self.test_config.server_listener_addr)
         self.validate_response(response)
         # validate no notification is displayed
