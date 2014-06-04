@@ -64,23 +64,7 @@ namespace UbuntuOne {
     void SigningExample::handleCredentialsFound(Token token)
     {
         qDebug() << "Credentials found, signing url.";
-
-        QUrlQuery query = QUrlQuery(token.signUrl(this->url, QStringLiteral("POST"), true));
-
-        std::cout << "OAuth "
-                  << "oauth_consumer_key=\""
-                  << query.queryItemValue("oauth_consumer_key", QUrl::FullyEncoded).toStdString() << "\","
-                  << "oauth_token=\""
-                  << query.queryItemValue("oauth_token", QUrl::FullyEncoded).toStdString() << "\","
-                  << "oauth_signature_method=\""
-                  << query.queryItemValue("oauth_signature_method", QUrl::FullyEncoded).toStdString() << "\","
-                  << "oauth_signature=\""
-                  << query.queryItemValue("oauth_signature", QUrl::FullyEncoded).toStdString() << "\","
-                  << "oauth_timestamp=\""
-                  << query.queryItemValue("oauth_timestamp", QUrl::FullyEncoded).toStdString() << "\","
-                  << "oauth_nonce=\""
-                  << query.queryItemValue("oauth_nonce", QUrl::FullyEncoded).toStdString() << "\","
-                  << "oauth_version=\"1.0\"\n";
+        std::cout << token.signUrl(this->url, QStringLiteral("POST")).toStdString();
         QCoreApplication::instance()->exit(0);
 
     }
