@@ -83,7 +83,11 @@ int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
 
-    UbuntuOne::SigningExample *example = new UbuntuOne::SigningExample(&a);
+    if (argc<2) {
+        a.exit(2);
+    }
+
+    UbuntuOne::SigningExample *example = new UbuntuOne::SigningExample(&a, argv[1]);
 
     QObject::connect(example, SIGNAL(finished()), &a, SLOT(quit()));
 
