@@ -66,7 +66,6 @@ namespace UbuntuOne {
         qDebug() << "Credentials found, signing url.";
         std::cout << token.signUrl(this->url, QStringLiteral("POST")).toStdString();
         QCoreApplication::instance()->exit(0);
-
     }
 
     void SigningExample::handleCredentialsNotFound()
@@ -82,17 +81,12 @@ namespace UbuntuOne {
 int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
-
     if (argc<2) {
-        a.exit(2);
+        return 2;
     }
-
     UbuntuOne::SigningExample *example = new UbuntuOne::SigningExample(&a, argv[1]);
-
     QObject::connect(example, SIGNAL(finished()), &a, SLOT(quit()));
-
     QTimer::singleShot(0, example, SLOT(doExample()));
-
     return a.exec();
 }
 
