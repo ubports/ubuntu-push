@@ -215,5 +215,5 @@ class PushNotificationTestBase(UnityTestCase):
                 'Notification', objectName='notification1')
         except dbus.StateNotFoundError:
             dialog = None
-        if dialog is not None:
+        if dialog:
             self.press_notification_dialog(dialog)
