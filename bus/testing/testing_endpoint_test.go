@@ -76,6 +76,24 @@ func (s *TestingEndpointSuite) TestCallArgs(c *C) {
 		[]callArgs{{"what", []interface{}{"is", "this", "thing"}}})
 }
 
+// Test that Call() fails but does not explode when asked to return values
+// that can't be packed into a dbus message.
+func (s *TestingEndpointSuite) TestCallFailsOnBadRetval(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true), Equals)
+	var r uint32
+	e := endp.Call("what", bus.Args(), &r)
+	c.Check(e, NotNil)
+}
+
+// Test that Call() fails but does not explode when given an improper result
+// destination (one into which the dbus response can't be stuffed).
+func (s *TestingEndpointSuite) TestCallFailsOnBadArg(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true), 1)
+	r := func() {}
+	e := endp.Call("what", bus.Args(), &r)
+	c.Check(e, NotNil)
+}
+
 // Test that WatchSignal() with a positive condition sends the provided return
 // values over the channel.
 func (s *TestingEndpointSuite) TestWatch(c *C) {
@@ -102,7 +120,11 @@ func (s *TestingEndpointSuite) TestWatchDestructor(c *C) {
 func (s *TestingEndpointSuite) TestCloser(c *C) {
 	endp := NewTestingEndpoint(nil, condition.Work(true))
 	endp.Close()
-	// ... yay?
+	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{
+		{
+			Member: "::Close",
+			Args:   nil,
+		}})
 }
 
 // Test that WatchSignal() with a negative condition returns an error.
@@ -172,4 +194,47 @@ func (s *TestingBusSuite) TestDialNoWork(c *C) {
 func (s *TestingBusSuite) TestEndpointString(c *C) {
 	endp := NewTestingEndpoint(condition.Fail2Work(2), nil, "hello there")
 	c.Check(endp.String(), Matches, ".*Still Broken.*hello there.*")
+}
+
+// Test that GrabName updates callArgs
+func (s *TestingEndpointSuite) TestGrabNameUpdatesCallArgs(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true))
+	endp.GrabName(false)
+	endp.GrabName(true)
+	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{
+		{
+			Member: "::GrabName",
+			Args:   []interface{}{false},
+		}, {
+			Member: "::GrabName",
+			Args:   []interface{}{true},
+		}})
+}
+
+// Test that Signal updates callArgs
+func (s *TestingEndpointSuite) TestSignalUpdatesCallArgs(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true))
+	endp.Signal("hello", []interface{}{"world"})
+	endp.Signal("hello", []interface{}{"there"})
+	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{
+		{
+			Member: "::Signal",
+			Args:   []interface{}{"hello", []interface{}{"world"}},
+		}, {
+			Member: "::Signal",
+			Args:   []interface{}{"hello", []interface{}{"there"}},
+		}})
+}
+
+// Test that WatchMethod updates callArgs
+func (s *TestingEndpointSuite) TestWatchMethodUpdatesCallArgs(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true))
+	foo := func([]interface{}, []interface{}) ([]interface{}, error) { return nil, nil }
+	foomp := bus.DispatchMap{"foo": foo}
+	endp.WatchMethod(foomp)
+	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{
+		{
+			Member: "::WatchMethod",
+			Args:   []interface{}{foomp, []interface{}(nil)},
+		}})
 }

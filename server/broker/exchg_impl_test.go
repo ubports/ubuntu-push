@@ -22,6 +22,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/server/store"
+	help "launchpad.net/ubuntu-push/testing"
 )
 
 type exchangesImplSuite struct{}
@@ -29,27 +30,27 @@ type exchangesImplSuite struct{}
 var _ = Suite(&exchangesImplSuite{})
 
 func (s *exchangesImplSuite) TestFilterByLevel(c *C) {
-	payloads := []json.RawMessage{
+	notifs := help.Ns(
 		json.RawMessage(`{"a": 3}`),
 		json.RawMessage(`{"a": 4}`),
 		json.RawMessage(`{"a": 5}`),
-	}
-	res := filterByLevel(5, 5, payloads)
+	)
+	res := filterByLevel(5, 5, notifs)
 	c.Check(len(res), Equals, 0)
-	res = filterByLevel(4, 5, payloads)
+	res = filterByLevel(4, 5, notifs)
 	c.Check(len(res), Equals, 1)
-	c.Check(res[0], DeepEquals, json.RawMessage(`{"a": 5}`))
-	res = filterByLevel(3, 5, payloads)
+	c.Check(res[0].Payload, DeepEquals, json.RawMessage(`{"a": 5}`))
+	res = filterByLevel(3, 5, notifs)
 	c.Check(len(res), Equals, 2)
-	c.Check(res[0], DeepEquals, json.RawMessage(`{"a": 4}`))
-	res = filterByLevel(2, 5, payloads)
+	c.Check(res[0].Payload, DeepEquals, json.RawMessage(`{"a": 4}`))
+	res = filterByLevel(2, 5, notifs)
 	c.Check(len(res), Equals, 3)
-	res = filterByLevel(1, 5, payloads)
+	res = filterByLevel(1, 5, notifs)
 	c.Check(len(res), Equals, 3)
 	// too ahead, pick only last
-	res = filterByLevel(10, 5, payloads)
+	res = filterByLevel(10, 5, notifs)
 	c.Check(len(res), Equals, 1)
-	c.Check(res[0], DeepEquals, json.RawMessage(`{"a": 5}`))
+	c.Check(res[0].Payload, DeepEquals, json.RawMessage(`{"a": 5}`))
 }
 
 func (s *exchangesImplSuite) TestFilterByLevelEmpty(c *C) {
@@ -71,18 +72,19 @@ func (s *exchangesImplSuite) TestChannelFilter(c *C) {
 		err := json.Unmarshal(p, &decoded[i])
 		c.Assert(err, IsNil)
 	}
+	notifs := help.Ns(payloads...)
 
 	other := store.InternalChannelId("1")
 
 	c.Check(channelFilter("", store.SystemInternalChannelId, nil, nil), IsNil)
-	c.Check(channelFilter("", other, payloads[1:], decoded), DeepEquals, payloads[1:])
+	c.Check(channelFilter("", other, notifs[1:], decoded), DeepEquals, payloads[1:])
 
 	// use tag when channel is the sytem channel
 
-	c.Check(channelFilter("c/z", store.SystemInternalChannelId, payloads, decoded), HasLen, 0)
+	c.Check(channelFilter("c/z", store.SystemInternalChannelId, notifs, decoded), HasLen, 0)
 
-	c.Check(channelFilter("a/x", store.SystemInternalChannelId, payloads, decoded), DeepEquals, []json.RawMessage{payloads[0], payloads[3]})
+	c.Check(channelFilter("a/x", store.SystemInternalChannelId, notifs, decoded), DeepEquals, []json.RawMessage{payloads[0], payloads[3]})
 
-	c.Check(channelFilter("a/x", store.SystemInternalChannelId, payloads[1:], decoded), DeepEquals, []json.RawMessage{payloads[3]})
+	c.Check(channelFilter("a/x", store.SystemInternalChannelId, notifs[1:], decoded), DeepEquals, []json.RawMessage{payloads[3]})
 
 }

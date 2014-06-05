@@ -11,16 +11,33 @@ GODEPS = launchpad.net/gocheck
 GODEPS += launchpad.net/go-dbus/v1
 GODEPS += launchpad.net/go-xdg/v0
 GODEPS += code.google.com/p/gosqlite/sqlite3
+GODEPS += code.google.com/p/go-uuid/uuid
 
 TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
+TOBUILD = $(shell grep -lr '^package main')
 
-bootstrap:
+all: fetchdeps bootstrap build-client build-server-dev
+
+fetchdeps: .has-fetched-deps
+
+.has-fetched-deps: PACKAGE_DEPS
+	@$(MAKE) --no-print-directory refetchdeps
+	@touch $@
+
+refetchdeps:
+	sudo apt-get install $$( grep -v '^#' PACKAGE_DEPS )
+
+bootstrap: dependencies.tsv
+	$(RM) -r $(GOPATH)/pkg
 	mkdir -p $(GOPATH)/bin
 	mkdir -p $(GOPATH)/pkg
 	go get -u launchpad.net/godeps
 	go get -d -u $(GODEPS)
 	$(GOPATH)/bin/godeps -u dependencies.tsv
 	go install $(GODEPS)
+
+dependencies.tsv: $(TOBUILD)
+	$(GOPATH)/bin/godeps -t $(foreach i,$^,$(dir $(PROJECT)/$(i))) 2>/dev/null | cat > $@
 
 check:
 	go test $(TESTFLAGS) $(TOTEST)
@@ -31,14 +48,39 @@ check-race:
 acceptance:
 	cd server/acceptance; ./acceptance.sh
 
-build-client:
-	go build ubuntu-push-client.go
+build-client: ubuntu-push-client signing-helper/signing-helper
 
-build-server-dev:
-	go build -o push-server-dev launchpad.net/ubuntu-push/server/dev
+%.deps: %
+	$(SH) scripts/deps.sh $<
 
-run-server-dev:
-	go run server/dev/*.go sampleconfigs/dev.json
+%: %.go
+	go build -o $@ $<
+
+include $(TOBUILD:.go=.go.deps)
+
+signing-helper/Makefile: signing-helper/CMakeLists.txt signing-helper/signing-helper.cpp signing-helper/signing.h
+	cd signing-helper && (make clean || true) && cmake .
+
+signing-helper/signing-helper: signing-helper/Makefile signing-helper/signing-helper.cpp signing-helper/signing.h
+	cd signing-helper && make
+
+build-server-dev: push-server-dev
+
+run-server-dev: push-server-dev
+	./$< sampleconfigs/dev.json
+
+push-server-dev: server/dev/server
+	mv $< $@
+
+# very basic cleanup stuff; needs more work
+clean:
+	$(RM) -r coverhtml
+	$(MAKE) -C signing-helper clean || true
+	$(RM) push-server-dev
+	$(RM) $(TOBUILD:.go=)
+
+distclean:
+	bzr clean-tree --verbose --ignored --force
 
 coverage-summary:
 	go test $(TESTFLAGS) -a -cover $(TOTEST)
@@ -67,5 +109,8 @@ protocol-diagrams: protocol/state-diag-client.svg protocol/state-diag-session.sv
 	dot -Tsvg $< > $@
 
 .PHONY: bootstrap check check-race format check-format \
-	acceptance build-client build server-dev run-server-dev \
-	coverage-summary coverage-html protocol-diagrams
+	acceptance build-client build-server-dev run-server-dev \
+	coverage-summary coverage-html protocol-diagrams \
+	fetchdeps refetchdeps clean distclean all
+
+.INTERMEDIATE: server/dev/server

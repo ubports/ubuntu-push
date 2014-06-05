@@ -22,7 +22,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/server/acceptance"
@@ -40,12 +42,13 @@ type configuration struct {
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// server connection config
 	Addr        config.ConfigHostPort
-	CertPEMFile string `json:"cert_pem_file"`
+	CertPEMFile string   `json:"cert_pem_file"`
+	AuthHelper  []string `json:"auth_helper"`
 }
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: acceptancclient [options] <config.json> <device id>\n")
+		fmt.Fprintf(os.Stderr, "Usage: acceptancclient [options] <device id>\n")
 		flag.PrintDefaults()
 	}
 	missingArg := func(what string) {
@@ -53,28 +56,24 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	flag.Parse()
+	cfg := &configuration{}
+	err := config.ReadFilesDefaults(cfg, map[string]interface{}{
+		"exchange_timeout": "5s",
+		"cert_pem_file":    "",
+		"auth_helper":      []string{},
+	}, "<flags>")
+	if err != nil {
+		log.Fatalf("reading config: %v", err)
+	}
 	narg := flag.NArg()
 	switch {
 	case narg < 1:
-		missingArg("config file")
-	case narg < 2:
 		missingArg("device-id")
-	}
-	configFName := flag.Arg(0)
-	f, err := os.Open(configFName)
-	if err != nil {
-		log.Fatalf("reading config: %v", err)
-	}
-	cfg := &configuration{}
-	err = config.ReadConfig(f, cfg)
-	if err != nil {
-		log.Fatalf("reading config: %v", err)
 	}
 	session := &acceptance.ClientSession{
 		ExchangeTimeout: cfg.ExchangeTimeout.TimeDuration(),
 		ServerAddr:      cfg.Addr.HostPort(),
-		DeviceId:        flag.Arg(1),
+		DeviceId:        flag.Arg(0),
 		// flags
 		Model:        *deviceModel,
 		ImageChannel: *imageChannel,
@@ -82,11 +81,20 @@ func main() {
 		Insecure:     *insecureFlag,
 	}
 	log.Printf("with: %#v", session)
-	if !*insecureFlag {
-		session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, filepath.Dir(configFName))
+	if !*insecureFlag && cfg.CertPEMFile != "" {
+		cfgDir := filepath.Dir(flag.Lookup("cfg@").Value.String())
+		log.Printf("cert: %v relToDir: %v", cfg.CertPEMFile, cfgDir)
+		session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, cfgDir)
 		if err != nil {
 			log.Fatalf("reading CertPEMFile: %v", err)
 		}
+	}
+	if len(cfg.AuthHelper) != 0 {
+		auth, err := exec.Command(cfg.AuthHelper[0], cfg.AuthHelper[1:]...).Output()
+		if err != nil {
+			log.Fatalf("auth helper: %v", err)
+		}
+		session.Auth = strings.TrimSpace(string(auth))
 	}
 	err = session.Dial()
 	if err != nil {

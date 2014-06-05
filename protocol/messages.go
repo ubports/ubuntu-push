@@ -20,6 +20,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // System channel id using a shortened hex-encoded form for the NIL UUID.
@@ -54,6 +55,14 @@ type SplittableMsg interface {
 	Split() (done bool)
 }
 
+// OnewayMsg are messages that are not to be followed by a response,
+// after sending them the session either aborts or continues.
+type OnewayMsg interface {
+	SplittableMsg
+	// continue session after the message?
+	OnewayContinue() bool
+}
+
 // CONNBROKEN message, server side is breaking the connection for reason.
 type ConnBrokenMsg struct {
 	Type string `json:"T"`
@@ -65,9 +74,33 @@ func (m *ConnBrokenMsg) Split() bool {
 	return true
 }
 
+func (m *ConnBrokenMsg) OnewayContinue() bool {
+	return false
+}
+
 // CONNBROKEN reasons
 const (
 	BrokenHostMismatch = "host-mismatch"
+)
+
+// CONNWARN message, server side is warning about partial functionality
+// because reason.
+type ConnWarnMsg struct {
+	Type string `json:"T"`
+	// reason
+	Reason string
+}
+
+func (m *ConnWarnMsg) Split() bool {
+	return true
+}
+func (m *ConnWarnMsg) OnewayContinue() bool {
+	return true
+}
+
+// CONNWARN reasons
+const (
+	WarnUnauthorized = "unauthorized"
 )
 
 // PING/PONG messages
@@ -111,8 +144,9 @@ func (m *BroadcastMsg) Split() bool {
 }
 
 // Reset resets the splitting state if the message storage is to be
-// reused.
+// reused and sets the proper Type.
 func (b *BroadcastMsg) Reset() {
+	b.Type = "broadcast"
 	b.splitting = 0
 }
 
@@ -120,6 +154,41 @@ func (b *BroadcastMsg) Reset() {
 type NotificationsMsg struct {
 	Type          string `json:"T"`
 	Notifications []Notification
+	splitting     int
+}
+
+// Reset resets the splitting state if the message storage is to be
+// reused and sets the proper Type.
+func (m *NotificationsMsg) Reset() {
+	m.Type = "notifications"
+	m.splitting = 0
+}
+
+func (m *NotificationsMsg) Split() bool {
+	if m.splitting != 0 {
+		m.Notifications = m.Notifications[len(m.Notifications):m.splitting]
+	}
+	notifs := m.Notifications
+	var size int
+	for i, notif := range notifs {
+		size += len(notif.Payload) + len(notif.AppId) + len(notif.MsgId) + notificationOverhead
+		if size > maxPayloadSize {
+			m.splitting = len(notifs)
+			m.Notifications = notifs[:i]
+			return false
+		}
+	}
+	return true
+}
+
+var notificationOverhead int
+
+func init() {
+	buf, err := json.Marshal(Notification{})
+	if err != nil {
+		panic(fmt.Errorf("failed to compute Notification marshal overhead: %v", err))
+	}
+	notificationOverhead = len(buf) - 4 // - 4 for the null from P(ayload)
 }
 
 // A single unicast notification
@@ -128,6 +197,19 @@ type Notification struct {
 	MsgId string `json:"M"`
 	// payload
 	Payload json.RawMessage `json:"P"`
+}
+
+// ExtractPayloads gets only the payloads out of a slice of notications.
+func ExtractPayloads(notifications []Notification) []json.RawMessage {
+	n := len(notifications)
+	if n == 0 {
+		return nil
+	}
+	payloads := make([]json.RawMessage, n)
+	for i := 0; i < n; i++ {
+		payloads[i] = notifications[i].Payload
+	}
+	return payloads
 }
 
 // ACKnowledgement message

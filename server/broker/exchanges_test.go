@@ -18,15 +18,18 @@ package broker_test // use a package test to avoid cyclic imports
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	stdtesting "testing"
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
+	help "launchpad.net/ubuntu-push/testing"
 )
 
 func TestBroker(t *stdtesting.T) { TestingT(t) }
@@ -39,11 +42,11 @@ func (s *exchangesSuite) TestBroadcastExchangeInit(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"a":"x"}`),
 			json.RawMessage(`[]`),
 			json.RawMessage(`{"a":"y"}`),
-		},
+		),
 	}
 	exchg.Init()
 	c.Check(exchg.Decoded, DeepEquals, []map[string]interface{}{
@@ -62,10 +65,10 @@ func (s *exchangesSuite) TestBroadcastExchange(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img1/m1":100}`),
 			json.RawMessage(`{"img2/m2":200}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -88,9 +91,9 @@ func (s *exchangesSuite) TestBroadcastExchangeEmpty(c *C) {
 		ImageChannel: "img1",
 	}
 	exchg := &broker.BroadcastExchange{
-		ChanId:               store.SystemInternalChannelId,
-		TopLevel:             3,
-		NotificationPayloads: []json.RawMessage{},
+		ChanId:        store.SystemInternalChannelId,
+		TopLevel:      3,
+		Notifications: []protocol.Notification{},
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -108,9 +111,9 @@ func (s *exchangesSuite) TestBroadcastExchangeEmptyButAhead(c *C) {
 		ImageChannel: "img1",
 	}
 	exchg := &broker.BroadcastExchange{
-		ChanId:               store.SystemInternalChannelId,
-		TopLevel:             3,
-		NotificationPayloads: []json.RawMessage{},
+		ChanId:        store.SystemInternalChannelId,
+		TopLevel:      3,
+		Notifications: []protocol.Notification{},
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -133,9 +136,9 @@ func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 
 	topLevel := int64(len(needsSplitting))
 	exchg := &broker.BroadcastExchange{
-		ChanId:               store.SystemInternalChannelId,
-		TopLevel:             topLevel,
-		NotificationPayloads: needsSplitting,
+		ChanId:        store.SystemInternalChannelId,
+		TopLevel:      topLevel,
+		Notifications: help.Ns(needsSplitting...),
 	}
 	exchg.Init()
 	outMsg, _, err := exchg.Prepare(sess)
@@ -152,10 +155,10 @@ func (s *exchangesSuite) TestBroadcastExchangeReuseVsSplit(c *C) {
 	exchg = &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: topLevel + 2,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img1/m1":"x"}`),
 			json.RawMessage(`{"img1/m1":"y"}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, _, err = exchg.Prepare(sess)
@@ -173,9 +176,9 @@ func (s *exchangesSuite) TestBroadcastExchangeAckMismatch(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img2/m1":1}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -202,10 +205,10 @@ func (s *exchangesSuite) TestBroadcastExchangeFilterByLevel(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 3,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img1/m1":100}`),
 			json.RawMessage(`{"img1/m1":101}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -229,11 +232,11 @@ func (s *exchangesSuite) TestBroadcastExchangeChannelFilter(c *C) {
 	exchg := &broker.BroadcastExchange{
 		ChanId:   store.SystemInternalChannelId,
 		TopLevel: 5,
-		NotificationPayloads: []json.RawMessage{
+		Notifications: help.Ns(
 			json.RawMessage(`{"img1/m1":100}`),
 			json.RawMessage(`{"img2/m2":200}`),
 			json.RawMessage(`{"img1/m1":101}`),
-		},
+		),
 	}
 	exchg.Init()
 	outMsg, inMsg, err := exchg.Prepare(sess)
@@ -249,16 +252,204 @@ func (s *exchangesSuite) TestBroadcastExchangeChannelFilter(c *C) {
 	c.Check(sess.LevelsMap[store.SystemInternalChannelId], Equals, int64(5))
 }
 
-func (s *exchangesSuite) TestConnBrokenExchange(c *C) {
+func (s *exchangesSuite) TestConnMetaExchange(c *C) {
 	sess := &testing.TestBrokerSession{}
-	cbe := &broker.ConnBrokenExchange{"REASON"}
+	var msg protocol.OnewayMsg = &protocol.ConnWarnMsg{"connwarn", "REASON"}
+	cbe := &broker.ConnMetaExchange{msg}
 	outMsg, inMsg, err := cbe.Prepare(sess)
 	c.Assert(err, IsNil)
+	c.Check(msg, Equals, outMsg)
 	c.Check(inMsg, IsNil) // no answer is expected
 	// check
 	marshalled, err := json.Marshal(outMsg)
 	c.Assert(err, IsNil)
-	c.Check(string(marshalled), Equals, `{"T":"connbroken","Reason":"REASON"}`)
+	c.Check(string(marshalled), Equals, `{"T":"connwarn","Reason":"REASON"}`)
 
-	c.Check(func() { cbe.Acked(nil, true) }, PanicMatches, "Acked should not get invoked on ConnBrokenExchange")
+	c.Check(func() { cbe.Acked(nil, true) }, PanicMatches, "Acked should not get invoked on ConnMetaExchange")
+}
+
+func (s *exchangesSuite) TestUnicastExchange(c *C) {
+	chanId1 := store.UnicastInternalChannelId("u1", "d1")
+	notifs := []protocol.Notification{
+		protocol.Notification{
+			MsgId:   "msg1",
+			AppId:   "app1",
+			Payload: json.RawMessage(`{"m": 1}`),
+		},
+		protocol.Notification{
+			MsgId:   "msg2",
+			AppId:   "app2",
+			Payload: json.RawMessage(`{"m": 2}`),
+		},
+	}
+	dropped := make(chan []protocol.Notification, 2)
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			c.Check(chanId, Equals, chanId1)
+			c.Check(cachedOk, Equals, false)
+			return 0, notifs, nil
+		},
+		DoDropByMsgId: func(chanId store.InternalChannelId, targets []protocol.Notification) error {
+			c.Check(chanId, Equals, chanId1)
+			dropped <- targets
+			return nil
+		},
+	}
+	exchg := &broker.UnicastExchange{ChanId: chanId1, CachedOk: false}
+	outMsg, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	// check
+	marshalled, err := json.Marshal(outMsg)
+	c.Assert(err, IsNil)
+	c.Check(string(marshalled), Equals, `{"T":"notifications","Notifications":[{"A":"app1","M":"msg1","P":{"m":1}},{"A":"app2","M":"msg2","P":{"m":2}}]}`)
+	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)
+	c.Assert(err, IsNil)
+	err = exchg.Acked(sess, true)
+	c.Assert(err, IsNil)
+	c.Check(dropped, HasLen, 1)
+	c.Check(<-dropped, DeepEquals, notifs)
+}
+
+func (s *exchangesSuite) TestUnicastExchangeAckMismatch(c *C) {
+	notifs := []protocol.Notification{protocol.Notification{}}
+	dropped := make(chan []protocol.Notification, 2)
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			return 0, notifs, nil
+		},
+		DoDropByMsgId: func(chanId store.InternalChannelId, targets []protocol.Notification) error {
+			dropped <- targets
+			return nil
+		},
+	}
+	exchg := &broker.UnicastExchange{}
+	_, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	err = json.Unmarshal([]byte(`{}`), inMsg)
+	c.Assert(err, IsNil)
+	err = exchg.Acked(sess, true)
+	c.Assert(err, Not(IsNil))
+	c.Check(dropped, HasLen, 0)
+}
+
+func (s *exchangesSuite) TestUnicastExchangeErrorOnPrepare(c *C) {
+	fail := errors.New("fail")
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			return 0, nil, fail
+		},
+	}
+	exchg := &broker.UnicastExchange{}
+	_, _, err := exchg.Prepare(sess)
+	c.Assert(err, Equals, fail)
+}
+
+func (s *exchangesSuite) TestUnicastExchangeCachedOkNop(c *C) {
+	chanId1 := store.UnicastInternalChannelId("u1", "d1")
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			c.Check(chanId, Equals, chanId1)
+			c.Check(cachedOk, Equals, true)
+			return 0, nil, nil
+		},
+	}
+	exchg := &broker.UnicastExchange{ChanId: chanId1, CachedOk: true}
+	_, _, err := exchg.Prepare(sess)
+	c.Assert(err, Equals, broker.ErrNop)
+}
+
+func (s *exchangesSuite) TestUnicastExchangeErrorOnAcked(c *C) {
+	notifs := []protocol.Notification{protocol.Notification{}}
+	fail := errors.New("fail")
+	sess := &testing.TestBrokerSession{
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			return 0, notifs, nil
+		},
+		DoDropByMsgId: func(chanId store.InternalChannelId, targets []protocol.Notification) error {
+			return fail
+		},
+	}
+	exchg := &broker.UnicastExchange{}
+	_, inMsg, err := exchg.Prepare(sess)
+	c.Assert(err, IsNil)
+	err = json.Unmarshal([]byte(`{"T":"ack"}`), inMsg)
+	c.Assert(err, IsNil)
+	err = exchg.Acked(sess, true)
+	c.Assert(err, Equals, fail)
+}
+
+func (s *exchangesSuite) TestFeedPending(c *C) {
+	bcast1 := json.RawMessage(`{"m": "M"}`)
+	decoded1 := map[string]interface{}{"m": "M"}
+	sess := &testing.TestBrokerSession{
+		Exchanges: make(chan broker.Exchange, 5),
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			switch chanId {
+			case store.SystemInternalChannelId:
+				return 1, help.Ns(bcast1), nil
+			default:
+				return 0, nil, nil
+			}
+		},
+	}
+	err := broker.FeedPending(sess)
+	c.Assert(err, IsNil)
+	c.Assert(len(sess.Exchanges), Equals, 2)
+	exchg1 := <-sess.Exchanges
+	c.Check(exchg1, DeepEquals, &broker.BroadcastExchange{
+		ChanId:        store.SystemInternalChannelId,
+		TopLevel:      1,
+		Notifications: help.Ns(bcast1),
+		Decoded:       []map[string]interface{}{decoded1},
+	})
+	exchg2 := <-sess.Exchanges
+	c.Check(exchg2, DeepEquals, &broker.UnicastExchange{
+		ChanId:   sess.InternalChannelId(),
+		CachedOk: true,
+	})
+}
+
+func (s *exchangesSuite) TestFeedPendingSystemChanNop(c *C) {
+	bcast1 := json.RawMessage(`{"m": "M"}`)
+	sess := &testing.TestBrokerSession{
+		LevelsMap: map[store.InternalChannelId]int64{
+			store.SystemInternalChannelId: 1,
+		},
+		Exchanges: make(chan broker.Exchange, 5),
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			switch chanId {
+			case store.SystemInternalChannelId:
+				return 1, help.Ns(bcast1), nil
+			default:
+				return 0, nil, nil
+			}
+		},
+	}
+	err := broker.FeedPending(sess)
+	c.Assert(err, IsNil)
+	c.Check(len(sess.Exchanges), Equals, 1)
+	exchg1 := <-sess.Exchanges
+	c.Check(exchg1, FitsTypeOf, &broker.UnicastExchange{})
+}
+
+func (s *exchangesSuite) TestFeedPendingSystemChanFail(c *C) {
+	sess := &testing.TestBrokerSession{
+		LevelsMap: map[store.InternalChannelId]int64{
+			store.SystemInternalChannelId: 1,
+		},
+		Exchanges: make(chan broker.Exchange, 5),
+		DoGet: func(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
+			switch chanId {
+			case store.SystemInternalChannelId:
+				return 0, nil, errors.New("fail")
+			default:
+				return 0, nil, nil
+			}
+		},
+	}
+	err := broker.FeedPending(sess)
+	c.Assert(err, IsNil)
+	c.Check(len(sess.Exchanges), Equals, 1)
+	exchg1 := <-sess.Exchanges
+	c.Check(exchg1, FitsTypeOf, &broker.UnicastExchange{})
 }
