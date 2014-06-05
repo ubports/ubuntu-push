@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 """
 request a unicast registration
 """
@@ -36,8 +36,8 @@ def main():
         headers['Authorization'] = auth
     r = requests.post(url, data=json.dumps(body), headers=headers,
                       verify=not args.insecure)
-    print r.status_code
-    print r.text
+    print(r.status_code)
+    print(r.text)
 
 if __name__ == '__main__':
     main()
