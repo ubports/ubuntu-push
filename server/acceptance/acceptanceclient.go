@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"launchpad.net/ubuntu-push/protocol"
@@ -44,6 +45,7 @@ type ClientSession struct {
 	Levels          map[string]int64
 	Insecure        bool   // don't verify certs
 	Prefix          string // prefix for events
+	Auth            string
 	// connection
 	Connection net.Conn
 }
@@ -73,6 +75,7 @@ type serverMsg struct {
 	Type string `json:"T"`
 	protocol.BroadcastMsg
 	protocol.NotificationsMsg
+	protocol.ConnWarnMsg
 }
 
 // Run the session with the server, emits a stream of events.
@@ -93,6 +96,7 @@ func (sess *ClientSession) Run(events chan<- string) error {
 			"device":  sess.Model,
 			"channel": sess.ImageChannel,
 		},
+		Authorization: sess.Auth,
 	})
 	if err != nil {
 		return err
@@ -125,9 +129,24 @@ func (sess *ClientSession) Run(events chan<- string) error {
 			if sess.ReportPings {
 				events <- sess.Prefix + "ping"
 			}
+		case "notifications":
+			conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
+			err := proto.WriteMessage(protocol.AckMsg{Type: "ack"})
+			if err != nil {
+				return err
+			}
+			parts := make([]string, len(recv.Notifications))
+			for i, notif := range recv.Notifications {
+				pack, err := json.Marshal(&notif.Payload)
+				if err != nil {
+					return err
+				}
+				parts[i] = fmt.Sprintf("app:%v payload:%s;", notif.AppId, pack)
+			}
+			events <- fmt.Sprintf("%sunicast %s", sess.Prefix, strings.Join(parts, " "))
 		case "broadcast":
 			conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-			err := proto.WriteMessage(protocol.PingPongMsg{Type: "ack"})
+			err := proto.WriteMessage(protocol.AckMsg{Type: "ack"})
 			if err != nil {
 				return err
 			}
@@ -136,6 +155,8 @@ func (sess *ClientSession) Run(events chan<- string) error {
 				return err
 			}
 			events <- fmt.Sprintf("%sbroadcast chan:%v app:%v topLevel:%d payloads:%s", sess.Prefix, recv.ChanId, recv.AppId, recv.TopLevel, pack)
+		case "connwarn":
+			events <- fmt.Sprintf("%sconnwarn %s", sess.Prefix, recv.Reason)
 		}
 	}
 	return nil

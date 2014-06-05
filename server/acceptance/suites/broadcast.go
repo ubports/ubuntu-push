@@ -29,13 +29,10 @@ import (
 	"launchpad.net/ubuntu-push/server/api"
 )
 
-// BroadCastAcceptanceSuite has tests about broadcast.
+// BroadcastAcceptanceSuite has tests about broadcast.
 type BroadcastAcceptanceSuite struct {
 	AcceptanceSuite
 }
-
-// Long after the end of the tests.
-var future = time.Now().Add(9 * time.Hour).Format(time.RFC3339)
 
 func (s *BroadcastAcceptanceSuite) TestBroadcastToConnected(c *C) {
 	events, errCh, stop := s.StartClient(c, "DEVB", nil)
@@ -91,7 +88,7 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastPending(c *C) {
 	c.Check(len(errCh), Equals, 0)
 }
 
-func (s *BroadcastAcceptanceSuite) TestBroadcasLargeNeedsSplitting(c *C) {
+func (s *BroadcastAcceptanceSuite) TestBroadcastLargeNeedsSplitting(c *C) {
 	// send bunch of broadcasts that will be pending
 	payloadFmt := fmt.Sprintf(`{"img1/m1":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
 	for i := 0; i < 32; i++ {
@@ -106,8 +103,17 @@ func (s *BroadcastAcceptanceSuite) TestBroadcasLargeNeedsSplitting(c *C) {
 
 	events, errCh, stop := s.StartClient(c, "DEVC", nil)
 	// gettting pending on connect
-	c.Check(NextEvent(events, errCh), Matches, `broadcast chan:0 app: topLevel:30 payloads:\[{"img1/m1":0,.*`)
-	c.Check(NextEvent(events, errCh), Matches, `broadcast chan:0 app: topLevel:32 payloads:\[.*`)
+	n := 0
+	for {
+		evt := NextEvent(events, errCh)
+		c.Check(evt, Matches, "broadcast chan:0 .*")
+		n += 1
+		if strings.Contains(evt, "topLevel:32") {
+			break
+		}
+	}
+	// was split
+	c.Check(n > 1, Equals, true)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
@@ -265,7 +271,11 @@ func (s *BroadcastAcceptanceSuite) TestBroadcastExpiration(c *C) {
 
 func (s *BroadcastAcceptanceSuite) TestGetHosts(c *C) {
 	gh := gethosts.New("", s.ServerAPIURL+"/delivery-hosts", 2*time.Second)
-	hosts, err := gh.Get()
+	host, err := gh.Get()
 	c.Assert(err, IsNil)
-	c.Check(hosts, DeepEquals, []string{s.ServerAddr})
+	expected := &gethosts.Host{
+		Domain: "localhost",
+		Hosts:  []string{s.ServerAddr},
+	}
+	c.Check(host, DeepEquals, expected)
 }

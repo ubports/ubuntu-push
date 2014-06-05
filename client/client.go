@@ -19,6 +19,10 @@
 package client
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -34,10 +38,12 @@ import (
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/systemimage"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
+	"launchpad.net/ubuntu-push/client/service"
 	"launchpad.net/ubuntu-push/client/session"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
 )
@@ -56,6 +62,8 @@ type ClientConfig struct {
 	ExpectAllRepairedTime  config.ConfigTimeDuration `json:"expect_all_repaired"` // worth retrying all servers after
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
+	// How to invoke the auth helper
+	AuthHelper []string `json:"auth_helper"`
 	// The logging level (one of "debug", "info", "error")
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
 }
@@ -79,9 +87,15 @@ type PushClient struct {
 	actionsCh          <-chan notifications.RawActionReply
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
+	serviceEndpoint    bus.Endpoint
+	service            *service.Service
 }
 
-var ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
+var (
+	system_update_url   = "settings:///system/system-update"
+	ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
+	ACTION_ID_BROADCAST = ACTION_ID_SNOWFLAKE + system_update_url
+)
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
@@ -144,8 +158,9 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		ExchangeTimeout:        client.config.ExchangeTimeout.TimeDuration(),
 		HostsCachingExpiryTime: client.config.HostsCachingExpiryTime.TimeDuration(),
 		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
-		PEM:  client.pem,
-		Info: info,
+		PEM:        client.pem,
+		Info:       info,
+		AuthHelper: client.config.AuthHelper,
 	}
 }
 
@@ -155,7 +170,13 @@ func (client *PushClient) getDeviceId() error {
 	if err != nil {
 		return err
 	}
-	client.deviceId = client.idder.String()
+	baseId := client.idder.String()
+	b, err := hex.DecodeString(baseId)
+	if err != nil {
+		return fmt.Errorf("whoopsie id should be hex: %v", err)
+	}
+	h := sha256.Sum224(b)
+	client.deviceId = base64.StdEncoding.EncodeToString(h[:])
 	return nil
 }
 
@@ -192,7 +213,7 @@ func (client *PushClient) initSession() error {
 	}
 	sess, err := session.NewSession(client.config.Addr,
 		client.deriveSessionConfig(info), client.deviceId,
-		client.levelMapFactory, client.log)
+		client.seenStateFactory, client.log)
 	if err != nil {
 		return err
 	}
@@ -200,12 +221,12 @@ func (client *PushClient) initSession() error {
 	return nil
 }
 
-// levelmapFactory returns a levelMap for the session
-func (client *PushClient) levelMapFactory() (levelmap.LevelMap, error) {
+// seenStateFactory returns a SeenState for the session
+func (client *PushClient) seenStateFactory() (seenstate.SeenState, error) {
 	if client.leveldbPath == "" {
-		return levelmap.NewLevelMap()
+		return seenstate.NewSeenState()
 	} else {
-		return levelmap.NewSqliteLevelMap(client.leveldbPath)
+		return seenstate.NewSqliteSeenState(client.leveldbPath)
 	}
 }
 
@@ -232,7 +253,7 @@ func (client *PushClient) handleErr(err error) {
 	}
 }
 
-// filterNotification finds out if the notification is about an actual
+// filterBroadcastNotification finds out if the notification is about an actual
 // upgrade for the device. It expects msg.Decoded entries to look
 // like:
 //
@@ -240,7 +261,7 @@ func (client *PushClient) handleErr(err error) {
 // "IMAGE-CHANNEL/DEVICE-MODEL": [BUILD-NUMBER, CHANNEL-ALIAS]
 // ...
 // }
-func (client *PushClient) filterNotification(msg *session.Notification) bool {
+func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNotification) bool {
 	n := len(msg.Decoded)
 	if n == 0 {
 		return false
@@ -275,26 +296,30 @@ func (client *PushClient) filterNotification(msg *session.Notification) bool {
 	return false
 }
 
-// handleNotification deals with receiving a notification
-func (client *PushClient) handleNotification(msg *session.Notification) error {
-	if !client.filterNotification(msg) {
-		return nil
-	}
-	action_id := ACTION_ID_SNOWFLAKE
-	a := []string{action_id, "Go get it!"} // action value not visible on the phone
+func (client *PushClient) sendNotification(action_id, icon, summary, body string) (uint32, error) {
+	a := []string{action_id, "Switch to app"} // action value not visible on the phone
 	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
 	nots := notifications.Raw(client.notificationsEndp, client.log)
-	body := "Tap to open the system updater."
-	not_id, err := nots.Notify(
-		"ubuntu-push-client",               // app name
-		uint32(0),                          // id
-		"update_manager_icon",              // icon
-		"There's an updated system image.", // summary
-		body,           // body
-		a,              // actions
-		h,              // hints
-		int32(10*1000), // timeout (ms)
+	return nots.Notify(
+		"ubuntu-push-client", // app name
+		uint32(0),            // id
+		icon,                 // icon
+		summary,              // summary
+		body,                 // body
+		a,                    // actions
+		h,                    // hints
+		int32(10*1000),       // timeout (ms)
 	)
+}
+
+// handleBroadcastNotification deals with receiving a broadcast notification
+func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
+	if !client.filterBroadcastNotification(msg) {
+		return nil
+	}
+	not_id, err := client.sendNotification(ACTION_ID_BROADCAST,
+		"update_manager_icon", "There's an updated system image.",
+		"Tap to open the system updater.")
 	if err != nil {
 		client.log.Errorf("showing notification: %s", err)
 		return err
@@ -303,26 +328,42 @@ func (client *PushClient) handleNotification(msg *session.Notification) error {
 	return nil
 }
 
+// handleUnicastNotification deals with receiving a unicast notification
+func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
+	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
+	return client.service.Inject(msg.AppId, string(msg.Payload))
+}
+
 // handleClick deals with the user clicking a notification
 func (client *PushClient) handleClick(action_id string) error {
-	if action_id != ACTION_ID_SNOWFLAKE {
+	// “The string is a stark data structure and everywhere it is passed
+	// there is much duplication of process. It is a perfect vehicle for
+	// hiding information.”
+	//
+	// From ACM's SIGPLAN publication, (September, 1982), Article
+	// "Epigrams in Programming", by Alan J. Perlis of Yale University.
+	url := strings.TrimPrefix(action_id, ACTION_ID_SNOWFLAKE)
+	if len(url) == len(action_id) || len(url) == 0 {
+		// it didn't start with the prefix
 		return nil
 	}
 	// it doesn't get much simpler...
 	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
-	return urld.DispatchURL("settings:///system/system-update")
+	return urld.DispatchURL(url)
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, notifhandler func(*session.Notification) error, errhandler func(error)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(*protocol.Notification) error, errhandler func(error)) {
 	for {
 		select {
 		case state := <-client.connCh:
 			connhandler(state)
 		case action := <-client.actionsCh:
 			clickhandler(action.ActionId)
-		case msg := <-client.session.MsgCh:
-			notifhandler(msg)
+		case bcast := <-client.session.BroadcastCh:
+			bcasthandler(bcast)
+		case ucast := <-client.session.NotificationsCh:
+			ucasthandler(ucast)
 		case err := <-client.session.ErrCh:
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
@@ -344,14 +385,57 @@ func (client *PushClient) doStart(fs ...func() error) error {
 
 // Loop calls doLoop with the "real" handlers
 func (client *PushClient) Loop() {
-	client.doLoop(client.handleConnState, client.handleClick,
-		client.handleNotification, client.handleErr)
+	client.doLoop(client.handleConnState,
+		client.handleClick,
+		client.handleBroadcastNotification,
+		client.handleUnicastNotification,
+		client.handleErr)
+}
+
+// these are the currently supported fields of a unicast message
+type UnicastMessage struct {
+	Icon    string          `json:"icon"`
+	Body    string          `json:"body"`
+	Summary string          `json:"summary"`
+	URL     string          `json:"url"`
+	Blob    json.RawMessage `json:"blob"`
+}
+
+func (client *PushClient) messageHandler(message []byte) error {
+	var umsg = new(UnicastMessage)
+	err := json.Unmarshal(message, &umsg)
+	if err != nil {
+		client.log.Errorf("unable to unmarshal message: %v", err)
+		return err
+	}
+
+	not_id, err := client.sendNotification(
+		ACTION_ID_SNOWFLAKE+umsg.URL,
+		umsg.Icon, umsg.Summary, umsg.Body)
+
+	if err != nil {
+		client.log.Errorf("showing notification: %s", err)
+		return err
+	}
+	client.log.Debugf("got notification id %d", not_id)
+	return nil
+}
+
+func (client *PushClient) startService() error {
+	if client.serviceEndpoint == nil {
+		client.serviceEndpoint = bus.SessionBus.Endpoint(service.BusAddress, client.log)
+	}
+
+	client.service = service.NewService(client.serviceEndpoint, client.log)
+	client.service.SetMessageHandler(client.messageHandler)
+	return client.service.Start()
 }
 
 // Start calls doStart with the "real" starters
 func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
+		client.startService,
 		client.getDeviceId,
 		client.takeTheBus,
 		client.initSession,

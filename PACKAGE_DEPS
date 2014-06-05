@@ -1,0 +1,10 @@
+# See the README for what this file is and how to use it.
+build-essential
+cmake
+libdbus-1-dev
+libgcrypt11-dev
+libglib2.0-dev
+libnih-dbus-dev
+libsqlite3-dev
+libubuntuoneauth-2.0-dev
+libwhoopsie-dev

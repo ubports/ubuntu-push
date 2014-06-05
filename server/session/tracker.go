@@ -17,6 +17,7 @@
 package session
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -29,6 +30,8 @@ type SessionTracker interface {
 	logger.Logger
 	// Session got started.
 	Start(WithRemoteAddr)
+	// SessionId
+	SessionId() string
 	// Session got registered with broker as sess BrokerSession.
 	Registered(sess broker.BrokerSession)
 	// Report effective elapsed ping interval.
@@ -47,7 +50,7 @@ var sessionsEpoch = time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano()
 // Tracker implements SessionTracker simply.
 type tracker struct {
 	logger.Logger
-	sessionId int64 // xxx use timeuuid later
+	sessionId string
 }
 
 func NewTracker(logger logger.Logger) SessionTracker {
@@ -55,18 +58,22 @@ func NewTracker(logger logger.Logger) SessionTracker {
 }
 
 func (trk *tracker) Start(conn WithRemoteAddr) {
-	trk.sessionId = time.Now().UnixNano() - sessionsEpoch
-	trk.Debugf("session(%x) connected %v", trk.sessionId, conn.RemoteAddr())
+	trk.sessionId = fmt.Sprintf("%x", time.Now().UnixNano()-sessionsEpoch)
+	trk.Debugf("session(%s) connected %v", trk.sessionId, conn.RemoteAddr())
+}
+
+func (trk *tracker) SessionId() string {
+	return trk.sessionId
 }
 
 func (trk *tracker) Registered(sess broker.BrokerSession) {
-	trk.Infof("session(%x) registered %v", trk.sessionId, sess.DeviceIdentifier())
+	trk.Infof("session(%s) registered %v", trk.sessionId, sess.DeviceIdentifier())
 }
 
 func (trk *tracker) EffectivePingInterval(time.Duration) {
 }
 
 func (trk *tracker) End(err error) error {
-	trk.Debugf("session(%x) ended with: %v", trk.sessionId, err)
+	trk.Debugf("session(%s) ended with: %v", trk.sessionId, err)
 	return err
 }

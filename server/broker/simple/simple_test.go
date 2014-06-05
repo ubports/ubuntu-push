@@ -17,13 +17,10 @@
 package simple
 
 import (
-	"encoding/json"
 	stdtesting "testing"
-	"time"
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/broker/testing"
 	"launchpad.net/ubuntu-push/server/store"
 )
@@ -44,39 +41,7 @@ func (s *simpleSuite) TestNew(c *C) {
 	c.Check(b.sto, Equals, sto)
 }
 
-func (s *simpleSuite) TestFeedPending(c *C) {
-	sto := store.NewInMemoryPendingStore()
-	muchLater := time.Now().Add(10 * time.Minute)
-	notification1 := json.RawMessage(`{"m": "M"}`)
-	decoded1 := map[string]interface{}{"m": "M"}
-	sto.AppendToChannel(store.SystemInternalChannelId, notification1, muchLater)
-	b := NewSimpleBroker(sto, testBrokerConfig, nil)
-	sess := &simpleBrokerSession{
-		exchanges: make(chan broker.Exchange, 1),
-	}
-	b.feedPending(sess)
-	c.Assert(len(sess.exchanges), Equals, 1)
-	exchg1 := <-sess.exchanges
-	c.Check(exchg1, DeepEquals, &broker.BroadcastExchange{
-		ChanId:               store.SystemInternalChannelId,
-		TopLevel:             1,
-		NotificationPayloads: []json.RawMessage{notification1},
-		Decoded:              []map[string]interface{}{decoded1},
-	})
-}
-
-func (s *simpleSuite) TestFeedPendingNop(c *C) {
-	sto := store.NewInMemoryPendingStore()
-	muchLater := time.Now().Add(10 * time.Minute)
-	notification1 := json.RawMessage(`{"m": "M"}`)
-	sto.AppendToChannel(store.SystemInternalChannelId, notification1, muchLater)
-	b := NewSimpleBroker(sto, testBrokerConfig, nil)
-	sess := &simpleBrokerSession{
-		exchanges: make(chan broker.Exchange, 1),
-		levels: map[store.InternalChannelId]int64{
-			store.SystemInternalChannelId: 1,
-		},
-	}
-	b.feedPending(sess)
-	c.Assert(len(sess.exchanges), Equals, 0)
+func (s *simpleSuite) TestSessionInternalChannelId(c *C) {
+	sess := &simpleBrokerSession{deviceId: "dev21"}
+	c.Check(sess.InternalChannelId(), Equals, store.UnicastInternalChannelId("dev21", "dev21"))
 }

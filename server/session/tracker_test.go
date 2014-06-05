@@ -46,8 +46,8 @@ func (tra *testRemoteAddrable) RemoteAddr() net.Addr {
 func (s *trackerSuite) TestSessionTrackStart(c *C) {
 	track := NewTracker(s.testlog)
 	track.Start(&testRemoteAddrable{})
-	c.Check(track.(*tracker).sessionId, Not(Equals), 0)
-	regExpected := fmt.Sprintf(`DEBUG session\(%x\) connected 127\.0\.0\.1:9999\n`, track.(*tracker).sessionId)
+	c.Check(track.SessionId(), Not(Equals), "")
+	regExpected := fmt.Sprintf(`DEBUG session\(%s\) connected 127\.0\.0\.1:9999\n`, track.SessionId())
 	c.Check(s.testlog.Captured(), Matches, regExpected)
 }
 
@@ -55,7 +55,7 @@ func (s *trackerSuite) TestSessionTrackRegistered(c *C) {
 	track := NewTracker(s.testlog)
 	track.Start(&testRemoteAddrable{})
 	track.Registered(&testing.TestBrokerSession{DeviceId: "DEV-ID"})
-	regExpected := fmt.Sprintf(`.*connected.*\nINFO session\(%x\) registered DEV-ID\n`, track.(*tracker).sessionId)
+	regExpected := fmt.Sprintf(`.*connected.*\nINFO session\(%s\) registered DEV-ID\n`, track.SessionId())
 	c.Check(s.testlog.Captured(), Matches, regExpected)
 }
 
@@ -63,6 +63,6 @@ func (s *trackerSuite) TestSessionTrackEnd(c *C) {
 	track := NewTracker(s.testlog)
 	track.Start(&testRemoteAddrable{})
 	track.End(&broker.ErrAbort{})
-	regExpected := fmt.Sprintf(`.*connected.*\nDEBUG session\(%x\) ended with: session aborted \(\)\n`, track.(*tracker).sessionId)
+	regExpected := fmt.Sprintf(`.*connected.*\nDEBUG session\(%s\) ended with: session aborted \(\)\n`, track.SessionId())
 	c.Check(s.testlog.Captured(), Matches, regExpected)
 }
