@@ -30,6 +30,50 @@ type inMemorySuite struct{}
 
 var _ = Suite(&inMemorySuite{})
 
+func (s *inMemorySuite) TestRegister(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	tok1, err := sto.Register("DEV1", "app1")
+	c.Assert(err, IsNil)
+	tok2, err := sto.Register("DEV1", "app1")
+	c.Assert(err, IsNil)
+	c.Check(len(tok1), Not(Equals), 0)
+	c.Check(tok1, Equals, tok2)
+}
+
+func (s *inMemorySuite) TestGetInternalChannelIdFromToken(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	tok1, err := sto.Register("DEV1", "app1")
+	c.Assert(err, IsNil)
+	chanId, err := sto.GetInternalChannelIdFromToken(tok1, "app1", "", "")
+	c.Assert(err, IsNil)
+	c.Check(chanId, Equals, UnicastInternalChannelId("DEV1", "DEV1"))
+}
+
+func (s *inMemorySuite) TestGetInternalChannelIdFromTokenFallback(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	chanId, err := sto.GetInternalChannelIdFromToken("", "app1", "u1", "d1")
+	c.Assert(err, IsNil)
+	c.Check(chanId, Equals, UnicastInternalChannelId("u1", "d1"))
+}
+
+func (s *inMemorySuite) TestGetInternalChannelIdFromTokenErrors(c *C) {
+	sto := NewInMemoryPendingStore()
+	tok1, err := sto.Register("DEV1", "app1")
+	c.Assert(err, IsNil)
+
+	_, err = sto.GetInternalChannelIdFromToken(tok1, "app2", "", "")
+	c.Assert(err, Equals, ErrUnauthorized)
+
+	_, err = sto.GetInternalChannelIdFromToken("", "app2", "", "")
+	c.Assert(err, Equals, ErrUnknownToken)
+
+	_, err = sto.GetInternalChannelIdFromToken("****", "app2", "", "")
+	c.Assert(err, Equals, ErrUnknownToken)
+}
+
 func (s *inMemorySuite) TestGetInternalChannelId(c *C) {
 	sto := NewInMemoryPendingStore()
 

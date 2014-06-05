@@ -155,7 +155,7 @@ func (sess *ClientSession) Run(events chan<- string) error {
 				return err
 			}
 			events <- fmt.Sprintf("%sbroadcast chan:%v app:%v topLevel:%d payloads:%s", sess.Prefix, recv.ChanId, recv.AppId, recv.TopLevel, pack)
-		case "connwarn":
+		case "warn", "connwarn":
 			events <- fmt.Sprintf("%sconnwarn %s", sess.Prefix, recv.Reason)
 		}
 	}

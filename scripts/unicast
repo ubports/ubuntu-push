@@ -52,6 +52,8 @@ def main():
         userid, devid = reg.split(':', 1)
         body['userid'] = userid
         body['deviceid'] = devid
+    else:
+        body['token'] = reg
     xauth = {}
     if args.user and args.password:
         xauth = {'auth': requests.auth.HTTPBasicAuth(args.user, args.password)}

@@ -51,6 +51,8 @@ const (
 	ioError        = "io-error"
 	invalidRequest = "invalid-request"
 	unknownChannel = "unknown-channel"
+	unknownToken   = "unknown-token"
+	unauthorized   = "unauthorized"
 	unavailable    = "unavailable"
 	internalError  = "internal"
 )
@@ -121,6 +123,11 @@ var (
 		unknownChannel,
 		"Unknown channel",
 	}
+	ErrUnknownToken = &APIError{
+		http.StatusBadRequest,
+		unknownToken,
+		"Unknown token",
+	}
 	ErrUnknown = &APIError{
 		http.StatusInternalServerError,
 		internalError,
@@ -136,16 +143,33 @@ var (
 		unavailable,
 		"Could not store notification",
 	}
+	ErrCouldNotMakeToken = &APIError{
+		http.StatusServiceUnavailable,
+		unavailable,
+		"Could not make token",
+	}
+	ErrCouldNotResolveToken = &APIError{
+		http.StatusServiceUnavailable,
+		unavailable,
+		"Could not resolve token",
+	}
+	ErrUnauthorized = &APIError{
+		http.StatusUnauthorized,
+		unauthorized,
+		"Unauthorized",
+	}
 )
 
-type castCommon struct {
+type Registration struct {
+	DeviceId string `json:"deviceid"`
+	AppId    string `json:"appid"`
 }
 
 type Unicast struct {
+	Token    string `json:"token"`
 	UserId   string `json:"userid"`
 	DeviceId string `json:"deviceid"`
 	AppId    string `json:"appid"`
-	//Registration string          `json:"registration"`
 	//CoalesceTag  string          `json:"coalesce_tag"`
 	ExpireOn string          `json:"expire_on"`
 	Data     json.RawMessage `json:"data"`
@@ -183,14 +207,14 @@ func checkContentLength(request *http.Request, maxBodySize int64) *APIError {
 }
 
 func checkRequestAsPost(request *http.Request, maxBodySize int64) *APIError {
+	if request.Method != "POST" {
+		return ErrWrongRequestMethod
+	}
 	if err := checkContentLength(request, maxBodySize); err != nil {
 		return err
 	}
 	if request.Header.Get("Content-Type") != JSONMediaType {
 		return ErrWrongContentType
-	}
-	if request.Method != "POST" {
-		return ErrWrongRequestMethod
 	}
 	return nil
 }
@@ -325,7 +349,10 @@ type UnicastHandler struct {
 }
 
 func checkUnicast(ucast *Unicast) (time.Time, *APIError) {
-	if ucast.UserId == "" || ucast.DeviceId == "" || ucast.AppId == "" {
+	if ucast.AppId == "" {
+		return zeroTime, ErrMissingIdField
+	}
+	if ucast.Token == "" && (ucast.UserId == "" || ucast.DeviceId == "") {
 		return zeroTime, ErrMissingIdField
 	}
 	return checkCastCommon(ucast.Data, ucast.ExpireOn)
@@ -341,9 +368,21 @@ func (h *UnicastHandler) doUnicast(sto store.PendingStore, ucast *Unicast) *APIE
 	if apiErr != nil {
 		return apiErr
 	}
-	chanId := store.UnicastInternalChannelId(ucast.UserId, ucast.DeviceId)
+	chanId, err := sto.GetInternalChannelIdFromToken(ucast.Token, ucast.AppId, ucast.UserId, ucast.DeviceId)
+	if err != nil {
+		switch err {
+		case store.ErrUnknownToken:
+			return ErrUnknownToken
+		case store.ErrUnauthorized:
+			return ErrUnauthorized
+		default:
+			h.logger.Errorf("could not resolve token: %v", err)
+			return ErrCouldNotResolveToken
+		}
+	}
+
 	msgId := generateMsgId()
-	err := sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, expire)
+	err = sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, expire)
 	if err != nil {
 		h.logger.Errorf("could not store notification: %v", err)
 		return ErrCouldNotStoreNotification
@@ -378,6 +417,62 @@ func (h *UnicastHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 	fmt.Fprintf(writer, `{"ok":true}`)
 }
 
+type RegisterHandler struct {
+	*context
+}
+
+func checkRegister(reg *Registration) *APIError {
+	if reg.DeviceId == "" || reg.AppId == "" {
+		return ErrMissingIdField
+	}
+	return nil
+}
+
+func (h *RegisterHandler) doRegister(sto store.PendingStore, reg *Registration) (string, *APIError) {
+	apiErr := checkRegister(reg)
+	if apiErr != nil {
+		return "", apiErr
+	}
+	token, err := sto.Register(reg.DeviceId, reg.AppId)
+	if err != nil {
+		h.logger.Errorf("could not make a token: %v", err)
+		return "", ErrCouldNotMakeToken
+	}
+	return token, nil
+}
+
+func (h *RegisterHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	var apiErr *APIError
+	defer func() {
+		if apiErr != nil {
+			RespondError(writer, apiErr)
+		}
+	}()
+
+	reg := &Registration{}
+
+	sto, apiErr := h.prepare(writer, request, reg)
+	if apiErr != nil {
+		return
+	}
+	defer sto.Close()
+
+	token, apiErr := h.doRegister(sto, reg)
+	if apiErr != nil {
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	res, err := json.Marshal(map[string]interface{}{
+		"ok":    true,
+		"token": token,
+	})
+	if err != nil {
+		panic(fmt.Errorf("couldn't marshal our own response: %v", err))
+	}
+	writer.Write(res)
+}
+
 // MakeHandlersMux makes a handler that dispatches for the various API endpoints.
 func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
 	ctx := &context{
@@ -388,5 +483,6 @@ func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSendin
 	mux := http.NewServeMux()
 	mux.Handle("/broadcast", &BroadcastHandler{context: ctx})
 	mux.Handle("/notify", &UnicastHandler{context: ctx})
+	mux.Handle("/register", &RegisterHandler{context: ctx})
 	return mux
 }

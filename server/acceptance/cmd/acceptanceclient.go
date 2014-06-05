@@ -90,7 +90,9 @@ func main() {
 		}
 	}
 	if len(cfg.AuthHelper) != 0 {
-		auth, err := exec.Command(cfg.AuthHelper[0], cfg.AuthHelper[1:]...).Output()
+		helperArgs := cfg.AuthHelper[1:]
+		helperArgs = append(helperArgs, "https://push.ubuntu.com/")
+		auth, err := exec.Command(cfg.AuthHelper[0], helperArgs...).Output()
 		if err != nil {
 			log.Fatalf("auth helper: %v", err)
 		}
