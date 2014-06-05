@@ -12,7 +12,7 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('devid', nargs=1)
+    parser.add_argument('deviceid', nargs=1)
     parser.add_argument('appid', nargs=1)
     parser.add_argument('-H', '--host',
                         help="host:port (default: %(default)s)",
@@ -27,12 +27,12 @@ def main():
         scheme = 'http'
     url = "%s://%s/register" % (scheme, args.host)
     body = {
-        'deviceid': args.devid[0],
+        'deviceid': args.deviceid[0],
         'appid': args.appid[0],
         }
     headers = {'Content-Type': 'application/json'}
     if args.auth_helper:
-        auth = subprocess.check_output(args.auth_helper).strip()
+        auth = subprocess.check_output([args.auth_helper, url]).strip()
         headers['Authorization'] = auth
     r = requests.post(url, data=json.dumps(body), headers=headers,
                       verify=not args.insecure)
