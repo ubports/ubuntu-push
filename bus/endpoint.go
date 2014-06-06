@@ -29,7 +29,7 @@ import (
  *    Endpoint (and its implementation)
  */
 
-type BusMethod func([]interface{}, []interface{}) ([]interface{}, error)
+type BusMethod func(string, []interface{}, []interface{}) ([]interface{}, error)
 type DispatchMap map[string]BusMethod
 
 // bus.Endpoint represents the DBus connection itself.
@@ -249,12 +249,12 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap, extra ...interface{}) {
 				endp.log.Errorf("WatchMethod: unknown method %s", msg.Member)
 			} else {
 				args := msg.AllArgs()
-				rvals, err := meth(args, extra)
+				rvals, err := meth(string(msg.Path), args, extra)
 				if err != nil {
 					reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
-					endp.log.Errorf("WatchMethod: %s(%#v, %#v) failure: %#v", msg.Member, args, extra, err)
+					endp.log.Errorf("WatchMethod: %s(%v, %#v, %#v) failure: %#v", msg.Member, msg.Path, args, extra, err)
 				} else {
-					endp.log.Debugf("WatchMethod: %s(%#v, %#v) success: %#v", msg.Member, args, extra, rvals)
+					endp.log.Debugf("WatchMethod: %s(%v, %#v, %#v) success: %#v", msg.Member, msg.Path, args, extra, rvals)
 					reply = dbus.NewMethodReturnMessage(msg)
 					err = reply.AppendArgs(rvals...)
 					if err != nil {
