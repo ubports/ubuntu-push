@@ -229,7 +229,7 @@ func (s *TestingEndpointSuite) TestSignalUpdatesCallArgs(c *C) {
 // Test that WatchMethod updates callArgs
 func (s *TestingEndpointSuite) TestWatchMethodUpdatesCallArgs(c *C) {
 	endp := NewTestingEndpoint(nil, condition.Work(true))
-	foo := func([]interface{}, []interface{}) ([]interface{}, error) { return nil, nil }
+	foo := func(string, []interface{}, []interface{}) ([]interface{}, error) { return nil, nil }
 	foomp := bus.DispatchMap{"foo": foo}
 	endp.WatchMethod(foomp)
 	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{

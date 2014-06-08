@@ -45,7 +45,7 @@ func Quote(s []byte) []byte {
 	return out
 }
 
-// Quote() takes a byte slice and undoes the damage done to it by the quoting.
+// Unquote() takes a byte slice and undoes the damage done to it by Quote().
 func Unquote(s []byte) []byte {
 	out := make([]byte, 0, len(s))
 
