@@ -22,6 +22,7 @@ package messaging
 #cgo pkg-config: messaging-menu
 #include <glib.h>
 #include <messaging-menu/messaging-menu-app.h>
+#include <messaging-menu/messaging-menu-message.h>
 */
 import "C"
 
@@ -119,6 +120,66 @@ func MessagingMenuApp_remove_attention(app *C.struct_MessagingMenuApp, id string
     C.messaging_menu_app_remove_attention(app, (*C.gchar)(C.CString(id)))
 }
 
+func MessagingMenuApp_append_message(app *C.struct_MessagingMenuApp, msg *C.struct_MessagingMenuMessage, id string, notify bool) {
+    if notify {  // FIXME: how to convert from bool to int?
+        C.messaging_menu_app_append_message(app, msg, (*C.gchar)(C.CString(id)), (C.gboolean)(C.int(1)))
+    } else {
+        C.messaging_menu_app_append_message(app, msg, (*C.gchar)(C.CString(id)), (C.gboolean)(C.int(0)))
+    }
+}
+
+func MessagingMenuApp_get_message(app *C.struct_MessagingMenuApp, id string) *C.struct_MessagingMenuMessage {
+    return C.messaging_menu_app_get_message(app, (*C.gchar)(C.CString(id)))
+}
+
+func MessagingMenuApp_remove_message(app *C.struct_MessagingMenuApp, msg *C.struct_MessagingMenuMessage) {
+    C.messaging_menu_app_remove_message(app, msg)
+}
+
+func MessagingMenuApp_remove_message_by_id(app *C.struct_MessagingMenuApp, id string) {
+    C.messaging_menu_app_remove_message_by_id(app, (*C.gchar)(C.CString(id)))
+}
+
+func MessagingMenuMessage_new(id string, icon *C.GIcon, title string, subtitle string, body string, time int) *C.MessagingMenuMessage {
+    return C.messaging_menu_message_new((*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(title)),
+                                      (*C.gchar)(C.CString(subtitle)), (*C.gchar)(C.CString(body)), (C.gint64)(C.int(time)))
+}
+
+func MessagingMenuMessage_get_id(msg *C.MessagingMenuMessage) string {
+    return C.GoString((*C.char)(C.messaging_menu_message_get_id(msg)))
+}
+
+func MessagingMenuMessage_get_icon(msg *C.MessagingMenuMessage) *C.GIcon {
+    return C.messaging_menu_message_get_icon(msg)
+}
+
+func MessagingMenuMessage_get_title(msg *C.MessagingMenuMessage) string {
+    return C.GoString((*C.char)(C.messaging_menu_message_get_title(msg)))
+}
+
+func MessagingMenuMessage_get_subtitle(msg *C.MessagingMenuMessage) string {
+    return C.GoString((*C.char)(C.messaging_menu_message_get_subtitle(msg)))
+}
+
+func MessagingMenuMessage_get_body(msg *C.MessagingMenuMessage) string {
+    return C.GoString((*C.char)(C.messaging_menu_message_get_body(msg)))
+}
+
+func MessagingMenuMessage_get_time(msg *C.MessagingMenuMessage) int {
+    return int((C.int)(C.messaging_menu_message_get_time(msg)))
+}
+
+func MessagingMenuMessage_get_draws_attention(msg *C.MessagingMenuMessage) bool {
+    return int((C.int)(C.messaging_menu_message_get_draws_attention(msg))) != 0
+}
+
+func MessagingMenuMessage_set_draws_attention(msg *C.MessagingMenuMessage, draws_attention bool) {
+    if draws_attention {  // FIXME: how to convert from bool to int?
+        C.messaging_menu_message_set_draws_attention(msg, (C.gboolean)(C.int(1)))
+    } else {
+        C.messaging_menu_message_set_draws_attention(msg, (C.gboolean)(C.int(0)))
+    }
+}
 
 // YUCK
 
