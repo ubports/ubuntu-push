@@ -25,6 +25,8 @@ package messaging
 #include <messaging-menu/messaging-menu-message.h>
 */
 import "C"
+import "unsafe"
+
 
 const (
   Available = C.MESSAGING_MENU_STATUS_AVAILABLE
@@ -179,6 +181,27 @@ func MessagingMenuMessage_set_draws_attention(msg *C.MessagingMenuMessage, draws
     } else {
         C.messaging_menu_message_set_draws_attention(msg, (C.gboolean)(C.int(0)))
     }
+}
+
+
+// Not wrapping this one... GVariantType + GVariant? How would I wrap that?
+/*
+void
+messaging_menu_message_add_action (MessagingMenuMessage *msg,
+                                   const gchar *id,
+                                   const gchar *label,
+                                   const GVariantType *parameter_type,
+                                   GVariant *parameter_hint);*/
+
+type SourceActivatedCallback func()
+
+func SignalConnectObject(instance *C.struct_MessagingMenuApp, detailed_signal string, callback unsafe.Pointer, gobject C.gpointer) {
+    C.g_signal_connect_object(
+        (C.gpointer)(instance),
+        (*C.gchar)(C.CString(detailed_signal)),
+        (C.GCallback)(callback),
+        gobject,
+        C.G_CONNECT_AFTER)
 }
 
 // YUCK
