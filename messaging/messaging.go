@@ -62,6 +62,67 @@ func MessagingMenuApp_insert_source_with_count(app *C.struct_MessagingMenuApp, p
     C.messaging_menu_app_insert_source_with_count(app, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.guint)(C.uint(count)))
 }
 
-func MessagingMenuApp_append_source_with_count(app *C.struct_MessagingMenuApp, position int, id string, icon *C.GIcon, label string, count int) {
+func MessagingMenuApp_append_source_with_count(app *C.struct_MessagingMenuApp, id string, icon *C.GIcon, label string, count int) {
     C.messaging_menu_app_append_source_with_count(app, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.guint)(C.uint(count)))
+}
+
+func MessagingMenuApp_insert_source_with_time(app *C.struct_MessagingMenuApp, position int, id string, icon *C.GIcon, label string, time int) {
+    C.messaging_menu_app_insert_source_with_time(app, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.gint64)(C.int(time)))
+}
+
+func MessagingMenuApp_append_source_with_time(app *C.struct_MessagingMenuApp, id string, icon *C.GIcon, label string, time int) {
+    C.messaging_menu_app_append_source_with_time(app, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.gint64)(C.int(time)))
+}
+
+func MessagingMenuApp_insert_source_with_string(app *C.struct_MessagingMenuApp, position int, id string, icon *C.GIcon, label string, str string) {
+    C.messaging_menu_app_insert_source_with_string(app, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (*C.gchar)(C.CString(str)))
+}
+
+func MessagingMenuApp_append_source_with_string(app *C.struct_MessagingMenuApp, id string, icon *C.GIcon, label string, str string) {
+    C.messaging_menu_app_append_source_with_string(app, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (*C.gchar)(C.CString(str)))
+}
+
+func MessagingMenuApp_remove_source(app *C.struct_MessagingMenuApp, id string) {
+    C.messaging_menu_app_remove_source(app, (*C.gchar)(C.CString(id)))
+}
+
+func MessagingMenuApp_has_source(app *C.struct_MessagingMenuApp, id string) bool {
+    var has_it = (C.int)(C.messaging_menu_app_has_source(app, (*C.gchar)(C.CString(id))))
+    return has_it != 0
+}
+
+func MessagingMenuApp_set_source_label(app *C.struct_MessagingMenuApp, id string, label string) {
+    C.messaging_menu_app_set_source_label(app, (*C.gchar)(C.CString(id)), (*C.gchar)(C.CString(label)))
+}
+
+func MessagingMenuApp_set_source_icon(app *C.struct_MessagingMenuApp, id string, icon *C.GIcon) {
+    C.messaging_menu_app_set_source_icon(app, (*C.gchar)(C.CString(id)), icon)
+}
+
+func MessagingMenuApp_set_source_count(app *C.struct_MessagingMenuApp, id string, count int) {
+    C.messaging_menu_app_set_source_count(app, (*C.gchar)(C.CString(id)), (C.guint)(C.uint(count)))
+}
+
+func MessagingMenuApp_set_source_time(app *C.struct_MessagingMenuApp, id string, time int) {
+    C.messaging_menu_app_set_source_time(app, (*C.gchar)(C.CString(id)), (C.gint64)(C.uint(time)))
+}
+
+func MessagingMenuApp_set_source_string(app *C.struct_MessagingMenuApp, id string, str string) {
+    C.messaging_menu_app_set_source_string(app, (*C.gchar)(C.CString(id)), (*C.gchar)(C.CString(str)))
+}
+
+func MessagingMenuApp_draw_attention(app *C.struct_MessagingMenuApp, id string) {
+    C.messaging_menu_app_draw_attention(app, (*C.gchar)(C.CString(id)))
+}
+
+func MessagingMenuApp_remove_attention(app *C.struct_MessagingMenuApp, id string) {
+    C.messaging_menu_app_remove_attention(app, (*C.gchar)(C.CString(id)))
+}
+
+
+// YUCK
+
+func EnterMainLoop() {
+    var loop = C.g_main_loop_new(nil, 0)
+    C.g_main_loop_run(loop)
 }
