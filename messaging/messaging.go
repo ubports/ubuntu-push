@@ -36,150 +36,158 @@ const (
   Offline = C.MESSAGING_MENU_STATUS_OFFLINE
 )
 
-func MessagingMenuApp_new(desktop_id string) *C.struct_MessagingMenuApp {
-    return C.messaging_menu_app_new((*C.gchar)(C.CString(desktop_id)))
+type MessagingMenuApp struct {
+    instance *C.struct_MessagingMenuApp
 }
 
-func MessagingMenuApp_register(app *C.struct_MessagingMenuApp) {
-    C.messaging_menu_app_register(app)
+type MessagingMenuMessage struct {
+    instance *C.struct_MessagingMenuMessage
 }
 
-func MessagingMenuApp_unregister(app *C.struct_MessagingMenuApp) {
-    C.messaging_menu_app_unregister(app)
+func NewApp(desktop_id string) MessagingMenuApp {
+    return MessagingMenuApp{C.messaging_menu_app_new((*C.gchar)(C.CString(desktop_id)))}
 }
 
-func MessagingMenuApp_set_status(app *C.struct_MessagingMenuApp, status C.MessagingMenuStatus) {
-    C.messaging_menu_app_set_status(app, status)
+func (app *MessagingMenuApp) Register() {
+    C.messaging_menu_app_register(app.instance)
 }
 
-// FIXME: need a way to create a GIcon
-func MessagingMenuApp_insert_source(app *C.struct_MessagingMenuApp, position int, id string, icon *C.GIcon, label string) {
-    C.messaging_menu_app_insert_source(app, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)))
+func (app *MessagingMenuApp) Unregister() {
+    C.messaging_menu_app_unregister(app.instance)
 }
 
-func MessagingMenuApp_append_source(app *C.struct_MessagingMenuApp, id string, icon *C.GIcon, label string) {
-    C.messaging_menu_app_append_source(app, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)))
+func (app *MessagingMenuApp) Set_status(status C.MessagingMenuStatus) {
+    C.messaging_menu_app_set_status(app.instance, status)
 }
 
-func MessagingMenuApp_insert_source_with_count(app *C.struct_MessagingMenuApp, position int, id string, icon *C.GIcon, label string, count int) {
-    C.messaging_menu_app_insert_source_with_count(app, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.guint)(C.uint(count)))
+// FIXME: need a way to create a GIcon, use nil in the meantime
+func (app *MessagingMenuApp) Insert_source(position int, id string, icon *C.GIcon, label string) {
+    C.messaging_menu_app_insert_source(app.instance, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)))
 }
 
-func MessagingMenuApp_append_source_with_count(app *C.struct_MessagingMenuApp, id string, icon *C.GIcon, label string, count int) {
-    C.messaging_menu_app_append_source_with_count(app, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.guint)(C.uint(count)))
+func (app *MessagingMenuApp) MessagingMenuApp_append_source(id string, icon *C.GIcon, label string) {
+    C.messaging_menu_app_append_source(app.instance, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)))
 }
 
-func MessagingMenuApp_insert_source_with_time(app *C.struct_MessagingMenuApp, position int, id string, icon *C.GIcon, label string, time int) {
-    C.messaging_menu_app_insert_source_with_time(app, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.gint64)(C.int(time)))
+func (app *MessagingMenuApp) MessagingMenuApp_insert_source_with_count(position int, id string, icon *C.GIcon, label string, count int) {
+    C.messaging_menu_app_insert_source_with_count(app.instance, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.guint)(C.uint(count)))
 }
 
-func MessagingMenuApp_append_source_with_time(app *C.struct_MessagingMenuApp, id string, icon *C.GIcon, label string, time int) {
-    C.messaging_menu_app_append_source_with_time(app, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.gint64)(C.int(time)))
+func (app *MessagingMenuApp) Append_source_with_count(id string, icon *C.GIcon, label string, count int) {
+    C.messaging_menu_app_append_source_with_count(app.instance, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.guint)(C.uint(count)))
 }
 
-func MessagingMenuApp_insert_source_with_string(app *C.struct_MessagingMenuApp, position int, id string, icon *C.GIcon, label string, str string) {
-    C.messaging_menu_app_insert_source_with_string(app, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (*C.gchar)(C.CString(str)))
+func (app *MessagingMenuApp) Insert_source_with_time(position int, id string, icon *C.GIcon, label string, time int) {
+    C.messaging_menu_app_insert_source_with_time(app.instance, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.gint64)(C.int(time)))
 }
 
-func MessagingMenuApp_append_source_with_string(app *C.struct_MessagingMenuApp, id string, icon *C.GIcon, label string, str string) {
-    C.messaging_menu_app_append_source_with_string(app, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (*C.gchar)(C.CString(str)))
+func (app *MessagingMenuApp) Append_source_with_time(id string, icon *C.GIcon, label string, time int) {
+    C.messaging_menu_app_append_source_with_time(app.instance, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.gint64)(C.int(time)))
 }
 
-func MessagingMenuApp_remove_source(app *C.struct_MessagingMenuApp, id string) {
-    C.messaging_menu_app_remove_source(app, (*C.gchar)(C.CString(id)))
+func (app *MessagingMenuApp) MessagingMenuApp_insert_source_with_string(position int, id string, icon *C.GIcon, label string, str string) {
+    C.messaging_menu_app_insert_source_with_string(app.instance, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (*C.gchar)(C.CString(str)))
 }
 
-func MessagingMenuApp_has_source(app *C.struct_MessagingMenuApp, id string) bool {
-    var has_it = (C.int)(C.messaging_menu_app_has_source(app, (*C.gchar)(C.CString(id))))
+func (app *MessagingMenuApp) Append_source_with_string(id string, icon *C.GIcon, label string, str string) {
+    C.messaging_menu_app_append_source_with_string(app.instance, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (*C.gchar)(C.CString(str)))
+}
+
+func (app *MessagingMenuApp) Remove_source(id string) {
+    C.messaging_menu_app_remove_source(app.instance, (*C.gchar)(C.CString(id)))
+}
+
+func (app *MessagingMenuApp) Has_source(id string) bool {
+    var has_it = (C.int)(C.messaging_menu_app_has_source(app.instance, (*C.gchar)(C.CString(id))))
     return has_it != 0
 }
 
-func MessagingMenuApp_set_source_label(app *C.struct_MessagingMenuApp, id string, label string) {
-    C.messaging_menu_app_set_source_label(app, (*C.gchar)(C.CString(id)), (*C.gchar)(C.CString(label)))
+func (app *MessagingMenuApp) Set_source_label(id string, label string) {
+    C.messaging_menu_app_set_source_label(app.instance, (*C.gchar)(C.CString(id)), (*C.gchar)(C.CString(label)))
 }
 
-func MessagingMenuApp_set_source_icon(app *C.struct_MessagingMenuApp, id string, icon *C.GIcon) {
-    C.messaging_menu_app_set_source_icon(app, (*C.gchar)(C.CString(id)), icon)
+func (app *MessagingMenuApp) Set_source_icon(id string, icon *C.GIcon) {
+    C.messaging_menu_app_set_source_icon(app.instance, (*C.gchar)(C.CString(id)), icon)
 }
 
-func MessagingMenuApp_set_source_count(app *C.struct_MessagingMenuApp, id string, count int) {
-    C.messaging_menu_app_set_source_count(app, (*C.gchar)(C.CString(id)), (C.guint)(C.uint(count)))
+func (app *MessagingMenuApp) Set_source_count(id string, count int) {
+    C.messaging_menu_app_set_source_count(app.instance, (*C.gchar)(C.CString(id)), (C.guint)(C.uint(count)))
 }
 
-func MessagingMenuApp_set_source_time(app *C.struct_MessagingMenuApp, id string, time int) {
-    C.messaging_menu_app_set_source_time(app, (*C.gchar)(C.CString(id)), (C.gint64)(C.uint(time)))
+func (app *MessagingMenuApp) Set_source_time(id string, time int) {
+    C.messaging_menu_app_set_source_time(app.instance, (*C.gchar)(C.CString(id)), (C.gint64)(C.uint(time)))
 }
 
-func MessagingMenuApp_set_source_string(app *C.struct_MessagingMenuApp, id string, str string) {
-    C.messaging_menu_app_set_source_string(app, (*C.gchar)(C.CString(id)), (*C.gchar)(C.CString(str)))
+func (app *MessagingMenuApp) Set_source_string(id string, str string) {
+    C.messaging_menu_app_set_source_string(app.instance, (*C.gchar)(C.CString(id)), (*C.gchar)(C.CString(str)))
 }
 
-func MessagingMenuApp_draw_attention(app *C.struct_MessagingMenuApp, id string) {
-    C.messaging_menu_app_draw_attention(app, (*C.gchar)(C.CString(id)))
+func (app *MessagingMenuApp) Draw_attention(id string) {
+    C.messaging_menu_app_draw_attention(app.instance, (*C.gchar)(C.CString(id)))
 }
 
-func MessagingMenuApp_remove_attention(app *C.struct_MessagingMenuApp, id string) {
-    C.messaging_menu_app_remove_attention(app, (*C.gchar)(C.CString(id)))
+func (app *MessagingMenuApp) Remove_attention(id string) {
+    C.messaging_menu_app_remove_attention(app.instance, (*C.gchar)(C.CString(id)))
 }
 
-func MessagingMenuApp_append_message(app *C.struct_MessagingMenuApp, msg *C.struct_MessagingMenuMessage, id string, notify bool) {
+func (app *MessagingMenuApp) Append_message(msg MessagingMenuMessage, id string, notify bool) {
     if notify {  // FIXME: how to convert from bool to int?
-        C.messaging_menu_app_append_message(app, msg, (*C.gchar)(C.CString(id)), (C.gboolean)(C.int(1)))
+        C.messaging_menu_app_append_message(app.instance, msg.instance, (*C.gchar)(C.CString(id)), (C.gboolean)(C.int(1)))
     } else {
-        C.messaging_menu_app_append_message(app, msg, (*C.gchar)(C.CString(id)), (C.gboolean)(C.int(0)))
+        C.messaging_menu_app_append_message(app.instance, msg.instance, (*C.gchar)(C.CString(id)), (C.gboolean)(C.int(0)))
     }
 }
 
-func MessagingMenuApp_get_message(app *C.struct_MessagingMenuApp, id string) *C.struct_MessagingMenuMessage {
-    return C.messaging_menu_app_get_message(app, (*C.gchar)(C.CString(id)))
+func (app *MessagingMenuApp) Get_message(id string) MessagingMenuMessage {
+    return MessagingMenuMessage{C.messaging_menu_app_get_message(app.instance, (*C.gchar)(C.CString(id)))}
 }
 
-func MessagingMenuApp_remove_message(app *C.struct_MessagingMenuApp, msg *C.struct_MessagingMenuMessage) {
-    C.messaging_menu_app_remove_message(app, msg)
+func (app *MessagingMenuApp) Remove_message(msg MessagingMenuMessage) {
+    C.messaging_menu_app_remove_message(app.instance, msg.instance)
 }
 
-func MessagingMenuApp_remove_message_by_id(app *C.struct_MessagingMenuApp, id string) {
-    C.messaging_menu_app_remove_message_by_id(app, (*C.gchar)(C.CString(id)))
+func (app *MessagingMenuApp) Remove_message_by_id(id string) {
+    C.messaging_menu_app_remove_message_by_id(app.instance, (*C.gchar)(C.CString(id)))
 }
 
-func MessagingMenuMessage_new(id string, icon *C.GIcon, title string, subtitle string, body string, time int) *C.MessagingMenuMessage {
-    return C.messaging_menu_message_new((*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(title)),
-                                      (*C.gchar)(C.CString(subtitle)), (*C.gchar)(C.CString(body)), (C.gint64)(C.int(time)))
+func NewMessage(id string, icon *C.GIcon, title string, subtitle string, body string, time int) MessagingMenuMessage {
+    return MessagingMenuMessage{C.messaging_menu_message_new((*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(title)),
+                                      (*C.gchar)(C.CString(subtitle)), (*C.gchar)(C.CString(body)), (C.gint64)(C.int(time)))}
 }
 
-func MessagingMenuMessage_get_id(msg *C.MessagingMenuMessage) string {
-    return C.GoString((*C.char)(C.messaging_menu_message_get_id(msg)))
+func (msg *MessagingMenuMessage) Get_id() string {
+    return C.GoString((*C.char)(C.messaging_menu_message_get_id(msg.instance)))
 }
 
-func MessagingMenuMessage_get_icon(msg *C.MessagingMenuMessage) *C.GIcon {
-    return C.messaging_menu_message_get_icon(msg)
+func (msg *MessagingMenuMessage) Get_icon() *C.GIcon {
+    return C.messaging_menu_message_get_icon(msg.instance)
 }
 
-func MessagingMenuMessage_get_title(msg *C.MessagingMenuMessage) string {
-    return C.GoString((*C.char)(C.messaging_menu_message_get_title(msg)))
+func (msg *MessagingMenuMessage) Get_title() string {
+    return C.GoString((*C.char)(C.messaging_menu_message_get_title(msg.instance)))
 }
 
-func MessagingMenuMessage_get_subtitle(msg *C.MessagingMenuMessage) string {
-    return C.GoString((*C.char)(C.messaging_menu_message_get_subtitle(msg)))
+func (msg *MessagingMenuMessage) Get_subtitle() string {
+    return C.GoString((*C.char)(C.messaging_menu_message_get_subtitle(msg.instance)))
 }
 
-func MessagingMenuMessage_get_body(msg *C.MessagingMenuMessage) string {
-    return C.GoString((*C.char)(C.messaging_menu_message_get_body(msg)))
+func (msg *MessagingMenuMessage) Get_body() string {
+    return C.GoString((*C.char)(C.messaging_menu_message_get_body(msg.instance)))
 }
 
-func MessagingMenuMessage_get_time(msg *C.MessagingMenuMessage) int {
-    return int((C.int)(C.messaging_menu_message_get_time(msg)))
+func (msg *MessagingMenuMessage) Get_time() int {
+    return int((C.int)(C.messaging_menu_message_get_time(msg.instance)))
 }
 
-func MessagingMenuMessage_get_draws_attention(msg *C.MessagingMenuMessage) bool {
-    return int((C.int)(C.messaging_menu_message_get_draws_attention(msg))) != 0
+func (msg *MessagingMenuMessage) Get_draws_attention() bool {
+    return int((C.int)(C.messaging_menu_message_get_draws_attention(msg.instance))) != 0
 }
 
-func MessagingMenuMessage_set_draws_attention(msg *C.MessagingMenuMessage, draws_attention bool) {
+func (msg *MessagingMenuMessage) Set_draws_attention(draws_attention bool) {
     if draws_attention {  // FIXME: how to convert from bool to int?
-        C.messaging_menu_message_set_draws_attention(msg, (C.gboolean)(C.int(1)))
+        C.messaging_menu_message_set_draws_attention(msg.instance, (C.gboolean)(C.int(1)))
     } else {
-        C.messaging_menu_message_set_draws_attention(msg, (C.gboolean)(C.int(0)))
+        C.messaging_menu_message_set_draws_attention(msg.instance, (C.gboolean)(C.int(0)))
     }
 }
 
@@ -195,9 +203,9 @@ messaging_menu_message_add_action (MessagingMenuMessage *msg,
 
 type SourceActivatedCallback func()
 
-func SignalConnectObject(instance *C.struct_MessagingMenuApp, detailed_signal string, callback unsafe.Pointer, gobject C.gpointer) {
+func SignalConnectObject(instance MessagingMenuApp, detailed_signal string, callback unsafe.Pointer, gobject C.gpointer) {
     C.g_signal_connect_object(
-        (C.gpointer)(instance),
+        (C.gpointer)(instance.instance),
         (*C.gchar)(C.CString(detailed_signal)),
         (C.GCallback)(callback),
         gobject,
