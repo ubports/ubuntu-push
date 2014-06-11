@@ -156,7 +156,7 @@ func NewMessage(id string, icon *C.GIcon, title string, subtitle string, body st
 }
 
 func (msg *MessagingMenuMessage) Get_id() string {
-    return C.GoString((*C.char)(C.messaging_menu_message_get_id(msg.instance)))
+    return C.GoString   ((*C.char)(C.messaging_menu_message_get_id(msg.instance)))
 }
 
 func (msg *MessagingMenuMessage) Get_icon() *C.GIcon {
@@ -216,5 +216,5 @@ func SignalConnectObject(instance MessagingMenuApp, detailed_signal string, call
 
 func EnterMainLoop() {
     var loop = C.g_main_loop_new(nil, 0)
-    C.g_main_loop_run(loop)
+    go C.g_main_loop_run(loop)
 }
