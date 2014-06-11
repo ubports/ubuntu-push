@@ -65,11 +65,11 @@ func (app *MessagingMenuApp) Insert_source(position int, id string, icon *C.GIco
     C.messaging_menu_app_insert_source(app.instance, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)))
 }
 
-func (app *MessagingMenuApp) MessagingMenuApp_append_source(id string, icon *C.GIcon, label string) {
+func (app *MessagingMenuApp) Append_source(id string, icon *C.GIcon, label string) {
     C.messaging_menu_app_append_source(app.instance, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)))
 }
 
-func (app *MessagingMenuApp) MessagingMenuApp_insert_source_with_count(position int, id string, icon *C.GIcon, label string, count int) {
+func (app *MessagingMenuApp) Insert_source_with_count(position int, id string, icon *C.GIcon, label string, count int) {
     C.messaging_menu_app_insert_source_with_count(app.instance, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.guint)(C.uint(count)))
 }
 
@@ -85,7 +85,7 @@ func (app *MessagingMenuApp) Append_source_with_time(id string, icon *C.GIcon, l
     C.messaging_menu_app_append_source_with_time(app.instance, (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (C.gint64)(C.int(time)))
 }
 
-func (app *MessagingMenuApp) MessagingMenuApp_insert_source_with_string(position int, id string, icon *C.GIcon, label string, str string) {
+func (app *MessagingMenuApp) Insert_source_with_string(position int, id string, icon *C.GIcon, label string, str string) {
     C.messaging_menu_app_insert_source_with_string(app.instance, (C.gint)(C.int(position)), (*C.gchar)(C.CString(id)), icon, (*C.gchar)(C.CString(label)), (*C.gchar)(C.CString(str)))
 }
 
