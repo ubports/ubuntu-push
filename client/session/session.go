@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -87,7 +86,7 @@ type ClientSessionConfig struct {
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
 	Info                   map[string]interface{}
-	AuthHelper             []string
+	AuthGetter             func() string
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -244,21 +243,10 @@ func (sess *ClientSession) getHosts() error {
 // addAuthorization gets the authorization blob to send to the server
 // and adds it to the session.
 func (sess *ClientSession) addAuthorization() error {
-	sess.Log.Debugf("adding authorization")
-	// using a helper, for now at least
-	if len(sess.AuthHelper) == 0 {
-		// do nothing if helper is unset or empty
-		return nil
+	if sess.AuthGetter != nil {
+		sess.Log.Debugf("adding authorization")
+		sess.auth = sess.AuthGetter()
 	}
-
-	auth, err := exec.Command(sess.AuthHelper[0], sess.AuthHelper[1:]...).Output()
-	if err != nil {
-		// For now we just log the error, as we don't want to block unauthorized users
-		sess.Log.Errorf("unable to get the authorization token from the account: %v", err)
-	} else {
-		sess.auth = strings.TrimSpace(string(auth))
-	}
-
 	return nil
 }
 

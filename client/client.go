@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 
 	"launchpad.net/go-dbus/v1"
@@ -160,7 +161,26 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
 		PEM:        client.pem,
 		Info:       info,
-		AuthHelper: client.config.AuthHelper,
+		AuthGetter: client.getAuthorization,
+	}
+}
+
+// getAuthorization gets the authorization blob to send to the server
+func (client *PushClient) getAuthorization() string {
+	client.log.Debugf("getting authorization")
+	// using a helper, for now at least
+	if len(client.config.AuthHelper) == 0 {
+		// do nothing if helper is unset or empty
+		return ""
+	}
+
+	auth, err := exec.Command(client.config.AuthHelper[0], client.config.AuthHelper[1:]...).Output()
+	if err != nil {
+		// For now we just log the error, as we don't want to block unauthorized users
+		client.log.Errorf("unable to get the authorization token from the account: %v", err)
+		return ""
+	} else {
+		return strings.TrimSpace(string(auth))
 	}
 }
 
