@@ -272,7 +272,7 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExpectAllRepairedTime:  30 * time.Minute,
 		PEM:        cli.pem,
 		Info:       info,
-		AuthHelper: []string{"auth", "helper"},
+		AuthGetter: func() string { return "" },
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)
@@ -284,6 +284,11 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	}
 	// finally compare
 	conf := cli.deriveSessionConfig(info)
+	// compare authGetter by string
+	c.Check(fmt.Sprintf("%v", conf.AuthGetter), Equals, fmt.Sprintf("%v", cli.getAuthorization))
+	// and set it to nil
+	conf.AuthGetter = nil
+	expected.AuthGetter = nil
 	c.Check(conf, DeepEquals, expected)
 }
 
@@ -950,4 +955,34 @@ func (cs *clientSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 	err := cli.messageHandler([]byte(`{}`))
 	c.Assert(err, NotNil)
 	c.Check(cs.log.Captured(), Matches, "(?msi).*showing notification: no way$")
+}
+
+/*****************************************************************
+    getAuthorization() tests
+******************************************************************/
+
+func (cs *clientSuite) TestGetAuthorizationIgnoresErrors(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.configure()
+	cli.config.AuthHelper = []string{"sh", "-c", "echo hello; false"}
+
+	c.Check(cli.getAuthorization(), Equals, "")
+}
+
+func (cs *clientSuite) TestGetAuthorizationGetsIt(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.configure()
+	cli.config.AuthHelper = []string{"echo", "hello"}
+
+	c.Check(cli.getAuthorization(), Equals, "hello")
+}
+
+func (cs *clientSuite) TestGetAuthorizationWorksIfUnsetOrNil(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+
+	c.Assert(cli.config, NotNil)
+	c.Check(cli.getAuthorization(), Equals, "")
+	cli.configure()
+	c.Check(cli.getAuthorization(), Equals, "")
 }
