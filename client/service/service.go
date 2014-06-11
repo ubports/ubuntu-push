@@ -21,10 +21,12 @@ package service
 import (
 	"errors"
 	"os"
+	"strings"
 	"sync"
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/nih"
 )
 
 // Service is the dbus api
@@ -51,7 +53,7 @@ var (
 	AlreadyStarted = errors.New("already started")
 	BusAddress     = bus.Address{
 		Interface: "com.ubuntu.PushNotifications",
-		Path:      "/com/ubuntu/PushNotifications",
+		Path:      "/com/ubuntu/PushNotifications/*",
 		Name:      "com.ubuntu.PushNotifications",
 	}
 )
@@ -133,31 +135,26 @@ var (
 	BadArgType  = errors.New("Bad argument type")
 )
 
-func (svc *Service) register(args []interface{}, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 1 {
+func (svc *Service) register(path string, args, _ []interface{}) ([]interface{}, error) {
+	if len(args) != 0 {
 		return nil, BadArgCount
 	}
-	appname, ok := args[0].(string)
-	if !ok {
-		return nil, BadArgType
-	}
+	raw_appname := path[strings.LastIndex(path, "/")+1:]
+	appname := string(nih.Unquote([]byte(raw_appname)))
 
-	rv := os.Getenv("PUSH_REG_" + appname)
+	rv := os.Getenv("PUSH_REG_" + raw_appname)
 	if rv == "" {
-		rv = "this-is-an-opaque-block-of-random-bits-i-promise"
+		rv = appname + "::this-is-an-opaque-block-of-random-bits-i-promise"
 	}
 
 	return []interface{}{rv}, nil
 }
 
-func (svc *Service) notifications(args []interface{}, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 1 {
+func (svc *Service) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
+	if len(args) != 0 {
 		return nil, BadArgCount
 	}
-	appname, ok := args[0].(string)
-	if !ok {
-		return nil, BadArgType
-	}
+	appname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
@@ -171,18 +168,15 @@ func (svc *Service) notifications(args []interface{}, _ []interface{}) ([]interf
 	return []interface{}{msgs}, nil
 }
 
-func (svc *Service) inject(args []interface{}, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 2 {
+func (svc *Service) inject(path string, args, _ []interface{}) ([]interface{}, error) {
+	if len(args) != 1 {
 		return nil, BadArgCount
 	}
-	appname, ok := args[0].(string)
+	notif, ok := args[0].(string)
 	if !ok {
 		return nil, BadArgType
 	}
-	notif, ok := args[1].(string)
-	if !ok {
-		return nil, BadArgType
-	}
+	appname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 
 	return nil, svc.Inject(appname, notif)
 }
