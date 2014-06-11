@@ -37,6 +37,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         Notification should still be displayed when it is turned on
         """
         # Assumes greeter starts in locked state
+        self.launch_greeter_and_clear_dialogs()
         # Turn display off
         self.press_power_button()
         # send message
@@ -55,6 +56,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         whist the greeter screen is displayed
         """
         # Assumes greeter starts in locked state
+        self.launch_greeter_and_clear_dialogs()
         self.send_push_broadcast_message()
         self.validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
@@ -64,9 +66,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         Positive test case to send a valid broadcast push notification
         to the client and validate that a notification message is displayed
         """
-        # Assumes greeter starts in locked state
-        self.unlock_greeter()
-        # send message
+        self.launch_unity_and_clear_dialogs()
         self.send_push_broadcast_message()
         self.validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
@@ -75,8 +75,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         """
         Send an expired broadcast notification message to server
         """
-        # Assumes greeter starts in locked state
-        self.unlock_greeter()
+        self.launch_unity_and_clear_dialogs()
         # create notification message using past expiry time
         device_info = self.create_device_info_copy()
         device_info.inc_build_number()
@@ -96,8 +95,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         """
         Send an old version broadcast notification message to server
         """
-        # Assumes greeter starts in locked state
-        self.unlock_greeter()
+        self.launch_unity_and_clear_dialogs()
         # create notification message using previous build number
         device_info = self.create_device_info_copy()
         device_info.dec_build_number()
@@ -114,8 +112,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         """
         Send an equal version broadcast notification message to server
         """
-        # Assumes greeter starts in locked state
-        self.unlock_greeter()
+        self.launch_unity_and_clear_dialogs()
         # create notification message using equal build number
         device_info = self.create_device_info_copy()
         push_msg = self.push_helper.create_push_message(
