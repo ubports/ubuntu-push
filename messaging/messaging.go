@@ -259,6 +259,7 @@ func (msg *MessagingMenuMessage) GetIcon() *C.GIcon {
 func (msg *MessagingMenuMessage) GetTitle() string {
     var _title = C.messaging_menu_message_get_title(msg.instance)
     var title = C.GoString((*C.char)(_title))
+    // g_free this time because it's allocated via g_malloc
     C.g_free((C.gpointer)(_title))
     return title
 }
@@ -266,6 +267,7 @@ func (msg *MessagingMenuMessage) GetTitle() string {
 func (msg *MessagingMenuMessage) GetSubtitle() string {
     var _subtitle = C.messaging_menu_message_get_subtitle(msg.instance)
     var subtitle = C.GoString((*C.char)(_subtitle))
+    // g_free this time because it's allocated via g_malloc
     C.g_free((C.gpointer)(_subtitle))
     return subtitle
 }
@@ -273,6 +275,7 @@ func (msg *MessagingMenuMessage) GetSubtitle() string {
 func (msg *MessagingMenuMessage) GetBody() string {
     var _body = C.messaging_menu_message_get_body(msg.instance)
     var body = C.GoString((*C.char)(_body))
+    // g_free this time because it's allocated via g_malloc
     C.g_free((C.gpointer)(_body))
     return body
 }
