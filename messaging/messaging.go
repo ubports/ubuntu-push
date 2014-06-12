@@ -324,5 +324,4 @@ func SignalConnectObject(instance MessagingMenuApp, detailed_signal string, call
 func EnterMainLoop() {
     var loop = C.g_main_loop_new(nil, 0)
     go C.g_main_loop_run(loop)
-    C.g_free((C.gpointer)(loop))
 }
