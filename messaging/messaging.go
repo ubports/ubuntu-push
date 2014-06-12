@@ -319,7 +319,7 @@ func SignalConnectObject(instance MessagingMenuApp, detailed_signal string, call
     free(_detailed_signal)
 }
 
-// YUCK
+// FIXME: this is a temporarty hack pending real event loop integration from tvoss
 
 func EnterMainLoop() {
     var loop = C.g_main_loop_new(nil, 0)
