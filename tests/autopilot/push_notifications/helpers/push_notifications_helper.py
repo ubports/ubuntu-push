@@ -222,13 +222,13 @@ class PushNotificationHelper:
 
     def get_near_past_iso_time(self):
         """
-        Return time 1 minute in past in ISO format
+        Return time 5 seconds in past in ISO format
         """
         return self.get_iso_time(sec_offset=-5)
 
     def get_near_future_iso_time(self):
         """
-        Return time 1 minute in future in ISO format
+        Return time 5 seconds in future in ISO format
         """
         return self.get_iso_time(sec_offset=5)
 
