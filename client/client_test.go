@@ -103,12 +103,13 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"stabilizing_timeout":    "0ms",
 		"connectivity_check_url": "",
 		"connectivity_check_md5": "",
-		"addr":            ":0",
-		"cert_pem_file":   pem_file,
-		"recheck_timeout": "3h",
-		"auth_helper":     "",
-		"session_url":     "xyzzy://",
-		"log_level":       "debug",
+		"addr":             ":0",
+		"cert_pem_file":    pem_file,
+		"recheck_timeout":  "3h",
+		"auth_helper":      "",
+		"session_url":      "xyzzy://",
+		"registration_url": "reg://",
+		"log_level":        "debug",
 	}
 	for k, v := range overrides {
 		cfgMap[k] = v
@@ -299,7 +300,11 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestStartServiceWorks(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"auth_helper": "../scripts/dummyauth.sh",
+	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.configure()
 	cli.log = cs.log
 	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
 	c.Check(cli.service, IsNil)
@@ -307,6 +312,7 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	c.Assert(cli.service, NotNil)
 	c.Check(cli.service.IsRunning(), Equals, true)
 	c.Check(cli.service.GetMessageHandler(), NotNil)
+	c.Check(cli.service.GetRegistrationAuthorization(), Equals, "hello reg://")
 	cli.service.Stop()
 }
 
