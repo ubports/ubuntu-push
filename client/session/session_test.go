@@ -353,12 +353,14 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestAddAuthorizationAddsAuthorization(c *C) {
+	url := "xyzzy://"
 	sess := &ClientSession{Log: cs.log}
-	sess.AuthGetter = func() string { return "some auth" }
+	sess.AuthGetter = func(url string) string { return url + " auth'ed" }
+	sess.AuthURL = url
 	c.Assert(sess.auth, Equals, "")
 	err := sess.addAuthorization()
 	c.Assert(err, IsNil)
-	c.Check(sess.auth, Equals, "some auth")
+	c.Check(sess.auth, Equals, "xyzzy:// auth'ed")
 }
 
 func (cs *clientSessionSuite) TestAddAuthorizationSkipsIfUnset(c *C) {

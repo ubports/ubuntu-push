@@ -86,7 +86,8 @@ type ClientSessionConfig struct {
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
 	Info                   map[string]interface{}
-	AuthGetter             func() string
+	AuthGetter             func(string) string
+	AuthURL                string
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -245,7 +246,7 @@ func (sess *ClientSession) getHosts() error {
 func (sess *ClientSession) addAuthorization() error {
 	if sess.AuthGetter != nil {
 		sess.Log.Debugf("adding authorization")
-		sess.auth = sess.AuthGetter()
+		sess.auth = sess.AuthGetter(sess.AuthURL)
 	}
 	return nil
 }

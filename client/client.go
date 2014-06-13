@@ -64,7 +64,8 @@ type ClientConfig struct {
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
 	// How to invoke the auth helper
-	AuthHelper []string `json:"auth_helper"`
+	AuthHelper string `json:"auth_helper"`
+	SessionURL string `json:"session_url"`
 	// The logging level (one of "debug", "info", "error")
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
 }
@@ -162,11 +163,12 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		PEM:        client.pem,
 		Info:       info,
 		AuthGetter: client.getAuthorization,
+		AuthURL:    client.config.SessionURL,
 	}
 }
 
 // getAuthorization gets the authorization blob to send to the server
-func (client *PushClient) getAuthorization() string {
+func (client *PushClient) getAuthorization(url string) string {
 	client.log.Debugf("getting authorization")
 	// using a helper, for now at least
 	if len(client.config.AuthHelper) == 0 {
@@ -174,7 +176,7 @@ func (client *PushClient) getAuthorization() string {
 		return ""
 	}
 
-	auth, err := exec.Command(client.config.AuthHelper[0], client.config.AuthHelper[1:]...).Output()
+	auth, err := exec.Command(client.config.AuthHelper, url).Output()
 	if err != nil {
 		// For now we just log the error, as we don't want to block unauthorized users
 		client.log.Errorf("unable to get the authorization token from the account: %v", err)

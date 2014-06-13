@@ -106,7 +106,8 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"addr":            ":0",
 		"cert_pem_file":   pem_file,
 		"recheck_timeout": "3h",
-		"auth_helper":     []string{},
+		"auth_helper":     "",
+		"session_url":     "xyzzy://",
 		"log_level":       "debug",
 	}
 	for k, v := range overrides {
@@ -257,7 +258,7 @@ func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
 
 func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
-		"auth_helper": []string{"auth", "helper"},
+		"auth_helper": "auth helper",
 	})
 	info := map[string]interface{}{
 		"foo": 1,
@@ -272,7 +273,8 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExpectAllRepairedTime:  30 * time.Minute,
 		PEM:        cli.pem,
 		Info:       info,
-		AuthGetter: func() string { return "" },
+		AuthGetter: func(string) string { return "" },
+		AuthURL:    "xyzzy://",
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)
@@ -964,17 +966,17 @@ func (cs *clientSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 func (cs *clientSuite) TestGetAuthorizationIgnoresErrors(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.configure()
-	cli.config.AuthHelper = []string{"sh", "-c", "echo hello; false"}
+	cli.config.AuthHelper = "/no/such/executable"
 
-	c.Check(cli.getAuthorization(), Equals, "")
+	c.Check(cli.getAuthorization("xyzzy://"), Equals, "")
 }
 
 func (cs *clientSuite) TestGetAuthorizationGetsIt(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.configure()
-	cli.config.AuthHelper = []string{"echo", "hello"}
+	cli.config.AuthHelper = "../scripts/dummyauth.sh"
 
-	c.Check(cli.getAuthorization(), Equals, "hello")
+	c.Check(cli.getAuthorization("xyzzy://"), Equals, "hello xyzzy://")
 }
 
 func (cs *clientSuite) TestGetAuthorizationWorksIfUnsetOrNil(c *C) {
@@ -982,7 +984,7 @@ func (cs *clientSuite) TestGetAuthorizationWorksIfUnsetOrNil(c *C) {
 	cli.log = cs.log
 
 	c.Assert(cli.config, NotNil)
-	c.Check(cli.getAuthorization(), Equals, "")
+	c.Check(cli.getAuthorization("xyzzy://"), Equals, "")
 	cli.configure()
-	c.Check(cli.getAuthorization(), Equals, "")
+	c.Check(cli.getAuthorization("xyzzy://"), Equals, "")
 }
