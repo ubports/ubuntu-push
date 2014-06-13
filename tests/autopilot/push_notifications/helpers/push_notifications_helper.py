@@ -87,17 +87,17 @@ class PushClientController:
         if client_config is None:
             # just delete the local custom config file
             # client will then just use the original config
-            abs_config_file = self._get_abs_local_config_file_path()
+            abs_config_file = self.get_abs_local_config_file_path()
             if os.path.exists(abs_config_file):
                 os.remove(abs_config_file)
         else:
             # write the config to local config file
-            self._write_client_test_config(client_config)
+            self.write_client_test_config(client_config)
 
         # Now re-start the client
-        self._restart_push_client()
+        self.restart_push_client()
 
-    def _write_client_test_config(self, client_config):
+    def write_client_test_config(self, client_config):
         """
         Write the test server address and certificate path
         to the client config file
@@ -113,7 +113,7 @@ class PushClientController:
         config['cert_pem_file'] = client_config.cert_pem_file
         # write the config json out to the ~.local address
         # creating the directory if it doesn't already exist
-        abs_config_file = self._get_abs_local_config_file_path()
+        abs_config_file = self.get_abs_local_config_file_path()
         config_dir = os.path.dirname(abs_config_file)
         if not os.path.exists(config_dir):
             os.makedirs(config_dir)
@@ -121,13 +121,13 @@ class PushClientController:
             json.dump(config, outfile, indent=4)
             outfile.close()
 
-    def _get_abs_local_config_file_path(self):
+    def get_abs_local_config_file_path(self):
         """
         Return absolute path of ~.local config file
         """
         return os.path.expanduser(self.PUSH_CLIENT_CONFIG_FILE)
 
-    def _control_client(self, command):
+    def control_client(self, command):
         """
         start/stop/restart the ubuntu-push-client using initctl
         """
@@ -135,24 +135,24 @@ class PushClientController:
             ['initctl', command, 'ubuntu-push-client'],
             stdout=subprocess.DEVNULL)
 
-    def _stop_push_client(self):
+    def stop_push_client(self):
         """
         Stop the push client
         """
-        self._control_client('stop')
+        self.control_client('stop')
 
-    def _start_push_client(self):
+    def start_push_client(self):
         """
         Start the push client
         """
-        self._control_client('start')
+        self.control_client('start')
 
-    def _restart_push_client(self):
+    def restart_push_client(self):
         """
         Restart the push client
         """
-        self._stop_push_client()
-        self._start_push_client()
+        self.stop_push_client()
+        self.start_push_client()
 
 
 class PushNotificationHelper:
@@ -224,13 +224,13 @@ class PushNotificationHelper:
         """
         Return time 1 minute in past in ISO format
         """
-        return self.get_iso_time(min_offset=-1)
+        return self.get_iso_time(sec_offset=-5)
 
     def get_near_future_iso_time(self):
         """
         Return time 1 minute in future in ISO format
         """
-        return self.get_iso_time(min_offset=1)
+        return self.get_iso_time(sec_offset=5)
 
     def get_future_iso_time(self):
         """

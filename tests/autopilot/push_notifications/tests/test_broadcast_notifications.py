@@ -71,6 +71,18 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         self.validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
 
+    def test_broadcast_push_notification_on_connect(self):
+        """
+        Send a broadcast notification whilst the push client is disconnected
+        from the server. Then reconnect and ensure message is displayed
+        """
+        self.launch_unity_and_clear_dialogs()
+        self.push_client_controller.stop_push_client()
+        self.send_push_broadcast_message()
+        self.push_client_controller.start_push_client()
+        self.validate_and_dismiss_notification_dialog(
+            self.DEFAULT_DISPLAY_MESSAGE)
+
     def test_expired_broadcast_push_notification(self):
         """
         Send an expired broadcast notification message to server

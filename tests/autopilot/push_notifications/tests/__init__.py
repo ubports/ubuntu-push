@@ -68,6 +68,8 @@ class PushNotificationTestBase(UnityTestCase):
             push_config.get_config_file())
         # create a push helper object which will do all the message sending
         self.push_helper = push_helper.PushNotificationHelper()
+        # create a push controller object
+        self.push_client_controller = push_helper.PushClientController()
         # get and store device and build info
         self.device_info = self.push_helper.get_device_info()
         # start unity8
@@ -117,9 +119,9 @@ class PushNotificationTestBase(UnityTestCase):
         """
         self.assertThat(response.status, Equals(expected_status_code))
 
-    def _assert_notification_dialog(self, notification, summary=None,
-                                    body=None, icon=True, secondary_icon=False,
-                                    opacity=None):
+    def assert_notification_dialog(self, notification, summary=None,
+                                   body=None, icon=True, secondary_icon=False,
+                                   opacity=None):
         """
         Assert that the properties of the notification are as
         expected
@@ -211,7 +213,7 @@ class PushNotificationTestBase(UnityTestCase):
         # get the dialog
         dialog = self.get_notification_dialog()
         # validate dialog
-        self._assert_notification_dialog(
+        self.assert_notification_dialog(
             dialog, summary=message)
         # press dialog to dismiss
         self.press_notification_dialog(dialog)
