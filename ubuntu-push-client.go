@@ -33,6 +33,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to open the levels database: %v", err)
 	}
+
 	cli := client.NewPushClient(cfgFname, lvlFname)
 	err = cli.Start()
 	if err != nil {

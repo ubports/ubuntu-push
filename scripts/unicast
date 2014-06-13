@@ -1,0 +1,65 @@
+#!/usr/bin/python
+"""
+send unicast to reg with payload data
+"""
+import argparse
+import json
+import requests
+import requests.auth
+import datetime
+import sys
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('reg', nargs=1) # userid:deviceid or reg
+    parser.add_argument('appid', nargs=1)
+    parser.add_argument('data', nargs=1)
+    parser.add_argument('-H', '--host',
+                        help="host:port (default: %(default)s)",
+                        default="localhost:8080")
+    parser.add_argument('-e', '--expire',
+                        help="expire after the given amount of time, "
+                        "use 'd' suffix for days, 's' for seconds"
+                        " (default: %(default)s)", default="1d")
+    parser.add_argument('--no-https', action='store_true', default=False)
+    parser.add_argument('--insecure', action='store_true', default=False,
+                         help="don't check host/certs with https")
+    parser.add_argument('-u', '--user',  default="")
+    parser.add_argument('-p', '--password', default="")
+    args = parser.parse_args()
+    expire_on = datetime.datetime.utcnow()
+    ex = args.expire
+    if ex.endswith('d'):
+        delta = datetime.timedelta(days=int(ex[:-1]))
+    elif ex.endswith('s'):
+        delta = datetime.timedelta(seconds=int(ex[:-1]))
+    else:
+        print >>sys.stderr, "unknown --expire suffix:", ex
+        sys.exit(1)
+    expire_on += delta
+    scheme = 'https'
+    if args.no_https:
+        scheme = 'http'
+    url = "%s://%s/notify" % (scheme, args.host)
+    body = {
+        'appid': args.appid[0],
+        'data': json.loads(args.data[0]),
+        'expire_on': expire_on.replace(microsecond=0).isoformat()+"Z"
+        }
+    reg = args.reg[0]
+    if ':' in reg:
+        userid, devid = reg.split(':', 1)
+        body['userid'] = userid
+        body['deviceid'] = devid
+    xauth = {}
+    if args.user and args.password:
+        xauth = {'auth': requests.auth.HTTPBasicAuth(args.user, args.password)}
+    headers = {'Content-Type': 'application/json'}
+    r = requests.post(url, data=json.dumps(body), headers=headers,
+                      verify=not args.insecure, **xauth)
+    print r.status_code
+    print r.text
+
+if __name__ == '__main__':
+    main()

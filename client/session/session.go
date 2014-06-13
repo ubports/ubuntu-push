@@ -26,21 +26,24 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"launchpad.net/ubuntu-push/client/gethosts"
-	"launchpad.net/ubuntu-push/client/session/levelmap"
+	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
 )
 
-var wireVersionBytes = []byte{protocol.ProtocolWireVersion}
+var (
+	wireVersionBytes = []byte{protocol.ProtocolWireVersion}
+)
 
-type Notification struct {
+type BroadcastNotification struct {
 	TopLevel int64
 	Decoded  []map[string]interface{}
 }
@@ -49,6 +52,7 @@ type serverMsg struct {
 	Type string `json:"T"`
 	protocol.BroadcastMsg
 	protocol.NotificationsMsg
+	protocol.ConnBrokenMsg
 }
 
 // parseServerAddrSpec recognizes whether spec is a HTTP URL to get
@@ -72,7 +76,7 @@ const (
 )
 
 type hostGetter interface {
-	Get() ([]string, error)
+	Get() (*gethosts.Host, error)
 }
 
 // ClientSessionConfig groups the client session configuration.
@@ -83,6 +87,7 @@ type ClientSessionConfig struct {
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
 	Info                   map[string]interface{}
+	AuthHelper             []string
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -90,7 +95,7 @@ type ClientSession struct {
 	// configuration
 	DeviceId string
 	ClientSessionConfig
-	Levels       levelmap.LevelMap
+	SeenState    seenstate.SeenState
 	Protocolator func(net.Conn) protocol.Protocol
 	// hosts
 	getHost                hostGetter
@@ -111,16 +116,39 @@ type ClientSession struct {
 	pingInterval time.Duration
 	retrier      util.AutoRedialer
 	// status
-	stateP *uint32
-	ErrCh  chan error
-	MsgCh  chan *Notification
+	stateP          *uint32
+	ErrCh           chan error
+	BroadcastCh     chan *BroadcastNotification
+	NotificationsCh chan *protocol.Notification
+	// authorization
+	auth string
+	// autoredial knobs
+	shouldDelayP    *uint32
+	lastAutoRedial  time.Time
+	redialDelay     func(*ClientSession) time.Duration
+	redialJitter    func(time.Duration) time.Duration
+	redialDelays    []time.Duration
+	redialDelaysIdx int
+}
+
+func redialDelay(sess *ClientSession) time.Duration {
+	if sess.ShouldDelay() {
+		t := sess.redialDelays[sess.redialDelaysIdx]
+		if len(sess.redialDelays) > sess.redialDelaysIdx+1 {
+			sess.redialDelaysIdx++
+		}
+		return t + sess.redialJitter(t)
+	} else {
+		sess.redialDelaysIdx = 0
+		return 0
+	}
 }
 
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
-	deviceId string, levelmapFactory func() (levelmap.LevelMap, error),
+	deviceId string, seenStateFactory func() (seenstate.SeenState, error),
 	log logger.Logger) (*ClientSession, error) {
 	state := uint32(Disconnected)
-	levels, err := levelmapFactory()
+	seenState, err := seenStateFactory()
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +158,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	if hostsEndpoint != "" {
 		getHost = gethosts.New(deviceId, hostsEndpoint, conf.ExchangeTimeout)
 	}
+	var shouldDelay uint32 = 0
 	sess := &ClientSession{
 		ClientSessionConfig: conf,
 		getHost:             getHost,
@@ -137,11 +166,15 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		DeviceId:            deviceId,
 		Log:                 log,
 		Protocolator:        protocol.NewProtocol0,
-		Levels:              levels,
-		TLS:                 &tls.Config{InsecureSkipVerify: true}, // XXX
+		SeenState:           seenState,
+		TLS:                 &tls.Config{},
 		stateP:              &state,
 		timeSince:           time.Since,
+		shouldDelayP:        &shouldDelay,
+		redialDelay:         redialDelay,
+		redialDelays:        util.Timeouts(),
 	}
+	sess.redialJitter = sess.Jitter
 	if sess.PEM != nil {
 		cp := x509.NewCertPool()
 		ok := cp.AppendCertsFromPEM(sess.PEM)
@@ -151,6 +184,18 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		sess.TLS.RootCAs = cp
 	}
 	return sess, nil
+}
+
+func (sess *ClientSession) ShouldDelay() bool {
+	return atomic.LoadUint32(sess.shouldDelayP) != 0
+}
+
+func (sess *ClientSession) setShouldDelay() {
+	atomic.StoreUint32(sess.shouldDelayP, uint32(1))
+}
+
+func (sess *ClientSession) clearShouldDelay() {
+	atomic.StoreUint32(sess.shouldDelayP, uint32(0))
 }
 
 func (sess *ClientSession) State() ClientSessionState {
@@ -176,21 +221,49 @@ func (sess *ClientSession) getConnection() net.Conn {
 // getHosts sets deliveryHosts possibly querying a remote endpoint
 func (sess *ClientSession) getHosts() error {
 	if sess.getHost != nil {
-		if sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
+		if sess.deliveryHosts != nil && sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
 			return nil
 		}
-		hosts, err := sess.getHost.Get()
+		host, err := sess.getHost.Get()
 		if err != nil {
 			sess.Log.Errorf("getHosts: %v", err)
 			sess.setState(Error)
 			return err
 		}
 		sess.deliveryHostsTimestamp = time.Now()
-		sess.deliveryHosts = hosts
+		sess.deliveryHosts = host.Hosts
+		if sess.TLS != nil {
+			sess.TLS.ServerName = host.Domain
+		}
 	} else {
 		sess.deliveryHosts = sess.fallbackHosts
 	}
 	return nil
+}
+
+// addAuthorization gets the authorization blob to send to the server
+// and adds it to the session.
+func (sess *ClientSession) addAuthorization() error {
+	sess.Log.Debugf("adding authorization")
+	// using a helper, for now at least
+	if len(sess.AuthHelper) == 0 {
+		// do nothing if helper is unset or empty
+		return nil
+	}
+
+	auth, err := exec.Command(sess.AuthHelper[0], sess.AuthHelper[1:]...).Output()
+	if err != nil {
+		// For now we just log the error, as we don't want to block unauthorized users
+		sess.Log.Errorf("unable to get the authorization token from the account: %v", err)
+	} else {
+		sess.auth = strings.TrimSpace(string(auth))
+	}
+
+	return nil
+}
+
+func (sess *ClientSession) resetHosts() {
+	sess.deliveryHosts = nil
 }
 
 // startConnectionAttempt/nextHostToTry help connect iterating over candidate hosts
@@ -229,6 +302,7 @@ func (sess *ClientSession) started() {
 // connect to a server using the configuration in the ClientSession
 // and set up the connection.
 func (sess *ClientSession) connect() error {
+	sess.setShouldDelay()
 	sess.startConnectionAttempt()
 	var err error
 	var conn net.Conn
@@ -258,7 +332,12 @@ func (sess *ClientSession) stopRedial() {
 
 func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 	sess.stopRedial()
+	if time.Since(sess.lastAutoRedial) < 2*time.Second {
+		sess.setShouldDelay()
+	}
+	time.Sleep(sess.redialDelay(sess))
 	sess.retrier = util.NewAutoRedialer(sess)
+	sess.lastAutoRedial = time.Now()
 	go func() { doneCh <- sess.retrier.Redial() }()
 }
 
@@ -284,6 +363,7 @@ func (sess *ClientSession) handlePing() error {
 	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
 	if err == nil {
 		sess.Log.Debugf("ping.")
+		sess.clearShouldDelay()
 	} else {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to pong: %s", err)
@@ -291,7 +371,7 @@ func (sess *ClientSession) handlePing() error {
 	return err
 }
 
-func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *Notification {
+func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *BroadcastNotification {
 	decoded := make([]map[string]interface{}, 0)
 	for _, p := range bcast.Payloads {
 		var v map[string]interface{}
@@ -302,7 +382,7 @@ func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *Notification {
 		}
 		decoded = append(decoded, v)
 	}
-	return &Notification{
+	return &BroadcastNotification{
 		TopLevel: bcast.TopLevel,
 		Decoded:  decoded,
 	}
@@ -310,7 +390,7 @@ func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *Notification {
 
 // handle "broadcast" messages
 func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
-	err := sess.Levels.Set(bcast.ChanId, bcast.TopLevel)
+	err := sess.SeenState.SetLevel(bcast.ChanId, bcast.TopLevel)
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to set level: %v", err)
@@ -325,17 +405,60 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		sess.Log.Errorf("unable to ack broadcast: %s", err)
 		return err
 	}
+	sess.clearShouldDelay()
 	sess.Log.Debugf("broadcast chan:%v app:%v topLevel:%d payloads:%s",
 		bcast.ChanId, bcast.AppId, bcast.TopLevel, bcast.Payloads)
 	if bcast.ChanId == protocol.SystemChannelId {
 		// the system channel id, the only one we care about for now
-		sess.Log.Debugf("sending it over")
-		sess.MsgCh <- sess.decodeBroadcast(bcast)
-		sess.Log.Debugf("sent it over")
+		sess.Log.Debugf("sending bcast over")
+		sess.BroadcastCh <- sess.decodeBroadcast(bcast)
+		sess.Log.Debugf("sent bcast over")
 	} else {
 		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)
 	}
 	return nil
+}
+
+// handle "notifications" messages
+func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
+	notifs, err := sess.SeenState.FilterBySeen(ucast.Notifications)
+	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to record msgs seen: %v", err)
+		sess.proto.WriteMessage(protocol.AckMsg{"nak"})
+		return err
+	}
+	// the server assumes if we ack the broadcast, we've updated
+	// our state. Hence the order.
+	err = sess.proto.WriteMessage(protocol.AckMsg{"ack"})
+	if err != nil {
+		sess.setState(Error)
+		sess.Log.Errorf("unable to ack notifications: %s", err)
+		return err
+	}
+	sess.clearShouldDelay()
+	for i := range notifs {
+		notif := &notifs[i]
+		sess.Log.Debugf("unicast app:%v msg:%s payload:%s",
+			notif.AppId, notif.MsgId, notif.Payload)
+		sess.Log.Debugf("sending ucast over")
+		sess.NotificationsCh <- notif
+		sess.Log.Debugf("sent ucast over")
+	}
+	return nil
+}
+
+// handle "connbroken" messages
+func (sess *ClientSession) handleConnBroken(connBroken *serverMsg) error {
+	sess.setState(Error)
+	reason := connBroken.Reason
+	err := fmt.Errorf("server broke connection: %s", reason)
+	sess.Log.Errorf("%s", err)
+	switch reason {
+	case protocol.BrokenHostMismatch:
+		sess.resetHosts()
+	}
+	return err
 }
 
 // loop runs the session with the server, emits a stream of events.
@@ -356,6 +479,15 @@ func (sess *ClientSession) loop() error {
 			err = sess.handlePing()
 		case "broadcast":
 			err = sess.handleBroadcast(&recv)
+		case "notifications":
+			err = sess.handleNotifications(&recv)
+		case "connbroken":
+			err = sess.handleConnBroken(&recv)
+		case "warn":
+			// XXX: current message "warn" should be "connwarn"
+			fallthrough
+		case "connwarn":
+			sess.Log.Errorf("server sent warning: %s", recv.Reason)
 		}
 		if err != nil {
 			return err
@@ -382,17 +514,16 @@ func (sess *ClientSession) start() error {
 	}
 	proto := sess.Protocolator(conn)
 	proto.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
-	levels, err := sess.Levels.GetAll()
+	levels, err := sess.SeenState.GetAllLevels()
 	if err != nil {
 		sess.setState(Error)
 		sess.Log.Errorf("unable to start: get levels: %v", err)
 		return err
 	}
 	err = proto.WriteMessage(protocol.ConnectMsg{
-		Type:     "connect",
-		DeviceId: sess.DeviceId,
-		// xxx get the SSO Authorization string from the phone
-		Authorization: "",
+		Type:          "connect",
+		DeviceId:      sess.DeviceId,
+		Authorization: sess.auth,
 		Levels:        levels,
 		Info:          sess.Info,
 	})
@@ -427,18 +558,21 @@ func (sess *ClientSession) start() error {
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *ClientSession) run(closer func(), hostGetter, connecter, starter, looper func() error) error {
+func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter, starter, looper func() error) error {
 	closer()
-	err := hostGetter()
-	if err != nil {
+	if err := authChecker(); err != nil {
 		return err
 	}
-	err = connecter()
+	if err := hostGetter(); err != nil {
+		return err
+	}
+	err := connecter()
 	if err == nil {
 		err = starter()
 		if err == nil {
 			sess.ErrCh = make(chan error, 1)
-			sess.MsgCh = make(chan *Notification)
+			sess.BroadcastCh = make(chan *BroadcastNotification)
+			sess.NotificationsCh = make(chan *protocol.Notification)
 			go func() { sess.ErrCh <- looper() }()
 		}
 	}
@@ -463,7 +597,7 @@ func (sess *ClientSession) Dial() error {
 		// keep on trying.
 		panic("can't Dial() without a protocol constructor.")
 	}
-	return sess.run(sess.doClose, sess.getHosts, sess.connect, sess.start, sess.loop)
+	return sess.run(sess.doClose, sess.addAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
 func init() {

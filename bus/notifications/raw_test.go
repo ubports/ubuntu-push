@@ -57,6 +57,12 @@ func (s *RawSuite) TestNotifiesFails(c *C) {
 	c.Check(err, NotNil)
 }
 
+func (s *RawSuite) TestNotifyFailsIfNoBus(c *C) {
+	raw := Raw(nil, s.log)
+	_, err := raw.Notify("", 0, "", "", "", nil, nil, 0)
+	c.Check(err, ErrorMatches, `.*unconfigured .*`)
+}
+
 func (s *RawSuite) TestNotifiesFailsWeirdly(c *C) {
 	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{1, 2})
 	raw := Raw(endp, s.log)

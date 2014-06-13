@@ -20,6 +20,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -118,6 +120,22 @@ func ReadConfig(r io.Reader, destConfig interface{}) error {
 	return fillDestConfig(destValue, p1)
 }
 
+// FromString are config holders that can be set by parsing a string.
+type FromString interface {
+	SetFromString(enc string) error
+}
+
+// UnmarshalJSONViaString helps unmarshalling from JSON for FromString
+// supporting config holders.
+func UnmarshalJSONViaString(dest FromString, b []byte) error {
+	var enc string
+	err := json.Unmarshal(b, &enc)
+	if err != nil {
+		return err
+	}
+	return dest.SetFromString(enc)
+}
+
 // ConfigTimeDuration can hold a time.Duration in a configuration struct,
 // that is parsed from a string as supported by time.ParseDuration.
 type ConfigTimeDuration struct {
@@ -125,13 +143,11 @@ type ConfigTimeDuration struct {
 }
 
 func (ctd *ConfigTimeDuration) UnmarshalJSON(b []byte) error {
-	var enc string
-	var v time.Duration
-	err := json.Unmarshal(b, &enc)
-	if err != nil {
-		return err
-	}
-	v, err = time.ParseDuration(enc)
+	return UnmarshalJSONViaString(ctd, b)
+}
+
+func (ctd *ConfigTimeDuration) SetFromString(enc string) error {
+	v, err := time.ParseDuration(enc)
 	if err != nil {
 		return err
 	}
@@ -148,12 +164,11 @@ func (ctd ConfigTimeDuration) TimeDuration() time.Duration {
 type ConfigHostPort string
 
 func (chp *ConfigHostPort) UnmarshalJSON(b []byte) error {
-	var enc string
-	err := json.Unmarshal(b, &enc)
-	if err != nil {
-		return err
-	}
-	_, _, err = net.SplitHostPort(enc)
+	return UnmarshalJSONViaString(chp, b)
+}
+
+func (chp *ConfigHostPort) SetFromString(enc string) error {
+	_, _, err := net.SplitHostPort(enc)
 	if err != nil {
 		return err
 	}
@@ -198,23 +213,127 @@ func LoadFile(p, baseDir string) ([]byte, error) {
 	return ioutil.ReadFile(p)
 }
 
-// ReadFiles reads configuration from a set of files. Uses ReadConfig internally.
-func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
+// used to implement getting config values with flag.Parse()
+type val struct {
+	destField destField
+	accu      map[string]json.RawMessage
+}
+
+func (v *val) String() string { // used to show default
+	return string(v.accu[v.destField.configName()])
+}
+
+func (v *val) IsBoolFlag() bool {
+	return v.destField.fld.Type.Kind() == reflect.Bool
+}
+
+func (v *val) marshalAsNeeded(s string) (json.RawMessage, error) {
+	var toMarshal interface{}
+	switch v.destField.dest.(type) {
+	case *string, FromString:
+		toMarshal = s
+	case *bool:
+		bit, err := strconv.ParseBool(s)
+		if err != nil {
+			return nil, err
+		}
+		toMarshal = bit
+	default:
+		return json.RawMessage(s), nil
+	}
+	return json.Marshal(toMarshal)
+}
+
+func (v *val) Set(s string) error {
+	marshalled, err := v.marshalAsNeeded(s)
+	if err != nil {
+		return err
+	}
+	v.accu[v.destField.configName()] = marshalled
+	return nil
+}
+
+func readOneConfig(accu map[string]json.RawMessage, cfgPath string) error {
+	r, err := os.Open(cfgPath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	err = json.NewDecoder(r).Decode(&accu)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// used to implement -cfg@=
+type readConfigAtVal struct {
+	path string
+	accu map[string]json.RawMessage
+}
+
+func (v *readConfigAtVal) String() string {
+	return v.path
+}
+
+func (v *readConfigAtVal) Set(path string) error {
+	v.path = path
+	return readOneConfig(v.accu, path)
+}
+
+// readUsingFlags gets config values from command line flags.
+func readUsingFlags(accu map[string]json.RawMessage, destValue reflect.Value) error {
+	if flag.Parsed() {
+		if IgnoreParsedFlags {
+			return nil
+		}
+		return fmt.Errorf("too late, flags already parsed")
+	}
+	destStruct := destValue.Elem()
+	for destField := range traverseStruct(destStruct) {
+		help := destField.fld.Tag.Get("help")
+		flag.Var(&val{destField, accu}, destField.configName(), help)
+	}
+	flag.Var(&readConfigAtVal{"<config.json>", accu}, "cfg@", "get config values from file")
+	flag.Parse()
+	return nil
+}
+
+// IgnoreParsedFlags will just have ReadFiles ignore <flags> if the
+// command line was already parsed.
+var IgnoreParsedFlags = false
+
+// ReadFilesDefaults reads configuration from a set of files. The
+// string "<flags>" can be used as a pseudo file-path, it will
+// consider command line flags, invoking flag.Parse(). Among those the
+// flag -cfg@=FILE can be used to get further config values from FILE.
+// Defaults for fields can be given through a map[string]interface{}.
+func ReadFilesDefaults(destConfig interface{}, defls map[string]interface{}, cfgFpaths ...string) error {
 	destValue, err := checkDestConfig("destConfig", destConfig)
 	if err != nil {
 		return err
 	}
 	// do the parsing in two phases for better error handling
-	var p1 map[string]json.RawMessage
+	p1 := make(map[string]json.RawMessage)
+	for field, value := range defls {
+		b, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		p1[field] = json.RawMessage(b)
+	}
 	readOne := false
 	for _, cfgPath := range cfgFpaths {
-		if _, err := os.Stat(cfgPath); err == nil {
-			r, err := os.Open(cfgPath)
+		if cfgPath == "<flags>" {
+			err := readUsingFlags(p1, destValue)
 			if err != nil {
 				return err
 			}
-			defer r.Close()
-			err = json.NewDecoder(r).Decode(&p1)
+			readOne = true
+			continue
+		}
+		if _, err := os.Stat(cfgPath); err == nil {
+			err := readOneConfig(p1, cfgPath)
 			if err != nil {
 				return err
 			}
@@ -225,6 +344,13 @@ func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
 		return fmt.Errorf("no config to read")
 	}
 	return fillDestConfig(destValue, p1)
+}
+
+// ReadFiles reads configuration from a set of files exactly like
+// ReadFilesDefaults but no defaults can be given making all fields
+// mandatory.
+func ReadFiles(destConfig interface{}, cfgFpaths ...string) error {
+	return ReadFilesDefaults(destConfig, nil, cfgFpaths...)
 }
 
 // CompareConfigs compares the two given configuration structures. It returns a list of differing fields or nil if the config contents are the same.

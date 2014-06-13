@@ -19,6 +19,7 @@
 package broker
 
 import (
+	"errors"
 	"fmt"
 
 	"launchpad.net/ubuntu-push/protocol"
@@ -29,7 +30,7 @@ import (
 // through them.
 type Broker interface {
 	// Register the session.
-	Register(*protocol.ConnectMsg) (BrokerSession, error)
+	Register(connMsg *protocol.ConnectMsg, sessionId string) (BrokerSession, error)
 	// Unregister the session.
 	Unregister(BrokerSession)
 }
@@ -38,6 +39,8 @@ type Broker interface {
 type BrokerSending interface {
 	// Broadcast channel.
 	Broadcast(chanId store.InternalChannelId)
+	// Unicast over channels.
+	Unicast(chanIds ...store.InternalChannelId)
 }
 
 // Exchange leads the session through performing an exchange, typically delivery.
@@ -45,6 +48,9 @@ type Exchange interface {
 	Prepare(sess BrokerSession) (outMessage protocol.SplittableMsg, inMessage interface{}, err error)
 	Acked(sess BrokerSession, done bool) error
 }
+
+// ErrNop returned by Prepare means nothing to do/send.
+var ErrNop = errors.New("nothing to send")
 
 // LevelsMap is the type for holding channel levels for session.
 type LevelsMap map[store.InternalChannelId]int64
@@ -77,6 +83,14 @@ type BrokerSession interface {
 	Levels() LevelsMap
 	// ExchangeScratchArea returns the scratch area for exchanges.
 	ExchangeScratchArea() *ExchangesScratchArea
+	// Get gets the content of the channel with chanId.
+	Get(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error)
+	// DropByMsgId drops notifications from the channel chanId by message id.
+	DropByMsgId(chanId store.InternalChannelId, targets []protocol.Notification) error
+	// Feed feeds exchange into the session.
+	Feed(Exchange)
+	// InternalChannelId() returns the channel id corresponding to the session.
+	InternalChannelId() store.InternalChannelId
 }
 
 // Session aborted error.

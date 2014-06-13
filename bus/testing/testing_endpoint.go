@@ -166,8 +166,46 @@ func (endp *testingEndpoint) String() string {
 		endp.dialCond, endp.callCond, endp.retvals)
 }
 
-// see Endpoint's Close. This one does nothing.
-func (tc *testingEndpoint) Close() {}
+// see Endpoint's Close. This one does nothing beyond registering
+// being called.
+func (tc *testingEndpoint) Close() {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
+	args := callArgs{Member: "::Close"}
+	tc.callArgs = append(tc.callArgs, args)
+}
+
+func (tc *testingEndpoint) GrabName(allowReplacement bool) <-chan error {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
+	args := callArgs{Member: "::GrabName"}
+	args.Args = append(args.Args, allowReplacement)
+	tc.callArgs = append(tc.callArgs, args)
+
+	return nil
+}
+
+func (tc *testingEndpoint) WatchMethod(dispatch bus.DispatchMap, extra ...interface{}) {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
+	args := callArgs{Member: "::WatchMethod"}
+	args.Args = append(args.Args, dispatch, extra)
+	tc.callArgs = append(tc.callArgs, args)
+}
+
+func (tc *testingEndpoint) Signal(member string, args []interface{}) error {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
+	callargs := callArgs{Member: "::Signal"}
+	callargs.Args = append(callargs.Args, member, args)
+	tc.callArgs = append(tc.callArgs, callargs)
+
+	return nil
+}
 
 // ensure testingEndpoint implements bus.Endpoint
-var _ bus.Endpoint = &testingEndpoint{}
+var _ bus.Endpoint = (*testingEndpoint)(nil)

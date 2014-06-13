@@ -1,3 +1,41 @@
+ubuntu-push (0.3+14.10.20140605-0ubuntu1) utopic; urgency=medium
+
+  [ John Lenton ]
+  * New upstream release.
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Thu, 05 Jun 2014 09:42:22 +0000
+
+ubuntu-push (0.2.1+14.04.20140423.1-0ubuntu1) trusty; urgency=high
+
+  [ Samuele Pedroni ]
+  * gave the client the ability to get config from commandline
+    ( => easier automated testing) (LP: #1311600)
+
+  [ John Lenton ]
+  * Ensure ubuntu-push-client is the only one running in the session.
+    (LP: #1309432)
+  * Remove supurious numbers in brackets in notifications. (LP: #1308145)
+  * Check the server certificate and server name. (LP: #1297969)
+  * Loop whoopsie_identifier_generate until it starts working. (LP: #1309237)
+  * In the session: set a flag on connect, clear it on successfully
+    replying to ping or broadcast messages, check it at the top of
+    autoredial. Also track the last autoredial, and set the delay flag if
+    autoredial is re-called too quickly. (LP: #1309231)
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Wed, 23 Apr 2014 11:54:00 +0000
+
+ubuntu-push (0.2+14.04.20140411-0ubuntu1) trusty; urgency=medium
+
+  [ John Lenton ]
+  * New upstream release.
+
+  [ Richard Huddie ]
+  * added basic autopilot framework
+  * configparser and http post updates
+  * removed tests folder
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Fri, 11 Apr 2014 18:31:57 +0000
+
 ubuntu-push (0.1+14.04.20140404-0ubuntu1) trusty; urgency=low
 
   [ Tarmac ]

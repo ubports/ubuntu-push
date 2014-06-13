@@ -18,6 +18,7 @@
 package session
 
 import (
+	"errors"
 	"net"
 	"time"
 
@@ -35,7 +36,7 @@ type SessionConfig interface {
 }
 
 // sessionStart manages the start of the protocol session.
-func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig) (broker.BrokerSession, error) {
+func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig, sessionId string) (broker.BrokerSession, error) {
 	var connMsg protocol.ConnectMsg
 	proto.SetDeadline(time.Now().Add(cfg.ExchangeTimeout()))
 	err := proto.ReadMessage(&connMsg)
@@ -52,8 +53,10 @@ func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig
 	if err != nil {
 		return nil, err
 	}
-	return brkr.Register(&connMsg)
+	return brkr.Register(&connMsg, sessionId)
 }
+
+var errOneway = errors.New("oneway")
 
 // exchange writes outMsg message, reads answer in inMsg
 func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeout time.Duration) error {
@@ -61,6 +64,12 @@ func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeou
 	err := proto.WriteMessage(outMsg)
 	if err != nil {
 		return err
+	}
+	if inMsg == nil { // no answer expected
+		if outMsg.(protocol.OnewayMsg).OnewayContinue() {
+			return errOneway
+		}
+		return &broker.ErrAbort{"session broken for reason"}
 	}
 	err = proto.ReadMessage(inMsg)
 	if err != nil {
@@ -75,7 +84,12 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 	exchangeTimeout := cfg.ExchangeTimeout()
 	pingTimer := time.NewTimer(pingInterval)
 	intervalStart := time.Now()
+	pingTimerReset := func() {
+		pingTimer.Reset(pingInterval)
+		intervalStart = time.Now()
+	}
 	ch := sess.SessionChannel()
+Loop:
 	for {
 		select {
 		case <-pingTimer.C:
@@ -89,23 +103,32 @@ func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg Session
 			if pongMsg.Type != "pong" {
 				return &broker.ErrAbort{"expected PONG message"}
 			}
-			pingTimer.Reset(pingInterval)
+			pingTimerReset()
 		case exchg := <-ch:
-			// xxx later can use ch closing for shutdown/reset
 			pingTimer.Stop()
+			if exchg == nil {
+				return &broker.ErrAbort{"terminated"}
+			}
 			outMsg, inMsg, err := exchg.Prepare(sess)
+			if err == broker.ErrNop { // nothing to do
+				pingTimerReset()
+				continue Loop
+			}
 			if err != nil {
 				return err
 			}
 			for {
 				done := outMsg.Split()
 				err = exchange(proto, outMsg, inMsg, exchangeTimeout)
+				if err == errOneway {
+					pingTimerReset()
+					continue Loop
+				}
 				if err != nil {
 					return err
 				}
 				if done {
-					pingTimer.Reset(pingInterval)
-					intervalStart = time.Now()
+					pingTimerReset()
 				}
 				err = exchg.Acked(sess, done)
 				if err != nil {
@@ -131,7 +154,7 @@ func Session(conn net.Conn, brkr broker.Broker, cfg SessionConfig, track Session
 		return track.End(&broker.ErrAbort{"unexpected wire format version"})
 	}
 	proto := protocol.NewProtocol0(conn)
-	sess, err := sessionStart(proto, brkr, cfg)
+	sess, err := sessionStart(proto, brkr, cfg, track.SessionId())
 	if err != nil {
 		return track.End(err)
 	}

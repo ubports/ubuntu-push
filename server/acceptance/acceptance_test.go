@@ -34,6 +34,7 @@ func testServerConfig(addr, httpAddr string) map[string]interface{} {
 	cfg := make(map[string]interface{})
 	suites.FillServerConfig(cfg, addr)
 	suites.FillHTTPServerConfig(cfg, httpAddr)
+	cfg["delivery_domain"] = "localhost"
 	return cfg
 }
 
@@ -58,3 +59,6 @@ var _ = Suite(&suites.PingPongAcceptanceSuite{suites.AcceptanceSuite{StartServer
 
 // broadcast
 var _ = Suite(&suites.BroadcastAcceptanceSuite{suites.AcceptanceSuite{StartServer: StartServer}})
+
+// unicast
+var _ = Suite(&suites.UnicastAcceptanceSuite{suites.AcceptanceSuite{StartServer: StartServer}, nil})
