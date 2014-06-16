@@ -75,6 +75,9 @@ class PushNotificationTestBase(UnityTestCase):
         # start unity8
         self._qml_mock_enabled = False
         self._data_dirs_mock_enabled = False
+        self.unity = self.launch_unity()
+        # dismiss any outstanding dialog
+        self.dismiss_outstanding_dialog()
 
     def create_device_info_copy(self):
         """
@@ -95,21 +98,11 @@ class PushNotificationTestBase(UnityTestCase):
         uinput.write(evdev.ecodes.EV_KEY, evdev.ecodes.KEY_POWER, 0)
         uinput.syn()
 
-    def launch_unity_and_clear_dialogs(self):
+    def unlock_greeter(self):
         """
-        Launch unity and clear any previous notification dialogs which could
-        interefere with current test
+        Unlock the greeter to display home screen
         """
-        self.launch_unity()
-        self.dismiss_outstanding_dialog()
-
-    def launch_greeter_and_clear_dialogs(self):
-        """
-        Launch unity-greeter and clear any previous notification dialogs which
-        could interefere with current test
-        """
-        self.launch_greeter()
-        self.dismiss_outstanding_dialog()
+        self.main_window.get_greeter().swipe()
 
     def validate_response(self, response, expected_status_code=200):
         """
