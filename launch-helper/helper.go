@@ -66,7 +66,7 @@ func runner(commands chan []string) {
 			helper_type,
 			nil,
 		)
-        success = run(command[0], command[1], command[2], command[3])
+        success := run(command[0], command[1], command[2], command[3])
 		if success {
 			go func() {
 				time.Sleep(_timelimit * time.Millisecond)
@@ -78,7 +78,7 @@ func runner(commands chan []string) {
 			case <-finished:
 				fmt.Printf("Finished before timeout, doing nothing\n")
 			}
-		else {
+		} else {
 			fmt.Printf("Failed to start helper\n")
 		}
 	}
