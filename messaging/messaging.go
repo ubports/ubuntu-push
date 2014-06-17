@@ -304,10 +304,21 @@ messaging_menu_message_add_action (MessagingMenuMessage *msg,
 
 type SourceActivatedCallback func()
 
-func SignalConnectObject(instance MessagingMenuApp, detailed_signal string, callback unsafe.Pointer, gobject C.gpointer) {
+func (app *MessagingMenuApp) Connect(detailed_signal string, callback unsafe.Pointer, gobject C.gpointer) {
 	var _detailed_signal = gchar(detailed_signal)
 	C.g_signal_connect_object(
-		(C.gpointer)(instance.instance),
+		(C.gpointer)(app.instance),
+		_detailed_signal,
+		(C.GCallback)(callback),
+		gobject,
+		C.G_CONNECT_AFTER)
+	free(_detailed_signal)
+}
+
+func (msg *MessagingMenuMessage) Connect(detailed_signal string, callback unsafe.Pointer, gobject C.gpointer) {
+	var _detailed_signal = gchar(detailed_signal)
+	C.g_signal_connect_object(
+		(C.gpointer)(msg.instance),
 		_detailed_signal,
 		(C.GCallback)(callback),
 		gobject,
