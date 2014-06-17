@@ -44,12 +44,13 @@ func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	return (C.int)(success) != 0
 }
 
-func stop(helper_type string, app_id string) {
+func stop(helper_type string, app_id string) bool {
 	_helper_type := (*C.gchar)(C.CString(helper_type))
 	defer C.free(unsafe.Pointer(_helper_type))
 	_app_id := (*C.gchar)(C.CString(app_id))
 	defer C.free(unsafe.Pointer(_app_id))
-	C.ubuntu_app_launch_stop_helper(_helper_type, _app_id)
+	success := C.ubuntu_app_launch_stop_helper(_helper_type, _app_id)
+	return (C.int)(success) != 0
 }
 
 func runner(commands chan []string) {
