@@ -15,6 +15,8 @@ ubuntu-push (0.31ubuntu1) UNRELEASED; urgency=medium
     parameter (the url to sign). Added SessionURL to config.
   * Adapt our whoopsie wrapper to whoopsie's now more correct behavior wrt
     failing to get a mac address.
+  * Add registration_url to config; hook up auth bits and reg url to
+    client & service.
 
  -- John R. Lenton <john.lenton@canonical.com>  Fri, 06 Jun 2014 12:02:56 +0100
 

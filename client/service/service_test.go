@@ -18,6 +18,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -95,6 +96,37 @@ func (ss *serviceSuite) TestStopClosesBus(c *C) {
 }
 
 // registration tests
+
+func (ss *serviceSuite) TestSetRegURLWorks(c *C) {
+	svc := NewService(ss.bus, ss.log)
+	c.Check(svc.regURL, Equals, "")
+	svc.SetRegistrationURL("xyzzy://")
+	c.Check(svc.regURL, Equals, "xyzzy://")
+}
+
+func (ss *serviceSuite) TestSetAuthGetterWorks(c *C) {
+	svc := NewService(ss.bus, ss.log)
+	c.Check(svc.authGetter, IsNil)
+	f := func(string) string { return "" }
+	svc.SetAuthGetter(f)
+	c.Check(fmt.Sprintf("%#v", svc.authGetter), Equals, fmt.Sprintf("%#v", f))
+}
+
+func (ss *serviceSuite) TestGetRegAuthWorks(c *C) {
+	svc := NewService(ss.bus, ss.log)
+	svc.SetRegistrationURL("xyzzy://")
+	ch := make(chan string, 1)
+	f := func(s string) string { ch <- s; return "Auth " + s }
+	svc.SetAuthGetter(f)
+	c.Check(svc.GetRegistrationAuthorization(), Equals, "Auth xyzzy://")
+	c.Assert(len(ch), Equals, 1)
+	c.Check(<-ch, Equals, "xyzzy://")
+}
+
+func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
+	svc := NewService(ss.bus, ss.log)
+	c.Check(svc.GetRegistrationAuthorization(), Equals, "")
+}
 
 func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
 	reg, err := new(Service).register("", []interface{}{1}, nil)

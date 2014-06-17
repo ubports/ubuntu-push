@@ -64,8 +64,9 @@ type ClientConfig struct {
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
 	// How to invoke the auth helper
-	AuthHelper string `json:"auth_helper"`
-	SessionURL string `json:"session_url"`
+	AuthHelper      string `json:"auth_helper"`
+	SessionURL      string `json:"session_url"`
+	RegistrationURL string `json:"registration_url"`
 	// The logging level (one of "debug", "info", "error")
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
 }
@@ -169,7 +170,7 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 
 // getAuthorization gets the authorization blob to send to the server
 func (client *PushClient) getAuthorization(url string) string {
-	client.log.Debugf("getting authorization")
+	client.log.Debugf("getting authorization for %s", url)
 	// using a helper, for now at least
 	if len(client.config.AuthHelper) == 0 {
 		// do nothing if helper is unset or empty
@@ -450,6 +451,8 @@ func (client *PushClient) startService() error {
 
 	client.service = service.NewService(client.serviceEndpoint, client.log)
 	client.service.SetMessageHandler(client.messageHandler)
+	client.service.SetRegistrationURL(client.config.RegistrationURL)
+	client.service.SetAuthGetter(client.getAuthorization)
 	return client.service.Start()
 }
 

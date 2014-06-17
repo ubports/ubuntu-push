@@ -35,6 +35,8 @@ type Service struct {
 	state      ServiceState
 	mbox       map[string][]string
 	msgHandler func([]byte) error
+	regURL     string
+	authGetter func(string) string
 	Log        logger.Logger
 	Bus        bus.Endpoint
 }
@@ -61,6 +63,32 @@ var (
 // NewService() builds a new service and returns it.
 func NewService(bus bus.Endpoint, log logger.Logger) *Service {
 	return &Service{Log: log, Bus: bus}
+}
+
+// SetRegistrationURL() sets the registration url for the service
+func (svc *Service) SetRegistrationURL(url string) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	svc.regURL = url
+}
+
+// SetAuthGetter() sets the authorization getter for the service
+func (svc *Service) SetAuthGetter(authGetter func(string) string) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	svc.authGetter = authGetter
+}
+
+// GetRegistrationAuthorization() returns the authorization header for
+// POSTing to the registration HTTP endpoint
+func (svc *Service) GetRegistrationAuthorization() string {
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
+	if svc.authGetter != nil && svc.regURL != "" {
+		return svc.authGetter(svc.regURL)
+	} else {
+		return ""
+	}
 }
 
 // SetMessageHandler() sets the message-handling callback
