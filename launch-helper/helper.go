@@ -66,19 +66,20 @@ func runner(commands chan []string) {
 			helper_type,
 			nil,
 		)
-
-		go func() {
-			time.Sleep(_timelimit * time.Millisecond)
-			timeout <- true
-		}()
-		go func() {
-			finished <- run(command[0], command[1], command[2], command[3])
-		}()
-		select {
-		case <-timeout:
-			stop(command[0], command[1])
-		case <-finished:
-			fmt.Printf("Finished before timeout, doing nothing\n")
+        success = run(command[0], command[1], command[2], command[3])
+		if success {
+			go func() {
+				time.Sleep(_timelimit * time.Millisecond)
+				timeout <- true
+			}()
+			select {
+			case <-timeout:
+				stop(command[0], command[1])
+			case <-finished:
+				fmt.Printf("Finished before timeout, doing nothing\n")
+			}
+		else {
+			fmt.Printf("Failed to start helper\n")
 		}
 	}
 }
