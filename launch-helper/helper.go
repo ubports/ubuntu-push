@@ -40,8 +40,8 @@ func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	c_fnames := twoStringsForC(fname1, fname2)
 	defer C.free(unsafe.Pointer(c_fnames[0]))
 	defer C.free(unsafe.Pointer(c_fnames[1]))
-	C.ubuntu_app_launch_start_helper(_helper_type, _app_id, (**C.gchar)(unsafe.Pointer(&c_fnames[0])))
-	return false
+	success := C.ubuntu_app_launch_start_helper(_helper_type, _app_id, (**C.gchar)(unsafe.Pointer(&c_fnames[0])))
+	return (C.int)(success) != 0
 }
 
 func stop(helper_type string, app_id string) {
@@ -73,10 +73,10 @@ func runner(commands chan []string) {
 				timeout <- true
 			}()
 			select {
-			case <-timeout:
-				stop(command[0], command[1])
-			case <-finished:
-				fmt.Printf("Finished before timeout, doing nothing\n")
+				case <-timeout:
+					stop(command[0], command[1])
+				case <-finished:
+					fmt.Printf("Finished before timeout, doing nothing\n")
 			}
 		} else {
 			fmt.Printf("Failed to start helper\n")
