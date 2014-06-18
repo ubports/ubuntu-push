@@ -13,17 +13,33 @@ import "fmt"
 import "unsafe"
 import "time"
 
-var finished = make(chan bool)
-
 const (
 	_timelimit = 500
 )
 
+// These are needed for testing because C functions can't be passed
+// around as values
+func _start_helper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gboolean {
+	return C.ubuntu_app_launch_start_helper(helper_type, appid, uris)
+}
+var StartHelper = _start_helper
+
+func _stop_helper(helper_type *C.gchar, appid *C.gchar) C.gboolean {
+		return C.ubuntu_app_launch_stop_helper(helper_type, appid)
+}
+var StopHelper = _stop_helper
+
+
+// this channel is global because it needs to be accessed from go_observer which needs
+// to be global to be exported
+var finished = make(chan bool)
 //export go_observer
 func go_observer() {
 	finished <- true
 }
 
+
+// Convert two strings into a proper NULL-terminated char**
 func twoStringsForC(f1 string, f2 string) []*C.char {
 	// 3 because we need a NULL terminator
 	ptr := make([]*C.char, 3)
@@ -31,6 +47,8 @@ func twoStringsForC(f1 string, f2 string) []*C.char {
 	ptr[1] = C.CString(f2)
 	return ptr
 }
+
+
 
 func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	_helper_type := (*C.gchar)(C.CString(helper_type))
@@ -40,7 +58,7 @@ func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	c_fnames := twoStringsForC(fname1, fname2)
 	defer C.free(unsafe.Pointer(c_fnames[0]))
 	defer C.free(unsafe.Pointer(c_fnames[1]))
-	success := C.ubuntu_app_launch_start_helper(_helper_type, _app_id, (**C.gchar)(unsafe.Pointer(&c_fnames[0])))
+	success := StartHelper(_helper_type, _app_id, (**C.gchar)(unsafe.Pointer(&c_fnames[0])))
 	return (C.int)(success) != 0
 }
 
@@ -49,7 +67,7 @@ func stop(helper_type string, app_id string) bool {
 	defer C.free(unsafe.Pointer(_helper_type))
 	_app_id := (*C.gchar)(C.CString(app_id))
 	defer C.free(unsafe.Pointer(_app_id))
-	success := C.ubuntu_app_launch_stop_helper(_helper_type, _app_id)
+	success := StopHelper(_helper_type, _app_id)
 	return (C.int)(success) != 0
 }
 
