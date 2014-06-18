@@ -14,7 +14,10 @@ import "unsafe"
 import "time"
 
 const (
-	_timelimit = 500
+	_timelimit = 500 * time.Millisecond
+	helper_stopped = 1
+	helper_finished = 2
+	helper_failed = 3
 )
 
 // These are needed for testing because C functions can't be passed
@@ -71,49 +74,42 @@ func stop(helper_type string, app_id string) bool {
 	return (C.int)(success) != 0
 }
 
-func runner(commands chan []string) {
-	for {
-		command := <-commands
-		timeout := make(chan bool)
-
-		helper_type := (*C.gchar)(C.CString("foobar"))
-		defer C.free(unsafe.Pointer(helper_type))
-		// Create an observer to be notified when helpers stop
-
-		C.ubuntu_app_launch_observer_add_helper_stop(
-			(C.UbuntuAppLaunchHelperObserver)(C.stop_observer),
-			helper_type,
-			nil,
-		)
-        success := run(command[0], command[1], command[2], command[3])
-		if success {
-			go func() {
-				time.Sleep(_timelimit * time.Millisecond)
-				timeout <- true
-			}()
-			select {
-				case <-timeout:
-					stop(command[0], command[1])
-				case <-finished:
-					fmt.Printf("Finished before timeout, doing nothing\n")
-			}
-		} else {
-			fmt.Printf("Failed to start helper\n")
+func runner(command []string) int {
+	timeout := make(chan bool)
+	// Always start with a clean finished channel to avoid races
+	finished = make(chan bool)
+	success := run(command[0], command[1], command[2], command[3])
+	if success {
+		go func() {
+			time.Sleep(_timelimit)
+			timeout <- true
+		}()
+		select {
+			case <-timeout:
+				fmt.Printf("Timeout reached, stopping\n")
+				stop(command[0], command[1])
+				return helper_stopped
+			case <-finished:
+				fmt.Printf("Finished before timeout, doing nothing\n")
+				return helper_finished
 		}
+	} else {
+		fmt.Printf("Failed to start helper\n")
+		return helper_failed
 	}
 }
 
-func main() {
-	commands := make(chan []string)
-	commandList := [][]string{
-		[]string{"foo1", "bar1", "bat1", "baz1"},
-		[]string{"foo2", "bar2", "bat2", "baz2"},
+func Runner(commands chan []string) {
+	// XXX obviously not foobar
+	helper_type := (*C.gchar)(C.CString("foobar"))
+	defer C.free(unsafe.Pointer(helper_type))
+	// Create an observer to be notified when helpers stop
+	C.ubuntu_app_launch_observer_add_helper_stop(
+		(C.UbuntuAppLaunchHelperObserver)(C.stop_observer),
+		helper_type,
+		nil,
+	)
+	for command := range commands {
+		runner(command)
 	}
-
-	go runner(commands)
-	for _, command := range commandList {
-		fmt.Printf("sending %s\n", command)
-		commands <- command
-	}
-	time.Sleep(4 * 1e9)
 }

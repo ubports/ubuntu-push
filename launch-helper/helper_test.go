@@ -1,22 +1,21 @@
 package main
 
-import "fmt"
 import "testing"
-import "time"
 
-func TestLaunch(t *testing.T) {
-	StartHelper = FakeStart
+func TestLongRunningHelper(t *testing.T) {
+	StartHelper = FakeStartLongLivedHelper
 	StopHelper = FakeStop
-	commands := make(chan []string)
-	commandList := [][]string{
-		[]string{"foo1", "bar1", "bat1", "baz1"},
-		[]string{"foo2", "bar2", "bat2", "baz2"},
+	command :=[]string{"foo1", "bar1", "bat1", "baz1"}
+	if runner(command) != helper_stopped {
+		t.Fatalf("Long running helper is not stopped")
 	}
+}
 
-	go runner(commands)
-	for _, command := range commandList {
-		fmt.Printf("sending %s\n", command)
-		commands <- command
+func TestShortRunningHelper(t *testing.T) {
+	StartHelper = FakeStartShortLivedHelper
+	StopHelper = FakeStop
+	command :=[]string{"foo1", "bar1", "bat1", "baz1"}
+	if runner(command) != helper_finished {
+		t.Fatalf("Short running helper doesn't finish")
 	}
-	time.Sleep(4 * 1e9)
 }
