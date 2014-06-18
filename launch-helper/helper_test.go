@@ -21,7 +21,7 @@ func TestRunner(t *testing.T) {
 		StartHelper = tt.starter
 		StopHelper = tt.stopper
 		command :=[]string{"foo1", "bar1", "bat1", "baz1"}
-		if runner(command) != tt.expected {
+		if runHelper(command) != tt.expected {
 			t.Fatalf(tt.msg)
 		}
 	}

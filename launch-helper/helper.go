@@ -75,11 +75,11 @@ func stop(helper_type string, app_id string) bool {
 	return (C.int)(success) != 0
 }
 
-func runner(command []string) int {
+func runHelper(helper []string) int {
 	timeout := make(chan bool)
 	// Always start with a clean finished channel to avoid races
 	finished = make(chan bool)
-	success := run(command[0], command[1], command[2], command[3])
+	success := run(helper[0], helper[1], helper[2], helper[3])
 	if success {
 		go func() {
 			time.Sleep(_timelimit)
@@ -88,7 +88,7 @@ func runner(command []string) int {
 		select {
 			case <-timeout:
 				fmt.Printf("Timeout reached, stopping\n")
-				if stop(command[0], command[1]) {
+				if stop(helper[0], helper[1]) {
 					return helper_stopped
 				} else {
 					return stop_failed
@@ -103,7 +103,7 @@ func runner(command []string) int {
 	}
 }
 
-func Runner(commands chan []string) {
+func HelperRunner(helpers chan []string) {
 	// XXX obviously not foobar
 	helper_type := (*C.gchar)(C.CString("foobar"))
 	defer C.free(unsafe.Pointer(helper_type))
@@ -113,7 +113,7 @@ func Runner(commands chan []string) {
 		helper_type,
 		nil,
 	)
-	for command := range commands {
-		runner(command)
+	for helper := range helpers {
+		runHelper(helper)
 	}
 }
