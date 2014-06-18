@@ -23,11 +23,11 @@ import "unsafe"
 
 // Utility functions to avoid typing the same casts too many times
 func char(s string) *C.char {
-        return (*C.char)(C.CString(s))
+	return (*C.char)(C.CString(s))
 }
 
 func free(s *C.char) {
-        C.free(unsafe.Pointer(s))
+	C.free(unsafe.Pointer(s))
 }
 
 // These functions are used by tests, they can't be defined in the test file
@@ -103,10 +103,6 @@ func fakeStopCheckCasting(helper_type *C.gchar, appid *C.gchar) C.gboolean {
 	return (C.gboolean)(0)
 }
 
-
 func fakeStop(helper_type *C.gchar, appid *C.gchar) C.gboolean {
 	return (C.gboolean)(1)
 }
-
-
-

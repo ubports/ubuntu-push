@@ -14,11 +14,11 @@ import "unsafe"
 import "time"
 
 const (
-	_timelimit = 500 * time.Millisecond
-	helper_stopped = 1
+	_timelimit      = 500 * time.Millisecond
+	helper_stopped  = 1
 	helper_finished = 2
-	helper_failed = 3
-	stop_failed = 4
+	helper_failed   = 3
+	stop_failed     = 4
 )
 
 // These are needed for testing because C functions can't be passed
@@ -26,22 +26,23 @@ const (
 func _start_helper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gboolean {
 	return C.ubuntu_app_launch_start_helper(helper_type, appid, uris)
 }
+
 var StartHelper = _start_helper
 
 func _stop_helper(helper_type *C.gchar, appid *C.gchar) C.gboolean {
-		return C.ubuntu_app_launch_stop_helper(helper_type, appid)
+	return C.ubuntu_app_launch_stop_helper(helper_type, appid)
 }
-var StopHelper = _stop_helper
 
+var StopHelper = _stop_helper
 
 // this channel is global because it needs to be accessed from go_observer which needs
 // to be global to be exported
 var finished = make(chan bool)
+
 //export go_observer
 func go_observer() {
 	finished <- true
 }
-
 
 // Convert two strings into a proper NULL-terminated char**
 func twoStringsForC(f1 string, f2 string) []*C.char {
@@ -51,8 +52,6 @@ func twoStringsForC(f1 string, f2 string) []*C.char {
 	ptr[1] = C.CString(f2)
 	return ptr
 }
-
-
 
 func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	_helper_type := (*C.gchar)(C.CString(helper_type))
@@ -86,16 +85,16 @@ func runHelper(helper []string) int {
 			timeout <- true
 		}()
 		select {
-			case <-timeout:
-				fmt.Printf("Timeout reached, stopping\n")
-				if stop(helper[0], helper[1]) {
-					return helper_stopped
-				} else {
-					return stop_failed
-				}
-			case <-finished:
-				fmt.Printf("Finished before timeout, doing nothing\n")
-				return helper_finished
+		case <-timeout:
+			fmt.Printf("Timeout reached, stopping\n")
+			if stop(helper[0], helper[1]) {
+				return helper_stopped
+			} else {
+				return stop_failed
+			}
+		case <-finished:
+			fmt.Printf("Finished before timeout, doing nothing\n")
+			return helper_finished
 		}
 	} else {
 		fmt.Printf("Failed to start helper\n")
@@ -107,7 +106,6 @@ type RunnerResult struct {
 	status int
 	helper []string
 }
-
 
 // Takes (helper_type, appid, file1 file2) via helpers, returns the same plus a status in the results channel
 func HelperRunner(helpers chan []string, results chan RunnerResult) {
@@ -122,6 +120,6 @@ func HelperRunner(helpers chan []string, results chan RunnerResult) {
 	)
 	for helper := range helpers {
 		result := runHelper(helper)
-		results <- RunnerResult {result, helper}
+		results <- RunnerResult{result, helper}
 	}
 }
