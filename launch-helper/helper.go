@@ -1,4 +1,4 @@
-package main
+package helper_launcher
 
 /*
 #cgo pkg-config: ubuntu-app-launch-2
