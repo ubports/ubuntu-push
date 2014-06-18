@@ -100,7 +100,6 @@ type RunnerResult struct {
 	helper []string
 }
 
-
 // helpers is the input channel and gets (helper_type, appid, file1, file2)
 // results is the output channel, returns a RunnerResult struct.
 // in that struct, helper is what was used as input and status is one of:
@@ -110,14 +109,14 @@ type RunnerResult struct {
 // StopFailed: tried to stop the helper but failed
 // helper_type is the type of helpers this runner will launch.
 type HelperRunner struct {
-	log logger.Logger
-	helpers chan []string
-	results chan RunnerResult
+	log         logger.Logger
+	helpers     chan []string
+	results     chan RunnerResult
 	helper_type string
 }
 
 // Launc this in a goroutine to make the helper process requests and return results
-func (hr *HelperRunner) run (){
+func (hr *HelperRunner) run() {
 	helper_type := (*C.gchar)(C.CString(hr.helper_type))
 	defer C.free(unsafe.Pointer(helper_type))
 	// Create an observer to be notified when helpers stop
@@ -134,10 +133,10 @@ func (hr *HelperRunner) run (){
 
 // Creates a HelperRunner, returns the helper
 // log is a logger to use.
-func NewHelperRunner(log logger.Logger, helper_type string) HelperRunner{
+func NewHelperRunner(log logger.Logger, helper_type string) HelperRunner {
 	input := make(chan []string)
 	output := make(chan RunnerResult)
-	return HelperRunner {
+	return HelperRunner{
 		log,
 		input,
 		output,

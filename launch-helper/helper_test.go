@@ -22,17 +22,16 @@ import . "launchpad.net/gocheck"
 
 func Test(t *testing.T) { TestingT(t) }
 
-type runnerSuite struct{
-        c               *C
-        testlog         *helpers.TestLogger
+type runnerSuite struct {
+	c       *C
+	testlog *helpers.TestLogger
 }
 
 var _ = Suite(&runnerSuite{})
 
 func (s *runnerSuite) SetUpTest(c *C) {
-        s.testlog = helpers.NewTestLogger(c, "error")
+	s.testlog = helpers.NewTestLogger(c, "error")
 }
-
 
 var runnerTests = []struct {
 	expected int                                                                // expected result
