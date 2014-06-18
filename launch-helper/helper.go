@@ -18,6 +18,7 @@ const (
 	helper_stopped = 1
 	helper_finished = 2
 	helper_failed = 3
+	stop_failed = 4
 )
 
 // These are needed for testing because C functions can't be passed
@@ -87,8 +88,11 @@ func runner(command []string) int {
 		select {
 			case <-timeout:
 				fmt.Printf("Timeout reached, stopping\n")
-				stop(command[0], command[1])
-				return helper_stopped
+				if stop(command[0], command[1]) {
+					return helper_stopped
+				else {
+					return stop_failed
+				}
 			case <-finished:
 				fmt.Printf("Finished before timeout, doing nothing\n")
 				return helper_finished
