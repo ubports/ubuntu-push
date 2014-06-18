@@ -17,6 +17,22 @@
 package helper_launcher
 
 import "testing"
+import helpers "launchpad.net/ubuntu-push/testing"
+import . "launchpad.net/gocheck"
+
+func Test(t *testing.T) { TestingT(t) }
+
+type runnerSuite struct{
+        c               *C
+        testlog         *helpers.TestLogger
+}
+
+var _ = Suite(&runnerSuite{})
+
+func (s *runnerSuite) SetUpTest(c *C) {
+        s.testlog = helpers.NewTestLogger(c, "error")
+}
+
 
 var runnerTests = []struct {
 	expected int                                                                // expected result
@@ -31,13 +47,12 @@ var runnerTests = []struct {
 	{StopFailed, "Error in stop argument casting", fakeStartLongLivedHelper, fakeStopCheckCasting},
 }
 
-func TestRunner(t *testing.T) {
+func (s *runnerSuite) TestRunner(c *C) {
 	for _, tt := range runnerTests {
 		StartHelper = tt.starter
 		StopHelper = tt.stopper
+		runner := NewHelperRunner(s.testlog, "foobar")
 		command := []string{"foo1", "bar1", "bat1", "baz1"}
-		if runHelper(command) != tt.expected {
-			t.Fatalf(tt.msg)
-		}
+		c.Check(runner.RunHelper(command), Equals, tt.expected, Commentf(tt.msg))
 	}
 }
