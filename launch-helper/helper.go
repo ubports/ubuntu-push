@@ -1,3 +1,19 @@
+/*
+ Copyright 2013-2014 Canonical Ltd.
+
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of the GNU General Public License version 3, as published
+ by the Free Software Foundation.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranties of
+ MERCHANTABILITY, SATISFACTORY QUALITY, or FITNESS FOR A PARTICULAR
+ PURPOSE.  See the GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License along
+ with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 // helper_launcher wraps ubuntu_app_launch to enable using application
 // helpers. The useful part is HelperRunner
 package helper_launcher
@@ -81,7 +97,9 @@ func stop(helper_type string, app_id string) bool {
 // Starts a helper via ubuntu_app_launch_start_helper, and either
 // wait for it to finish or stop it if more than _timilimit
 // has passed.
+//
 // The helper argument is helper_type, appid, uri1, uri2
+//
 // The return value is one of:
 // HelperStopped: the helper was stopped forcefully
 // HelperFinished: the helper ended normally
