@@ -8,11 +8,11 @@ var runnerTests = []struct {
 	starter  func(*_Ctype_gchar, *_Ctype_gchar, **_Ctype_gchar) _Ctype_gboolean // starter fake
 	stopper  func(*_Ctype_gchar, *_Ctype_gchar) _Ctype_gboolean                 // stopper fake
 }{
-	{helper_stopped, "Long running helper is not stopped", fakeStartLongLivedHelper, fakeStop},
-	{helper_finished, "Short running helper doesn't finish", fakeStartShortLivedHelper, fakeStop},
-	{helper_failed, "Filure to start helper doesn't fail", fakeStartFailure, fakeStop},
-	{helper_failed, "Error in start argument casting", fakeStartCheckCasting, fakeStop},
-	{stop_failed, "Error in stop argument casting", fakeStartLongLivedHelper, fakeStopCheckCasting},
+	{HelperStopped, "Long running helper is not stopped", fakeStartLongLivedHelper, fakeStop},
+	{HelperFinished, "Short running helper doesn't finish", fakeStartShortLivedHelper, fakeStop},
+	{HelperFailed, "Filure to start helper doesn't fail", fakeStartFailure, fakeStop},
+	{HelperFailed, "Error in start argument casting", fakeStartCheckCasting, fakeStop},
+	{StopFailed, "Error in stop argument casting", fakeStartLongLivedHelper, fakeStopCheckCasting},
 }
 
 func TestRunner(t *testing.T) {

@@ -1,3 +1,5 @@
+// helper_launcher wraps ubuntu_app_launch to enable using application
+// helpers. The useful part is HelperRunner
 package helper_launcher
 
 /*
@@ -14,11 +16,11 @@ import "unsafe"
 import "time"
 
 const (
-	_timelimit      = 500 * time.Millisecond
-	helper_stopped  = 1
-	helper_finished = 2
-	helper_failed   = 3
-	stop_failed     = 4
+	_timelimit     = 500 * time.Millisecond
+	HelperStopped  = 1
+	HelperFinished = 2
+	HelperFailed   = 3
+	StopFailed     = 4
 )
 
 // These are needed for testing because C functions can't be passed
@@ -53,6 +55,7 @@ func twoStringsForC(f1 string, f2 string) []*C.char {
 	return ptr
 }
 
+// Wrapper for ubuntu_app_launc_start_helper
 func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	_helper_type := (*C.gchar)(C.CString(helper_type))
 	defer C.free(unsafe.Pointer(_helper_type))
@@ -65,6 +68,7 @@ func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	return (C.int)(success) != 0
 }
 
+// Wrapper for ubuntu_app_launc_stop_helper
 func stop(helper_type string, app_id string) bool {
 	_helper_type := (*C.gchar)(C.CString(helper_type))
 	defer C.free(unsafe.Pointer(_helper_type))
@@ -74,6 +78,15 @@ func stop(helper_type string, app_id string) bool {
 	return (C.int)(success) != 0
 }
 
+// Starts a helper via ubuntu_app_launch_start_helper, and either
+// wait for it to finish or stop it if more than _timilimit
+// has passed.
+// The helper argument is helper_type, appid, uri1, uri2
+// The return value is one of:
+// HelperStopped: the helper was stopped forcefully
+// HelperFinished: the helper ended normally
+// HelperFailed: the helper failed to start
+// StopFailed: tried to stop the helper but failed
 func runHelper(helper []string) int {
 	timeout := make(chan bool)
 	// Always start with a clean finished channel to avoid races
@@ -88,26 +101,27 @@ func runHelper(helper []string) int {
 		case <-timeout:
 			fmt.Printf("Timeout reached, stopping\n")
 			if stop(helper[0], helper[1]) {
-				return helper_stopped
+				return HelperStopped
 			} else {
-				return stop_failed
+				return StopFailed
 			}
 		case <-finished:
 			fmt.Printf("Finished before timeout, doing nothing\n")
-			return helper_finished
+			return HelperFinished
 		}
 	} else {
 		fmt.Printf("Failed to start helper\n")
-		return helper_failed
+		return HelperFailed
 	}
 }
 
+// Struct for result of running a helper
 type RunnerResult struct {
 	status int
 	helper []string
 }
 
-// Takes (helper_type, appid, file1 file2) via helpers, returns the same plus a status in the results channel
+// Takes (helper_type, appid, file1 file2) via helpers channel, returns the same plus a status in the results channel
 func HelperRunner(helpers chan []string, results chan RunnerResult) {
 	// XXX obviously not foobar
 	helper_type := (*C.gchar)(C.CString("foobar"))
