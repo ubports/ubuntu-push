@@ -89,6 +89,21 @@ func fakeStartCheckCasting(helper_type *C.gchar, appid *C.gchar, uris **C.gchar)
 	return (C.gboolean)(0)
 }
 
+func fakeStopCheckCasting(helper_type *C.gchar, appid *C.gchar) C.gboolean {
+
+	if "foo1" != C.GoString((*C.char)(helper_type)) {
+		fmt.Printf("helper_type is not properly casted")
+		return (C.gboolean)(1)
+	}
+
+	if "bar1" != C.GoString((*C.char)(appid)) {
+		fmt.Printf("appid is not properly casted")
+		return (C.gboolean)(1)
+	}
+	return (C.gboolean)(0)
+}
+
+
 func fakeStop(helper_type *C.gchar, appid *C.gchar) C.gboolean {
 	return (C.gboolean)(1)
 }
