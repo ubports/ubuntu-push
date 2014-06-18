@@ -103,7 +103,14 @@ func runHelper(helper []string) int {
 	}
 }
 
-func HelperRunner(helpers chan []string) {
+type RunnerResult struct {
+	status int
+	helper []string
+}
+
+
+// Takes (helper_type, appid, file1 file2) via helpers, returns the same plus a status in the results channel
+func HelperRunner(helpers chan []string, results chan RunnerResult) {
 	// XXX obviously not foobar
 	helper_type := (*C.gchar)(C.CString("foobar"))
 	defer C.free(unsafe.Pointer(helper_type))
@@ -114,6 +121,7 @@ func HelperRunner(helpers chan []string) {
 		nil,
 	)
 	for helper := range helpers {
-		runHelper(helper)
+		result := runHelper(helper)
+		results <- RunnerResult {result, helper}
 	}
 }
