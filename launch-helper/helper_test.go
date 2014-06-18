@@ -11,6 +11,7 @@ var runnerTests = []struct {
 	{helper_stopped, "Long running helper is not stopped", fakeStartLongLivedHelper, fakeStop},
 	{helper_finished, "Short running helper doesn't finish", fakeStartShortLivedHelper, fakeStop},
 	{helper_failed, "Filure to start helper doesn't fail", fakeStartFailure, fakeStop},
+	{helper_failed, "Error in argument casting", fakeStartCheckCasting, fakeStop},
 }
 
 
