@@ -90,7 +90,7 @@ func runner(command []string) int {
 				fmt.Printf("Timeout reached, stopping\n")
 				if stop(command[0], command[1]) {
 					return helper_stopped
-				else {
+				} else {
 					return stop_failed
 				}
 			case <-finished:
