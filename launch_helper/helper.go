@@ -95,7 +95,7 @@ func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	return (C.int)(success) != 0
 }
 
-// stop is a wrapper for ubuntu_app_launc_stop_helper
+// stop is a wrapper for ubuntu_app_launch_stop_helper
 func stop(helper_type string, app_id string) bool {
 	_helper_type := (*C.gchar)(C.CString(helper_type))
 	defer C.free(unsafe.Pointer(_helper_type))
