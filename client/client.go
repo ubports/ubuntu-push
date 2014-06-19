@@ -90,10 +90,10 @@ type PushClient struct {
 	actionsCh          <-chan notifications.RawActionReply
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
-	serviceEndpoint    bus.Endpoint
-	service            *service.PushService
-	postalEndpoint     bus.Endpoint
-	postal             *service.PostalService
+	pushServiceEndpoint    bus.Endpoint
+	pushService            *service.PushService
+	postalServiceEndpoint     bus.Endpoint
+	postalService             *service.PostalService
 }
 
 var (
@@ -356,7 +356,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.postal.Inject(msg.AppId, string(msg.Payload))
+	return client.postalService.Inject(msg.AppId, string(msg.Payload))
 }
 
 // handleClick deals with the user clicking a notification
@@ -447,22 +447,22 @@ func (client *PushClient) messageHandler(message []byte) error {
 }
 
 func (client *PushClient) startService() error {
-	if client.serviceEndpoint == nil {
-		client.serviceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
+	if client.pushServiceEndpoint == nil {
+		client.pushServiceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
 	}
-	if client.postalEndpoint == nil {
-		client.postalEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
+	if client.postalServiceEndpoint == nil {
+		client.postalServiceEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
 	}
 
-	client.service = service.NewPushService(client.serviceEndpoint, client.log)
-	client.service.SetRegistrationURL(client.config.RegistrationURL)
-	client.service.SetAuthGetter(client.getAuthorization)
-	client.postal = service.NewPostalService(client.postalEndpoint, client.log)
-	client.postal.SetMessageHandler(client.messageHandler)
-	if err := client.service.Start(); err != nil {
+	client.pushService = service.NewPushService(client.pushServiceEndpoint, client.log)
+	client.pushService.SetRegistrationURL(client.config.RegistrationURL)
+	client.pushService.SetAuthGetter(client.getAuthorization)
+	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.log)
+	client.postalService.SetMessageHandler(client.messageHandler)
+	if err := client.pushService.Start(); err != nil {
 		return err
 	}
-	if err := client.postal.Start(); err != nil {
+	if err := client.postalService.Start(); err != nil {
 		return err
 	}
 	return nil
