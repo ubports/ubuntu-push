@@ -3,6 +3,7 @@ ubuntu-push (0.31ubuntu1) UNRELEASED; urgency=medium
   [ Samuele Pedroni ]
   * Support registering tokens and sending notifications with a token
   * Register script and scripts unicast support
+  * Avoid late pings in the face of nop exchanges
 
   [ Roberto Alsina ]
   * Make signing-helper generate a HTTP header instead of a querystring,
