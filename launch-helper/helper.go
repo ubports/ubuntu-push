@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	_timelimit     = 500 * time.Millisecond
+	timeLimit     = 500 * time.Millisecond
 	HelperStopped  = 1
 	HelperFinished = 2
 	HelperFailed   = 3
@@ -57,12 +57,12 @@ func _stop_helper(helper_type *C.gchar, appid *C.gchar) C.gboolean {
 
 var StopHelper = _stop_helper
 
-// this channel is global because it needs to be accessed from go_observer which needs
+// this channel is global because it needs to be accessed from goObserver which needs
 // to be global to be exported
 var finished = make(chan bool)
 
-//export go_observer
-func go_observer() {
+//export goObserver
+func goObserver() {
 	finished <- true
 }
 
@@ -175,7 +175,7 @@ func (hr *HelperRunner) Run(helper []string) int {
 	success := run(helper[0], helper[1], helper[2], helper[3])
 	if success {
 		go func() {
-			time.Sleep(_timelimit)
+			time.Sleep(timeLimit)
 			timeout <- true
 		}()
 		select {

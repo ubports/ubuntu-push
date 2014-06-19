@@ -25,10 +25,10 @@ package helper_launcher
 #include <string.h>
 #include <glib.h>
 
-extern void go_observer();
+extern void goObserver();
 void stop_observer (const gchar * appid, const gchar * instanceid, const gchar * helpertype, gpointer user_data) {
     printf("%s | %s | %s \n", appid, instanceid, helpertype);
-    go_observer();
+    goObserver();
 }
 
 */
@@ -54,15 +54,15 @@ func free(s *C.char) {
 
 func fakeStartLongLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gboolean {
 	go func() {
-		time.Sleep(_timelimit * 3)
-		go_observer()
+		time.Sleep(timeLimit * 3)
+		goObserver()
 	}()
 	return (C.gboolean)(1)
 }
 
 func fakeStartShortLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gboolean {
 	go func() {
-		go_observer()
+		goObserver()
 	}()
 	return (C.gboolean)(1)
 }
