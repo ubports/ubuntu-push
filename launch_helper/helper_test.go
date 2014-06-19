@@ -51,8 +51,8 @@ var runnerTests = []struct {
 
 func (s *runnerSuite) TestRunner(c *C) {
 	for _, tt := range runnerTests {
-		StartHelper = tt.starter
-		StopHelper = tt.stopper
+		startHelper = tt.starter
+		stopHelper = tt.stopper
 		runner := New(s.testlog, "foobar")
 		command := []string{"foo1", "bar1", "bat1", "baz1"}
 		c.Check(runner.Run(command), Equals, tt.expected, Commentf(tt.msg))

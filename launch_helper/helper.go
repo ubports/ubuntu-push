@@ -38,11 +38,15 @@ import (
 type ReturnValue int
 
 const (
-	HelperStopped  ReturnValue = iota
+	// HelperStopped means the helper was stopped forcefully
+	HelperStopped ReturnValue = iota
+	// HelperFinished means the helper ended normally
 	HelperFinished ReturnValue = iota
-	HelperFailed   ReturnValue = iota
-	StopFailed     ReturnValue = iota
-	timeLimit                  = 500 * time.Millisecond
+	// HelperFailed means the helper failed to start
+	HelperFailed ReturnValue = iota
+	// StopFailed means tried to stop the helper but failed
+	StopFailed ReturnValue = iota
+	timeLimit              = 500 * time.Millisecond
 )
 
 // These are needed for testing because C functions can't be passed
@@ -51,13 +55,13 @@ func _start_helper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gbool
 	return C.ubuntu_app_launch_start_helper(helper_type, appid, uris)
 }
 
-var StartHelper = _start_helper
+var startHelper = _start_helper
 
 func _stop_helper(helper_type *C.gchar, appid *C.gchar) C.gboolean {
 	return C.ubuntu_app_launch_stop_helper(helper_type, appid)
 }
 
-var StopHelper = _stop_helper
+var stopHelper = _stop_helper
 
 // this channel is global because it needs to be accessed from goObserver which needs
 // to be global to be exported
@@ -86,7 +90,7 @@ func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	c_fnames := twoStringsForC(fname1, fname2)
 	defer C.free(unsafe.Pointer(c_fnames[0]))
 	defer C.free(unsafe.Pointer(c_fnames[1]))
-	success := StartHelper(_helper_type, _app_id, (**C.gchar)(unsafe.Pointer(&c_fnames[0])))
+	success := startHelper(_helper_type, _app_id, (**C.gchar)(unsafe.Pointer(&c_fnames[0])))
 	return (C.int)(success) != 0
 }
 
@@ -96,7 +100,7 @@ func stop(helper_type string, app_id string) bool {
 	defer C.free(unsafe.Pointer(_helper_type))
 	_app_id := (*C.gchar)(C.CString(app_id))
 	defer C.free(unsafe.Pointer(_app_id))
-	success := StopHelper(_helper_type, _app_id)
+	success := stopHelper(_helper_type, _app_id)
 	return (C.int)(success) != 0
 }
 
@@ -110,16 +114,12 @@ type RunnerResult struct {
 //
 // helpers is the input channel and gets (helper_type, appid, file1, file2)
 // results is the output channel, returns a RunnerResult struct.
-// in that struct, helper is what was used as input and status is one of:
-// HelperStopped: the helper was stopped forcefully
-// HelperFinished: the helper ended normally
-// HelperFailed: the helper failed to start
-// StopFailed: tried to stop the helper but failed
+// in that struct, helper is what was used as input and status is one of the ReturnValue constants defined in this package.
 // helper_type is the type of helpers this runner will launch.
 type HelperRunner struct {
 	log         logger.Logger
-	helpers     chan []string
-	results     chan RunnerResult
+	Helpers     chan []string
+	Results     chan RunnerResult
 	helper_type string
 }
 
@@ -135,9 +135,9 @@ func (hr *HelperRunner) Start() {
 		helper_type,
 		nil,
 	)
-	for helper := range hr.helpers {
+	for helper := range hr.Helpers {
 		result := hr.Run(helper)
-		hr.results <- RunnerResult{result, helper}
+		hr.Results <- RunnerResult{result, helper}
 	}
 }
 
