@@ -58,9 +58,24 @@ func sessionStart(proto protocol.Protocol, brkr broker.Broker, cfg SessionConfig
 
 var errOneway = errors.New("oneway")
 
+type loop struct {
+	// params
+	proto protocol.Protocol
+	sess  broker.BrokerSession
+	cfg   SessionConfig
+	track SessionTracker
+	// exchange timeout
+	exchangeTimeout time.Duration
+	// ping mgmt
+	pingInterval  time.Duration
+	pingTimer     *time.Timer
+	intervalStart time.Time
+}
+
 // exchange writes outMsg message, reads answer in inMsg
-func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeout time.Duration) error {
-	proto.SetDeadline(time.Now().Add(exchangeTimeout))
+func (l *loop) exchange(outMsg, inMsg interface{}) error {
+	proto := l.proto
+	proto.SetDeadline(time.Now().Add(l.exchangeTimeout))
 	err := proto.WriteMessage(outMsg)
 	if err != nil {
 		return err
@@ -78,40 +93,49 @@ func exchange(proto protocol.Protocol, outMsg, inMsg interface{}, exchangeTimeou
 	return nil
 }
 
-// sessionLoop manages the exchanges of the protocol session.
-func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg SessionConfig, track SessionTracker) error {
-	pingInterval := cfg.PingInterval()
-	exchangeTimeout := cfg.ExchangeTimeout()
-	pingTimer := time.NewTimer(pingInterval)
-	intervalStart := time.Now()
-	pingTimerReset := func() {
-		pingTimer.Reset(pingInterval)
-		intervalStart = time.Now()
+func (l *loop) pingTimerReset() {
+	l.pingTimer.Reset(l.pingInterval)
+	l.intervalStart = time.Now()
+}
+
+func (l *loop) doPing() error {
+	l.track.EffectivePingInterval(time.Since(l.intervalStart))
+	pingMsg := &protocol.PingPongMsg{"ping"}
+	var pongMsg protocol.PingPongMsg
+	err := l.exchange(pingMsg, &pongMsg)
+	if err != nil {
+		return err
 	}
-	ch := sess.SessionChannel()
+	if pongMsg.Type != "pong" {
+		return &broker.ErrAbort{"expected PONG message"}
+	}
+	l.pingTimerReset()
+	return nil
+}
+
+func (l *loop) run() error {
+	// ping setup
+	l.pingInterval = l.cfg.PingInterval()
+	l.pingTimer = time.NewTimer(l.pingInterval)
+	l.intervalStart = time.Now()
+	l.exchangeTimeout = l.cfg.ExchangeTimeout()
+	ch := l.sess.SessionChannel()
 Loop:
 	for {
 		select {
-		case <-pingTimer.C:
-			track.EffectivePingInterval(time.Since(intervalStart))
-			pingMsg := &protocol.PingPongMsg{"ping"}
-			var pongMsg protocol.PingPongMsg
-			err := exchange(proto, pingMsg, &pongMsg, exchangeTimeout)
+		case <-l.pingTimer.C:
+			err := l.doPing()
 			if err != nil {
 				return err
 			}
-			if pongMsg.Type != "pong" {
-				return &broker.ErrAbort{"expected PONG message"}
-			}
-			pingTimerReset()
 		case exchg := <-ch:
-			pingTimer.Stop()
+			l.pingTimer.Stop()
 			if exchg == nil {
 				return &broker.ErrAbort{"terminated"}
 			}
-			outMsg, inMsg, err := exchg.Prepare(sess)
+			outMsg, inMsg, err := exchg.Prepare(l.sess)
 			if err == broker.ErrNop { // nothing to do
-				pingTimerReset()
+				l.pingTimerReset()
 				continue Loop
 			}
 			if err != nil {
@@ -119,18 +143,18 @@ Loop:
 			}
 			for {
 				done := outMsg.Split()
-				err = exchange(proto, outMsg, inMsg, exchangeTimeout)
+				err = l.exchange(outMsg, inMsg)
 				if err == errOneway {
-					pingTimerReset()
+					l.pingTimerReset()
 					continue Loop
 				}
 				if err != nil {
 					return err
 				}
 				if done {
-					pingTimerReset()
+					l.pingTimerReset()
 				}
-				err = exchg.Acked(sess, done)
+				err = exchg.Acked(l.sess, done)
 				if err != nil {
 					return err
 				}
@@ -140,6 +164,17 @@ Loop:
 			}
 		}
 	}
+}
+
+// sessionLoop manages the exchanges of the protocol session.
+func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg SessionConfig, track SessionTracker) error {
+	l := &loop{
+		proto: proto,
+		sess:  sess,
+		cfg:   cfg,
+		track: track,
+	}
+	return l.run()
 }
 
 // Session manages the session with a client.
