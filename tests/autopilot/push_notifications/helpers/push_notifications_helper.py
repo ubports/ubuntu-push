@@ -132,7 +132,7 @@ class PushClientController:
         start/stop/restart the ubuntu-push-client using initctl
         """
         subprocess.call(
-            ['initctl', command, 'ubuntu-push-client'],
+            ['/sbin/initctl', command, 'ubuntu-push-client'],
             stdout=subprocess.DEVNULL)
 
     def stop_push_client(self):
