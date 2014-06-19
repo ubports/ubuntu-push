@@ -62,7 +62,6 @@ type loop struct {
 	// params
 	proto protocol.Protocol
 	sess  broker.BrokerSession
-	cfg   SessionConfig
 	track SessionTracker
 	// exchange timeout
 	exchangeTimeout time.Duration
@@ -93,9 +92,19 @@ func (l *loop) exchange(outMsg, inMsg interface{}) error {
 	return nil
 }
 
-func (l *loop) pingTimerReset() {
-	l.pingTimer.Reset(l.pingInterval)
-	l.intervalStart = time.Now()
+func (l *loop) pingTimerReset(totalReset bool) bool {
+	interval := l.pingInterval
+	if !totalReset {
+		interval -= time.Since(l.intervalStart)
+		if interval <= 0 {
+			return false // late
+		}
+	}
+	l.pingTimer.Reset(interval)
+	if totalReset {
+		l.intervalStart = time.Now()
+	}
+	return true
 }
 
 func (l *loop) doPing() error {
@@ -109,16 +118,11 @@ func (l *loop) doPing() error {
 	if pongMsg.Type != "pong" {
 		return &broker.ErrAbort{"expected PONG message"}
 	}
-	l.pingTimerReset()
+	l.pingTimerReset(true)
 	return nil
 }
 
 func (l *loop) run() error {
-	// ping setup
-	l.pingInterval = l.cfg.PingInterval()
-	l.pingTimer = time.NewTimer(l.pingInterval)
-	l.intervalStart = time.Now()
-	l.exchangeTimeout = l.cfg.ExchangeTimeout()
 	ch := l.sess.SessionChannel()
 Loop:
 	for {
@@ -135,7 +139,13 @@ Loop:
 			}
 			outMsg, inMsg, err := exchg.Prepare(l.sess)
 			if err == broker.ErrNop { // nothing to do
-				l.pingTimerReset()
+				if !l.pingTimerReset(false) {
+					// we are late, do a ping here
+					err := l.doPing()
+					if err != nil {
+						return err
+					}
+				}
 				continue Loop
 			}
 			if err != nil {
@@ -145,14 +155,14 @@ Loop:
 				done := outMsg.Split()
 				err = l.exchange(outMsg, inMsg)
 				if err == errOneway {
-					l.pingTimerReset()
+					l.pingTimerReset(true)
 					continue Loop
 				}
 				if err != nil {
 					return err
 				}
 				if done {
-					l.pingTimerReset()
+					l.pingTimerReset(true)
 				}
 				err = exchg.Acked(l.sess, done)
 				if err != nil {
@@ -168,11 +178,16 @@ Loop:
 
 // sessionLoop manages the exchanges of the protocol session.
 func sessionLoop(proto protocol.Protocol, sess broker.BrokerSession, cfg SessionConfig, track SessionTracker) error {
+	pingInterval := cfg.PingInterval()
 	l := &loop{
 		proto: proto,
 		sess:  sess,
-		cfg:   cfg,
 		track: track,
+		// ping setup
+		pingInterval:    pingInterval,
+		pingTimer:       time.NewTimer(pingInterval),
+		intervalStart:   time.Now(),
+		exchangeTimeout: cfg.ExchangeTimeout(),
 	}
 	return l.run()
 }
