@@ -27,12 +27,13 @@ package helper_launcher
 void stop_observer(const gchar * appid, const gchar * instanceid, const gchar * helpertype, gpointer user_data);
 */
 import "C"
+
 import (
 	"time"
 	"unsafe"
-)
 
-import "launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/logger"
+)
 
 const (
 	_timelimit     = 500 * time.Millisecond

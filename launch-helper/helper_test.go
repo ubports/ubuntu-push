@@ -16,11 +16,13 @@
 
 package helper_launcher
 
-import "testing"
+import (
+	"testing"
 
-import . "launchpad.net/gocheck"
+	. "launchpad.net/gocheck"
 
-import helpers "launchpad.net/ubuntu-push/testing"
+	helpers "launchpad.net/ubuntu-push/testing"
+)
 
 func Test(t *testing.T) { TestingT(t) }
 
