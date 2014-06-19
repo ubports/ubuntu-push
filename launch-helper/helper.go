@@ -139,9 +139,9 @@ func (hr *HelperRunner) Start() {
 	}
 }
 
-// Creates a HelperRunner, returns the helper
+// New Creates a HelperRunner, returns the helper
 // log is a logger to use.
-func NewHelperRunner(log logger.Logger, helper_type string) HelperRunner {
+func New(log logger.Logger, helper_type string) HelperRunner {
 	input := make(chan []string)
 	output := make(chan RunnerResult)
 	return HelperRunner{
