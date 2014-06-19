@@ -25,7 +25,6 @@ import helpers "launchpad.net/ubuntu-push/testing"
 func Test(t *testing.T) { TestingT(t) }
 
 type runnerSuite struct {
-	c       *C
 	testlog *helpers.TestLogger
 }
 
