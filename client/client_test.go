@@ -307,13 +307,16 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	cli.configure()
 	cli.log = cs.log
 	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	cli.postalEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
 	c.Check(cli.service, IsNil)
 	c.Check(cli.startService(), IsNil)
 	c.Assert(cli.service, NotNil)
 	c.Check(cli.service.IsRunning(), Equals, true)
-	c.Check(cli.service.GetMessageHandler(), NotNil)
+	c.Check(cli.postal.IsRunning(), Equals, true)
+	c.Check(cli.postal.GetMessageHandler(), NotNil)
 	c.Check(cli.service.GetRegistrationAuthorization(), Equals, "hello reg://")
 	cli.service.Stop()
+	cli.postal.Stop()
 }
 
 func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
@@ -326,6 +329,7 @@ func (cs *clientSuite) TestStartServiceErrorsOnBusDialFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	cli.postalEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
 	c.Check(cli.startService(), NotNil)
 }
 
@@ -660,14 +664,16 @@ var notif = &protocol.Notification{AppId: "hello", Payload: []byte(`{"url": "xyz
 func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	svcEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+	postEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	cli.log = cs.log
 	cli.serviceEndpoint = svcEndp
+	cli.postalEndpoint = postEndp
 	notsEndp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = notsEndp
 	c.Assert(cli.startService(), IsNil)
 	c.Check(cli.handleUnicastNotification(notif), IsNil)
 	// check we sent the notification
-	args := testibus.GetCallArgs(svcEndp)
+	args := testibus.GetCallArgs(postEndp)
 	c.Assert(len(args), Not(Equals), 0)
 	c.Check(args[len(args)-1].Member, Equals, "::Signal")
 	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "hello".*`)
@@ -920,6 +926,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	c.Check(cli.service, NotNil)
 	// and everthying us just peachy!
 	cli.service.Stop() // cleanup
+	cli.postal.Stop()  // cleanup
 }
 
 func (cs *clientSuite) TestStartCanFail(c *C) {

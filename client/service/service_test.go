@@ -17,7 +17,6 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -153,104 +152,4 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	c.Check(ok, Equals, true)
 	c.Check(regs, Equals, "42")
 	c.Check(err, IsNil)
-}
-
-//
-// Injection tests
-
-func (ss *serviceSuite) TestInjectWorks(c *C) {
-	svc := NewService(ss.bus, ss.log)
-	rvs, err := svc.inject("/hello", []interface{}{"world"}, nil)
-	c.Assert(err, IsNil)
-	c.Check(rvs, IsNil)
-	rvs, err = svc.inject("/hello", []interface{}{"there"}, nil)
-	c.Assert(err, IsNil)
-	c.Check(rvs, IsNil)
-	c.Assert(svc.mbox, HasLen, 1)
-	c.Assert(svc.mbox["hello"], HasLen, 2)
-	c.Check(svc.mbox["hello"][0], Equals, "world")
-	c.Check(svc.mbox["hello"][1], Equals, "there")
-
-	// and check it fired the right signal (twice)
-	callArgs := testibus.GetCallArgs(ss.bus)
-	c.Assert(callArgs, HasLen, 2)
-	c.Check(callArgs[0].Member, Equals, "::Signal")
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"Notification", []interface{}{"hello"}})
-	c.Check(callArgs[1], DeepEquals, callArgs[0])
-}
-
-func (ss *serviceSuite) TestInjectFailsIfInjectFails(c *C) {
-	bus := testibus.NewTestingEndpoint(condition.Work(true),
-		condition.Work(false))
-	svc := NewService(bus, ss.log)
-	svc.SetMessageHandler(func([]byte) error { return errors.New("fail") })
-	_, err := svc.inject("/hello", []interface{}{"xyzzy"}, nil)
-	c.Check(err, NotNil)
-}
-
-func (ss *serviceSuite) TestInjectFailsIfBadArgs(c *C) {
-	for i, s := range []struct {
-		args []interface{}
-		errt error
-	}{
-		{nil, BadArgCount},
-		{[]interface{}{}, BadArgCount},
-		{[]interface{}{1}, BadArgType},
-		{[]interface{}{1, 2}, BadArgCount},
-	} {
-		reg, err := new(Service).inject("", s.args, nil)
-		c.Check(reg, IsNil, Commentf("iteration #%d", i))
-		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
-	}
-}
-
-//
-// Notifications tests
-func (ss *serviceSuite) TestNotificationsWorks(c *C) {
-	svc := NewService(ss.bus, ss.log)
-	nots, err := svc.notifications("/hello", nil, nil)
-	c.Assert(err, IsNil)
-	c.Assert(nots, NotNil)
-	c.Assert(nots, HasLen, 1)
-	c.Check(nots[0], HasLen, 0)
-	if svc.mbox == nil {
-		svc.mbox = make(map[string][]string)
-	}
-	svc.mbox["hello"] = append(svc.mbox["hello"], "this", "thing")
-	nots, err = svc.notifications("/hello", nil, nil)
-	c.Assert(err, IsNil)
-	c.Assert(nots, NotNil)
-	c.Assert(nots, HasLen, 1)
-	c.Check(nots[0], DeepEquals, []string{"this", "thing"})
-}
-
-func (ss *serviceSuite) TestNotificationsFailsIfBadArgs(c *C) {
-	reg, err := new(Service).notifications("/foo", []interface{}{1}, nil)
-	c.Check(reg, IsNil)
-	c.Check(err, Equals, BadArgCount)
-}
-
-func (ss *serviceSuite) TestMessageHandler(c *C) {
-	svc := new(Service)
-	c.Assert(svc.msgHandler, IsNil)
-	var ext = []byte{}
-	e := errors.New("Hello")
-	f := func(s []byte) error { ext = s; return e }
-	c.Check(svc.GetMessageHandler(), IsNil)
-	svc.SetMessageHandler(f)
-	c.Check(svc.GetMessageHandler(), NotNil)
-	c.Check(svc.msgHandler([]byte("37")), Equals, e)
-	c.Check(ext, DeepEquals, []byte("37"))
-}
-
-func (ss *serviceSuite) TestInjectCallsMessageHandler(c *C) {
-	var ext = []byte{}
-	svc := NewService(ss.bus, ss.log)
-	f := func(s []byte) error { ext = s; return nil }
-	svc.SetMessageHandler(f)
-	c.Check(svc.Inject("stuff", "{}"), IsNil)
-	c.Check(ext, DeepEquals, []byte("{}"))
-	err := errors.New("ouch")
-	svc.SetMessageHandler(func([]byte) error { return err })
-	c.Check(svc.Inject("stuff", "{}"), Equals, err)
 }

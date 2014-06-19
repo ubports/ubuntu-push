@@ -92,6 +92,8 @@ type PushClient struct {
 	sessionConnectedCh chan uint32
 	serviceEndpoint    bus.Endpoint
 	service            *service.Service
+	postalEndpoint     bus.Endpoint
+	postal             *service.Postal
 }
 
 var (
@@ -354,7 +356,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.service.Inject(msg.AppId, string(msg.Payload))
+	return client.postal.Inject(msg.AppId, string(msg.Payload))
 }
 
 // handleClick deals with the user clicking a notification
@@ -446,14 +448,24 @@ func (client *PushClient) messageHandler(message []byte) error {
 
 func (client *PushClient) startService() error {
 	if client.serviceEndpoint == nil {
-		client.serviceEndpoint = bus.SessionBus.Endpoint(service.BusAddress, client.log)
+		client.serviceEndpoint = bus.SessionBus.Endpoint(service.ServiceBusAddress, client.log)
+	}
+	if client.postalEndpoint == nil {
+		client.postalEndpoint = bus.SessionBus.Endpoint(service.PostalBusAddress, client.log)
 	}
 
 	client.service = service.NewService(client.serviceEndpoint, client.log)
-	client.service.SetMessageHandler(client.messageHandler)
 	client.service.SetRegistrationURL(client.config.RegistrationURL)
 	client.service.SetAuthGetter(client.getAuthorization)
-	return client.service.Start()
+	client.postal = service.NewPostal(client.postalEndpoint, client.log)
+	client.postal.SetMessageHandler(client.messageHandler)
+	if err := client.service.Start(); err != nil {
+		return err
+	}
+	if err := client.postal.Start(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Start calls doStart with the "real" starters
