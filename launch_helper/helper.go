@@ -106,42 +106,12 @@ func stop(helper_type string, app_id string) bool {
 
 // RunnerResult represent the result of running a helper
 type RunnerResult struct {
-	status ReturnValue
-	helper []string
+	Status ReturnValue
+	Helper []string
 }
 
-// HelperRunner is the struct used to launch helpers.
+// New Creates a HelperRunner
 //
-// helpers is the input channel and gets (helper_type, appid, file1, file2)
-// results is the output channel, returns a RunnerResult struct.
-// in that struct, helper is what was used as input and status is one of the ReturnValue constants defined in this package.
-// helper_type is the type of helpers this runner will launch.
-type HelperRunner struct {
-	log         logger.Logger
-	Helpers     chan []string
-	Results     chan RunnerResult
-	helper_type string
-}
-
-// Start launches the helper processes received in the helpers channel and
-// puts results in the results channel.
-// Should be called as a goroutine.
-func (hr *HelperRunner) Start() {
-	helper_type := (*C.gchar)(C.CString(hr.helper_type))
-	defer C.free(unsafe.Pointer(helper_type))
-	// Create an observer to be notified when helpers stop
-	C.ubuntu_app_launch_observer_add_helper_stop(
-		(C.UbuntuAppLaunchHelperObserver)(C.stop_observer),
-		helper_type,
-		nil,
-	)
-	for helper := range hr.Helpers {
-		result := hr.Run(helper)
-		hr.Results <- RunnerResult{result, helper}
-	}
-}
-
-// New Creates a HelperRunner, returns the helper
 // log is a logger to use.
 func New(log logger.Logger, helper_type string) HelperRunner {
 	input := make(chan []string)
@@ -155,17 +125,47 @@ func New(log logger.Logger, helper_type string) HelperRunner {
 
 }
 
+// Start launches the helper processes received in the helpers channel and
+// puts results in the results channel.
+// Should be called as a goroutine.
+func (hr *HelperRunner) Start() {
+    helper_type := (*C.gchar)(C.CString(hr.helper_type))
+    defer C.free(unsafe.Pointer(helper_type))
+    // Create an observer to be notified when helpers stop
+    C.ubuntu_app_launch_observer_add_helper_stop(
+        (C.UbuntuAppLaunchHelperObserver)(C.stop_observer),
+        helper_type,
+        nil,
+    )
+    for helper := range hr.Helpers {
+        result := hr.Run(helper)
+        hr.Results <- RunnerResult{result, helper}
+    }
+}
+
+
+
+// HelperRunner is the struct used to launch helpers.
+//
+// Helpers is the input channel and gets (helper_type, appid, file1, file2)
+//
+// Results is the output channel, returns a RunnerResult struct.
+//
+// In that struct, helper is what was used as input and status is one of the ReturnValue constants defined in this package.
+type HelperRunner struct {
+	log         logger.Logger
+	Helpers     chan []string
+	Results     chan RunnerResult
+	helper_type string
+}
+
 // Run starts a helper via ubuntu_app_launch_start_helper, and either
-// waits for it to finish or stops it if more than _timilimit
+// waits for it to finish or stops it if more than timeLimit
 // has passed.
 //
 // The helper argument is helper_type, appid, uri1, uri2
 //
-// The return value is one of:
-// HelperStopped: the helper was stopped forcefully
-// HelperFinished: the helper ended normally
-// HelperFailed: the helper failed to start
-// StopFailed: tried to stop the helper but failed
+// The return value is a ReturnValue const defined in this package.
 //
 // You probably don't want to run this directly, but instead
 // use Start
