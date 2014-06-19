@@ -32,10 +32,12 @@ void stop_observer (const gchar * appid, const gchar * instanceid, const gchar *
 }
 
 */
-import "C"
-import "time"
-import "fmt"
-import "unsafe"
+import (
+	"C"
+	"fmt"
+	"time"
+	"unsafe"
+)
 
 // Utility functions to avoid typing the same casts too many times
 func char(s string) *C.char {

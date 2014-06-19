@@ -17,8 +17,10 @@
 package helper_launcher
 
 import "testing"
-import helpers "launchpad.net/ubuntu-push/testing"
+
 import . "launchpad.net/gocheck"
+
+import helpers "launchpad.net/ubuntu-push/testing"
 
 func Test(t *testing.T) { TestingT(t) }
 
