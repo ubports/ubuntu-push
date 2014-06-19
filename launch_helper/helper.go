@@ -35,12 +35,14 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 )
 
+type ReturnValue int
+
 const (
-	timeLimit     = 500 * time.Millisecond
-	HelperStopped  = 1
-	HelperFinished = 2
-	HelperFailed   = 3
-	StopFailed     = 4
+	HelperStopped  ReturnValue = iota
+	HelperFinished ReturnValue = iota
+	HelperFailed   ReturnValue = iota
+	StopFailed     ReturnValue = iota
+	timeLimit                  = 500 * time.Millisecond
 )
 
 // These are needed for testing because C functions can't be passed
@@ -100,7 +102,7 @@ func stop(helper_type string, app_id string) bool {
 
 // RunnerResult represent the result of running a helper
 type RunnerResult struct {
-	status int
+	status ReturnValue
 	helper []string
 }
 
@@ -167,7 +169,7 @@ func New(log logger.Logger, helper_type string) HelperRunner {
 //
 // You probably don't want to run this directly, but instead
 // use Start
-func (hr *HelperRunner) Run(helper []string) int {
+func (hr *HelperRunner) Run(helper []string) ReturnValue {
 	timeout := make(chan bool)
 	// Always start with a clean finished channel to avoid races
 	finished = make(chan bool)

@@ -37,7 +37,7 @@ func (s *runnerSuite) SetUpTest(c *C) {
 }
 
 var runnerTests = []struct {
-	expected int                                                                // expected result
+	expected ReturnValue                                                        // expected result
 	msg      string                                                             // description of failure
 	starter  func(*_Ctype_gchar, *_Ctype_gchar, **_Ctype_gchar) _Ctype_gboolean // starter fake
 	stopper  func(*_Ctype_gchar, *_Ctype_gchar) _Ctype_gboolean                 // stopper fake
