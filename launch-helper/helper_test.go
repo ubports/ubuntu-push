@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-package helper_launcher
+package launch_helper
 
 import (
 	"testing"

@@ -16,7 +16,7 @@
 
 // helper_launcher wraps ubuntu_app_launch to enable using application
 // helpers. The useful part is HelperRunner
-package helper_launcher
+package launch_helper
 
 /*
 #cgo pkg-config: ubuntu-app-launch-2
