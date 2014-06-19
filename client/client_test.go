@@ -306,6 +306,7 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.configure()
 	cli.log = cs.log
+	cli.deviceId = "fake-id"
 	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
 	c.Check(cli.service, IsNil)
 	c.Check(cli.startService(), IsNil)
@@ -313,6 +314,7 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	c.Check(cli.service.IsRunning(), Equals, true)
 	c.Check(cli.service.GetMessageHandler(), NotNil)
 	c.Check(cli.service.GetRegistrationAuthorization(), Equals, "hello reg://")
+	c.Check(cli.service.GetDeviceId(), Equals, "fake-id")
 	cli.service.Stop()
 }
 

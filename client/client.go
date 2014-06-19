@@ -453,6 +453,7 @@ func (client *PushClient) startService() error {
 	client.service.SetMessageHandler(client.messageHandler)
 	client.service.SetRegistrationURL(client.config.RegistrationURL)
 	client.service.SetAuthGetter(client.getAuthorization)
+	client.service.SetDeviceId(client.deviceId)
 	return client.service.Start()
 }
 
@@ -460,8 +461,8 @@ func (client *PushClient) startService() error {
 func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
-		client.startService,
 		client.getDeviceId,
+		client.startService,
 		client.takeTheBus,
 		client.initSession,
 	)

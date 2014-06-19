@@ -17,8 +17,11 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -118,14 +121,14 @@ func (ss *serviceSuite) TestGetRegAuthWorks(c *C) {
 	ch := make(chan string, 1)
 	f := func(s string) string { ch <- s; return "Auth " + s }
 	svc.SetAuthGetter(f)
-	c.Check(svc.GetRegistrationAuthorization(), Equals, "Auth xyzzy://")
+	c.Check(svc.getRegistrationAuthorization(), Equals, "Auth xyzzy://")
 	c.Assert(len(ch), Equals, 1)
 	c.Check(<-ch, Equals, "xyzzy://")
 }
 
 func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
 	svc := NewService(ss.bus, ss.log)
-	c.Check(svc.GetRegistrationAuthorization(), Equals, "")
+	c.Check(svc.getRegistrationAuthorization(), Equals, "")
 }
 
 func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
@@ -135,12 +138,30 @@ func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
 }
 
 func (ss *serviceSuite) TestRegistrationWorks(c *C) {
-	reg, err := new(Service).register("/this", nil, nil)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 256)
+		n, e := r.Body.Read(buf)
+		c.Assert(e, IsNil)
+		req := reg_body_t{}
+		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
+		c.Check(req, DeepEquals, reg_body_t{"fake-device-id", "an-app-id"})
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintln(w, `{"ok":true,"token":"blob-of-bytes"}`)
+	}))
+	defer ts.Close()
+
+	svc := NewService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	svc.SetDeviceId("fake-device-id")
+	// this'll check (un)quoting, too
+	reg, err := svc.register("/an_2dapp_2did", nil, nil)
+	c.Assert(err, IsNil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
-	c.Check(regs, Not(Equals), "")
-	c.Check(err, IsNil)
+	c.Check(regs, Equals, "blob-of-bytes")
 }
 
 func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
@@ -153,6 +174,107 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	c.Check(ok, Equals, true)
 	c.Check(regs, Equals, "42")
 	c.Check(err, IsNil)
+}
+
+func (ss *serviceSuite) TestRegistrationFailsOnBadReqURL(c *C) {
+	svc := NewService(ss.bus, ss.log)
+	svc.SetRegistrationURL("%gh")
+	reg, err := svc.register("thing", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, ErrorMatches, "unable to build register request: .*")
+}
+
+func (ss *serviceSuite) TestRegistrationFailsOnBadAuth(c *C) {
+	svc := NewService(ss.bus, ss.log)
+	// ... no auth added
+	reg, err := svc.register("thing", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, Equals, BadAuth)
+}
+
+func (ss *serviceSuite) TestRegistrationFailsOnNoServer(c *C) {
+	svc := NewService(ss.bus, ss.log)
+	svc.SetRegistrationURL("xyzzy://")
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	reg, err := svc.register("thing", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, ErrorMatches, "unable to request registration: .*")
+}
+
+func (ss *serviceSuite) TestRegistrationFailsOn40x(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "I'm a teapot", 418)
+	}))
+	defer ts.Close()
+
+	svc := NewService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	reg, err := svc.register("/thing", nil, nil)
+	c.Check(err, Equals, BadRequest)
+	c.Check(reg, IsNil)
+}
+
+func (ss *serviceSuite) TestRegistrationFailsOn50x(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Not implemented", 501)
+	}))
+	defer ts.Close()
+
+	svc := NewService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	reg, err := svc.register("/thing", nil, nil)
+	c.Check(err, Equals, BadServer)
+	c.Check(reg, IsNil)
+}
+
+func (ss *serviceSuite) TestRegistrationFailsOnBadJSON(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 256)
+		n, e := r.Body.Read(buf)
+		c.Assert(e, IsNil)
+		req := reg_body_t{}
+		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
+		c.Check(req, DeepEquals, reg_body_t{"fake-device-id", "an-app-id"})
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintln(w, `{`)
+	}))
+	defer ts.Close()
+
+	svc := NewService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	svc.SetDeviceId("fake-device-id")
+	// this'll check (un)quoting, too
+	reg, err := svc.register("/an_2dapp_2did", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, ErrorMatches, "unable to unmarshal register response: .*")
+}
+
+func (ss *serviceSuite) TestRegistrationFailsOnBadJSONDocument(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 256)
+		n, e := r.Body.Read(buf)
+		c.Assert(e, IsNil)
+		req := reg_body_t{}
+		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
+		c.Check(req, DeepEquals, reg_body_t{"fake-device-id", "an-app-id"})
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintln(w, `{"bananas": "very yes"}`)
+	}))
+	defer ts.Close()
+
+	svc := NewService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	svc.SetDeviceId("fake-device-id")
+	// this'll check (un)quoting, too
+	reg, err := svc.register("/an_2dapp_2did", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, Equals, BadToken)
 }
 
 //
@@ -241,6 +363,13 @@ func (ss *serviceSuite) TestMessageHandler(c *C) {
 	c.Check(svc.GetMessageHandler(), NotNil)
 	c.Check(svc.msgHandler([]byte("37")), Equals, e)
 	c.Check(ext, DeepEquals, []byte("37"))
+}
+
+func (ss *serviceSuite) TestDeviceId(c *C) {
+	svc := new(Service)
+	c.Check(svc.GetDeviceId(), Equals, "")
+	svc.SetDeviceId("bananas")
+	c.Check(svc.GetDeviceId(), Equals, "bananas")
 }
 
 func (ss *serviceSuite) TestInjectCallsMessageHandler(c *C) {

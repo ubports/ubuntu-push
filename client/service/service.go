@@ -19,12 +19,18 @@
 package service
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
+	http_old "net/http"
 	"os"
 	"strings"
 	"sync"
 
 	"launchpad.net/ubuntu-push/bus"
+	http "launchpad.net/ubuntu-push/http13client"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
 )
@@ -36,7 +42,9 @@ type Service struct {
 	mbox       map[string][]string
 	msgHandler func([]byte) error
 	regURL     string
+	deviceId   string
 	authGetter func(string) string
+	browser    http.Client
 	Log        logger.Logger
 	Bus        bus.Endpoint
 }
@@ -79,11 +87,11 @@ func (svc *Service) SetAuthGetter(authGetter func(string) string) {
 	svc.authGetter = authGetter
 }
 
-// GetRegistrationAuthorization() returns the authorization header for
+// getRegistrationAuthorization() returns the authorization header for
 // POSTing to the registration HTTP endpoint
-func (svc *Service) GetRegistrationAuthorization() string {
-	svc.lock.RLock()
-	defer svc.lock.RUnlock()
+//
+// (call it with the lock held)
+func (svc *Service) getRegistrationAuthorization() string {
 	if svc.authGetter != nil && svc.regURL != "" {
 		return svc.authGetter(svc.regURL)
 	} else {
@@ -103,6 +111,20 @@ func (svc *Service) GetMessageHandler() func([]byte) error {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
 	return svc.msgHandler
+}
+
+// SetDeviceId() sets the device id
+func (svc *Service) SetDeviceId(deviceId string) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	svc.deviceId = deviceId
+}
+
+// GetDeviceId() returns the device id
+func (svc *Service) GetDeviceId() string {
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
+	return svc.deviceId
 }
 
 // IsRunning() returns whether the service's state is StateRunning
@@ -161,9 +183,28 @@ func (svc *Service) Stop() {
 var (
 	BadArgCount = errors.New("Wrong number of arguments")
 	BadArgType  = errors.New("Bad argument type")
+	BadServer   = errors.New("Bad server")
+	BadRequest  = errors.New("Bad request")
+	BadToken    = errors.New("Bad token")
+	BadAuth     = errors.New("Bad auth")
 )
 
+type reg_body_t struct {
+	DeviceId string `json:"deviceid"`
+	AppId    string `json:"appid"`
+}
+
+type reg_reply_t struct {
+	Token   string `json:"token"`   // the bit we're after
+	Ok      bool   `json:"ok"`      // only ever true or absent
+	Error   string `json:"error"`   // these two only used for debugging
+	Message string `json:"message"` //
+}
+
 func (svc *Service) register(path string, args, _ []interface{}) ([]interface{}, error) {
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
+
 	if len(args) != 0 {
 		return nil, BadArgCount
 	}
@@ -171,11 +212,60 @@ func (svc *Service) register(path string, args, _ []interface{}) ([]interface{},
 	appname := string(nih.Unquote([]byte(raw_appname)))
 
 	rv := os.Getenv("PUSH_REG_" + raw_appname)
-	if rv == "" {
-		rv = appname + "::this-is-an-opaque-block-of-random-bits-i-promise"
+	if rv != "" {
+		return []interface{}{rv}, nil
 	}
 
-	return []interface{}{rv}, nil
+	req_body, err := json.Marshal(reg_body_t{svc.deviceId, appname})
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal register request body: %v", err)
+	}
+	req, err := http.NewRequest("POST", svc.regURL, bytes.NewReader(req_body))
+	if err != nil {
+		return nil, fmt.Errorf("unable to build register request: %v", err)
+	}
+	auth := svc.getRegistrationAuthorization()
+	if auth == "" {
+		return nil, BadAuth
+	}
+	req.Header.Add("Authorization", auth)
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := svc.browser.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("unable to request registration: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http_old.StatusOK {
+		svc.Log.Errorf("register endpoint replied %d", resp.StatusCode)
+		switch {
+		case resp.StatusCode >= http_old.StatusInternalServerError:
+			// XXX retry on 503
+			return nil, BadServer
+		default:
+			return nil, BadRequest
+		}
+	}
+	// errors below here Can't Happen (tm).
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		svc.Log.Errorf("Reading response body: %v", err)
+		return nil, err
+	}
+
+	var reply reg_reply_t
+	err = json.Unmarshal(body, &reply)
+	if err != nil {
+		svc.Log.Errorf("Unmarshalling response body: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal register response: %v", err)
+	}
+
+	if !reply.Ok || reply.Token == "" {
+		svc.Log.Errorf("Unexpected response: %#v", reply)
+		return nil, BadToken
+	}
+
+	return []interface{}{reply.Token}, nil
 }
 
 func (svc *Service) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
