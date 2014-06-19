@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// helper_launcher wraps ubuntu_app_launch to enable using application
+// launch_helper wraps ubuntu_app_launch to enable using application
 // helpers. The useful part is HelperRunner
 package launch_helper
 
@@ -41,13 +41,14 @@ const (
 	// HelperStopped means the helper was stopped forcefully
 	HelperStopped ReturnValue = iota
 	// HelperFinished means the helper ended normally
-	HelperFinished ReturnValue = iota
+	HelperFinished
 	// HelperFailed means the helper failed to start
-	HelperFailed ReturnValue = iota
+	HelperFailed
 	// StopFailed means tried to stop the helper but failed
-	StopFailed ReturnValue = iota
-	timeLimit              = 500 * time.Millisecond
+	StopFailed
 )
+
+const timeLimit = 500 * time.Millisecond
 
 // These are needed for testing because C functions can't be passed
 // around as values
@@ -129,21 +130,19 @@ func New(log logger.Logger, helper_type string) HelperRunner {
 // puts results in the results channel.
 // Should be called as a goroutine.
 func (hr *HelperRunner) Start() {
-    helper_type := (*C.gchar)(C.CString(hr.helper_type))
-    defer C.free(unsafe.Pointer(helper_type))
-    // Create an observer to be notified when helpers stop
-    C.ubuntu_app_launch_observer_add_helper_stop(
-        (C.UbuntuAppLaunchHelperObserver)(C.stop_observer),
-        helper_type,
-        nil,
-    )
-    for helper := range hr.Helpers {
-        result := hr.Run(helper)
-        hr.Results <- RunnerResult{result, helper}
-    }
+	helper_type := (*C.gchar)(C.CString(hr.helper_type))
+	defer C.free(unsafe.Pointer(helper_type))
+	// Create an observer to be notified when helpers stop
+	C.ubuntu_app_launch_observer_add_helper_stop(
+		(C.UbuntuAppLaunchHelperObserver)(C.stop_observer),
+		helper_type,
+		nil,
+	)
+	for helper := range hr.Helpers {
+		result := hr.Run(helper)
+		hr.Results <- RunnerResult{result, helper}
+	}
 }
-
-
 
 // HelperRunner is the struct used to launch helpers.
 //
