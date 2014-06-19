@@ -32,8 +32,8 @@ void stop_observer (const gchar * appid, const gchar * instanceid, const gchar *
 }
 
 */
+import "C"
 import (
-	"C"
 	"fmt"
 	"time"
 	"unsafe"

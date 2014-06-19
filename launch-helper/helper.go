@@ -26,8 +26,8 @@ package helper_launcher
 
 void stop_observer(const gchar * appid, const gchar * instanceid, const gchar * helpertype, gpointer user_data);
 */
+import "C"
 import (
-	"C"
 	"time"
 	"unsafe"
 )
@@ -74,7 +74,7 @@ func twoStringsForC(f1 string, f2 string) []*C.char {
 	return ptr
 }
 
-// Wrapper for ubuntu_app_launc_start_helper
+// run is a wrapper for ubuntu_app_launc_start_helper
 func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	_helper_type := (*C.gchar)(C.CString(helper_type))
 	defer C.free(unsafe.Pointer(_helper_type))
@@ -87,7 +87,7 @@ func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 	return (C.int)(success) != 0
 }
 
-// Wrapper for ubuntu_app_launc_stop_helper
+// stop is a wrapper for ubuntu_app_launc_stop_helper
 func stop(helper_type string, app_id string) bool {
 	_helper_type := (*C.gchar)(C.CString(helper_type))
 	defer C.free(unsafe.Pointer(_helper_type))
@@ -97,12 +97,14 @@ func stop(helper_type string, app_id string) bool {
 	return (C.int)(success) != 0
 }
 
-// Struct for result of running a helper
+// RunnerResult represent the result of running a helper
 type RunnerResult struct {
 	status int
 	helper []string
 }
 
+// HelperRunner is the struct used to launch helpers.
+//
 // helpers is the input channel and gets (helper_type, appid, file1, file2)
 // results is the output channel, returns a RunnerResult struct.
 // in that struct, helper is what was used as input and status is one of:
@@ -118,8 +120,10 @@ type HelperRunner struct {
 	helper_type string
 }
 
-// Launc this in a goroutine to make the helper process requests and return results
-func (hr *HelperRunner) run() {
+// Start launches the helper processes received in the helpers channel and
+// puts results in the results channel.
+// Should be called as a goroutine.
+func (hr *HelperRunner) Start() {
 	helper_type := (*C.gchar)(C.CString(hr.helper_type))
 	defer C.free(unsafe.Pointer(helper_type))
 	// Create an observer to be notified when helpers stop
@@ -129,7 +133,7 @@ func (hr *HelperRunner) run() {
 		nil,
 	)
 	for helper := range hr.helpers {
-		result := hr.RunHelper(helper)
+		result := hr.Run(helper)
 		hr.results <- RunnerResult{result, helper}
 	}
 }
@@ -148,8 +152,8 @@ func NewHelperRunner(log logger.Logger, helper_type string) HelperRunner {
 
 }
 
-// Starts a helper via ubuntu_app_launch_start_helper, and either
-// wait for it to finish or stop it if more than _timilimit
+// Run starts a helper via ubuntu_app_launch_start_helper, and either
+// waits for it to finish or stops it if more than _timilimit
 // has passed.
 //
 // The helper argument is helper_type, appid, uri1, uri2
@@ -159,7 +163,10 @@ func NewHelperRunner(log logger.Logger, helper_type string) HelperRunner {
 // HelperFinished: the helper ended normally
 // HelperFailed: the helper failed to start
 // StopFailed: tried to stop the helper but failed
-func (hr *HelperRunner) RunHelper(helper []string) int {
+//
+// You probably don't want to run this directly, but instead
+// use Start
+func (hr *HelperRunner) Run(helper []string) int {
 	timeout := make(chan bool)
 	// Always start with a clean finished channel to avoid races
 	finished = make(chan bool)

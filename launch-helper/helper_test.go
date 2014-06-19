@@ -54,6 +54,6 @@ func (s *runnerSuite) TestRunner(c *C) {
 		StopHelper = tt.stopper
 		runner := NewHelperRunner(s.testlog, "foobar")
 		command := []string{"foo1", "bar1", "bat1", "baz1"}
-		c.Check(runner.RunHelper(command), Equals, tt.expected, Commentf(tt.msg))
+		c.Check(runner.Run(command), Equals, tt.expected, Commentf(tt.msg))
 	}
 }
