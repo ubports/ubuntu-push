@@ -14,8 +14,6 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// package service implements the dbus-level service with which client
-// applications are expected to interact.
 package service
 
 import (
@@ -26,59 +24,59 @@ import (
 	"launchpad.net/ubuntu-push/nih"
 )
 
-// Postal is the dbus api
-type Postal struct {
+// PostalService is the dbus api
+type PostalService struct {
 	DBusService
 	mbox       map[string][]string
 	msgHandler func([]byte) error
 }
 
 var (
-	PostalBusAddress = bus.Address{
+	PostalServiceBusAddress = bus.Address{
 		Interface: "com.ubuntu.Postal",
 		Path:      "/com/ubuntu/Postal/*",
 		Name:      "com.ubuntu.Postal",
 	}
 )
 
-// NewPostal() builds a new service and returns it.
-func NewPostal(bus bus.Endpoint, log logger.Logger) *Postal {
-	var svc = &Postal{}
+// NewPostalService() builds a new service and returns it.
+func NewPostalService(bus bus.Endpoint, log logger.Logger) *PostalService {
+	var svc = &PostalService{}
 	svc.Log = log
 	svc.Bus = bus
 	return svc
 }
 
 // SetMessageHandler() sets the message-handling callback
-func (svc *Postal) SetMessageHandler(callback func([]byte) error) {
-	svc.Lock.RLock()
-	defer svc.Lock.RUnlock()
+func (svc *PostalService) SetMessageHandler(callback func([]byte) error) {
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
 	svc.msgHandler = callback
 }
 
 // GetMessageHandler() returns the (possibly nil) messaging handler callback
-func (svc *Postal) GetMessageHandler() func([]byte) error {
-	svc.Lock.RLock()
-	defer svc.Lock.RUnlock()
+func (svc *PostalService) GetMessageHandler() func([]byte) error {
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
 	return svc.msgHandler
 }
 
 // Start() dials the bus, grab the name, and listens for method calls.
-func (svc *Postal) Start() error {
+func (svc *PostalService) Start() error {
 	return svc.DBusService.Start(bus.DispatchMap{
 		"Notifications": svc.notifications,
 		"Inject":        svc.inject,
-	}, PostalBusAddress)
+	}, PostalServiceBusAddress)
 }
 
-func (svc *Postal) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
+func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 0 {
 		return nil, BadArgCount
 	}
 	appname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 
-	svc.Lock.Lock()
-	defer svc.Lock.Unlock()
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
 
 	if svc.mbox == nil {
 		return []interface{}{[]string(nil)}, nil
@@ -89,7 +87,7 @@ func (svc *Postal) notifications(path string, args, _ []interface{}) ([]interfac
 	return []interface{}{msgs}, nil
 }
 
-func (svc *Postal) inject(path string, args, _ []interface{}) ([]interface{}, error) {
+func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 1 {
 		return nil, BadArgCount
 	}
@@ -104,9 +102,9 @@ func (svc *Postal) inject(path string, args, _ []interface{}) ([]interface{}, er
 
 // Inject() signals to an application over dbus that a notification
 // has arrived.
-func (svc *Postal) Inject(appname string, notif string) error {
-	svc.Lock.Lock()
-	defer svc.Lock.Unlock()
+func (svc *PostalService) Inject(appname string, notif string) error {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
 	if svc.mbox == nil {
 		svc.mbox = make(map[string][]string)
 	}

@@ -41,7 +41,7 @@ func (ss *postalSuite) SetUpTest(c *C) {
 }
 
 func (ss *postalSuite) TestStart(c *C) {
-	svc := NewPostal(ss.bus, ss.log)
+	svc := NewPostalService(ss.bus, ss.log)
 	c.Check(svc.IsRunning(), Equals, false)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.IsRunning(), Equals, true)
@@ -49,31 +49,31 @@ func (ss *postalSuite) TestStart(c *C) {
 }
 
 func (ss *postalSuite) TestStartTwice(c *C) {
-	svc := NewPostal(ss.bus, ss.log)
+	svc := NewPostalService(ss.bus, ss.log)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.Start(), Equals, AlreadyStarted)
 	svc.Stop()
 }
 
 func (ss *postalSuite) TestStartNoLog(c *C) {
-	svc := NewPostal(ss.bus, nil)
+	svc := NewPostalService(ss.bus, nil)
 	c.Check(svc.Start(), Equals, NotConfigured)
 }
 
 func (ss *postalSuite) TestStartNoBus(c *C) {
-	svc := NewPostal(nil, ss.log)
+	svc := NewPostalService(nil, ss.log)
 	c.Check(svc.Start(), Equals, NotConfigured)
 }
 
 func (ss *postalSuite) TestStartFailsOnBusDialFailure(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	svc := NewPostal(bus, ss.log)
+	svc := NewPostalService(bus, ss.log)
 	c.Check(svc.Start(), ErrorMatches, `.*(?i)cond said no.*`)
 	svc.Stop()
 }
 
 func (ss *postalSuite) TestStartGrabsName(c *C) {
-	svc := NewPostal(ss.bus, ss.log)
+	svc := NewPostalService(ss.bus, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	callArgs := testibus.GetCallArgs(ss.bus)
 	defer svc.Stop()
@@ -82,7 +82,7 @@ func (ss *postalSuite) TestStartGrabsName(c *C) {
 }
 
 func (ss *postalSuite) TestStopClosesBus(c *C) {
-	svc := NewPostal(ss.bus, ss.log)
+	svc := NewPostalService(ss.bus, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	svc.Stop()
 	callArgs := testibus.GetCallArgs(ss.bus)
@@ -94,7 +94,7 @@ func (ss *postalSuite) TestStopClosesBus(c *C) {
 // Injection tests
 
 func (ss *postalSuite) TestInjectWorks(c *C) {
-	svc := NewPostal(ss.bus, ss.log)
+	svc := NewPostalService(ss.bus, ss.log)
 	rvs, err := svc.inject("/hello", []interface{}{"world"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
@@ -117,7 +117,7 @@ func (ss *postalSuite) TestInjectWorks(c *C) {
 func (ss *postalSuite) TestInjectFailsIfInjectFails(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true),
 		condition.Work(false))
-	svc := NewPostal(bus, ss.log)
+	svc := NewPostalService(bus, ss.log)
 	svc.SetMessageHandler(func([]byte) error { return errors.New("fail") })
 	_, err := svc.inject("/hello", []interface{}{"xyzzy"}, nil)
 	c.Check(err, NotNil)
@@ -133,7 +133,7 @@ func (ss *postalSuite) TestInjectFailsIfBadArgs(c *C) {
 		{[]interface{}{1}, BadArgType},
 		{[]interface{}{1, 2}, BadArgCount},
 	} {
-		reg, err := new(Postal).inject("", s.args, nil)
+		reg, err := new(PostalService).inject("", s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
@@ -142,7 +142,7 @@ func (ss *postalSuite) TestInjectFailsIfBadArgs(c *C) {
 //
 // Notifications tests
 func (ss *postalSuite) TestNotificationsWorks(c *C) {
-	svc := NewPostal(ss.bus, ss.log)
+	svc := NewPostalService(ss.bus, ss.log)
 	nots, err := svc.notifications("/hello", nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(nots, NotNil)
@@ -160,13 +160,13 @@ func (ss *postalSuite) TestNotificationsWorks(c *C) {
 }
 
 func (ss *postalSuite) TestNotificationsFailsIfBadArgs(c *C) {
-	reg, err := new(Postal).notifications("/foo", []interface{}{1}, nil)
+	reg, err := new(PostalService).notifications("/foo", []interface{}{1}, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, Equals, BadArgCount)
 }
 
 func (ss *postalSuite) TestMessageHandler(c *C) {
-	svc := new(Postal)
+	svc := new(PostalService)
 	c.Assert(svc.msgHandler, IsNil)
 	var ext = []byte{}
 	e := errors.New("Hello")
@@ -180,7 +180,7 @@ func (ss *postalSuite) TestMessageHandler(c *C) {
 
 func (ss *postalSuite) TestInjectCallsMessageHandler(c *C) {
 	var ext = []byte{}
-	svc := NewPostal(ss.bus, ss.log)
+	svc := NewPostalService(ss.bus, ss.log)
 	f := func(s []byte) error { ext = s; return nil }
 	svc.SetMessageHandler(f)
 	c.Check(svc.Inject("stuff", "{}"), IsNil)

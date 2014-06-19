@@ -14,8 +14,6 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// package service implements the dbus-level service with which client
-// applications are expected to interact.
 package service
 
 import (
@@ -27,48 +25,48 @@ import (
 	"launchpad.net/ubuntu-push/nih"
 )
 
-// Service is the dbus api
-type Service struct {
+// PushService is the dbus api
+type PushService struct {
 	DBusService
 	regURL     string
 	authGetter func(string) string
 }
 
 var (
-	ServiceBusAddress = bus.Address{
+	PushServiceBusAddress = bus.Address{
 		Interface: "com.ubuntu.PushNotifications",
 		Path:      "/com/ubuntu/PushNotifications/*",
 		Name:      "com.ubuntu.PushNotifications",
 	}
 )
 
-// NewService() builds a new service and returns it.
-func NewService(bus bus.Endpoint, log logger.Logger) *Service {
-	var svc = &Service{}
+// NewPushService() builds a new service and returns it.
+func NewPushService(bus bus.Endpoint, log logger.Logger) *PushService {
+	var svc = &PushService{}
 	svc.Log = log
 	svc.Bus = bus
 	return svc
 }
 
 // SetRegistrationURL() sets the registration url for the service
-func (svc *Service) SetRegistrationURL(url string) {
-	svc.Lock.Lock()
-	defer svc.Lock.Unlock()
+func (svc *PushService) SetRegistrationURL(url string) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
 	svc.regURL = url
 }
 
 // SetAuthGetter() sets the authorization getter for the service
-func (svc *Service) SetAuthGetter(authGetter func(string) string) {
-	svc.Lock.Lock()
-	defer svc.Lock.Unlock()
+func (svc *PushService) SetAuthGetter(authGetter func(string) string) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
 	svc.authGetter = authGetter
 }
 
 // GetRegistrationAuthorization() returns the authorization header for
 // POSTing to the registration HTTP endpoint
-func (svc *Service) GetRegistrationAuthorization() string {
-	svc.Lock.RLock()
-	defer svc.Lock.RUnlock()
+func (svc *PushService) GetRegistrationAuthorization() string {
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
 	if svc.authGetter != nil && svc.regURL != "" {
 		return svc.authGetter(svc.regURL)
 	} else {
@@ -77,13 +75,13 @@ func (svc *Service) GetRegistrationAuthorization() string {
 }
 
 // Start() dials the bus, grab the name, and listens for method calls.
-func (svc *Service) Start() error {
+func (svc *PushService) Start() error {
 	return svc.DBusService.Start(bus.DispatchMap{
 		"Register": svc.register,
-	}, ServiceBusAddress)
+	}, PushServiceBusAddress)
 }
 
-func (svc *Service) register(path string, args, _ []interface{}) ([]interface{}, error) {
+func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 0 {
 		return nil, BadArgCount
 	}

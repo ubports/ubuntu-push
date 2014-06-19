@@ -91,9 +91,9 @@ type PushClient struct {
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
 	serviceEndpoint    bus.Endpoint
-	service            *service.Service
+	service            *service.PushService
 	postalEndpoint     bus.Endpoint
-	postal             *service.Postal
+	postal             *service.PostalService
 }
 
 var (
@@ -448,16 +448,16 @@ func (client *PushClient) messageHandler(message []byte) error {
 
 func (client *PushClient) startService() error {
 	if client.serviceEndpoint == nil {
-		client.serviceEndpoint = bus.SessionBus.Endpoint(service.ServiceBusAddress, client.log)
+		client.serviceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
 	}
 	if client.postalEndpoint == nil {
-		client.postalEndpoint = bus.SessionBus.Endpoint(service.PostalBusAddress, client.log)
+		client.postalEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
 	}
 
-	client.service = service.NewService(client.serviceEndpoint, client.log)
+	client.service = service.NewPushService(client.serviceEndpoint, client.log)
 	client.service.SetRegistrationURL(client.config.RegistrationURL)
 	client.service.SetAuthGetter(client.getAuthorization)
-	client.postal = service.NewPostal(client.postalEndpoint, client.log)
+	client.postal = service.NewPostalService(client.postalEndpoint, client.log)
 	client.postal.SetMessageHandler(client.messageHandler)
 	if err := client.service.Start(); err != nil {
 		return err

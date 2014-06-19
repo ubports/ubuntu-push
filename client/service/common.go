@@ -14,7 +14,8 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// package busservice implements abstract struct for the service and postal dbus services
+// package service implements the dbus-level service with which client
+// applications are expected to interact.
 package service
 
 import (
@@ -26,8 +27,8 @@ import (
 )
 
 type DBusService struct {
-	Lock  sync.RWMutex
-	State ServiceState
+	lock  sync.RWMutex
+	state ServiceState
 	Log   logger.Logger
 	Bus   bus.Endpoint
 }
@@ -50,16 +51,16 @@ var (
 
 // IsRunning() returns whether the service's state is StateRunning
 func (svc *DBusService) IsRunning() bool {
-	svc.Lock.RLock()
-	defer svc.Lock.RUnlock()
-	return svc.State == StateRunning
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
+	return svc.state == StateRunning
 }
 
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *DBusService) Start(dispatchMap bus.DispatchMap, busAddr bus.Address) error {
-	svc.Lock.Lock()
-	defer svc.Lock.Unlock()
-	if svc.State != StateUnknown {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	if svc.state != StateUnknown {
 		return AlreadyStarted
 	}
 	if svc.Log == nil || svc.Bus == nil {
@@ -83,17 +84,17 @@ func (svc *DBusService) Start(dispatchMap bus.DispatchMap, busAddr bus.Address) 
 		}
 	}()
 	svc.Bus.WatchMethod(dispatchMap, svc)
-	svc.State = StateRunning
+	svc.state = StateRunning
 	return nil
 }
 
 // Stop() closes the bus and sets the state to StateFinished
 func (svc *DBusService) Stop() {
-	svc.Lock.Lock()
-	defer svc.Lock.Unlock()
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
 	if svc.Bus != nil {
 		svc.Bus.Close()
 	}
-	svc.State = StateFinished
+	svc.state = StateFinished
 }
 
