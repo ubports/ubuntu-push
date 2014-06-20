@@ -317,6 +317,7 @@ messaging_menu_message_add_action (MessagingMenuMessage *msg,
 
 type SourceActivatedCallback func()
 
+// Connect one of the messagingMenuApp's signals to a C function
 func (app *MessagingMenuApp) Connect(detailed_signal string, callback unsafe.Pointer, gobject C.gpointer) {
 	var _detailed_signal = gchar(detailed_signal)
 	C.g_signal_connect_object(
@@ -328,6 +329,7 @@ func (app *MessagingMenuApp) Connect(detailed_signal string, callback unsafe.Poi
 	free(_detailed_signal)
 }
 
+// Connect one of the MessagingMenuMessage's signals to a C function
 func (msg *MessagingMenuMessage) Connect(detailed_signal string, callback unsafe.Pointer, gobject C.gpointer) {
 	var _detailed_signal = gchar(detailed_signal)
 	C.g_signal_connect_object(
@@ -339,8 +341,8 @@ func (msg *MessagingMenuMessage) Connect(detailed_signal string, callback unsafe
 	free(_detailed_signal)
 }
 
-// FIXME: this is a temporarty hack pending real event loop integration from tvoss
-
+// EnterMainLoop is a temporarty hack pending real event loop integration from tvoss.
+// call it so that the glib event loop handles sending messages and triggering signals.
 func EnterMainLoop() {
 	var loop = C.g_main_loop_new(nil, 0)
 	go C.g_main_loop_run(loop)
