@@ -24,7 +24,7 @@ ubuntu-push (0.31ubuntu1) UNRELEASED; urgency=medium
   [ Guillermo Gonzalez ]
   * Split DBus service into PushService and PostalService
 
--- John R. Lenton <john.lenton@canonical.com>  Fri, 06 Jun 2014 12:02:56 +0100
+ -- John R. Lenton <john.lenton@canonical.com>  Fri, 06 Jun 2014 12:02:56 +0100
 
 ubuntu-push (0.3+14.10.20140605-0ubuntu1) utopic; urgency=medium
 
