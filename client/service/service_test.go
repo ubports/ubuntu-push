@@ -142,9 +142,9 @@ func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 		buf := make([]byte, 256)
 		n, e := r.Body.Read(buf)
 		c.Assert(e, IsNil)
-		req := reg_body_t{}
+		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
-		c.Check(req, DeepEquals, reg_body_t{"fake-device-id", "an-app-id"})
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{"ok":true,"token":"blob-of-bytes"}`)
@@ -234,9 +234,9 @@ func (ss *serviceSuite) TestRegistrationFailsOnBadJSON(c *C) {
 		buf := make([]byte, 256)
 		n, e := r.Body.Read(buf)
 		c.Assert(e, IsNil)
-		req := reg_body_t{}
+		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
-		c.Check(req, DeepEquals, reg_body_t{"fake-device-id", "an-app-id"})
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{`)
@@ -258,9 +258,9 @@ func (ss *serviceSuite) TestRegistrationFailsOnBadJSONDocument(c *C) {
 		buf := make([]byte, 256)
 		n, e := r.Body.Read(buf)
 		c.Assert(e, IsNil)
-		req := reg_body_t{}
+		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
-		c.Check(req, DeepEquals, reg_body_t{"fake-device-id", "an-app-id"})
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{"bananas": "very yes"}`)

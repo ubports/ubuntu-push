@@ -44,7 +44,7 @@ type Service struct {
 	regURL     string
 	deviceId   string
 	authGetter func(string) string
-	browser    http.Client
+	httpCli    http.Client
 	Log        logger.Logger
 	Bus        bus.Endpoint
 }
@@ -197,12 +197,12 @@ var (
 	BadAuth     = errors.New("Bad auth")
 )
 
-type reg_body_t struct {
+type registrationRequest struct {
 	DeviceId string `json:"deviceid"`
 	AppId    string `json:"appid"`
 }
 
-type reg_reply_t struct {
+type registrationReply struct {
 	Token   string `json:"token"`   // the bit we're after
 	Ok      bool   `json:"ok"`      // only ever true or absent
 	Error   string `json:"error"`   // these two only used for debugging
@@ -224,7 +224,7 @@ func (svc *Service) register(path string, args, _ []interface{}) ([]interface{},
 		return []interface{}{rv}, nil
 	}
 
-	req_body, err := json.Marshal(reg_body_t{svc.deviceId, appname})
+	req_body, err := json.Marshal(registrationRequest{svc.deviceId, appname})
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal register request body: %v", err)
 	}
@@ -239,7 +239,7 @@ func (svc *Service) register(path string, args, _ []interface{}) ([]interface{},
 	req.Header.Add("Authorization", auth)
 	req.Header.Add("Content-Type", "application/json")
 
-	resp, err := svc.browser.Do(req)
+	resp, err := svc.httpCli.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("unable to request registration: %v", err)
 	}
@@ -261,7 +261,7 @@ func (svc *Service) register(path string, args, _ []interface{}) ([]interface{},
 		return nil, err
 	}
 
-	var reply reg_reply_t
+	var reply registrationReply
 	err = json.Unmarshal(body, &reply)
 	if err != nil {
 		svc.Log.Errorf("Unmarshalling response body: %v", err)
