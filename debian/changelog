@@ -17,6 +17,7 @@ ubuntu-push (0.31ubuntu1) UNRELEASED; urgency=medium
     failing to get a mac address.
   * Add registration_url to config; hook up auth bits and reg url to
     client & service.
+  * Do an HTTP POST to registration_url on register.
 
   [ Guillermo Gonzalez ]
   * Split DBus service into PushService and PostalService

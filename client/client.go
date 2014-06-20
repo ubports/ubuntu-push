@@ -457,6 +457,7 @@ func (client *PushClient) startService() error {
 	client.pushService = service.NewPushService(client.pushServiceEndpoint, client.log)
 	client.pushService.SetRegistrationURL(client.config.RegistrationURL)
 	client.pushService.SetAuthGetter(client.getAuthorization)
+	client.pushService.SetDeviceId(client.deviceId)
 	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.log)
 	client.postalService.SetMessageHandler(client.messageHandler)
 	if err := client.pushService.Start(); err != nil {
@@ -472,8 +473,8 @@ func (client *PushClient) startService() error {
 func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
-		client.startService,
 		client.getDeviceId,
+		client.startService,
 		client.takeTheBus,
 		client.initSession,
 	)
