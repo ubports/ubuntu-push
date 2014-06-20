@@ -1,6 +1,6 @@
 === modified file 'http13client/client.go'
---- http13client/client.go	2014-03-19 20:20:19 +0000
-+++ http13client/client.go	2014-03-19 22:27:37 +0000
+--- http13client/client.go	2014-06-20 11:00:47 +0000
++++ http13client/client.go	2014-06-20 12:05:53 +0000
 @@ -17,6 +17,7 @@
  	"io/ioutil"
  	"log"
@@ -18,7 +18,7 @@
  
  	// Timeout specifies a time limit for requests made by this
  	// Client. The timeout includes connection time, any
-@@ -177,7 +178,7 @@
+@@ -184,7 +185,7 @@
  	// Headers, leaving it uninitialized.  We guarantee to the
  	// Transport that this has been initialized, though.
  	if req.Header == nil {
@@ -27,7 +27,7 @@
  	}
  
  	if u := req.URL.User; u != nil {
-@@ -308,7 +309,7 @@
+@@ -316,7 +317,7 @@
  			if ireq.Method == "POST" || ireq.Method == "PUT" {
  				nreq.Method = "GET"
  			}
@@ -38,8 +38,8 @@
  				break
 
 === modified file 'http13client/cookie.go'
---- http13client/cookie.go	2014-03-19 20:20:19 +0000
-+++ http13client/cookie.go	2014-03-19 22:27:37 +0000
+--- http13client/cookie.go	2014-06-20 11:00:47 +0000
++++ http13client/cookie.go	2014-06-20 12:05:53 +0000
 @@ -5,10 +5,9 @@
  package http
  
@@ -94,7 +94,7 @@
  			Name:  name,
  			Value: value,
  			Raw:   line,
-@@ -129,59 +108,12 @@
+@@ -125,59 +104,12 @@
  	return cookies
  }
  
@@ -156,7 +156,7 @@
  	lines, ok := h["Cookie"]
  	if !ok {
  		return cookies
-@@ -213,7 +145,7 @@
+@@ -209,7 +141,7 @@
  			if !success {
  				continue
  			}
@@ -167,8 +167,8 @@
  	}
 
 === modified file 'http13client/header.go'
---- http13client/header.go	2014-03-19 20:20:19 +0000
-+++ http13client/header.go	2014-03-19 22:27:37 +0000
+--- http13client/header.go	2014-06-20 11:00:47 +0000
++++ http13client/header.go	2014-06-20 12:00:22 +0000
 @@ -5,176 +5,9 @@
  package http
  
@@ -348,8 +348,8 @@
  // token must be all lowercase.
 
 === modified file 'http13client/request.go'
---- http13client/request.go	2014-03-19 20:20:19 +0000
-+++ http13client/request.go	2014-03-19 22:27:37 +0000
+--- http13client/request.go	2014-06-20 11:00:47 +0000
++++ http13client/request.go	2014-06-20 12:05:53 +0000
 @@ -16,6 +16,7 @@
  	"io/ioutil"
  	"mime"
@@ -358,25 +358,25 @@
  	"net/textproto"
  	"net/url"
  	"strconv"
-@@ -103,7 +104,7 @@
- 	// The request parser implements this by canonicalizing the
- 	// name, making the first character and any characters
- 	// following a hyphen uppercase and the rest lowercase.
+@@ -121,7 +122,7 @@
+ 	// added and may override values in Header.
+ 	//
+ 	// See the documentation for the Request.Write method.
 -	Header Header
 +	Header http.Header
  
  	// Body is the request's body.
  	//
-@@ -164,7 +165,7 @@
- 	// For server requests, Trailer is only populated after Body has been
- 	// closed or fully consumed.
- 	// Trailer support is only partially complete.
+@@ -199,7 +200,7 @@
+ 	// not mutate Trailer.
+ 	//
+ 	// Few HTTP clients, servers, or proxies support HTTP trailers.
 -	Trailer Header
 +	Trailer http.Header
  
  	// RemoteAddr allows HTTP servers and other software to record
  	// the network address that sent the request, usually for
-@@ -204,7 +205,7 @@
+@@ -239,7 +240,7 @@
  }
  
  // Cookies parses and returns the HTTP cookies sent with the request.
@@ -385,7 +385,7 @@
  	return readCookies(r.Header, "")
  }
  
-@@ -212,7 +213,7 @@
+@@ -247,7 +248,7 @@
  
  // Cookie returns the named cookie provided in the request or
  // ErrNoCookie if not found.
@@ -394,7 +394,7 @@
  	for _, c := range readCookies(r.Header, name) {
  		return c, nil
  	}
-@@ -223,7 +224,7 @@
+@@ -258,7 +259,7 @@
  // AddCookie does not attach more than one Cookie header field.  That
  // means all cookies, if any, are written into the same line,
  // separated by semicolon.
@@ -403,7 +403,7 @@
  	s := fmt.Sprintf("%s=%s", sanitizeCookieName(c.Name), sanitizeCookieValue(c.Value))
  	if c := r.Header.Get("Cookie"); c != "" {
  		r.Header.Set("Cookie", c+"; "+s)
-@@ -326,7 +327,7 @@
+@@ -361,7 +362,7 @@
  }
  
  // extraHeaders may be nil
@@ -412,7 +412,7 @@
  	host := req.Host
  	if host == "" {
  		if req.URL == nil {
-@@ -456,7 +457,7 @@
+@@ -490,7 +491,7 @@
  		Proto:      "HTTP/1.1",
  		ProtoMajor: 1,
  		ProtoMinor: 1,
@@ -421,7 +421,7 @@
  		Body:       rc,
  		Host:       u.Host,
  	}
-@@ -571,7 +572,7 @@
+@@ -605,7 +606,7 @@
  	if err != nil {
  		return nil, err
  	}
@@ -430,7 +430,7 @@
  
  	// RFC2616: Must treat
  	//	GET /index.html HTTP/1.1
-@@ -582,7 +583,7 @@
+@@ -616,7 +617,7 @@
  	// the same.  In the second case, any Host line is ignored.
  	req.Host = req.URL.Host
  	if req.Host == "" {
@@ -439,7 +439,7 @@
  	}
  	delete(req.Header, "Host")
  
-@@ -630,12 +631,12 @@
+@@ -638,12 +639,12 @@
  //
  // MaxBytesReader prevents clients from accidentally or maliciously
  // sending a large request and wasting server resources.
@@ -454,7 +454,7 @@
  	r       io.ReadCloser // underlying reader
  	n       int64         // max bytes remaining
  	stopped bool
-@@ -645,9 +646,6 @@
+@@ -653,9 +654,6 @@
  	if l.n <= 0 {
  		if !l.stopped {
  			l.stopped = true
@@ -464,7 +464,7 @@
  		}
  		return 0, errors.New("http: request body too large")
  	}
-@@ -852,16 +850,16 @@
+@@ -858,18 +856,18 @@
  }
  
  func (r *Request) expectsContinue() bool {
@@ -484,11 +484,13 @@
 -	return hasToken(r.Header.get("Connection"), "close")
 +	return hasToken(r.Header.Get("Connection"), "close")
  }
+ 
+ func (r *Request) closeBody() {
 
 === modified file 'http13client/response.go'
---- http13client/response.go	2014-03-19 20:20:19 +0000
-+++ http13client/response.go	2014-03-19 22:27:37 +0000
-@@ -11,6 +11,7 @@
+--- http13client/response.go	2014-06-20 11:00:47 +0000
++++ http13client/response.go	2014-06-20 12:05:53 +0000
+@@ -12,6 +12,7 @@
  	"crypto/tls"
  	"errors"
  	"io"
@@ -496,7 +498,7 @@
  	"net/textproto"
  	"net/url"
  	"strconv"
-@@ -40,7 +41,7 @@
+@@ -41,7 +42,7 @@
  	// omitted from Header.
  	//
  	// Keys in the map are canonicalized (see CanonicalHeaderKey).
@@ -505,7 +507,7 @@
  
  	// Body represents the response body.
  	//
-@@ -69,7 +70,7 @@
+@@ -71,7 +72,7 @@
  
  	// Trailer maps trailer keys to values, in the same
  	// format as the header.
@@ -514,7 +516,7 @@
  
  	// The Request that was sent to obtain this Response.
  	// Request's Body is nil (having already been consumed).
-@@ -84,7 +85,7 @@
+@@ -86,7 +87,7 @@
  }
  
  // Cookies parses and returns the cookies set in the Set-Cookie headers.
@@ -523,7 +525,7 @@
  	return readSetCookies(r.Header)
  }
  
-@@ -153,7 +154,7 @@
+@@ -155,7 +156,7 @@
  		}
  		return nil, err
  	}
@@ -532,7 +534,7 @@
  
  	fixPragmaCacheControl(resp.Header)
  
-@@ -169,7 +170,7 @@
+@@ -171,7 +172,7 @@
  //	Pragma: no-cache
  // like
  //	Cache-Control: no-cache
@@ -543,17 +545,17 @@
  			header["Cache-Control"] = []string{"no-cache"}
 
 === modified file 'http13client/transfer.go'
---- http13client/transfer.go	2014-03-19 20:20:19 +0000
-+++ http13client/transfer.go	2014-03-19 22:27:37 +0000
+--- http13client/transfer.go	2014-06-20 11:00:47 +0000
++++ http13client/transfer.go	2014-06-20 12:05:53 +0000
 @@ -11,6 +11,7 @@
  	"fmt"
  	"io"
  	"io/ioutil"
 +	"net/http"
  	"net/textproto"
+ 	"sort"
  	"strconv"
- 	"strings"
-@@ -36,7 +37,7 @@
+@@ -37,7 +38,7 @@
  	ContentLength    int64 // -1 means unknown, 0 means exactly none
  	Close            bool
  	TransferEncoding []string
@@ -562,16 +564,16 @@
  }
  
  func newTransferWriter(r interface{}) (t *transferWriter, err error) {
-@@ -174,7 +175,7 @@
- 		io.WriteString(w, "Trailer: ")
- 		needComma := false
+@@ -171,7 +172,7 @@
+ 	if t.Trailer != nil {
+ 		keys := make([]string, 0, len(t.Trailer))
  		for k := range t.Trailer {
 -			k = CanonicalHeaderKey(k)
 +			k = http.CanonicalHeaderKey(k)
  			switch k {
  			case "Transfer-Encoding", "Trailer", "Content-Length":
  				return &badStringError{"invalid Trailer key", k}
-@@ -237,7 +238,7 @@
+@@ -243,7 +244,7 @@
  
  type transferReader struct {
  	// Input
@@ -580,7 +582,7 @@
  	StatusCode    int
  	RequestMethod string
  	ProtoMajor    int
-@@ -247,7 +248,7 @@
+@@ -253,7 +254,7 @@
  	ContentLength    int64
  	TransferEncoding []string
  	Close            bool
@@ -589,7 +591,7 @@
  }
  
  // bodyAllowedForStatus reports whether a given response status code
-@@ -308,7 +309,7 @@
+@@ -330,7 +331,7 @@
  		return err
  	}
  	if isResponse && t.RequestMethod == "HEAD" {
@@ -598,7 +600,7 @@
  			return err
  		} else {
  			t.ContentLength = n
-@@ -386,7 +387,7 @@
+@@ -408,7 +409,7 @@
  func isIdentity(te []string) bool { return len(te) == 1 && te[0] == "identity" }
  
  // Sanitize transfer encoding
@@ -607,7 +609,7 @@
  	raw, present := header["Transfer-Encoding"]
  	if !present {
  		return nil, nil
-@@ -429,7 +430,7 @@
+@@ -451,7 +452,7 @@
  // Determine the expected body length, using RFC 2616 Section 4.4. This
  // function is not a method, because ultimately it should be shared by
  // ReadResponse and ReadRequest.
@@ -616,7 +618,7 @@
  
  	// Logic based on response type or status
  	if noBodyExpected(requestMethod) {
-@@ -449,7 +450,7 @@
+@@ -471,7 +472,7 @@
  	}
  
  	// Logic based on Content-Length
@@ -625,7 +627,7 @@
  	if cl != "" {
  		n, err := parseContentLength(cl)
  		if err != nil {
-@@ -475,18 +476,18 @@
+@@ -497,18 +498,18 @@
  // Determine whether to hang up after sending a request and body, or
  // receiving a response and body
  // 'header' is the request headers
@@ -647,7 +649,7 @@
  			header.Del("Connection")
  			return true
  		}
-@@ -495,17 +496,17 @@
+@@ -517,17 +518,17 @@
  }
  
  // Parse the trailer header
@@ -669,22 +671,28 @@
  		switch key {
  		case "Transfer-Encoding", "Trailer", "Content-Length":
  			return nil, &badStringError{"bad trailer key", key}
-@@ -642,9 +643,9 @@
+@@ -664,14 +665,14 @@
  	}
  	switch rr := b.hdr.(type) {
  	case *Request:
--		rr.Trailer = Header(hdr)
-+		rr.Trailer = http.Header(hdr)
+-		mergeSetHeader(&rr.Trailer, Header(hdr))
++		mergeSetHeader(&rr.Trailer, http.Header(hdr))
  	case *Response:
--		rr.Trailer = Header(hdr)
-+		rr.Trailer = http.Header(hdr)
+-		mergeSetHeader(&rr.Trailer, Header(hdr))
++		mergeSetHeader(&rr.Trailer, http.Header(hdr))
  	}
  	return nil
  }
+ 
+-func mergeSetHeader(dst *Header, src Header) {
++func mergeSetHeader(dst *http.Header, src http.Header) {
+ 	if *dst == nil {
+ 		*dst = src
+ 		return
 
 === modified file 'http13client/transport.go'
---- http13client/transport.go	2014-03-19 20:20:19 +0000
-+++ http13client/transport.go	2014-03-19 22:27:37 +0000
+--- http13client/transport.go	2014-06-20 11:00:47 +0000
++++ http13client/transport.go	2014-06-20 12:05:53 +0000
 @@ -18,6 +18,7 @@
  	"io"
  	"log"
@@ -693,7 +701,7 @@
  	"net/url"
  	"os"
  	"strings"
-@@ -144,12 +145,12 @@
+@@ -147,12 +148,12 @@
  // optional extra headers to write.
  type transportRequest struct {
  	*Request        // original request, not to be mutated
@@ -709,7 +717,7 @@
  	}
  	return tr.extra
  }
-@@ -512,7 +513,7 @@
+@@ -519,7 +520,7 @@
  	case cm.targetScheme == "http":
  		pconn.isProxy = true
  		if pa != "" {
@@ -718,7 +726,7 @@
  				h.Set("Proxy-Authorization", pa)
  			}
  		}
-@@ -521,7 +522,7 @@
+@@ -528,7 +529,7 @@
  			Method: "CONNECT",
  			URL:    &url.URL{Opaque: cm.targetAddr},
  			Host:   cm.targetAddr,
@@ -727,7 +735,7 @@
  		}
  		if pa != "" {
  			connectReq.Header.Set("Proxy-Authorization", pa)
-@@ -735,7 +736,7 @@
+@@ -748,7 +749,7 @@
  	// mutateHeaderFunc is an optional func to modify extra
  	// headers on each outbound request before it's written. (the
  	// original Request given to RoundTrip is not modified)
@@ -735,5 +743,5 @@
 +	mutateHeaderFunc func(http.Header)
  }
  
- func (pc *persistConn) isBroken() bool {
+ // isBroken reports whether this connection is in a known broken state.
 

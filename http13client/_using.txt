@@ -1,5 +1,5 @@
-parent: 19512:32c32aef2a41 tip
- test: enable bug385_32 test on amd64p32.
-branch: default
+parent: 20169:9895f9e36435 go1.3 release
+ go1.3
+branch: release-branch.go1.3
 commit: (clean)
 update: (current)
