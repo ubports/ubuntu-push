@@ -365,6 +365,57 @@ func (s *sessionSuite) TestSessionLoopKick(c *C) {
 	c.Check(err, DeepEquals, &broker.ErrAbort{"terminated"})
 }
 
+func (s *sessionSuite) TestPingTimerReset(c *C) {
+	pingInterval := 50 * time.Millisecond
+	now := time.Now()
+	l := &loop{
+		pingInterval:  pingInterval,
+		pingTimer:     time.NewTimer(pingInterval),
+		intervalStart: now,
+	}
+	l.pingTimer.Stop()
+	done := l.pingTimerReset(true)
+	c.Assert(done, Equals, true)
+	select {
+	case <-l.pingTimer.C:
+	case <-time.After(1 * time.Second):
+		c.Fatal("timer should have triggered")
+	}
+	c.Check(now, Not(Equals), l.intervalStart)
+}
+
+func (s *sessionSuite) TestPingTimerResetPartial(c *C) {
+	pingInterval := 5 * time.Second
+	now := time.Now().Add(-pingInterval + 50*time.Millisecond)
+	l := &loop{
+		pingInterval:  pingInterval,
+		pingTimer:     time.NewTimer(pingInterval),
+		intervalStart: now,
+	}
+	l.pingTimer.Stop()
+	done := l.pingTimerReset(false)
+	c.Assert(done, Equals, true)
+	select {
+	case <-l.pingTimer.C:
+	case <-time.After(1 * time.Second):
+		c.Fatal("timer should have triggered")
+	}
+	c.Check(now, Equals, l.intervalStart)
+}
+
+func (s *sessionSuite) TestPingTimerResetPartialTooLate(c *C) {
+	pingInterval := 5 * time.Second
+	now := time.Now().Add(-pingInterval - 50*time.Millisecond)
+	l := &loop{
+		pingInterval:  pingInterval,
+		pingTimer:     time.NewTimer(pingInterval),
+		intervalStart: now,
+	}
+	l.pingTimer.Stop()
+	done := l.pingTimerReset(false)
+	c.Assert(done, Equals, false)
+}
+
 func (s *sessionSuite) TestSessionLoopExchangeErrNop(c *C) {
 	nopTrack := NewTracker(s.testlog)
 	errCh := make(chan error, 1)
@@ -374,10 +425,50 @@ func (s *sessionSuite) TestSessionLoopExchangeErrNop(c *C) {
 	exchanges := make(chan broker.Exchange, 1)
 	exchanges <- &testExchange{prepErr: broker.ErrNop}
 	sess := &testing.TestBrokerSession{Exchanges: exchanges}
+	pingInterval := 5 * time.Second
 	go func() {
-		errCh <- sessionLoop(tp, sess, cfg5msPingInterval2msExchangeTout, nopTrack)
+		l := &loop{
+			proto:           tp,
+			sess:            sess,
+			track:           nopTrack,
+			pingInterval:    pingInterval,
+			pingTimer:       time.NewTimer(pingInterval),
+			exchangeTimeout: 1 * time.Second,
+			intervalStart:   time.Now().Add(-pingInterval + 50*time.Millisecond),
+		}
+		errCh <- l.run()
 	}()
-	c.Check(takeNext(down), Equals, "deadline 2ms")
+	c.Check(takeNext(down), Equals, "deadline 1s")
+	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
+	up <- nil // no write error
+	up <- io.EOF
+	err := <-errCh
+	c.Check(err, Equals, io.EOF)
+}
+
+func (s *sessionSuite) TestSessionLoopExchangeErrNopNeedPing(c *C) {
+	nopTrack := NewTracker(s.testlog)
+	errCh := make(chan error, 1)
+	up := make(chan interface{}, 5)
+	down := make(chan interface{}, 5)
+	tp := &testProtocol{up, down}
+	exchanges := make(chan broker.Exchange, 1)
+	exchanges <- &testExchange{prepErr: broker.ErrNop}
+	sess := &testing.TestBrokerSession{Exchanges: exchanges}
+	pingInterval := 5 * time.Second
+	go func() {
+		l := &loop{
+			proto:           tp,
+			sess:            sess,
+			track:           nopTrack,
+			pingInterval:    pingInterval,
+			pingTimer:       time.NewTimer(pingInterval),
+			exchangeTimeout: 1 * time.Second,
+			intervalStart:   time.Now().Add(-pingInterval - 50*time.Millisecond),
+		}
+		errCh <- l.run()
+	}()
+	c.Check(takeNext(down), Equals, "deadline 1s")
 	c.Check(takeNext(down), DeepEquals, protocol.PingPongMsg{Type: "ping"})
 	up <- nil // no write error
 	up <- io.EOF
