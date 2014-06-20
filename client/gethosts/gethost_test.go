@@ -59,7 +59,7 @@ func (s *getHostsSuite) TestGet(c *C) {
 	res, err := gh.Get()
 	c.Assert(err, IsNil)
 	c.Check(*res, DeepEquals,
-		Host{Domain: "example.com", Hosts: []string{"http://c1130408a700afe0"}})
+		Host{Domain: "example.com", Hosts: []string{"http://bdd2ae7116c85a45"}})
 }
 
 func (s *getHostsSuite) TestGetTimeout(c *C) {
