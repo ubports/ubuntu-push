@@ -7,6 +7,7 @@ ubuntu-push (0.31ubuntu1) UNRELEASED; urgency=medium
   [ Roberto Alsina ]
   * Make signing-helper generate a HTTP header instead of a querystring,
     and take a URL to sign.
+  * Wrap libmessaging-menu to allow for persistent notifications.
 
   [ John R. Lenton ]
   * Switch dbus api to retrieve app name from dbus path.
