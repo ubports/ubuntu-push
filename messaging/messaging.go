@@ -36,20 +36,47 @@ const (
 	Offline   = C.MESSAGING_MENU_STATUS_OFFLINE
 )
 
+// MessagingMenuApp wraps an instance of libmessaging-menu's MessagingMenuApp and
+// related functions.
+//
+// For individual functions, please refer to the documentation for the function of
+// similar name at http://goo.gl/E0U2wu
 type MessagingMenuApp struct {
 	instance *C.struct_MessagingMenuApp
 }
 
+// MessagingMenuMenu wraps an instance of libmessaging-menu's MessagingMenuMessage and
+// related functions.
+//
+// For individual functions, please refer to the documentation for the function of
+// similar name at http://goo.gl/L62WTg
 type MessagingMenuMessage struct {
 	instance *C.struct_MessagingMenuMessage
 }
 
+// NewApp creates a MessagingMenuApp
 func NewApp(desktop_id string) MessagingMenuApp {
 	var _desktop_id = gchar(desktop_id)
 	var app = MessagingMenuApp{C.messaging_menu_app_new(_desktop_id)}
 	free(_desktop_id)
 	return app
 }
+
+// NewMessage creates a MessagingMenuMessage
+func NewMessage(id string, icon *C.GIcon, title string, subtitle string, body string, time int) MessagingMenuMessage {
+	var _id = gchar(id)
+	var _title = gchar(title)
+	var _subtitle = gchar(subtitle)
+	var _body = gchar(body)
+	var msg = MessagingMenuMessage{C.messaging_menu_message_new(_id, icon, _title,
+		_subtitle, _body, (C.gint64)(C.int(time)))}
+	free(_id)
+	free(_title)
+	free(_subtitle)
+	free(_body)
+	return msg
+}
+
 
 func (app *MessagingMenuApp) Register() {
 	C.messaging_menu_app_register(app.instance)
@@ -225,20 +252,6 @@ func (app *MessagingMenuApp) RemoveMessageById(id string) {
 	var _id = gchar(id)
 	C.messaging_menu_app_remove_message_by_id(app.instance, _id)
 	free(_id)
-}
-
-func NewMessage(id string, icon *C.GIcon, title string, subtitle string, body string, time int) MessagingMenuMessage {
-	var _id = gchar(id)
-	var _title = gchar(title)
-	var _subtitle = gchar(subtitle)
-	var _body = gchar(body)
-	var msg = MessagingMenuMessage{C.messaging_menu_message_new(_id, icon, _title,
-		_subtitle, _body, (C.gint64)(C.int(time)))}
-	free(_id)
-	free(_title)
-	free(_subtitle)
-	free(_body)
-	return msg
 }
 
 func (msg *MessagingMenuMessage) GetId() string {
