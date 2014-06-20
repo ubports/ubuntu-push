@@ -77,7 +77,6 @@ func NewMessage(id string, icon *C.GIcon, title string, subtitle string, body st
 	return msg
 }
 
-
 func (app *MessagingMenuApp) Register() {
 	C.messaging_menu_app_register(app.instance)
 }
