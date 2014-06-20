@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/textproto"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -144,11 +145,10 @@ func (t *transferWriter) shouldSendContentLength() bool {
 	return false
 }
 
-func (t *transferWriter) WriteHeader(w io.Writer) (err error) {
+func (t *transferWriter) WriteHeader(w io.Writer) error {
 	if t.Close {
-		_, err = io.WriteString(w, "Connection: close\r\n")
-		if err != nil {
-			return
+		if _, err := io.WriteString(w, "Connection: close\r\n"); err != nil {
+			return err
 		}
 	}
 
@@ -156,43 +156,44 @@ func (t *transferWriter) WriteHeader(w io.Writer) (err error) {
 	// function of the sanitized field triple (Body, ContentLength,
 	// TransferEncoding)
 	if t.shouldSendContentLength() {
-		io.WriteString(w, "Content-Length: ")
-		_, err = io.WriteString(w, strconv.FormatInt(t.ContentLength, 10)+"\r\n")
-		if err != nil {
-			return
+		if _, err := io.WriteString(w, "Content-Length: "); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(w, strconv.FormatInt(t.ContentLength, 10)+"\r\n"); err != nil {
+			return err
 		}
 	} else if chunked(t.TransferEncoding) {
-		_, err = io.WriteString(w, "Transfer-Encoding: chunked\r\n")
-		if err != nil {
-			return
+		if _, err := io.WriteString(w, "Transfer-Encoding: chunked\r\n"); err != nil {
+			return err
 		}
 	}
 
 	// Write Trailer header
 	if t.Trailer != nil {
-		// TODO: At some point, there should be a generic mechanism for
-		// writing long headers, using HTTP line splitting
-		io.WriteString(w, "Trailer: ")
-		needComma := false
+		keys := make([]string, 0, len(t.Trailer))
 		for k := range t.Trailer {
 			k = http.CanonicalHeaderKey(k)
 			switch k {
 			case "Transfer-Encoding", "Trailer", "Content-Length":
 				return &badStringError{"invalid Trailer key", k}
 			}
-			if needComma {
-				io.WriteString(w, ",")
-			}
-			io.WriteString(w, k)
-			needComma = true
+			keys = append(keys, k)
 		}
-		_, err = io.WriteString(w, "\r\n")
+		if len(keys) > 0 {
+			sort.Strings(keys)
+			// TODO: could do better allocation-wise here, but trailers are rare,
+			// so being lazy for now.
+			if _, err := io.WriteString(w, "Trailer: "+strings.Join(keys, ",")+"\r\n"); err != nil {
+				return err
+			}
+		}
 	}
 
-	return
+	return nil
 }
 
-func (t *transferWriter) WriteBody(w io.Writer) (err error) {
+func (t *transferWriter) WriteBody(w io.Writer) error {
+	var err error
 	var ncopy int64
 
 	// Write body
@@ -229,11 +230,16 @@ func (t *transferWriter) WriteBody(w io.Writer) (err error) {
 
 	// TODO(petar): Place trailer writer code here.
 	if chunked(t.TransferEncoding) {
+		// Write Trailer header
+		if t.Trailer != nil {
+			if err := t.Trailer.Write(w); err != nil {
+				return err
+			}
+		}
 		// Last chunk, empty trailer
 		_, err = io.WriteString(w, "\r\n")
 	}
-
-	return
+	return err
 }
 
 type transferReader struct {
@@ -263,6 +269,22 @@ func bodyAllowedForStatus(status int) bool {
 		return false
 	}
 	return true
+}
+
+var (
+	suppressedHeaders304    = []string{"Content-Type", "Content-Length", "Transfer-Encoding"}
+	suppressedHeadersNoBody = []string{"Content-Length", "Transfer-Encoding"}
+)
+
+func suppressedHeaders(status int) []string {
+	switch {
+	case status == 304:
+		// RFC 2616 section 10.3.5: "the response MUST NOT include other entity-headers"
+		return suppressedHeaders304
+	case !bodyAllowedForStatus(status):
+		return suppressedHeadersNoBody
+	}
+	return nil
 }
 
 // msg is *Request or *Response.
@@ -511,7 +533,7 @@ func fixTrailer(header http.Header, te []string) (http.Header, error) {
 		case "Transfer-Encoding", "Trailer", "Content-Length":
 			return nil, &badStringError{"bad trailer key", key}
 		}
-		trailer.Del(key)
+		trailer[key] = nil
 	}
 	if len(trailer) == 0 {
 		return nil, nil
@@ -643,11 +665,21 @@ func (b *body) readTrailer() error {
 	}
 	switch rr := b.hdr.(type) {
 	case *Request:
-		rr.Trailer = http.Header(hdr)
+		mergeSetHeader(&rr.Trailer, http.Header(hdr))
 	case *Response:
-		rr.Trailer = http.Header(hdr)
+		mergeSetHeader(&rr.Trailer, http.Header(hdr))
 	}
 	return nil
+}
+
+func mergeSetHeader(dst *http.Header, src http.Header) {
+	if *dst == nil {
+		*dst = src
+		return
+	}
+	for k, vv := range src {
+		(*dst)[k] = vv
+	}
 }
 
 func (b *body) Close() error {
