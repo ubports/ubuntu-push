@@ -307,15 +307,18 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	cli.configure()
 	cli.log = cs.log
 	cli.deviceId = "fake-id"
-	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
-	c.Check(cli.service, IsNil)
+	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	c.Check(cli.pushService, IsNil)
 	c.Check(cli.startService(), IsNil)
-	c.Assert(cli.service, NotNil)
-	c.Check(cli.service.IsRunning(), Equals, true)
-	c.Check(cli.service.GetMessageHandler(), NotNil)
-	c.Check(cli.service.GetRegistrationAuthorization(), Equals, "hello reg://")
-	c.Check(cli.service.GetDeviceId(), Equals, "fake-id")
-	cli.service.Stop()
+	c.Assert(cli.pushService, NotNil)
+	c.Check(cli.pushService.IsRunning(), Equals, true)
+	c.Check(cli.pushService.GetDeviceId(), Equals, "fake-id")
+	c.Check(cli.pushService.GetRegistrationAuthorization(), Equals, "hello reg://")
+	c.Check(cli.postalService.IsRunning(), Equals, true)
+	c.Check(cli.postalService.GetMessageHandler(), NotNil)
+	cli.pushService.Stop()
+	cli.postalService.Stop()
 }
 
 func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
@@ -327,7 +330,8 @@ func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
 func (cs *clientSuite) TestStartServiceErrorsOnBusDialFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
 	c.Check(cli.startService(), NotNil)
 }
 
@@ -662,14 +666,16 @@ var notif = &protocol.Notification{AppId: "hello", Payload: []byte(`{"url": "xyz
 func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	svcEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+	postEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	cli.log = cs.log
-	cli.serviceEndpoint = svcEndp
+	cli.pushServiceEndpoint = svcEndp
+	cli.postalServiceEndpoint = postEndp
 	notsEndp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = notsEndp
 	c.Assert(cli.startService(), IsNil)
 	c.Check(cli.handleUnicastNotification(notif), IsNil)
 	// check we sent the notification
-	args := testibus.GetCallArgs(svcEndp)
+	args := testibus.GetCallArgs(postEndp)
 	c.Assert(len(args), Not(Equals), 0)
 	c.Check(args[len(args)-1].Member, Equals, "::Signal")
 	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "hello".*`)
@@ -894,7 +900,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	// before start, everything sucks:
 	// no service,
-	c.Check(cli.service, IsNil)
+	c.Check(cli.pushService, IsNil)
 	// no config,
 	c.Check(string(cli.config.Addr), Equals, "")
 	// no device id,
@@ -919,9 +925,10 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and a bus,
 	c.Check(cli.notificationsEndp, NotNil)
 	// and a service,
-	c.Check(cli.service, NotNil)
+	c.Check(cli.pushService, NotNil)
 	// and everthying us just peachy!
-	cli.service.Stop() // cleanup
+	cli.pushService.Stop()   // cleanup
+	cli.postalService.Stop() // cleanup
 }
 
 func (cs *clientSuite) TestStartCanFail(c *C) {
