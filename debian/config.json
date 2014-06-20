@@ -1,6 +1,7 @@
 {
     "auth_helper": "/usr/lib/ubuntu-push-client/signing-helper",
     "session_url": "https://push.ubuntu.com/",
+    "registration_url": "https://push.ubuntu.com/register",
     "connect_timeout": "20s",
     "exchange_timeout": "30s",
     "hosts_cache_expiry": "12h",

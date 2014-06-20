@@ -59,21 +59,16 @@ func (id *Identifier) Generate() error {
 	for i := 0; i < 200; i++ {
 		id.generator(&cs, &gerr)
 
-		if cs != nil || gerr != nil {
-			goto SuccessMaybe
+		if gerr == nil && cs != nil {
+			goto Success
 		}
 		time.Sleep(600 * time.Millisecond)
 	}
 	return errors.New("whoopsie_identifier_generate still bad after 2m; giving up")
 
-SuccessMaybe:
-	if gerr != nil {
-		return errors.New(C.GoString((*C.char)(gerr.message)))
-	} else {
-		id.value = C.GoString(cs)
-		return nil
-	}
-
+Success:
+	id.value = C.GoString(cs)
+	return nil
 }
 
 // String returns the system identifier as a string.

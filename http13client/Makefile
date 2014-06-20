@@ -20,7 +20,8 @@ full-prepare:
 
 prune:
 	rm -rf example_test.go filetransport*.go fs*.go race.go range_test.go \
-	sniff*.go httptest httputil testdata triv.go jar.go status.go
+	sniff*.go httptest httputil testdata triv.go jar.go status.go \
+	cookie_test.go
 	sed -i -e 's+"launchpad.net/ubuntu-push/http13client/+"net/http/+' *.go
 
 fix:

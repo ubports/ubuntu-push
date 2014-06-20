@@ -64,33 +64,36 @@ type ClientConfig struct {
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
 	// How to invoke the auth helper
-	AuthHelper string `json:"auth_helper"`
-	SessionURL string `json:"session_url"`
+	AuthHelper      string `json:"auth_helper"`
+	SessionURL      string `json:"session_url"`
+	RegistrationURL string `json:"registration_url"`
 	// The logging level (one of "debug", "info", "error")
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
 }
 
 // PushClient is the Ubuntu Push Notifications client-side daemon.
 type PushClient struct {
-	leveldbPath        string
-	configPath         string
-	config             ClientConfig
-	log                logger.Logger
-	pem                []byte
-	idder              identifier.Id
-	deviceId           string
-	notificationsEndp  bus.Endpoint
-	urlDispatcherEndp  bus.Endpoint
-	connectivityEndp   bus.Endpoint
-	systemImageEndp    bus.Endpoint
-	systemImageInfo    *systemimage.InfoResult
-	connCh             chan bool
-	hasConnectivity    bool
-	actionsCh          <-chan notifications.RawActionReply
-	session            *session.ClientSession
-	sessionConnectedCh chan uint32
-	serviceEndpoint    bus.Endpoint
-	service            *service.Service
+	leveldbPath           string
+	configPath            string
+	config                ClientConfig
+	log                   logger.Logger
+	pem                   []byte
+	idder                 identifier.Id
+	deviceId              string
+	notificationsEndp     bus.Endpoint
+	urlDispatcherEndp     bus.Endpoint
+	connectivityEndp      bus.Endpoint
+	systemImageEndp       bus.Endpoint
+	systemImageInfo       *systemimage.InfoResult
+	connCh                chan bool
+	hasConnectivity       bool
+	actionsCh             <-chan notifications.RawActionReply
+	session               *session.ClientSession
+	sessionConnectedCh    chan uint32
+	pushServiceEndpoint   bus.Endpoint
+	pushService           *service.PushService
+	postalServiceEndpoint bus.Endpoint
+	postalService         *service.PostalService
 }
 
 var (
@@ -169,7 +172,7 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 
 // getAuthorization gets the authorization blob to send to the server
 func (client *PushClient) getAuthorization(url string) string {
-	client.log.Debugf("getting authorization")
+	client.log.Debugf("getting authorization for %s", url)
 	// using a helper, for now at least
 	if len(client.config.AuthHelper) == 0 {
 		// do nothing if helper is unset or empty
@@ -353,7 +356,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.service.Inject(msg.AppId, string(msg.Payload))
+	return client.postalService.Inject(msg.AppId, string(msg.Payload))
 }
 
 // handleClick deals with the user clicking a notification
@@ -444,21 +447,34 @@ func (client *PushClient) messageHandler(message []byte) error {
 }
 
 func (client *PushClient) startService() error {
-	if client.serviceEndpoint == nil {
-		client.serviceEndpoint = bus.SessionBus.Endpoint(service.BusAddress, client.log)
+	if client.pushServiceEndpoint == nil {
+		client.pushServiceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
+	}
+	if client.postalServiceEndpoint == nil {
+		client.postalServiceEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
 	}
 
-	client.service = service.NewService(client.serviceEndpoint, client.log)
-	client.service.SetMessageHandler(client.messageHandler)
-	return client.service.Start()
+	client.pushService = service.NewPushService(client.pushServiceEndpoint, client.log)
+	client.pushService.SetRegistrationURL(client.config.RegistrationURL)
+	client.pushService.SetAuthGetter(client.getAuthorization)
+	client.pushService.SetDeviceId(client.deviceId)
+	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.log)
+	client.postalService.SetMessageHandler(client.messageHandler)
+	if err := client.pushService.Start(); err != nil {
+		return err
+	}
+	if err := client.postalService.Start(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Start calls doStart with the "real" starters
 func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
-		client.startService,
 		client.getDeviceId,
+		client.startService,
 		client.takeTheBus,
 		client.initSession,
 	)

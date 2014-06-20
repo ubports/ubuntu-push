@@ -25,4 +25,4 @@ norm () {
 }
 
 out="$1.deps"
-( echo -n "${1%.go} ${out}: "; indirects $(echo $1 | norm) | norm ) > "$out"
+( echo -n "${1%.go} ${out} dependencies.tsv: "; indirects $(echo $1 | norm) | norm ) > "$out"

@@ -1,6 +1,6 @@
 === modified file 'http13client/client_test.go'
---- http13client/client_test.go	2014-03-19 21:38:56 +0000
-+++ http13client/client_test.go	2014-03-19 22:27:37 +0000
+--- http13client/client_test.go	2014-06-20 11:00:47 +0000
++++ http13client/client_test.go	2014-06-20 12:05:53 +0000
 @@ -15,8 +15,8 @@
  	"fmt"
  	"io"
@@ -11,7 +11,7 @@
  	. "launchpad.net/ubuntu-push/http13client"
  	"net/http/httptest"
  	"net/url"
-@@ -27,7 +27,7 @@
+@@ -29,7 +29,7 @@
  	"time"
  )
  
@@ -20,7 +20,7 @@
  	w.Header().Set("Last-Modified", "sometime")
  	fmt.Fprintf(w, "User-agent: go\nDisallow: /something/")
  })
-@@ -193,7 +193,7 @@
+@@ -195,7 +195,7 @@
  func TestClientRedirects(t *testing.T) {
  	defer afterTest(t)
  	var ts *httptest.Server
@@ -29,7 +29,7 @@
  		n, _ := strconv.Atoi(r.FormValue("n"))
  		// Test Referer header. (7 is arbitrary position to test at)
  		if n == 7 {
-@@ -202,7 +202,7 @@
+@@ -204,7 +204,7 @@
  			}
  		}
  		if n < 15 {
@@ -38,7 +38,7 @@
  			return
  		}
  		fmt.Fprintf(w, "n=%d", n)
-@@ -271,7 +271,7 @@
+@@ -273,7 +273,7 @@
  		bytes.Buffer
  	}
  	var ts *httptest.Server
@@ -47,7 +47,7 @@
  		log.Lock()
  		fmt.Fprintf(&log.Buffer, "%s %s ", r.Method, r.RequestURI)
  		log.Unlock()
-@@ -312,21 +312,21 @@
+@@ -314,21 +314,21 @@
  	}
  }
  
@@ -75,7 +75,7 @@
  		w.Write([]byte("hello"))
  	}
  })
-@@ -334,7 +334,7 @@
+@@ -336,7 +336,7 @@
  func TestClientSendsCookieFromJar(t *testing.T) {
  	tr := &recordingTransport{}
  	client := &Client{Transport: tr}
@@ -84,7 +84,7 @@
  	us := "http://dummy.faketld/"
  	u, _ := url.Parse(us)
  	client.Jar.SetCookies(u, expectedCookies)
-@@ -364,19 +364,19 @@
+@@ -366,19 +366,19 @@
  // scope of all cookies.
  type TestJar struct {
  	m      sync.Mutex
@@ -108,7 +108,7 @@
  	j.m.Lock()
  	defer j.m.Unlock()
  	return j.perURL[u.Host]
-@@ -391,7 +391,7 @@
+@@ -393,7 +393,7 @@
  		Jar: new(TestJar),
  	}
  	u, _ := url.Parse(ts.URL)
@@ -117,7 +117,7 @@
  	resp, err := c.Get(ts.URL)
  	if err != nil {
  		t.Fatalf("Get: %v", err)
-@@ -400,7 +400,7 @@
+@@ -402,7 +402,7 @@
  	matchReturnedCookies(t, expectedCookies, resp.Cookies())
  }
  
@@ -126,7 +126,7 @@
  	if len(given) != len(expected) {
  		t.Logf("Received cookies: %v", given)
  		t.Errorf("Expected %d cookies, got %d", len(expected), len(given))
-@@ -421,14 +421,14 @@
+@@ -423,14 +423,14 @@
  
  func TestJarCalls(t *testing.T) {
  	defer afterTest(t)
@@ -144,7 +144,7 @@
  		}
  	}))
  	defer ts.Close()
-@@ -468,11 +468,11 @@
+@@ -470,11 +470,11 @@
  	log bytes.Buffer
  }
  
@@ -158,7 +158,7 @@
  	j.logf("Cookies(%q)\n", u)
  	return nil
  }
-@@ -486,11 +486,11 @@
+@@ -488,11 +488,11 @@
  func TestStreamingGet(t *testing.T) {
  	defer afterTest(t)
  	say := make(chan string)
@@ -173,7 +173,7 @@
  		}
  	}))
  	defer ts.Close()
-@@ -536,7 +536,7 @@
+@@ -538,7 +538,7 @@
  // don't send a TCP packet per line of the http request + body.
  func TestClientWrites(t *testing.T) {
  	defer afterTest(t)
@@ -182,7 +182,7 @@
  	}))
  	defer ts.Close()
  
-@@ -568,46 +568,6 @@
+@@ -570,46 +570,6 @@
  	}
  }
  
@@ -229,7 +229,7 @@
  func TestClientErrorWithRequestURI(t *testing.T) {
  	defer afterTest(t)
  	req, _ := NewRequest("GET", "http://localhost:1234/", nil)
-@@ -639,7 +599,7 @@
+@@ -641,7 +601,7 @@
  
  func TestClientWithCorrectTLSServerName(t *testing.T) {
  	defer afterTest(t)
@@ -238,7 +238,7 @@
  		if r.TLS.ServerName != "127.0.0.1" {
  			t.Errorf("expected client to set ServerName 127.0.0.1, got: %q", r.TLS.ServerName)
  		}
-@@ -652,33 +612,6 @@
+@@ -654,33 +614,6 @@
  	}
  }
  
@@ -272,7 +272,7 @@
  // Test for golang.org/issue/5829; the Transport should respect TLSClientConfig.ServerName
  // when not empty.
  //
-@@ -690,7 +623,7 @@
+@@ -692,7 +625,7 @@
  // The httptest.Server has a cert with "example.com" as its name.
  func TestTransportUsesTLSConfigServerName(t *testing.T) {
  	defer afterTest(t)
@@ -281,7 +281,7 @@
  		w.Write([]byte("Hello"))
  	}))
  	defer ts.Close()
-@@ -711,7 +644,7 @@
+@@ -713,7 +646,7 @@
  
  func TestResponseSetsTLSConnectionState(t *testing.T) {
  	defer afterTest(t)
@@ -290,7 +290,7 @@
  		w.Write([]byte("Hello"))
  	}))
  	defer ts.Close()
-@@ -739,7 +672,7 @@
+@@ -741,7 +674,7 @@
  // Verify Response.ContentLength is populated. http://golang.org/issue/4126
  func TestClientHeadContentLength(t *testing.T) {
  	defer afterTest(t)
@@ -299,7 +299,7 @@
  		if v := r.FormValue("cl"); v != "" {
  			w.Header().Set("Content-Length", v)
  		}
-@@ -775,7 +708,7 @@
+@@ -777,7 +710,7 @@
  func TestEmptyPasswordAuth(t *testing.T) {
  	defer afterTest(t)
  	gopher := "gopher"
@@ -308,7 +308,7 @@
  		auth := r.Header.Get("Authorization")
  		if strings.HasPrefix(auth, "Basic ") {
  			encoded := auth[6:]
-@@ -847,15 +780,15 @@
+@@ -849,15 +782,15 @@
  	defer afterTest(t)
  	sawRoot := make(chan bool, 1)
  	sawSlow := make(chan bool, 1)
@@ -327,7 +327,7 @@
  			sawSlow <- true
  			time.Sleep(2 * time.Second)
  			return
-@@ -908,10 +841,10 @@
+@@ -910,10 +843,10 @@
  func TestClientRedirectEatsBody(t *testing.T) {
  	defer afterTest(t)
  	saw := make(chan string, 2)
@@ -340,233 +340,50 @@
  		}
  	}))
  	defer ts.Close()
-
-=== modified file 'http13client/cookie_test.go'
---- http13client/cookie_test.go	2014-03-19 20:20:19 +0000
-+++ http13client/cookie_test.go	2014-03-19 22:27:37 +0000
-@@ -9,6 +9,7 @@
- 	"encoding/json"
- 	"fmt"
- 	"log"
-+	"net/http"
- 	"os"
- 	"reflect"
- 	"strings"
-@@ -17,39 +18,39 @@
- )
+@@ -957,7 +890,7 @@
  
- var writeSetCookiesTests = []struct {
--	Cookie *Cookie
-+	Cookie *http.Cookie
- 	Raw    string
- }{
- 	{
--		&Cookie{Name: "cookie-1", Value: "v$1"},
-+		&http.Cookie{Name: "cookie-1", Value: "v$1"},
- 		"cookie-1=v$1",
- 	},
- 	{
--		&Cookie{Name: "cookie-2", Value: "two", MaxAge: 3600},
-+		&http.Cookie{Name: "cookie-2", Value: "two", MaxAge: 3600},
- 		"cookie-2=two; Max-Age=3600",
- 	},
- 	{
--		&Cookie{Name: "cookie-3", Value: "three", Domain: ".example.com"},
-+		&http.Cookie{Name: "cookie-3", Value: "three", Domain: ".example.com"},
- 		"cookie-3=three; Domain=example.com",
- 	},
- 	{
--		&Cookie{Name: "cookie-4", Value: "four", Path: "/restricted/"},
-+		&http.Cookie{Name: "cookie-4", Value: "four", Path: "/restricted/"},
- 		"cookie-4=four; Path=/restricted/",
- 	},
- 	{
--		&Cookie{Name: "cookie-5", Value: "five", Domain: "wrong;bad.abc"},
-+		&http.Cookie{Name: "cookie-5", Value: "five", Domain: "wrong;bad.abc"},
- 		"cookie-5=five",
- 	},
- 	{
--		&Cookie{Name: "cookie-6", Value: "six", Domain: "bad-.abc"},
-+		&http.Cookie{Name: "cookie-6", Value: "six", Domain: "bad-.abc"},
- 		"cookie-6=six",
- 	},
- 	{
--		&Cookie{Name: "cookie-7", Value: "seven", Domain: "127.0.0.1"},
-+		&http.Cookie{Name: "cookie-7", Value: "seven", Domain: "127.0.0.1"},
- 		"cookie-7=seven; Domain=127.0.0.1",
- 	},
- 	{
--		&Cookie{Name: "cookie-8", Value: "eight", Domain: "::1"},
-+		&http.Cookie{Name: "cookie-8", Value: "eight", Domain: "::1"},
- 		"cookie-8=eight",
- 	},
- }
-@@ -71,10 +72,10 @@
+ func TestClientTrailers(t *testing.T) {
+ 	defer afterTest(t)
+-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
++	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		w.Header().Set("Connection", "close")
+ 		w.Header().Set("Trailer", "Server-Trailer-A, Server-Trailer-B")
+ 		w.Header().Add("Trailer", "Server-Trailer-C")
+@@ -992,9 +925,9 @@
+ 		// trailers to be sent, if and only if they were
+ 		// previously declared with w.Header().Set("Trailer",
+ 		// ..keys..)
+-		w.(Flusher).Flush()
+-		conn, buf, _ := w.(Hijacker).Hijack()
+-		t := Header{}
++		w.(http.Flusher).Flush()
++		conn, buf, _ := w.(http.Hijacker).Hijack()
++		t := http.Header{}
+ 		t.Set("Server-Trailer-A", "valuea")
+ 		t.Set("Server-Trailer-C", "valuec") // skipping B
+ 		buf.WriteString("0\r\n")            // eof
+@@ -1015,7 +948,7 @@
+ 			req.Trailer["Client-Trailer-B"] = []string{"valueb"}
+ 		}),
+ 	))
+-	req.Trailer = Header{
++	req.Trailer = http.Header{
+ 		"Client-Trailer-A": nil, //  to be set later
+ 		"Client-Trailer-B": nil, //  to be set later
  	}
- }
- 
--type headerOnlyResponseWriter Header
-+type headerOnlyResponseWriter http.Header
- 
--func (ho headerOnlyResponseWriter) Header() Header {
--	return Header(ho)
-+func (ho headerOnlyResponseWriter) Header() http.Header {
-+	return http.Header(ho)
- }
- 
- func (ho headerOnlyResponseWriter) Write([]byte) (int, error) {
-@@ -86,9 +87,9 @@
- }
- 
- func TestSetCookie(t *testing.T) {
--	m := make(Header)
--	SetCookie(headerOnlyResponseWriter(m), &Cookie{Name: "cookie-1", Value: "one", Path: "/restricted/"})
--	SetCookie(headerOnlyResponseWriter(m), &Cookie{Name: "cookie-2", Value: "two", MaxAge: 3600})
-+	m := make(http.Header)
-+	http.SetCookie(headerOnlyResponseWriter(m), &http.Cookie{Name: "cookie-1", Value: "one", Path: "/restricted/"})
-+	http.SetCookie(headerOnlyResponseWriter(m), &http.Cookie{Name: "cookie-2", Value: "two", MaxAge: 3600})
- 	if l := len(m["Set-Cookie"]); l != 2 {
- 		t.Fatalf("expected %d cookies, got %d", 2, l)
+@@ -1027,7 +960,7 @@
+ 	if err := wantBody(res, err, "decl: [Client-Trailer-A Client-Trailer-B], vals: valuea, valueb"); err != nil {
+ 		t.Error(err)
  	}
-@@ -101,19 +102,19 @@
- }
- 
- var addCookieTests = []struct {
--	Cookies []*Cookie
-+	Cookies []*http.Cookie
- 	Raw     string
- }{
- 	{
--		[]*Cookie{},
-+		[]*http.Cookie{},
- 		"",
- 	},
- 	{
--		[]*Cookie{{Name: "cookie-1", Value: "v$1"}},
-+		[]*http.Cookie{{Name: "cookie-1", Value: "v$1"}},
- 		"cookie-1=v$1",
- 	},
- 	{
--		[]*Cookie{
-+		[]*http.Cookie{
- 			{Name: "cookie-1", Value: "v$1"},
- 			{Name: "cookie-2", Value: "v$2"},
- 			{Name: "cookie-3", Value: "v$3"},
-@@ -136,16 +137,16 @@
- }
- 
- var readSetCookiesTests = []struct {
--	Header  Header
--	Cookies []*Cookie
-+	Header  http.Header
-+	Cookies []*http.Cookie
- }{
- 	{
--		Header{"Set-Cookie": {"Cookie-1=v$1"}},
--		[]*Cookie{{Name: "Cookie-1", Value: "v$1", Raw: "Cookie-1=v$1"}},
-+		http.Header{"Set-Cookie": {"Cookie-1=v$1"}},
-+		[]*http.Cookie{{Name: "Cookie-1", Value: "v$1", Raw: "Cookie-1=v$1"}},
- 	},
- 	{
--		Header{"Set-Cookie": {"NID=99=YsDT5i3E-CXax-; expires=Wed, 23-Nov-2011 01:05:03 GMT; path=/; domain=.google.ch; HttpOnly"}},
--		[]*Cookie{{
-+		http.Header{"Set-Cookie": {"NID=99=YsDT5i3E-CXax-; expires=Wed, 23-Nov-2011 01:05:03 GMT; path=/; domain=.google.ch; HttpOnly"}},
-+		[]*http.Cookie{{
- 			Name:       "NID",
- 			Value:      "99=YsDT5i3E-CXax-",
- 			Path:       "/",
-@@ -157,8 +158,8 @@
- 		}},
- 	},
- 	{
--		Header{"Set-Cookie": {".ASPXAUTH=7E3AA; expires=Wed, 07-Mar-2012 14:25:06 GMT; path=/; HttpOnly"}},
--		[]*Cookie{{
-+		http.Header{"Set-Cookie": {".ASPXAUTH=7E3AA; expires=Wed, 07-Mar-2012 14:25:06 GMT; path=/; HttpOnly"}},
-+		[]*http.Cookie{{
- 			Name:       ".ASPXAUTH",
- 			Value:      "7E3AA",
- 			Path:       "/",
-@@ -169,8 +170,8 @@
- 		}},
- 	},
- 	{
--		Header{"Set-Cookie": {"ASP.NET_SessionId=foo; path=/; HttpOnly"}},
--		[]*Cookie{{
-+		http.Header{"Set-Cookie": {"ASP.NET_SessionId=foo; path=/; HttpOnly"}},
-+		[]*http.Cookie{{
- 			Name:     "ASP.NET_SessionId",
- 			Value:    "foo",
- 			Path:     "/",
-@@ -207,37 +208,37 @@
- }
- 
- var readCookiesTests = []struct {
--	Header  Header
-+	Header  http.Header
- 	Filter  string
--	Cookies []*Cookie
-+	Cookies []*http.Cookie
- }{
- 	{
--		Header{"Cookie": {"Cookie-1=v$1", "c2=v2"}},
--		"",
--		[]*Cookie{
--			{Name: "Cookie-1", Value: "v$1"},
--			{Name: "c2", Value: "v2"},
--		},
--	},
--	{
--		Header{"Cookie": {"Cookie-1=v$1", "c2=v2"}},
--		"c2",
--		[]*Cookie{
--			{Name: "c2", Value: "v2"},
--		},
--	},
--	{
--		Header{"Cookie": {"Cookie-1=v$1; c2=v2"}},
--		"",
--		[]*Cookie{
--			{Name: "Cookie-1", Value: "v$1"},
--			{Name: "c2", Value: "v2"},
--		},
--	},
--	{
--		Header{"Cookie": {"Cookie-1=v$1; c2=v2"}},
--		"c2",
--		[]*Cookie{
-+		http.Header{"Cookie": {"Cookie-1=v$1", "c2=v2"}},
-+		"",
-+		[]*http.Cookie{
-+			{Name: "Cookie-1", Value: "v$1"},
-+			{Name: "c2", Value: "v2"},
-+		},
-+	},
-+	{
-+		http.Header{"Cookie": {"Cookie-1=v$1", "c2=v2"}},
-+		"c2",
-+		[]*http.Cookie{
-+			{Name: "c2", Value: "v2"},
-+		},
-+	},
-+	{
-+		http.Header{"Cookie": {"Cookie-1=v$1; c2=v2"}},
-+		"",
-+		[]*http.Cookie{
-+			{Name: "Cookie-1", Value: "v$1"},
-+			{Name: "c2", Value: "v2"},
-+		},
-+	},
-+	{
-+		http.Header{"Cookie": {"Cookie-1=v$1; c2=v2"}},
-+		"c2",
-+		[]*http.Cookie{
- 			{Name: "c2", Value: "v2"},
- 		},
- 	},
+-	want := Header{
++	want := http.Header{
+ 		"Server-Trailer-A": []string{"valuea"},
+ 		"Server-Trailer-B": nil,
+ 		"Server-Trailer-C": []string{"valuec"},
 
 === modified file 'http13client/export_test.go'
---- http13client/export_test.go	2014-03-19 20:20:19 +0000
-+++ http13client/export_test.go	2014-03-19 22:27:37 +0000
+--- http13client/export_test.go	2014-06-20 11:00:47 +0000
++++ http13client/export_test.go	2014-06-20 12:00:22 +0000
 @@ -9,15 +9,12 @@
  
  import (
@@ -599,8 +416,8 @@
  	noProxyEnv.reset()
 
 === modified file 'http13client/header_test.go'
---- http13client/header_test.go	2014-03-19 20:20:19 +0000
-+++ http13client/header_test.go	2014-03-19 22:27:37 +0000
+--- http13client/header_test.go	2014-06-20 11:00:47 +0000
++++ http13client/header_test.go	2014-06-20 12:00:22 +0000
 @@ -6,19 +6,20 @@
  
  import (
@@ -731,8 +548,8 @@
  	}
 
 === modified file 'http13client/npn_test.go'
---- http13client/npn_test.go	2014-03-19 21:38:56 +0000
-+++ http13client/npn_test.go	2014-03-19 22:27:37 +0000
+--- http13client/npn_test.go	2014-06-20 11:00:47 +0000
++++ http13client/npn_test.go	2014-06-20 12:05:53 +0000
 @@ -11,13 +11,14 @@
  	"io"
  	"io/ioutil"
@@ -792,8 +609,8 @@
  func (w http09Writer) WriteHeader(int) {} // no headers
 
 === modified file 'http13client/readrequest_test.go'
---- http13client/readrequest_test.go	2014-03-19 20:20:19 +0000
-+++ http13client/readrequest_test.go	2014-03-19 22:27:37 +0000
+--- http13client/readrequest_test.go	2014-06-20 11:00:47 +0000
++++ http13client/readrequest_test.go	2014-06-20 12:00:22 +0000
 @@ -9,6 +9,7 @@
  	"bytes"
  	"fmt"
@@ -909,8 +726,8 @@
  			Close:         false,
 
 === modified file 'http13client/request_test.go'
---- http13client/request_test.go	2014-03-19 21:38:56 +0000
-+++ http13client/request_test.go	2014-03-19 22:27:37 +0000
+--- http13client/request_test.go	2014-06-20 11:00:47 +0000
++++ http13client/request_test.go	2014-06-20 12:05:53 +0000
 @@ -12,6 +12,7 @@
  	"io/ioutil"
  	"mime/multipart"
@@ -945,8 +762,26 @@
 +	req.Header = http.Header{"Content-Type": {"text/plain"}}
  	multipart, err = req.MultipartReader()
  	if multipart != nil {
- 		t.Errorf("unexpected multipart for text/plain")
-@@ -159,7 +160,7 @@
+ 		t.Error("unexpected multipart for text/plain")
+@@ -161,7 +162,7 @@
+ func TestParseMultipartForm(t *testing.T) {
+ 	req := &Request{
+ 		Method: "POST",
+-		Header: Header{"Content-Type": {`multipart/form-data; boundary="foo123"`}},
++		Header: http.Header{"Content-Type": {`multipart/form-data; boundary="foo123"`}},
+ 		Body:   ioutil.NopCloser(new(bytes.Buffer)),
+ 	}
+ 	err := req.ParseMultipartForm(25)
+@@ -169,7 +170,7 @@
+ 		t.Error("expected multipart EOF, got nil")
+ 	}
+ 
+-	req.Header = Header{"Content-Type": {"text/plain"}}
++	req.Header = http.Header{"Content-Type": {"text/plain"}}
+ 	err = req.ParseMultipartForm(25)
+ 	if err != ErrNotMultipart {
+ 		t.Error("expected ErrNotMultipart for text/plain")
+@@ -177,7 +178,7 @@
  }
  
  func TestRedirect(t *testing.T) {
@@ -957,8 +792,8 @@
  			w.Header().Set("Location", "/foo/")
 
 === modified file 'http13client/requestwrite_test.go'
---- http13client/requestwrite_test.go	2014-03-19 20:20:19 +0000
-+++ http13client/requestwrite_test.go	2014-03-19 22:27:37 +0000
+--- http13client/requestwrite_test.go	2014-06-20 11:00:47 +0000
++++ http13client/requestwrite_test.go	2014-06-20 12:00:22 +0000
 @@ -10,6 +10,7 @@
  	"fmt"
  	"io"
@@ -1068,8 +903,8 @@
  		var braw bytes.Buffer
 
 === modified file 'http13client/response_test.go'
---- http13client/response_test.go	2014-03-19 20:20:19 +0000
-+++ http13client/response_test.go	2014-03-19 22:27:37 +0000
+--- http13client/response_test.go	2014-06-20 11:00:47 +0000
++++ http13client/response_test.go	2014-06-20 12:05:53 +0000
 @@ -12,6 +12,7 @@
  	"fmt"
  	"io"
@@ -1078,7 +913,7 @@
  	"net/url"
  	"reflect"
  	"regexp"
-@@ -44,7 +45,7 @@
+@@ -48,7 +49,7 @@
  			ProtoMajor: 1,
  			ProtoMinor: 0,
  			Request:    dummyReq("GET"),
@@ -1087,7 +922,7 @@
  				"Connection": {"close"}, // TODO(rsc): Delete?
  			},
  			Close:         true,
-@@ -67,7 +68,7 @@
+@@ -71,7 +72,7 @@
  			Proto:         "HTTP/1.1",
  			ProtoMajor:    1,
  			ProtoMinor:    1,
@@ -1096,7 +931,7 @@
  			Request:       dummyReq("GET"),
  			Close:         true,
  			ContentLength: -1,
-@@ -88,7 +89,7 @@
+@@ -92,7 +93,7 @@
  			Proto:         "HTTP/1.1",
  			ProtoMajor:    1,
  			ProtoMinor:    1,
@@ -1105,7 +940,7 @@
  			Request:       dummyReq("GET"),
  			Close:         false,
  			ContentLength: 0,
-@@ -112,7 +113,7 @@
+@@ -116,7 +117,7 @@
  			ProtoMajor: 1,
  			ProtoMinor: 0,
  			Request:    dummyReq("GET"),
@@ -1114,7 +949,7 @@
  				"Connection":     {"close"},
  				"Content-Length": {"10"},
  			},
-@@ -142,7 +143,7 @@
+@@ -146,7 +147,7 @@
  			ProtoMajor:       1,
  			ProtoMinor:       1,
  			Request:          dummyReq("GET"),
@@ -1123,7 +958,7 @@
  			Close:            false,
  			ContentLength:    -1,
  			TransferEncoding: []string{"chunked"},
-@@ -169,7 +170,7 @@
+@@ -173,7 +174,7 @@
  			ProtoMajor:       1,
  			ProtoMinor:       1,
  			Request:          dummyReq("GET"),
@@ -1132,7 +967,7 @@
  			Close:            false,
  			ContentLength:    -1,
  			TransferEncoding: []string{"chunked"},
-@@ -191,7 +192,7 @@
+@@ -195,7 +196,7 @@
  			ProtoMajor:       1,
  			ProtoMinor:       1,
  			Request:          dummyReq("HEAD"),
@@ -1141,7 +976,7 @@
  			TransferEncoding: []string{"chunked"},
  			Close:            false,
  			ContentLength:    -1,
-@@ -213,7 +214,7 @@
+@@ -217,7 +218,7 @@
  			ProtoMajor:       1,
  			ProtoMinor:       0,
  			Request:          dummyReq("HEAD"),
@@ -1150,7 +985,7 @@
  			TransferEncoding: nil,
  			Close:            true,
  			ContentLength:    256,
-@@ -235,7 +236,7 @@
+@@ -239,7 +240,7 @@
  			ProtoMajor:       1,
  			ProtoMinor:       1,
  			Request:          dummyReq("HEAD"),
@@ -1159,7 +994,7 @@
  			TransferEncoding: nil,
  			Close:            false,
  			ContentLength:    256,
-@@ -256,7 +257,7 @@
+@@ -260,7 +261,7 @@
  			ProtoMajor:       1,
  			ProtoMinor:       0,
  			Request:          dummyReq("HEAD"),
@@ -1168,7 +1003,7 @@
  			TransferEncoding: nil,
  			Close:            true,
  			ContentLength:    -1,
-@@ -278,7 +279,7 @@
+@@ -282,7 +283,7 @@
  			ProtoMajor: 1,
  			ProtoMinor: 1,
  			Request:    dummyReq("GET"),
@@ -1177,7 +1012,7 @@
  				"Content-Length": {"0"},
  			},
  			Close:         false,
-@@ -299,7 +300,7 @@
+@@ -303,7 +304,7 @@
  			ProtoMajor:    1,
  			ProtoMinor:    0,
  			Request:       dummyReq("GET"),
@@ -1186,7 +1021,7 @@
  			Close:         true,
  			ContentLength: -1,
  		},
-@@ -318,7 +319,7 @@
+@@ -322,7 +323,7 @@
  			ProtoMajor:    1,
  			ProtoMinor:    0,
  			Request:       dummyReq("GET"),
@@ -1195,7 +1030,7 @@
  			Close:         true,
  			ContentLength: -1,
  		},
-@@ -340,7 +341,7 @@
+@@ -344,7 +345,7 @@
  			ProtoMajor: 1,
  			ProtoMinor: 1,
  			Request:    dummyReq("GET"),
@@ -1204,7 +1039,7 @@
  				"Content-Type": []string{"multipart/byteranges; boundary=18a75608c8f47cef"},
  			},
  			Close:         true,
-@@ -363,7 +364,7 @@
+@@ -367,7 +368,7 @@
  			Proto:      "HTTP/1.0",
  			ProtoMajor: 1,
  			ProtoMinor: 0,
@@ -1213,7 +1048,7 @@
  				"Connection": {"close"}, // TODO(rsc): Delete?
  			},
  			Close:         true,
-@@ -545,7 +546,7 @@
+@@ -549,7 +550,7 @@
  func TestLocationResponse(t *testing.T) {
  	for i, tt := range responseLocationTests {
  		res := new(Response)
@@ -1222,7 +1057,7 @@
  		res.Header.Set("Location", tt.location)
  		if tt.requrl != "" {
  			res.Request = &Request{}
-@@ -626,16 +627,3 @@
+@@ -630,16 +631,3 @@
  		t.Errorf("ReadResponse = %v; want io.ErrUnexpectedEOF", err)
  	}
  }
@@ -1241,8 +1076,8 @@
 -}
 
 === modified file 'http13client/responsewrite_test.go'
---- http13client/responsewrite_test.go	2014-03-19 20:20:19 +0000
-+++ http13client/responsewrite_test.go	2014-03-19 22:27:37 +0000
+--- http13client/responsewrite_test.go	2014-06-20 11:00:47 +0000
++++ http13client/responsewrite_test.go	2014-06-20 12:05:53 +0000
 @@ -7,6 +7,7 @@
  import (
  	"bytes"
@@ -1257,7 +1092,7 @@
  				Request:       dummyReq("GET"),
 -				Header:        Header{},
 +				Header:        http.Header{},
- 				Body:          ioutil.NopCloser(bytes.NewBufferString("abcdef")),
+ 				Body:          ioutil.NopCloser(strings.NewReader("abcdef")),
  				ContentLength: 6,
  			},
 @@ -41,7 +42,7 @@
@@ -1270,6 +1105,60 @@
  				ContentLength: -1,
  			},
 @@ -56,7 +57,7 @@
+ 				ProtoMajor:    1,
+ 				ProtoMinor:    1,
+ 				Request:       dummyReq("GET"),
+-				Header:        Header{},
++				Header:        http.Header{},
+ 				Body:          ioutil.NopCloser(strings.NewReader("abcdef")),
+ 				ContentLength: -1,
+ 				Close:         true,
+@@ -73,7 +74,7 @@
+ 				ProtoMajor:    1,
+ 				ProtoMinor:    1,
+ 				Request:       dummyReq11("GET"),
+-				Header:        Header{},
++				Header:        http.Header{},
+ 				Body:          ioutil.NopCloser(strings.NewReader("abcdef")),
+ 				ContentLength: -1,
+ 				Close:         false,
+@@ -91,7 +92,7 @@
+ 				ProtoMajor:       1,
+ 				ProtoMinor:       1,
+ 				Request:          dummyReq11("GET"),
+-				Header:           Header{},
++				Header:           http.Header{},
+ 				Body:             ioutil.NopCloser(strings.NewReader("abcdef")),
+ 				ContentLength:    -1,
+ 				TransferEncoding: []string{"chunked"},
+@@ -108,7 +109,7 @@
+ 				ProtoMajor:    1,
+ 				ProtoMinor:    1,
+ 				Request:       dummyReq11("GET"),
+-				Header:        Header{},
++				Header:        http.Header{},
+ 				Body:          nil,
+ 				ContentLength: 0,
+ 				Close:         false,
+@@ -124,7 +125,7 @@
+ 				ProtoMajor:    1,
+ 				ProtoMinor:    1,
+ 				Request:       dummyReq11("GET"),
+-				Header:        Header{},
++				Header:        http.Header{},
+ 				Body:          ioutil.NopCloser(strings.NewReader("")),
+ 				ContentLength: 0,
+ 				Close:         false,
+@@ -140,7 +141,7 @@
+ 				ProtoMajor:    1,
+ 				ProtoMinor:    1,
+ 				Request:       dummyReq11("GET"),
+-				Header:        Header{},
++				Header:        http.Header{},
+ 				Body:          ioutil.NopCloser(strings.NewReader("foo")),
+ 				ContentLength: 0,
+ 				Close:         false,
+@@ -156,7 +157,7 @@
  				ProtoMajor:       1,
  				ProtoMinor:       1,
  				Request:          dummyReq("GET"),
@@ -1278,7 +1167,7 @@
  				Body:             ioutil.NopCloser(strings.NewReader("abcdef")),
  				ContentLength:    6,
  				TransferEncoding: []string{"chunked"},
-@@ -77,7 +78,7 @@
+@@ -177,7 +178,7 @@
  				ProtoMajor: 1,
  				ProtoMinor: 1,
  				Request:    dummyReq("GET"),
@@ -1287,11 +1176,20 @@
  					"Foo": []string{" Bar\nBaz "},
  				},
  				Body:             nil,
+@@ -200,7 +201,7 @@
+ 				ProtoMajor:       1,
+ 				ProtoMinor:       1,
+ 				Request:          &Request{Method: "POST"},
+-				Header:           Header{},
++				Header:           http.Header{},
+ 				ContentLength:    0,
+ 				TransferEncoding: nil,
+ 				Body:             nil,
 
 === modified file 'http13client/transport_test.go'
---- http13client/transport_test.go	2014-03-19 21:38:56 +0000
-+++ http13client/transport_test.go	2014-03-19 22:27:37 +0000
-@@ -17,8 +17,8 @@
+--- http13client/transport_test.go	2014-06-20 11:00:47 +0000
++++ http13client/transport_test.go	2014-06-20 12:05:53 +0000
+@@ -18,8 +18,8 @@
  	"io/ioutil"
  	"log"
  	"net"
@@ -1301,7 +1199,7 @@
  	"net/http/httptest"
  	"net/url"
  	"os"
-@@ -34,7 +34,7 @@
+@@ -35,7 +35,7 @@
  //       and then verify that the final 2 responses get errors back.
  
  // hostPortHandler writes back the client's "host:port".
@@ -1310,7 +1208,7 @@
  	if r.FormValue("close") == "true" {
  		w.Header().Set("Connection", "close")
  	}
-@@ -280,7 +280,7 @@
+@@ -289,7 +289,7 @@
  	const msg = "foobar"
  
  	var addrSeen map[string]int
@@ -1319,7 +1217,7 @@
  		addrSeen[r.RemoteAddr]++
  		if r.URL.Path == "/chunked/" {
  			w.WriteHeader(200)
-@@ -299,7 +299,7 @@
+@@ -308,7 +308,7 @@
  		wantLen := []int{len(msg), -1}[pi]
  		addrSeen = make(map[string]int)
  		for i := 0; i < 3; i++ {
@@ -1328,7 +1226,7 @@
  			if err != nil {
  				t.Errorf("Get %s: %v", path, err)
  				continue
-@@ -329,7 +329,7 @@
+@@ -338,7 +338,7 @@
  	defer afterTest(t)
  	resch := make(chan string)
  	gotReq := make(chan bool)
@@ -1337,7 +1235,7 @@
  		gotReq <- true
  		msg := <-resch
  		_, err := w.Write([]byte(msg))
-@@ -457,12 +457,12 @@
+@@ -466,12 +466,12 @@
  	if testing.Short() {
  		t.Skip("skipping test in short mode")
  	}
@@ -1353,7 +1251,7 @@
  		buf.Flush()
  		conn.Close()
  	}))
-@@ -510,7 +510,7 @@
+@@ -519,7 +519,7 @@
  // with no bodies properly
  func TestTransportHeadResponses(t *testing.T) {
  	defer afterTest(t)
@@ -1362,7 +1260,7 @@
  		if r.Method != "HEAD" {
  			panic("expected HEAD; got " + r.Method)
  		}
-@@ -545,7 +545,7 @@
+@@ -554,7 +554,7 @@
  // on responses to HEAD requests.
  func TestTransportHeadChunkedResponse(t *testing.T) {
  	defer afterTest(t)
@@ -1371,7 +1269,7 @@
  		if r.Method != "HEAD" {
  			panic("expected HEAD; got " + r.Method)
  		}
-@@ -588,7 +588,7 @@
+@@ -597,7 +597,7 @@
  func TestRoundTripGzip(t *testing.T) {
  	defer afterTest(t)
  	const responseBody = "test response body"
@@ -1380,7 +1278,7 @@
  		accept := req.Header.Get("Accept-Encoding")
  		if expect := req.FormValue("expect_accept"); accept != expect {
  			t.Errorf("in handler, test %v: Accept-Encoding = %q, want %q",
-@@ -647,7 +647,7 @@
+@@ -656,7 +656,7 @@
  	defer afterTest(t)
  	const testString = "The test string aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
  	const nRandBytes = 1024 * 1024
@@ -1389,7 +1287,7 @@
  		if req.Method == "HEAD" {
  			if g := req.Header.Get("Accept-Encoding"); g != "" {
  				t.Errorf("HEAD request sent with Accept-Encoding of %q; want none", g)
-@@ -742,11 +742,11 @@
+@@ -751,11 +751,11 @@
  func TestTransportProxy(t *testing.T) {
  	defer afterTest(t)
  	ch := make(chan string, 1)
@@ -1403,7 +1301,7 @@
  		ch <- "proxy for " + r.URL.String()
  	}))
  	defer proxy.Close()
-@@ -770,7 +770,7 @@
+@@ -779,7 +779,7 @@
  // Content-Encoding is removed.
  func TestTransportGzipRecursive(t *testing.T) {
  	defer afterTest(t)
@@ -1412,7 +1310,16 @@
  		w.Header().Set("Content-Encoding", "gzip")
  		w.Write(rgz)
  	}))
-@@ -802,7 +802,7 @@
+@@ -807,7 +807,7 @@
+ // a short gzip body
+ func TestTransportGzipShort(t *testing.T) {
+ 	defer afterTest(t)
+-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
++	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		w.Header().Set("Content-Encoding", "gzip")
+ 		w.Write([]byte{0x1f, 0x8b})
+ 	}))
+@@ -838,7 +838,7 @@
  	defer afterTest(t)
  	gotReqCh := make(chan bool)
  	unblockCh := make(chan bool)
@@ -1421,7 +1328,7 @@
  		gotReqCh <- true
  		<-unblockCh
  		w.Header().Set("Content-Length", "0")
-@@ -869,7 +869,7 @@
+@@ -905,7 +905,7 @@
  		t.Skip("skipping test; see http://golang.org/issue/7237")
  	}
  	defer afterTest(t)
@@ -1430,7 +1337,7 @@
  	}))
  	defer ts.Close()
  
-@@ -912,7 +912,7 @@
+@@ -948,7 +948,7 @@
  	c := &Client{Transport: tr}
  
  	unblockCh := make(chan bool, 1)
@@ -1439,7 +1346,7 @@
  		<-unblockCh
  		tr.CloseIdleConnections()
  	}))
-@@ -939,7 +939,7 @@
+@@ -975,7 +975,7 @@
  func TestIssue3644(t *testing.T) {
  	defer afterTest(t)
  	const numFoos = 5000
@@ -1448,7 +1355,7 @@
  		w.Header().Set("Connection", "close")
  		for i := 0; i < numFoos; i++ {
  			w.Write([]byte("foo "))
-@@ -967,8 +967,8 @@
+@@ -1003,8 +1003,8 @@
  func TestIssue3595(t *testing.T) {
  	defer afterTest(t)
  	const deniedMsg = "sorry, denied."
@@ -1459,7 +1366,7 @@
  	}))
  	defer ts.Close()
  	tr := &Transport{}
-@@ -991,7 +991,7 @@
+@@ -1027,7 +1027,7 @@
  // "client fails to handle requests with no body and chunked encoding"
  func TestChunkedNoContent(t *testing.T) {
  	defer afterTest(t)
@@ -1468,7 +1375,7 @@
  		w.WriteHeader(StatusNoContent)
  	}))
  	defer ts.Close()
-@@ -1019,7 +1019,7 @@
+@@ -1055,7 +1055,7 @@
  		maxProcs, numReqs = 4, 50
  	}
  	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(maxProcs))
@@ -1477,7 +1384,7 @@
  		fmt.Fprintf(w, "%v", r.FormValue("echo"))
  	}))
  	defer ts.Close()
-@@ -1080,8 +1080,8 @@
+@@ -1116,8 +1116,8 @@
  	}
  	defer afterTest(t)
  	const debug = false
@@ -1488,7 +1395,7 @@
  		io.Copy(w, neverEnding('a'))
  	})
  	ts := httptest.NewServer(mux)
-@@ -1144,11 +1144,11 @@
+@@ -1180,11 +1180,11 @@
  	}
  	defer afterTest(t)
  	const debug = false
@@ -1503,20 +1410,22 @@
  		defer r.Body.Close()
  		io.Copy(ioutil.Discard, r.Body)
  	})
-@@ -1214,9 +1214,9 @@
- 	if testing.Short() {
+@@ -1251,11 +1251,11 @@
  		t.Skip("skipping timeout test in -short mode")
  	}
+ 	inHandler := make(chan bool, 1)
 -	mux := NewServeMux()
--	mux.HandleFunc("/fast", func(w ResponseWriter, r *Request) {})
--	mux.HandleFunc("/slow", func(w ResponseWriter, r *Request) {
+-	mux.HandleFunc("/fast", func(w ResponseWriter, r *Request) {
 +	mux := http.NewServeMux()
-+	mux.HandleFunc("/fast", func(w http.ResponseWriter, r *http.Request) {})
++	mux.HandleFunc("/fast", func(w http.ResponseWriter, r *http.Request) {
+ 		inHandler <- true
+ 	})
+-	mux.HandleFunc("/slow", func(w ResponseWriter, r *Request) {
 +	mux.HandleFunc("/slow", func(w http.ResponseWriter, r *http.Request) {
+ 		inHandler <- true
  		time.Sleep(2 * time.Second)
  	})
- 	ts := httptest.NewServer(mux)
-@@ -1276,9 +1276,9 @@
+@@ -1322,9 +1322,9 @@
  		t.Skip("skipping test in -short mode")
  	}
  	unblockc := make(chan bool)
@@ -1528,7 +1437,7 @@
  		<-unblockc
  	}))
  	defer ts.Close()
-@@ -1386,14 +1386,14 @@
+@@ -1431,14 +1431,14 @@
  	defer afterTest(t)
  	writeErr := make(chan error, 1)
  	msg := []byte("young\n")
@@ -1545,7 +1454,7 @@
  		}
  	}))
  	defer ts.Close()
-@@ -1449,7 +1449,7 @@
+@@ -1494,7 +1494,7 @@
  	res := &Response{
  		Status:     "200 OK",
  		StatusCode: 200,
@@ -1554,7 +1463,7 @@
  		Body:       ioutil.NopCloser(strings.NewReader("You wanted " + req.URL.String())),
  	}
  	return res, nil
-@@ -1478,7 +1478,7 @@
+@@ -1523,7 +1523,7 @@
  	defer afterTest(t)
  	tr := &Transport{}
  	_, err := tr.RoundTrip(&Request{
@@ -1563,7 +1472,7 @@
  		URL: &url.URL{
  			Scheme: "http",
  		},
-@@ -1492,14 +1492,14 @@
+@@ -1537,14 +1537,14 @@
  func TestTransportSocketLateBinding(t *testing.T) {
  	defer afterTest(t)
  
@@ -1582,7 +1491,7 @@
  		w.Header().Set("bar-ipport", r.RemoteAddr)
  	})
  	ts := httptest.NewServer(mux)
-@@ -1720,7 +1720,7 @@
+@@ -1767,7 +1767,7 @@
  	var mu sync.Mutex
  	var n int
  
@@ -1591,7 +1500,7 @@
  		mu.Lock()
  		n++
  		mu.Unlock()
-@@ -1756,7 +1756,7 @@
+@@ -1803,7 +1803,7 @@
  // then closes it.
  func TestTransportClosesRequestBody(t *testing.T) {
  	defer afterTest(t)
@@ -1600,4 +1509,49 @@
  		io.Copy(ioutil.Discard, r.Body)
  	}))
  	defer ts.Close()
+@@ -1890,9 +1890,9 @@
+ 		t.Skip("skipping flaky test on Windows; golang.org/issue/7634")
+ 	}
+ 	closedc := make(chan bool, 1)
+-	ts := httptest.NewTLSServer(HandlerFunc(func(w ResponseWriter, r *Request) {
++	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		if strings.Contains(r.URL.Path, "/keep-alive-then-die") {
+-			conn, _, _ := w.(Hijacker).Hijack()
++			conn, _, _ := w.(http.Hijacker).Hijack()
+ 			conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nfoo"))
+ 			conn.Close()
+ 			closedc <- true
+@@ -1994,12 +1994,12 @@
+ 	}
+ 	defer closeConn()
+ 
+-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
++	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		if r.Method == "GET" {
+ 			io.WriteString(w, "bar")
+ 			return
+ 		}
+-		conn, _, _ := w.(Hijacker).Hijack()
++		conn, _, _ := w.(http.Hijacker).Hijack()
+ 		sconn.Lock()
+ 		sconn.c = conn
+ 		sconn.Unlock()
+@@ -2056,7 +2056,7 @@
+ 	}
+ 	defer afterTest(t)
+ 	readBody := make(chan error, 1)
+-	ts := httptest.NewServer(HandlerFunc(func(w ResponseWriter, r *Request) {
++	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		_, err := ioutil.ReadAll(r.Body)
+ 		readBody <- err
+ 	}))
+@@ -2098,7 +2098,7 @@
+ 	}
+ }
+ 
+-func wantBody(res *http.Response, err error, want string) error {
++func wantBody(res *Response, err error, want string) error {
+ 	if err != nil {
+ 		return err
+ 	}
 
