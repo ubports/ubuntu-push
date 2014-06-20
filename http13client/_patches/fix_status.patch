@@ -1,7 +1,7 @@
 === modified file 'http13client/client.go'
---- http13client/client.go	2014-03-19 23:13:58 +0000
-+++ http13client/client.go	2014-03-19 23:38:11 +0000
-@@ -210,7 +210,7 @@
+--- http13client/client.go	2014-06-20 12:46:25 +0000
++++ http13client/client.go	2014-06-20 12:46:45 +0000
+@@ -217,7 +217,7 @@
  // automatically redirect.
  func shouldRedirectGet(statusCode int) bool {
  	switch statusCode {
@@ -10,7 +10,7 @@
  		return true
  	}
  	return false
-@@ -220,7 +220,7 @@
+@@ -227,7 +227,7 @@
  // automatically redirect.
  func shouldRedirectPost(statusCode int) bool {
  	switch statusCode {
@@ -21,9 +21,9 @@
  	return false
 
 === modified file 'http13client/client_test.go'
---- http13client/client_test.go	2014-03-19 23:13:58 +0000
-+++ http13client/client_test.go	2014-03-19 23:39:48 +0000
-@@ -202,7 +202,7 @@
+--- http13client/client_test.go	2014-06-20 12:46:25 +0000
++++ http13client/client_test.go	2014-06-20 12:46:45 +0000
+@@ -204,7 +204,7 @@
  			}
  		}
  		if n < 15 {
@@ -32,7 +32,7 @@
  			return
  		}
  		fmt.Fprintf(w, "n=%d", n)
-@@ -324,7 +324,7 @@
+@@ -326,7 +326,7 @@
  	}
  	if r.URL.Path == "/" {
  		http.SetCookie(w, expectedCookies[1])
@@ -41,7 +41,7 @@
  	} else {
  		http.SetCookie(w, expectedCookies[2])
  		w.Write([]byte("hello"))
-@@ -783,7 +783,7 @@
+@@ -785,7 +785,7 @@
  	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
  		if r.URL.Path == "/" {
  			sawRoot <- true
@@ -50,7 +50,7 @@
  			return
  		}
  		if r.URL.Path == "/slow" {
-@@ -844,7 +844,7 @@
+@@ -846,7 +846,7 @@
  	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
  		saw <- r.RemoteAddr
  		if r.URL.Path == "/" {
@@ -61,9 +61,9 @@
  	defer ts.Close()
 
 === modified file 'http13client/request_test.go'
---- http13client/request_test.go	2014-03-19 23:13:58 +0000
-+++ http13client/request_test.go	2014-03-19 23:40:12 +0000
-@@ -164,11 +164,11 @@
+--- http13client/request_test.go	2014-06-20 12:46:25 +0000
++++ http13client/request_test.go	2014-06-20 12:46:45 +0000
+@@ -182,11 +182,11 @@
  		switch r.URL.Path {
  		case "/":
  			w.Header().Set("Location", "/foo/")
@@ -79,9 +79,9 @@
  	defer ts.Close()
 
 === modified file 'http13client/response.go'
---- http13client/response.go	2014-03-19 23:13:58 +0000
-+++ http13client/response.go	2014-03-19 23:38:56 +0000
-@@ -204,9 +204,8 @@
+--- http13client/response.go	2014-06-20 12:46:25 +0000
++++ http13client/response.go	2014-06-20 12:46:45 +0000
+@@ -205,9 +205,8 @@
  	// Status line
  	text := r.Status
  	if text == "" {
@@ -94,10 +94,23 @@
  		}
  	}
 
+=== modified file 'http13client/responsewrite_test.go'
+--- http13client/responsewrite_test.go	2014-06-20 12:46:25 +0000
++++ http13client/responsewrite_test.go	2014-06-20 12:47:05 +0000
+@@ -197,7 +197,7 @@
+ 		// there were two.
+ 		{
+ 			Response{
+-				StatusCode:       StatusOK,
++				StatusCode:       http.StatusOK,
+ 				ProtoMajor:       1,
+ 				ProtoMinor:       1,
+ 				Request:          &Request{Method: "POST"},
+
 === modified file 'http13client/transport_test.go'
---- http13client/transport_test.go	2014-03-19 23:13:58 +0000
-+++ http13client/transport_test.go	2014-03-19 23:40:39 +0000
-@@ -968,7 +968,7 @@
+--- http13client/transport_test.go	2014-06-20 12:46:25 +0000
++++ http13client/transport_test.go	2014-06-20 12:46:45 +0000
+@@ -1004,7 +1004,7 @@
  	defer afterTest(t)
  	const deniedMsg = "sorry, denied."
  	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +119,7 @@
  	}))
  	defer ts.Close()
  	tr := &Transport{}
-@@ -992,7 +992,7 @@
+@@ -1028,7 +1028,7 @@
  func TestChunkedNoContent(t *testing.T) {
  	defer afterTest(t)
  	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,6 @@
 === modified file 'http13client/serve_test.go'
---- http13client/serve_test.go	2014-03-19 21:38:56 +0000
-+++ http13client/serve_test.go	2014-03-19 22:27:37 +0000
+--- http13client/serve_test.go	2014-06-20 11:00:47 +0000
++++ http13client/serve_test.go	2014-06-20 12:00:22 +0000
 @@ -2,60 +2,15 @@
  // Use of this source code is governed by a BSD-style
  // license that can be found in the LICENSE file.
@@ -62,7 +62,7 @@
  
  func (a dummyAddr) Network() string {
  	return string(a)
-@@ -93,1289 +48,6 @@
+@@ -93,1325 +48,6 @@
  	return nil
  }
  
@@ -906,31 +906,50 @@
 -}
 -
 -type serverExpectTest struct {
--	contentLength    int    // of request body
+-	contentLength    int // of request body
+-	chunked          bool
 -	expectation      string // e.g. "100-continue"
 -	readBody         bool   // whether handler should read the body (if false, sends StatusUnauthorized)
 -	expectedResponse string // expected substring in first line of http response
 -}
 -
+-func expectTest(contentLength int, expectation string, readBody bool, expectedResponse string) serverExpectTest {
+-	return serverExpectTest{
+-		contentLength:    contentLength,
+-		expectation:      expectation,
+-		readBody:         readBody,
+-		expectedResponse: expectedResponse,
+-	}
+-}
+-
 -var serverExpectTests = []serverExpectTest{
 -	// Normal 100-continues, case-insensitive.
--	{100, "100-continue", true, "100 Continue"},
--	{100, "100-cOntInUE", true, "100 Continue"},
+-	expectTest(100, "100-continue", true, "100 Continue"),
+-	expectTest(100, "100-cOntInUE", true, "100 Continue"),
 -
 -	// No 100-continue.
--	{100, "", true, "200 OK"},
+-	expectTest(100, "", true, "200 OK"),
 -
 -	// 100-continue but requesting client to deny us,
 -	// so it never reads the body.
--	{100, "100-continue", false, "401 Unauthorized"},
+-	expectTest(100, "100-continue", false, "401 Unauthorized"),
 -	// Likewise without 100-continue:
--	{100, "", false, "401 Unauthorized"},
+-	expectTest(100, "", false, "401 Unauthorized"),
 -
 -	// Non-standard expectations are failures
--	{0, "a-pony", false, "417 Expectation Failed"},
+-	expectTest(0, "a-pony", false, "417 Expectation Failed"),
 -
--	// Expect-100 requested but no body
--	{0, "100-continue", true, "400 Bad Request"},
+-	// Expect-100 requested but no body (is apparently okay: Issue 7625)
+-	expectTest(0, "100-continue", true, "200 OK"),
+-	// Expect-100 requested but handler doesn't read the body
+-	expectTest(0, "100-continue", false, "401 Unauthorized"),
+-	// Expect-100 continue with no body, but a chunked body.
+-	{
+-		expectation:      "100-continue",
+-		readBody:         true,
+-		chunked:          true,
+-		expectedResponse: "100 Continue",
+-	},
 -}
 -
 -// Tests that the server responds to the "Expect" request header
@@ -959,21 +978,38 @@
 -
 -		// Only send the body immediately if we're acting like an HTTP client
 -		// that doesn't send 100-continue expectations.
--		writeBody := test.contentLength > 0 && strings.ToLower(test.expectation) != "100-continue"
+-		writeBody := test.contentLength != 0 && strings.ToLower(test.expectation) != "100-continue"
 -
 -		go func() {
+-			contentLen := fmt.Sprintf("Content-Length: %d", test.contentLength)
+-			if test.chunked {
+-				contentLen = "Transfer-Encoding: chunked"
+-			}
 -			_, err := fmt.Fprintf(conn, "POST /?readbody=%v HTTP/1.1\r\n"+
 -				"Connection: close\r\n"+
--				"Content-Length: %d\r\n"+
+-				"%s\r\n"+
 -				"Expect: %s\r\nHost: foo\r\n\r\n",
--				test.readBody, test.contentLength, test.expectation)
+-				test.readBody, contentLen, test.expectation)
 -			if err != nil {
 -				t.Errorf("On test %#v, error writing request headers: %v", test, err)
 -				return
 -			}
 -			if writeBody {
+-				var targ io.WriteCloser = struct {
+-					io.Writer
+-					io.Closer
+-				}{
+-					conn,
+-					ioutil.NopCloser(nil),
+-				}
+-				if test.chunked {
+-					targ = httputil.NewChunkedWriter(conn)
+-				}
 -				body := strings.Repeat("A", test.contentLength)
--				_, err = fmt.Fprint(conn, body)
+-				_, err = fmt.Fprint(targ, body)
+-				if err == nil {
+-					err = targ.Close()
+-				}
 -				if err != nil {
 -					if !test.readBody {
 -						// Server likely already hung up on us.
@@ -1352,7 +1388,7 @@
  type neverEnding byte
  
  func (b neverEnding) Read(p []byte) (n int, err error) {
-@@ -1384,1344 +56,3 @@
+@@ -1420,1392 +56,3 @@
  	}
  	return len(p), nil
  }
@@ -2080,13 +2116,28 @@
 -			got := ht.rawResponse(req)
 -			wantStatus := fmt.Sprintf("%d %s", code, StatusText(code))
 -			if !strings.Contains(got, wantStatus) {
--				t.Errorf("Code %d: Wanted %q Modified for %q: %s", code, req, got)
+-				t.Errorf("Code %d: Wanted %q Modified for %q: %s", code, wantStatus, req, got)
 -			} else if strings.Contains(got, "Content-Length") {
 -				t.Errorf("Code %d: Got a Content-Length from %q: %s", code, req, got)
 -			} else if strings.Contains(got, "stuff") {
 -				t.Errorf("Code %d: Response contains a body from %q: %s", code, req, got)
 -			}
 -		}
+-	}
+-}
+-
+-func TestContentTypeOkayOn204(t *testing.T) {
+-	ht := newHandlerTest(HandlerFunc(func(w ResponseWriter, r *Request) {
+-		w.Header().Set("Content-Length", "123") // suppressed
+-		w.Header().Set("Content-Type", "foo/bar")
+-		w.WriteHeader(204)
+-	}))
+-	got := ht.rawResponse("GET / HTTP/1.1")
+-	if !strings.Contains(got, "Content-Type: foo/bar") {
+-		t.Errorf("Response = %q; want Content-Type: foo/bar", got)
+-	}
+-	if strings.Contains(got, "Content-Length: 123") {
+-		t.Errorf("Response = %q; don't want a Content-Length", got)
 -	}
 -}
 -
@@ -2261,7 +2312,7 @@
 -	ts.Config.ErrorLog = log.New(ioutil.Discard, "", 0)
 -	ts.Config.ConnState = func(c net.Conn, state ConnState) {
 -		if c == nil {
--			t.Error("nil conn seen in state %s", state)
+-			t.Errorf("nil conn seen in state %s", state)
 -			return
 -		}
 -		mu.Lock()
@@ -2394,6 +2445,39 @@
 -	defer res.Body.Close()
 -	if !res.Close {
 -		t.Errorf("Body.Close == false; want true")
+-	}
+-}
+-
+-// golang.org/issue/7856
+-func TestServerEmptyBodyRace(t *testing.T) {
+-	defer afterTest(t)
+-	var n int32
+-	ts := httptest.NewServer(HandlerFunc(func(rw ResponseWriter, req *Request) {
+-		atomic.AddInt32(&n, 1)
+-	}))
+-	defer ts.Close()
+-	var wg sync.WaitGroup
+-	const reqs = 20
+-	for i := 0; i < reqs; i++ {
+-		wg.Add(1)
+-		go func() {
+-			defer wg.Done()
+-			res, err := Get(ts.URL)
+-			if err != nil {
+-				t.Error(err)
+-				return
+-			}
+-			defer res.Body.Close()
+-			_, err = io.Copy(ioutil.Discard, res.Body)
+-			if err != nil {
+-				t.Error(err)
+-				return
+-			}
+-		}()
+-	}
+-	wg.Wait()
+-	if got := atomic.LoadInt32(&n); got != reqs {
+-		t.Errorf("handler ran %d times; want %d", got, reqs)
 -	}
 -}
 -
@@ -2699,9 +2783,9 @@
 -}
 
 === modified file 'http13client/server.go'
---- http13client/server.go	2014-03-19 20:20:19 +0000
-+++ http13client/server.go	2014-03-19 22:27:37 +0000
-@@ -2,1984 +2,17 @@
+--- http13client/server.go	2014-06-20 11:00:47 +0000
++++ http13client/server.go	2014-06-20 12:05:53 +0000
+@@ -2,1976 +2,16 @@
  // Use of this source code is governed by a BSD-style
  // license that can be found in the LICENSE file.
  
@@ -2723,7 +2807,7 @@
 -	"path"
 -	"runtime"
 -	"strconv"
- 	"strings"
+-	"strings"
  	"sync"
 -	"sync/atomic"
 -	"time"
@@ -3506,17 +3590,15 @@
 -	}
 -
 -	code := w.status
--	if !bodyAllowedForStatus(code) {
--		// Must not have body.
--		// RFC 2616 section 10.3.5: "the response MUST NOT include other entity-headers"
--		for _, k := range []string{"Content-Type", "Content-Length", "Transfer-Encoding"} {
--			delHeader(k)
--		}
--	} else {
+-	if bodyAllowedForStatus(code) {
 -		// If no content type, apply sniffing algorithm to body.
 -		_, haveType := header["Content-Type"]
 -		if !haveType {
 -			setHeader.contentType = DetectContentType(p)
+-		}
+-	} else {
+-		for _, k := range suppressedHeaders(code) {
+-			delHeader(k)
 -		}
 -	}
 -
@@ -3865,15 +3947,9 @@
 -		// Expect 100 Continue support
 -		req := w.req
 -		if req.expectsContinue() {
--			if req.ProtoAtLeast(1, 1) {
+-			if req.ProtoAtLeast(1, 1) && req.ContentLength != 0 {
 -				// Wrap the Body reader with one that replies on the connection
 -				req.Body = &expectContinueReader{readCloser: req.Body, resp: w}
--			}
--			if req.ContentLength == 0 {
--				w.Header().Set("Connection", "close")
--				w.WriteHeader(StatusBadRequest)
--				w.finishRequest()
--				break
 -			}
 -			req.Header.Del("Expect")
 -		} else if req.Header.get("Expect") != "" {
@@ -4685,11 +4761,11 @@
 -}
 +)
  
- // eofReader is a non-nil io.ReadCloser that always returns EOF.
- // It embeds a *strings.Reader so it still has a WriteTo method
-@@ -1992,28 +25,6 @@
- 	ioutil.NopCloser(nil),
- }
+ type eofReaderWithWriteTo struct{}
+ 
+@@ -1991,28 +31,6 @@
+ // Verify that an io.Copy from an eofReader won't require a buffer.
+ var _ io.WriterTo = eofReader
  
 -// initNPNRequest is an HTTP handler that initializes certain
 -// uninitialized fields in its *Request. Such partially-initialized
