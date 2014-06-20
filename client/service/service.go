@@ -90,13 +90,21 @@ func (svc *Service) SetAuthGetter(authGetter func(string) string) {
 // getRegistrationAuthorization() returns the authorization header for
 // POSTing to the registration HTTP endpoint
 //
-// (call it with the lock held)
+// (this is for calling with the lock held)
 func (svc *Service) getRegistrationAuthorization() string {
 	if svc.authGetter != nil && svc.regURL != "" {
 		return svc.authGetter(svc.regURL)
 	} else {
 		return ""
 	}
+}
+
+// GetRegistrationAuthorization() returns the authorization header for
+// POSTing to the registration HTTP endpoint
+func (svc *Service) GetRegistrationAuthorization() string {
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
+	return svc.getRegistrationAuthorization()
 }
 
 // SetMessageHandler() sets the message-handling callback
