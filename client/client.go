@@ -73,25 +73,27 @@ type ClientConfig struct {
 
 // PushClient is the Ubuntu Push Notifications client-side daemon.
 type PushClient struct {
-	leveldbPath        string
-	configPath         string
-	config             ClientConfig
-	log                logger.Logger
-	pem                []byte
-	idder              identifier.Id
-	deviceId           string
-	notificationsEndp  bus.Endpoint
-	urlDispatcherEndp  bus.Endpoint
-	connectivityEndp   bus.Endpoint
-	systemImageEndp    bus.Endpoint
-	systemImageInfo    *systemimage.InfoResult
-	connCh             chan bool
-	hasConnectivity    bool
-	actionsCh          <-chan notifications.RawActionReply
-	session            *session.ClientSession
-	sessionConnectedCh chan uint32
-	serviceEndpoint    bus.Endpoint
-	service            *service.Service
+	leveldbPath           string
+	configPath            string
+	config                ClientConfig
+	log                   logger.Logger
+	pem                   []byte
+	idder                 identifier.Id
+	deviceId              string
+	notificationsEndp     bus.Endpoint
+	urlDispatcherEndp     bus.Endpoint
+	connectivityEndp      bus.Endpoint
+	systemImageEndp       bus.Endpoint
+	systemImageInfo       *systemimage.InfoResult
+	connCh                chan bool
+	hasConnectivity       bool
+	actionsCh             <-chan notifications.RawActionReply
+	session               *session.ClientSession
+	sessionConnectedCh    chan uint32
+	pushServiceEndpoint   bus.Endpoint
+	pushService           *service.PushService
+	postalServiceEndpoint bus.Endpoint
+	postalService         *service.PostalService
 }
 
 var (
@@ -354,7 +356,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.service.Inject(msg.AppId, string(msg.Payload))
+	return client.postalService.Inject(msg.AppId, string(msg.Payload))
 }
 
 // handleClick deals with the user clicking a notification
@@ -445,15 +447,25 @@ func (client *PushClient) messageHandler(message []byte) error {
 }
 
 func (client *PushClient) startService() error {
-	if client.serviceEndpoint == nil {
-		client.serviceEndpoint = bus.SessionBus.Endpoint(service.BusAddress, client.log)
+	if client.pushServiceEndpoint == nil {
+		client.pushServiceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
+	}
+	if client.postalServiceEndpoint == nil {
+		client.postalServiceEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
 	}
 
-	client.service = service.NewService(client.serviceEndpoint, client.log)
-	client.service.SetMessageHandler(client.messageHandler)
-	client.service.SetRegistrationURL(client.config.RegistrationURL)
-	client.service.SetAuthGetter(client.getAuthorization)
-	return client.service.Start()
+	client.pushService = service.NewPushService(client.pushServiceEndpoint, client.log)
+	client.pushService.SetRegistrationURL(client.config.RegistrationURL)
+	client.pushService.SetAuthGetter(client.getAuthorization)
+	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.log)
+	client.postalService.SetMessageHandler(client.messageHandler)
+	if err := client.pushService.Start(); err != nil {
+		return err
+	}
+	if err := client.postalService.Start(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Start calls doStart with the "real" starters
