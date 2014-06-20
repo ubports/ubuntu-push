@@ -22,12 +22,12 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	http_old "net/http"
+	"net/http"
 	"os"
 	"strings"
 
 	"launchpad.net/ubuntu-push/bus"
-	http "launchpad.net/ubuntu-push/http13client"
+	http13 "launchpad.net/ubuntu-push/http13client"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
 )
@@ -38,7 +38,7 @@ type PushService struct {
 	regURL     string
 	deviceId   string
 	authGetter func(string) string
-	httpCli    http.Client
+	httpCli    http13.Client
 }
 
 var (
@@ -148,7 +148,7 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal register request body: %v", err)
 	}
-	req, err := http.NewRequest("POST", svc.regURL, bytes.NewReader(req_body))
+	req, err := http13.NewRequest("POST", svc.regURL, bytes.NewReader(req_body))
 	if err != nil {
 		return nil, fmt.Errorf("unable to build register request: %v", err)
 	}
@@ -164,10 +164,10 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 		return nil, fmt.Errorf("unable to request registration: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http_old.StatusOK {
+	if resp.StatusCode != http.StatusOK {
 		svc.Log.Errorf("register endpoint replied %d", resp.StatusCode)
 		switch {
-		case resp.StatusCode >= http_old.StatusInternalServerError:
+		case resp.StatusCode >= http.StatusInternalServerError:
 			// XXX retry on 503
 			return nil, BadServer
 		default:
