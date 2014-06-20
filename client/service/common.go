@@ -45,8 +45,8 @@ const (
 var (
 	NotConfigured  = errors.New("not configured")
 	AlreadyStarted = errors.New("already started")
-	BadArgCount = errors.New("Wrong number of arguments")
-	BadArgType  = errors.New("Bad argument type")
+	BadArgCount    = errors.New("Wrong number of arguments")
+	BadArgType     = errors.New("Bad argument type")
 )
 
 // IsRunning() returns whether the service's state is StateRunning
@@ -97,4 +97,3 @@ func (svc *DBusService) Stop() {
 	}
 	svc.state = StateFinished
 }
-

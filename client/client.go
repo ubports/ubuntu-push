@@ -73,27 +73,27 @@ type ClientConfig struct {
 
 // PushClient is the Ubuntu Push Notifications client-side daemon.
 type PushClient struct {
-	leveldbPath        string
-	configPath         string
-	config             ClientConfig
-	log                logger.Logger
-	pem                []byte
-	idder              identifier.Id
-	deviceId           string
-	notificationsEndp  bus.Endpoint
-	urlDispatcherEndp  bus.Endpoint
-	connectivityEndp   bus.Endpoint
-	systemImageEndp    bus.Endpoint
-	systemImageInfo    *systemimage.InfoResult
-	connCh             chan bool
-	hasConnectivity    bool
-	actionsCh          <-chan notifications.RawActionReply
-	session            *session.ClientSession
-	sessionConnectedCh chan uint32
-	pushServiceEndpoint    bus.Endpoint
-	pushService            *service.PushService
-	postalServiceEndpoint     bus.Endpoint
-	postalService             *service.PostalService
+	leveldbPath           string
+	configPath            string
+	config                ClientConfig
+	log                   logger.Logger
+	pem                   []byte
+	idder                 identifier.Id
+	deviceId              string
+	notificationsEndp     bus.Endpoint
+	urlDispatcherEndp     bus.Endpoint
+	connectivityEndp      bus.Endpoint
+	systemImageEndp       bus.Endpoint
+	systemImageInfo       *systemimage.InfoResult
+	connCh                chan bool
+	hasConnectivity       bool
+	actionsCh             <-chan notifications.RawActionReply
+	session               *session.ClientSession
+	sessionConnectedCh    chan uint32
+	pushServiceEndpoint   bus.Endpoint
+	pushService           *service.PushService
+	postalServiceEndpoint bus.Endpoint
+	postalService         *service.PostalService
 }
 
 var (

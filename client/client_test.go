@@ -925,8 +925,8 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and a service,
 	c.Check(cli.pushService, NotNil)
 	// and everthying us just peachy!
-	cli.pushService.Stop() // cleanup
-	cli.postalService.Stop()  // cleanup
+	cli.pushService.Stop()   // cleanup
+	cli.postalService.Stop() // cleanup
 }
 
 func (cs *clientSuite) TestStartCanFail(c *C) {
