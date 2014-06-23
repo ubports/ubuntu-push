@@ -1,4 +1,3 @@
 Directly included vendorized small packages.
 
-* murmur3 comes from import at lp:~ubuntu-push-hackers/ubuntu-push/murmur at revno 11
-* with https://github.com/pedronis/murmur3/commit/7f4e0cfce80cd853301f3ccf799699a1891b583
+* murmur3 comes from import at lp:~ubuntu-push-hackers/ubuntu-push/murmur at revno 12
