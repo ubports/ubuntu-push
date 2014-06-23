@@ -327,10 +327,18 @@ func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
 	c.Check(cli.startService(), NotNil)
 }
 
-func (cs *clientSuite) TestStartServiceErrorsOnBusDialFail(c *C) {
+func (cs *clientSuite) TestStartServiceErrorsOnBusDialPushFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	c.Check(cli.startService(), NotNil)
+}
+
+func (cs *clientSuite) TestStartServiceErrorsOnBusDialPostalFail(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
 	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
 	c.Check(cli.startService(), NotNil)
 }
@@ -972,6 +980,15 @@ func (cs *clientSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 	err := cli.messageHandler([]byte(`{}`))
 	c.Assert(err, NotNil)
 	c.Check(cs.log.Captured(), Matches, "(?msi).*showing notification: no way$")
+}
+
+func (cs *clientSuite) TestInitSessionErr(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
+	// change the cli.pem value so initSession fails
+	cli.pem = []byte("foo")
+	c.Assert(cli.initSession(), NotNil)
 }
 
 /*****************************************************************
