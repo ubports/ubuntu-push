@@ -5,11 +5,13 @@ ubuntu-push (0.31ubuntu1) UNRELEASED; urgency=medium
   * Register script and scripts unicast support
   * Update http13client from the actual go1.3 release
   * Avoid late pings in the face of nop exchanges
+  * murmur3 upstream change of seed to 0
 
   [ Roberto Alsina ]
   * Make signing-helper generate a HTTP header instead of a querystring,
     and take a URL to sign.
   * Wrap ubuntu-app-launch start_helper / stop_helper functions.
+  * Wrap libmessaging-menu to allow for persistent notifications.
 
   [ John R. Lenton ]
   * Switch dbus api to retrieve app name from dbus path.
