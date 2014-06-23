@@ -301,7 +301,7 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 
 func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
-		"auth_helper": "../scripts/dummyauth.sh",
+		"auth_helper": helpers.ScriptAbsPath("dummyauth.sh"),
 	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.configure()
@@ -989,7 +989,7 @@ func (cs *clientSuite) TestGetAuthorizationIgnoresErrors(c *C) {
 func (cs *clientSuite) TestGetAuthorizationGetsIt(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.configure()
-	cli.config.AuthHelper = "../scripts/dummyauth.sh"
+	cli.config.AuthHelper = helpers.ScriptAbsPath("dummyauth.sh")
 
 	c.Check(cli.getAuthorization("xyzzy://"), Equals, "hello xyzzy://")
 }
