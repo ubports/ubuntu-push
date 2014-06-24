@@ -103,11 +103,13 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"stabilizing_timeout":    "0ms",
 		"connectivity_check_url": "",
 		"connectivity_check_md5": "",
-		"addr":            ":0",
-		"cert_pem_file":   pem_file,
-		"recheck_timeout": "3h",
-		"auth_helper":     []string{},
-		"log_level":       "debug",
+		"addr":             ":0",
+		"cert_pem_file":    pem_file,
+		"recheck_timeout":  "3h",
+		"auth_helper":      "",
+		"session_url":      "xyzzy://",
+		"registration_url": "reg://",
+		"log_level":        "debug",
 	}
 	for k, v := range overrides {
 		cfgMap[k] = v
@@ -257,7 +259,7 @@ func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
 
 func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
-		"auth_helper": []string{"auth", "helper"},
+		"auth_helper": "auth helper",
 	})
 	info := map[string]interface{}{
 		"foo": 1,
@@ -272,7 +274,8 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExpectAllRepairedTime:  30 * time.Minute,
 		PEM:        cli.pem,
 		Info:       info,
-		AuthHelper: []string{"auth", "helper"},
+		AuthGetter: func(string) string { return "" },
+		AuthURL:    "xyzzy://",
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)
@@ -284,6 +287,11 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	}
 	// finally compare
 	conf := cli.deriveSessionConfig(info)
+	// compare authGetter by string
+	c.Check(fmt.Sprintf("%v", conf.AuthGetter), Equals, fmt.Sprintf("%v", cli.getAuthorization))
+	// and set it to nil
+	conf.AuthGetter = nil
+	expected.AuthGetter = nil
 	c.Check(conf, DeepEquals, expected)
 }
 
@@ -292,15 +300,25 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestStartServiceWorks(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"auth_helper": helpers.ScriptAbsPath("dummyauth.sh"),
+	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.configure()
 	cli.log = cs.log
-	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
-	c.Check(cli.service, IsNil)
+	cli.deviceId = "fake-id"
+	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	c.Check(cli.pushService, IsNil)
 	c.Check(cli.startService(), IsNil)
-	c.Assert(cli.service, NotNil)
-	c.Check(cli.service.IsRunning(), Equals, true)
-	c.Check(cli.service.GetMessageHandler(), NotNil)
-	cli.service.Stop()
+	c.Assert(cli.pushService, NotNil)
+	c.Check(cli.pushService.IsRunning(), Equals, true)
+	c.Check(cli.pushService.GetDeviceId(), Equals, "fake-id")
+	c.Check(cli.pushService.GetRegistrationAuthorization(), Equals, "hello reg://")
+	c.Check(cli.postalService.IsRunning(), Equals, true)
+	c.Check(cli.postalService.GetMessageHandler(), NotNil)
+	cli.pushService.Stop()
+	cli.postalService.Stop()
 }
 
 func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
@@ -309,10 +327,19 @@ func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
 	c.Check(cli.startService(), NotNil)
 }
 
-func (cs *clientSuite) TestStartServiceErrorsOnBusDialFail(c *C) {
+func (cs *clientSuite) TestStartServiceErrorsOnBusDialPushFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.serviceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	c.Check(cli.startService(), NotNil)
+}
+
+func (cs *clientSuite) TestStartServiceErrorsOnBusDialPostalFail(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
 	c.Check(cli.startService(), NotNil)
 }
 
@@ -647,14 +674,16 @@ var notif = &protocol.Notification{AppId: "hello", Payload: []byte(`{"url": "xyz
 func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	svcEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+	postEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	cli.log = cs.log
-	cli.serviceEndpoint = svcEndp
+	cli.pushServiceEndpoint = svcEndp
+	cli.postalServiceEndpoint = postEndp
 	notsEndp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = notsEndp
 	c.Assert(cli.startService(), IsNil)
 	c.Check(cli.handleUnicastNotification(notif), IsNil)
 	// check we sent the notification
-	args := testibus.GetCallArgs(svcEndp)
+	args := testibus.GetCallArgs(postEndp)
 	c.Assert(len(args), Not(Equals), 0)
 	c.Check(args[len(args)-1].Member, Equals, "::Signal")
 	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "hello".*`)
@@ -879,7 +908,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	// before start, everything sucks:
 	// no service,
-	c.Check(cli.service, IsNil)
+	c.Check(cli.pushService, IsNil)
 	// no config,
 	c.Check(string(cli.config.Addr), Equals, "")
 	// no device id,
@@ -904,9 +933,10 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and a bus,
 	c.Check(cli.notificationsEndp, NotNil)
 	// and a service,
-	c.Check(cli.service, NotNil)
+	c.Check(cli.pushService, NotNil)
 	// and everthying us just peachy!
-	cli.service.Stop() // cleanup
+	cli.pushService.Stop()   // cleanup
+	cli.postalService.Stop() // cleanup
 }
 
 func (cs *clientSuite) TestStartCanFail(c *C) {
@@ -950,4 +980,43 @@ func (cs *clientSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 	err := cli.messageHandler([]byte(`{}`))
 	c.Assert(err, NotNil)
 	c.Check(cs.log.Captured(), Matches, "(?msi).*showing notification: no way$")
+}
+
+func (cs *clientSuite) TestInitSessionErr(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
+	// change the cli.pem value so initSession fails
+	cli.pem = []byte("foo")
+	c.Assert(cli.initSession(), NotNil)
+}
+
+/*****************************************************************
+    getAuthorization() tests
+******************************************************************/
+
+func (cs *clientSuite) TestGetAuthorizationIgnoresErrors(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.configure()
+	cli.config.AuthHelper = "/no/such/executable"
+
+	c.Check(cli.getAuthorization("xyzzy://"), Equals, "")
+}
+
+func (cs *clientSuite) TestGetAuthorizationGetsIt(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.configure()
+	cli.config.AuthHelper = helpers.ScriptAbsPath("dummyauth.sh")
+
+	c.Check(cli.getAuthorization("xyzzy://"), Equals, "hello xyzzy://")
+}
+
+func (cs *clientSuite) TestGetAuthorizationWorksIfUnsetOrNil(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+
+	c.Assert(cli.config, NotNil)
+	c.Check(cli.getAuthorization("xyzzy://"), Equals, "")
+	cli.configure()
+	c.Check(cli.getAuthorization("xyzzy://"), Equals, "")
 }

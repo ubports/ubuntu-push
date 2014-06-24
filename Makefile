@@ -36,8 +36,8 @@ bootstrap: dependencies.tsv
 	$(GOPATH)/bin/godeps -u dependencies.tsv
 	go install $(GODEPS)
 
-dependencies.tsv: $(TOBUILD)
-	$(GOPATH)/bin/godeps -t $(foreach i,$^,$(dir $(PROJECT)/$(i))) 2>/dev/null | cat > $@
+dependencies.tsv:
+	$(GOPATH)/bin/godeps -t $(TOTEST) $(foreach i,$(TOBUILD),$(dir $(PROJECT)/$(i))) 2>/dev/null | cat > $@
 
 check:
 	go test $(TESTFLAGS) $(TOTEST)

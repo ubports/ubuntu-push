@@ -40,11 +40,19 @@ func (s *UnicastAcceptanceSuite) associatedAuth(deviceId string) (userId string,
 }
 
 func (s *UnicastAcceptanceSuite) TestUnicastToConnected(c *C) {
-	userId, auth := s.associatedAuth("DEV1")
+	_, auth := s.associatedAuth("DEV1")
+	res, err := s.PostRequest("/register", &api.Registration{
+		DeviceId: "DEV1",
+		AppId:    "app1",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(res, Matches, ".*ok.*")
+	var reg map[string]interface{}
+	err = json.Unmarshal([]byte(res), &reg)
+	c.Assert(err, IsNil)
 	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth)
 	got, err := s.PostRequest("/notify", &api.Unicast{
-		UserId:   userId,
-		DeviceId: "DEV1",
+		Token:    reg["token"].(string),
 		AppId:    "app1",
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 42}`),

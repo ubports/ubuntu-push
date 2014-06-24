@@ -1,0 +1,43 @@
+#!/usr/bin/python3
+"""
+request a unicast registration
+"""
+import argparse
+import json
+import requests
+import subprocess
+import datetime
+import sys
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('deviceid', nargs=1)
+    parser.add_argument('appid', nargs=1)
+    parser.add_argument('-H', '--host',
+                        help="host:port (default: %(default)s)",
+                        default="localhost:8080")
+    parser.add_argument('--no-https', action='store_true', default=False)
+    parser.add_argument('--insecure', action='store_true', default=False,
+                         help="don't check host/certs with https")
+    parser.add_argument('--auth_helper',  default="")
+    args = parser.parse_args()
+    scheme = 'https'
+    if args.no_https:
+        scheme = 'http'
+    url = "%s://%s/register" % (scheme, args.host)
+    body = {
+        'deviceid': args.deviceid[0],
+        'appid': args.appid[0],
+        }
+    headers = {'Content-Type': 'application/json'}
+    if args.auth_helper:
+        auth = subprocess.check_output([args.auth_helper, url]).strip()
+        headers['Authorization'] = auth
+    r = requests.post(url, data=json.dumps(body), headers=headers,
+                      verify=not args.insecure)
+    print(r.status_code)
+    print(r.text)
+
+if __name__ == '__main__':
+    main()
