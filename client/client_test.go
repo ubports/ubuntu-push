@@ -301,7 +301,7 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 
 func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
-		"auth_helper": "../scripts/dummyauth.sh",
+		"auth_helper": helpers.ScriptAbsPath("dummyauth.sh"),
 	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.configure()
@@ -327,10 +327,18 @@ func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
 	c.Check(cli.startService(), NotNil)
 }
 
-func (cs *clientSuite) TestStartServiceErrorsOnBusDialFail(c *C) {
+func (cs *clientSuite) TestStartServiceErrorsOnBusDialPushFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	c.Check(cli.startService(), NotNil)
+}
+
+func (cs *clientSuite) TestStartServiceErrorsOnBusDialPostalFail(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
 	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
 	c.Check(cli.startService(), NotNil)
 }
@@ -974,6 +982,15 @@ func (cs *clientSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 	c.Check(cs.log.Captured(), Matches, "(?msi).*showing notification: no way$")
 }
 
+func (cs *clientSuite) TestInitSessionErr(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
+	// change the cli.pem value so initSession fails
+	cli.pem = []byte("foo")
+	c.Assert(cli.initSession(), NotNil)
+}
+
 /*****************************************************************
     getAuthorization() tests
 ******************************************************************/
@@ -989,7 +1006,7 @@ func (cs *clientSuite) TestGetAuthorizationIgnoresErrors(c *C) {
 func (cs *clientSuite) TestGetAuthorizationGetsIt(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.configure()
-	cli.config.AuthHelper = "../scripts/dummyauth.sh"
+	cli.config.AuthHelper = helpers.ScriptAbsPath("dummyauth.sh")
 
 	c.Check(cli.getAuthorization("xyzzy://"), Equals, "hello xyzzy://")
 }

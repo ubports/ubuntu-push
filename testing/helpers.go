@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -123,6 +124,32 @@ func SourceRelative(relativePath string) string {
 		dir = filepath.Join(root, dir[idx:])
 	}
 	return filepath.Join(dir, relativePath)
+}
+
+// ScriptAbsPath gets the absolute path to a script in the scripts directory
+// assuming we're in a subdirectory of the project
+func ScriptAbsPath(script string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(fmt.Errorf("unable to get working directory: %v", err))
+	}
+
+	if !path.IsAbs(cwd) {
+		panic(fmt.Errorf("working directory not absolute? %v", cwd))
+	}
+
+	for cwd != "/" {
+		filename := path.Join(cwd, "scripts", script)
+		_, err := os.Stat(filename)
+		if err == nil {
+			return filename
+		}
+		if !os.IsNotExist(err) {
+			panic(fmt.Errorf("unable to stat %v: %v", filename, err))
+		}
+		cwd = path.Dir(cwd)
+	}
+	panic(fmt.Errorf("unable to find script %v", script))
 }
 
 // Ns makes a []Notification from just payloads.
