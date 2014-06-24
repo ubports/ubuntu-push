@@ -29,26 +29,23 @@ To configure and build the server:
 To configure the client:
 ------------------------
 
-1) bzr branch lp:ubuntu-push
-2) Edit ip address and ports to match environment: ubuntu-push/tests/autopilot/push_notifications/config/push.conf:
+Install depenendencies:
+
+1) sudo apt-get install unity8-autopilot unity-click-scope
+   Note: unity-click-scope is required for unity8-autopilot tests and is currently required for running tests on emulator.
+2) bzr branch lp:ubuntu-push
+3) Edit ip address and ports to match environment: ubuntu-push/tests/autopilot/push_notifications/config/push.conf:
     [config]
     addr = 192.168.1.2
     listener_port = 8080
     device_port = 9090
     cert_pem_file = testing.cert
-3) cd ubuntu-push/tests/autopilot
-4) autopilot3 list push_notifications
-5) autopilot3 run push_notifications
-
--------------
-DEPENDENCIES:
--------------
-
-The test suite requires the following dependencies to be installed:
-python3-evdev
-python3-autopilot
-unity8-autopilot
-system-image-common
+4) initctl stop unity8
+5) cd ubuntu-push/tests/autopilot
+6) autopilot3 list push_notifications
+7) autopilot3 run push_notifications
+8) To run a specific test case use the test case identifier from the list command:
+     - e.g. autopilot3 run push_notifications.tests.test_broadcast_notifications.TestPushClientBroadcast.test_broadcast_push_notification
 
 ----------------
 Troubleshooting:
@@ -60,12 +57,18 @@ Troubleshooting:
 3) Check client log file at ~/.cache/upstart/ubuntu-push-client.log:
     tail -f --line=30 ~/.cache/upstart/ubuntu-push-client.log
 4) To send a notification manually:
-     echo '{"channel":"system", "data": {"ubuntu-touch/trusty-proposed/mako": [297, ""]}, "expire_on": "2015-12-19T16:39:57-08:00"}' | POST -c application/json http://192.168.1.2:8080/broadcast
+     echo '{"channel":"system", "data": {"ubuntu-touch/utopic-proposed/mako": [94, ""]}, "expire_on": "2015-12-19T16:39:57-08:00"}' | POST -c application/json http://192.168.1.2:8080/broadcast
    Response should be:
      {"ok":true}
    Note that:
      - The channel and device names must match the client.
      - The build number must be greater than current installed version in order to trigger an update message.
      - The expiration time must be in the future.
-5) Make sure unity8-autopilot is installed
+5) Ensure unity8-autopilot is installed
+6) Ensure unity8 is not running before executing the tests:
+     - initctl stop unity8
+7) Unity8 has a 2 minute timeout period, so stopping and starting it can take up to this long.
+8) If device/emulator is unresponsive then reboot and stop unity8 before re-running the tests (initctl stop unity8).
+9) To get additional autopilot logging use -v option:
+     - autopilot3 run -v push_notifications
 
