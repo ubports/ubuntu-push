@@ -8,5 +8,5 @@ libnih-dbus-dev
 libsqlite3-dev
 libubuntuoneauth-2.0-dev
 libwhoopsie-dev
-libmessaging-menu0-dev
+libmessaging-menu-dev
 libubuntu-app-launch2-dev
