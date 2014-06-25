@@ -148,6 +148,11 @@ var (
 		unavailable,
 		"Could not make token",
 	}
+	ErrCouldNotRemoveToken = &APIError{
+		http.StatusServiceUnavailable,
+		unavailable,
+		"Could not remove token",
+	}
 	ErrCouldNotResolveToken = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
@@ -427,6 +432,20 @@ func doRegister(ctx *context, sto store.PendingStore, parsedBodyObj interface{})
 	return map[string]interface{}{"token": token}, nil
 }
 
+func doUnregister(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) (map[string]interface{}, *APIError) {
+	reg := parsedBodyObj.(*Registration)
+	apiErr := checkRegister(reg)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+	err := sto.Unregister(reg.DeviceId, reg.AppId)
+	if err != nil {
+		ctx.logger.Errorf("could not remove token: %v", err)
+		return nil, ErrCouldNotRemoveToken
+	}
+	return nil, nil
+}
+
 // MakeHandlersMux makes a handler that dispatches for the various API endpoints.
 func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
 	ctx := &context{
@@ -449,6 +468,11 @@ func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSendin
 		context:        ctx,
 		parsingBodyObj: func() interface{} { return &Registration{} },
 		doHandle:       doRegister,
+	})
+	mux.Handle("/unregister", &JSONPostHandler{
+		context:        ctx,
+		parsingBodyObj: func() interface{} { return &Registration{} },
+		doHandle:       doUnregister,
 	})
 	return mux
 }

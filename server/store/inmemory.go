@@ -51,6 +51,11 @@ func (sto *InMemoryPendingStore) Register(deviceId, appId string) (string, error
 	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s::%s", appId, deviceId))), nil
 }
 
+func (sto *InMemoryPendingStore) Unregister(deviceId, appId string) error {
+	// do nothing, tokens here are computed deterministically and not stored
+	return nil
+}
+
 func (sto *InMemoryPendingStore) GetInternalChannelIdFromToken(token, appId, userId, deviceId string) (InternalChannelId, error) {
 	if token != "" && appId != "" {
 		decoded, err := base64.StdEncoding.DecodeString(token)

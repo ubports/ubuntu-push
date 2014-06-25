@@ -41,6 +41,13 @@ func (s *inMemorySuite) TestRegister(c *C) {
 	c.Check(tok1, Equals, tok2)
 }
 
+func (s *inMemorySuite) TestUnregister(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	err := sto.Unregister("DEV1", "app1")
+	c.Assert(err, IsNil)
+}
+
 func (s *inMemorySuite) TestGetInternalChannelIdFromToken(c *C) {
 	sto := NewInMemoryPendingStore()
 
