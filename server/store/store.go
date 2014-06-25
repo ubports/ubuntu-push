@@ -102,6 +102,8 @@ func UnicastInternalChannelId(userId, deviceId string) InternalChannelId {
 type PendingStore interface {
 	// Register returns a token for a device id, application id pair.
 	Register(deviceId, appId string) (token string, err error)
+	// Unregister forgets the token for a device id, application id pair.
+	Unregister(deviceId, appId string) error
 	// GetInternalChannelId returns the internal store id for a channel
 	// given the name.
 	GetInternalChannelId(name string) (InternalChannelId, error)
