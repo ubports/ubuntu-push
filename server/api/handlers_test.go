@@ -197,6 +197,11 @@ func (isto *interceptInMemoryPendingStore) Register(appId, deviceId string) (str
 	return token, isto.intercept("Register", err)
 }
 
+func (isto *interceptInMemoryPendingStore) Unregister(appId, deviceId string) error {
+	err := isto.InMemoryPendingStore.Unregister(appId, deviceId)
+	return isto.intercept("Unregister", err)
+}
+
 func (isto *interceptInMemoryPendingStore) GetInternalChannelIdFromToken(token, appId, userId, deviceId string) (store.InternalChannelId, error) {
 	chanId, err := isto.InMemoryPendingStore.GetInternalChannelIdFromToken(token, appId, userId, deviceId)
 	return chanId, isto.intercept("GetInternalChannelIdFromToken", err)
@@ -806,4 +811,64 @@ func (s *handlersSuite) TestRespondsToRegisterAndUnicast(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(top, Equals, int64(0))
 	c.Check(notifications, HasLen, 1)
+}
+
+func (s *handlersSuite) TestRespondsToUnregister(c *C) {
+	yay := make(chan bool, 1)
+	sto := &interceptInMemoryPendingStore{
+		store.NewInMemoryPendingStore(),
+		func(meth string, err error) error {
+			if meth == "Unregister" {
+				yay <- true
+			}
+			return err
+		},
+	}
+	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+		return sto, nil
+	}
+	bsend := testBrokerSending{make(chan store.InternalChannelId, 1)}
+	testServer := httptest.NewServer(MakeHandlersMux(stoForReq, bsend, nil))
+	defer testServer.Close()
+
+	request := newPostRequest("/unregister", &Registration{
+		DeviceId: "dev3",
+		AppId:    "app2",
+	}, testServer)
+
+	response, err := s.client.Do(request)
+	c.Assert(err, IsNil)
+
+	c.Check(response.StatusCode, Equals, http.StatusOK)
+	c.Check(response.Header.Get("Content-Type"), Equals, "application/json")
+	body, err := getResponseBody(response)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Matches, ".*ok.*")
+	c.Check(yay, HasLen, 1)
+}
+
+func (s *handlersSuite) TestDoUnregisterMissingIdField(c *C) {
+	sto := store.NewInMemoryPendingStore()
+	token, apiErr := doUnregister(nil, sto, &Registration{})
+	c.Check(apiErr, Equals, ErrMissingIdField)
+	c.Check(token, IsNil)
+}
+
+func (s *handlersSuite) TestDoUnregisterCouldNotRemoveToken(c *C) {
+	sto := &interceptInMemoryPendingStore{
+		store.NewInMemoryPendingStore(),
+		func(meth string, err error) error {
+			if meth == "Unregister" {
+				return errors.New("fail")
+			}
+			return err
+		},
+	}
+	ctx := &context{logger: s.testlog}
+	_, apiErr := doUnregister(ctx, sto, &Registration{
+		DeviceId: "DEV1",
+		AppId:    "app1",
+	})
+	c.Check(apiErr, Equals, ErrCouldNotRemoveToken)
+	c.Check(s.testlog.Captured(), Equals, "ERROR could not remove token: fail\n")
 }
