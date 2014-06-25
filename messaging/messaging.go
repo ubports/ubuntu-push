@@ -396,6 +396,8 @@ type Card struct {
 	Timestamp int
 }
 
+var lock sync.Mutex
+
 // ShowCard shows the notification described in Card in the messaging menu.
 //
 // app is the name of the .desktop file for the app, id is a string
@@ -404,7 +406,6 @@ type Card struct {
 //
 // Use the returned MessagingMenuMessage object to connect to signals
 func ShowCard(app string, id string, card *Card) MessagingMenuMessage {
-	var lock sync.Mutex
 	lock.Lock()
 	defer lock.Unlock()
 	_app, ok := apps[app]
