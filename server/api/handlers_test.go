@@ -665,6 +665,8 @@ func (s *handlersSuite) TestCannotBroadcastNonPostMessages(c *C) {
 	checkError(c, response, ErrWrongRequestMethod)
 }
 
+const OK = `.*"ok":true.*`
+
 func (s *handlersSuite) TestRespondsUnicast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
@@ -691,7 +693,7 @@ func (s *handlersSuite) TestRespondsUnicast(c *C) {
 	c.Check(response.Header.Get("Content-Type"), Equals, "application/json")
 	body, err := getResponseBody(response)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Matches, ".*ok.*")
+	c.Assert(string(body), Matches, OK)
 
 	chanId := store.UnicastInternalChannelId("user2", "dev3")
 	c.Check(<-bsend.chanId, Equals, chanId)
@@ -806,7 +808,7 @@ func (s *handlersSuite) TestRespondsToRegisterAndUnicast(c *C) {
 	c.Check(response.Header.Get("Content-Type"), Equals, "application/json")
 	body, err := getResponseBody(response)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Matches, ".*ok.*")
+	c.Assert(string(body), Matches, OK)
 	var reg map[string]interface{}
 	err = json.Unmarshal(body, &reg)
 	c.Assert(err, IsNil)
@@ -831,7 +833,7 @@ func (s *handlersSuite) TestRespondsToRegisterAndUnicast(c *C) {
 	c.Check(response.Header.Get("Content-Type"), Equals, "application/json")
 	body, err = getResponseBody(response)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Matches, ".*ok.*")
+	c.Assert(string(body), Matches, OK)
 
 	chanId := store.UnicastInternalChannelId("dev3", "dev3")
 	c.Check(<-bsend.chanId, Equals, chanId)
