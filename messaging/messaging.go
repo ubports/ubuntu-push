@@ -393,6 +393,13 @@ type Card struct {
 	Timestamp int
 }
 
+// ShowCard shows the notification described in Card in the messaging menu.
+//
+// app is the name of the .desktop file for the app, id is a string
+// that identifies this notification and will be received by the
+// callbacks connected to it.
+//
+// Use the returned MessagingMenuMessage object to connect to signals
 func ShowCard(app string, id string, card Card) MessagingMenuMessage {
 	_app, ok := apps[app]
 	if !ok {
