@@ -27,7 +27,10 @@ package messaging
 #include <messaging-menu/messaging-menu-message.h>
 */
 import "C"
-import "unsafe"
+import (
+	"sync"
+	"unsafe"
+)
 
 const (
 	Available = C.MESSAGING_MENU_STATUS_AVAILABLE
@@ -400,7 +403,10 @@ type Card struct {
 // callbacks connected to it.
 //
 // Use the returned MessagingMenuMessage object to connect to signals
-func ShowCard(app string, id string, card Card) MessagingMenuMessage {
+func ShowCard(app string, id string, card *Card) MessagingMenuMessage {
+	var lock sync.Mutex
+	lock.Lock()
+	defer lock.Unlock()
 	_app, ok := apps[app]
 	if !ok {
 		_app = NewApp(app)
