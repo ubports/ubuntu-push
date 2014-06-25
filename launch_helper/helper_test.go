@@ -20,6 +20,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"path"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -184,6 +185,57 @@ func (s *runnerSuite) TestFileHandlingFailed(c *C) {
 	close(hr.Helpers)
 	<-finished
 	files, err := ioutil.ReadDir(tmpDir)
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 0)
+}
+
+func (s *runnerSuite) TestCreateTempFiles(c *C) {
+	tempDir = c.MkDir
+	// restore it when we are done
+	defer func() {
+		tempDir = os.TempDir
+	}()
+	helperArgs := HelperArgs{}
+	helperArgs.AppId = "bar1"
+	helperArgs.Payload = []byte{}
+	c.Check(helperArgs.Input, Equals, "")
+	c.Check(helperArgs.Output, Equals, "")
+	hr := New(s.testlog, "test_helper")
+	err := hr.createTempFiles(&helperArgs)
+	c.Check(err, IsNil)
+	s.testlog.Errorf("input: %v", helperArgs.Input)
+	c.Check(helperArgs.Input, Not(Equals), "")
+	c.Check(helperArgs.Output, Not(Equals), "")
+	files, err := ioutil.ReadDir(path.Dir(helperArgs.Input))
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 0)
+}
+
+func (s *runnerSuite) TestCreateTempFilesWithFilenames(c *C) {
+	tmpDir := c.MkDir()
+	input_path := tmpDir + "/test_helper_input"
+	output_path := tmpDir + "/test_helper_output"
+	helperArgs := HelperArgs{"bar1", []byte{}, input_path, output_path}
+	c.Check(helperArgs.Input, Equals, input_path)
+	c.Check(helperArgs.Output, Equals, output_path)
+	hr := New(s.testlog, "test_helper")
+	err := hr.createTempFiles(&helperArgs)
+	c.Check(err, IsNil)
+	files, err := ioutil.ReadDir(tmpDir)
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 0)
+}
+
+func (s *runnerSuite) TestGetTempFilename(c *C) {
+	tempDir = c.MkDir
+	// restore it when we are done
+	defer func() {
+		tempDir = os.TempDir
+	}()
+	fname, err := getTempFilename()
+	c.Check(err, IsNil)
+	dirname := path.Dir(fname)
+	files, err := ioutil.ReadDir(dirname)
 	c.Check(err, IsNil)
 	c.Check(files, HasLen, 0)
 }
