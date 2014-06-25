@@ -84,10 +84,7 @@ func (s *runnerSuite) TestFileHandling(c *C) {
 	result := <-hr.Results
 	// check the result
 	expected := RunnerResult{HelperFinished, helperArgs, msg, nil}
-	c.Check(result.Status, Equals, expected.Status)
-	c.Check(result.Helper, DeepEquals, expected.Helper)
-	c.Check(string(result.Data), Equals, string(expected.Data))
-	c.Check(result.Error, Equals, expected.Error)
+	c.Check(result, DeepEquals, expected)
 	close(hr.Helpers)
 	<-finished
 	files, err := ioutil.ReadDir(tmpDir)
@@ -116,10 +113,7 @@ func (s *runnerSuite) TestFileHandlingLongRunningHelperOK(c *C) {
 	result := <-hr.Results
 	// check the result
 	expected := RunnerResult{HelperFinished, helperArgs, msg, nil}
-	c.Check(result.Status, Equals, expected.Status)
-	c.Check(result.Helper, DeepEquals, expected.Helper)
-	c.Check(string(result.Data), Equals, string(expected.Data))
-	c.Check(result.Error, Equals, expected.Error)
+	c.Check(result, DeepEquals, expected)
 	close(hr.Helpers)
 	<-finished
 	files, err := ioutil.ReadDir(tmpDir)
@@ -178,15 +172,41 @@ func (s *runnerSuite) TestFileHandlingFailed(c *C) {
 	result := <-hr.Results
 	// check the result
 	expected := RunnerResult{HelperFailed, helperArgs, nil, errors.New("Helper failed.")}
-	c.Check(result.Status, Equals, expected.Status)
-	c.Check(result.Helper, DeepEquals, expected.Helper)
-	c.Check(string(result.Data), Equals, "")
-	c.Check(result.Error.Error(), Equals, expected.Error.Error())
+	c.Check(result, DeepEquals, expected)
 	close(hr.Helpers)
 	<-finished
 	files, err := ioutil.ReadDir(tmpDir)
 	c.Check(err, IsNil)
 	c.Check(files, HasLen, 0)
+}
+
+func (s *runnerSuite) TestFailtoCreateFile(c *C) {
+	startHelper = fakeStartFailure
+	stopHelper = fakeStop
+	// restore it when we are done
+	getTempFilename = func() (string, error) {
+		return "", errors.New("Can't create files.")
+	}
+	defer func() {
+		getTempFilename = _getTempFilename
+	}()
+	hr := New(s.testlog, "test_helper")
+	// start the loop inside a function, with a channel to signal when it's done.
+	finished := make(chan bool)
+	go func() {
+		hr.Start()
+		finished <- true
+	}()
+	helperArgs := HelperArgs{}
+	helperArgs.AppId = "bar1"
+	helperArgs.Payload = []byte("{\"msg\": \"foo\"}")
+	hr.Helpers <- helperArgs
+	result := <-hr.Results
+	// check the result
+	expected := RunnerResult{HelperFailed, helperArgs, nil, errors.New("Can't create files.")}
+	c.Check(result, DeepEquals, expected)
+	close(hr.Helpers)
+	<-finished
 }
 
 func (s *runnerSuite) TestCreateTempFiles(c *C) {

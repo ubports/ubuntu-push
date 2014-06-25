@@ -156,6 +156,7 @@ func (hr *HelperRunner) Start() {
 		err := hr.createTempFiles(&helper)
 		if err != nil {
 			hr.log.Errorf("Failed to create temp files: %v", err)
+			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
 			continue
 		}
 		err = ioutil.WriteFile(helper.Input, helper.Payload, os.ModeTemporary)
@@ -240,7 +241,7 @@ func (hr *HelperRunner) Run(appId string, input string, output string) ReturnVal
 
 var tempDir = os.TempDir
 
-func getTempFilename() (string, error) {
+func _getTempFilename() (string, error) {
 	file, err := ioutil.TempFile(tempDir(), "push-helper")
 	defer file.Close()
 	defer os.Remove(file.Name())
@@ -249,6 +250,8 @@ func getTempFilename() (string, error) {
 	}
 	return file.Name(), nil
 }
+
+var getTempFilename = _getTempFilename
 
 func (hr *HelperRunner) createTempFiles(helper *HelperArgs) error {
 	var err error
