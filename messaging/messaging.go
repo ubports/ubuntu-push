@@ -22,6 +22,7 @@ package messaging
 #cgo pkg-config: messaging-menu
 #include <stdlib.h>
 #include <glib.h>
+#include <gio/gio.h>
 #include <messaging-menu/messaging-menu-app.h>
 #include <messaging-menu/messaging-menu-message.h>
 */
@@ -62,13 +63,31 @@ func NewApp(desktop_id string) MessagingMenuApp {
 	return app
 }
 
+// wrapper for g_icon_new_for_string
+func getIcon(icon string) *C.GIcon {
+	var _icon = gchar(icon)
+	var gicon *C.GIcon
+	var gicon_error *C.GError
+
+	if icon != "" {
+		gicon = C.g_icon_new_for_string(_icon, &gicon_error)
+		if gicon_error != nil {
+			gicon = nil
+		}
+	}
+	free(_icon)
+	return gicon
+}
+
 // NewMessage creates a MessagingMenuMessage
-func NewMessage(id string, icon *C.GIcon, title string, subtitle string, body string, time int) MessagingMenuMessage {
+func NewMessage(id string, icon string, title string, subtitle string, body string, time int) MessagingMenuMessage {
 	var _id = gchar(id)
 	var _title = gchar(title)
 	var _subtitle = gchar(subtitle)
 	var _body = gchar(body)
-	var msg = MessagingMenuMessage{C.messaging_menu_message_new(_id, icon, _title,
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	var msg = MessagingMenuMessage{C.messaging_menu_message_new(_id, gicon, _title,
 		_subtitle, _body, (C.gint64)(C.int(time)))}
 	free(_id)
 	free(_title)
@@ -98,70 +117,85 @@ func free(s *C.gchar) {
 	C.free(unsafe.Pointer(s))
 }
 
-// FIXME: need a way to create a GIcon, use nil in the meantime
-func (app *MessagingMenuApp) InsertSource(position int, id string, icon *C.GIcon, label string) {
+func (app *MessagingMenuApp) InsertSource(position int, id string, icon string, label string) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_insert_source(app.instance, (C.gint)(C.int(position)), _id, icon, _label)
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_insert_source(app.instance, (C.gint)(C.int(position)), _id, gicon, _label)
 	free(_id)
 	free(_label)
 }
 
-func (app *MessagingMenuApp) AppendSource(id string, icon *C.GIcon, label string) {
+func (app *MessagingMenuApp) AppendSource(id string, icon string, label string) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_append_source(app.instance, _id, icon, _label)
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_append_source(app.instance, _id, gicon, _label)
 	free(_id)
 	free(_label)
 }
 
-func (app *MessagingMenuApp) InsertSourceWithCount(position int, id string, icon *C.GIcon, label string, count int) {
+func (app *MessagingMenuApp) InsertSourceWithCount(position int, id string, icon string, label string, count int) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_insert_source_with_count(app.instance, (C.gint)(C.int(position)), _id, icon, _label, (C.guint)(C.uint(count)))
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_insert_source_with_count(app.instance, (C.gint)(C.int(position)), _id, gicon, _label, (C.guint)(C.uint(count)))
 	free(_id)
 	free(_label)
 }
 
-func (app *MessagingMenuApp) AppendSourceWithCount(id string, icon *C.GIcon, label string, count int) {
+func (app *MessagingMenuApp) AppendSourceWithCount(id string, icon string, label string, count int) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_append_source_with_count(app.instance, _id, icon, _label, (C.guint)(C.uint(count)))
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_append_source_with_count(app.instance, _id, gicon, _label, (C.guint)(C.uint(count)))
 	free(_id)
 	free(_label)
 }
 
-func (app *MessagingMenuApp) InsertSourceWithTime(position int, id string, icon *C.GIcon, label string, time int) {
+func (app *MessagingMenuApp) InsertSourceWithTime(position int, id string, icon string, label string, time int) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_insert_source_with_time(app.instance, (C.gint)(C.int(position)), _id, icon, _label, (C.gint64)(C.int(time)))
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_insert_source_with_time(app.instance, (C.gint)(C.int(position)), _id, gicon, _label, (C.gint64)(C.int(time)))
 	free(_id)
 	free(_label)
 }
 
-func (app *MessagingMenuApp) AppendSourceWithTime(id string, icon *C.GIcon, label string, time int) {
+func (app *MessagingMenuApp) AppendSourceWithTime(id string, icon string, label string, time int) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_append_source_with_time(app.instance, _id, icon, _label, (C.gint64)(C.int(time)))
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_append_source_with_time(app.instance, _id, gicon, _label, (C.gint64)(C.int(time)))
 	free(_id)
 	free(_label)
 }
 
-func (app *MessagingMenuApp) InsertSourceWithString(position int, id string, icon *C.GIcon, label string, str string) {
+func (app *MessagingMenuApp) InsertSourceWithString(position int, id string, icon string, label string, str string) {
 	var _id = gchar(id)
 	var _label = gchar(label)
 	var _str = gchar(str)
-	C.messaging_menu_app_insert_source_with_string(app.instance, (C.gint)(C.int(position)), _id, icon, _label, _str)
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_insert_source_with_string(app.instance, (C.gint)(C.int(position)), _id, gicon, _label, _str)
 	free(_id)
 	free(_label)
 	free(_str)
 }
 
-func (app *MessagingMenuApp) AppendSourceWithString(id string, icon *C.GIcon, label string, str string) {
+func (app *MessagingMenuApp) AppendSourceWithString(id string, icon string, label string, str string) {
 	var _id = gchar(id)
 	var _label = gchar(label)
 	var _str = gchar(str)
-	C.messaging_menu_app_append_source_with_string(app.instance, _id, icon, _label, _str)
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_append_source_with_string(app.instance, _id, gicon, _label, _str)
 	free(_id)
 	free(_label)
 	free(_str)
@@ -188,9 +222,11 @@ func (app *MessagingMenuApp) SetSourceLabel(id string, label string) {
 	free(_label)
 }
 
-func (app *MessagingMenuApp) SetSourceIcon(id string, icon *C.GIcon) {
+func (app *MessagingMenuApp) SetSourceIcon(id string, icon string) {
 	var _id = gchar(id)
-	C.messaging_menu_app_set_source_icon(app.instance, _id, icon)
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_set_source_icon(app.instance, _id, gicon)
 	free(_id)
 }
 
