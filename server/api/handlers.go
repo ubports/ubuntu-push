@@ -277,49 +277,34 @@ func (ctx *context) getStore(w http.ResponseWriter, request *http.Request) (stor
 	return sto, nil
 }
 
-func (ctx *context) prepare(w http.ResponseWriter, request *http.Request, reqObj interface{}) (store.PendingStore, *APIError) {
+// JSONPostHandler is able to handle POST requests with a JSON body
+// delegating for the actual details.
+type JSONPostHandler struct {
+	*context
+	parsingBodyObj func() interface{}
+	doHandle       func(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) (map[string]interface{}, *APIError)
+}
+
+func (h *JSONPostHandler) prepare(w http.ResponseWriter, request *http.Request) (interface{}, store.PendingStore, *APIError) {
 	body, apiErr := ReadBody(request, MaxRequestBodyBytes)
 	if apiErr != nil {
-		return nil, apiErr
+		return nil, nil, apiErr
 	}
 
-	err := json.Unmarshal(body, reqObj)
+	parsedBodyObj := h.parsingBodyObj()
+	err := json.Unmarshal(body, parsedBodyObj)
 	if err != nil {
-		return nil, ErrMalformedJSONObject
+		return nil, nil, ErrMalformedJSONObject
 	}
 
-	return ctx.getStore(w, request)
-}
-
-type BroadcastHandler struct {
-	*context
-}
-
-func (h *BroadcastHandler) doBroadcast(sto store.PendingStore, bcast *Broadcast) *APIError {
-	expire, apiErr := checkBroadcast(bcast)
+	sto, apiErr := h.getStore(w, request)
 	if apiErr != nil {
-		return apiErr
+		return nil, nil, apiErr
 	}
-	chanId, err := sto.GetInternalChannelId(bcast.Channel)
-	if err != nil {
-		switch err {
-		case store.ErrUnknownChannel:
-			return ErrUnknownChannel
-		default:
-			return ErrUnknown
-		}
-	}
-	err = sto.AppendToChannel(chanId, bcast.Data, expire)
-	if err != nil {
-		h.logger.Errorf("could not store notification: %v", err)
-		return ErrCouldNotStoreNotification
-	}
-
-	h.broker.Broadcast(chanId)
-	return nil
+	return parsedBodyObj, sto, nil
 }
 
-func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (h *JSONPostHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	var apiErr *APIError
 	defer func() {
 		if apiErr != nil {
@@ -327,25 +312,53 @@ func (h *BroadcastHandler) ServeHTTP(writer http.ResponseWriter, request *http.R
 		}
 	}()
 
-	broadcast := &Broadcast{}
-
-	sto, apiErr := h.prepare(writer, request, broadcast)
+	parsedBodyObj, sto, apiErr := h.prepare(writer, request)
 	if apiErr != nil {
 		return
 	}
 	defer sto.Close()
 
-	apiErr = h.doBroadcast(sto, broadcast)
+	res, apiErr := h.doHandle(h.context, sto, parsedBodyObj)
 	if apiErr != nil {
 		return
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(writer, `{"ok":true}`)
+	if res == nil {
+		fmt.Fprintf(writer, `{"ok":true}`)
+	} else {
+		res["ok"] = true
+		resp, err := json.Marshal(res)
+		if err != nil {
+			panic(fmt.Errorf("couldn't marshal our own response: %v", err))
+		}
+		writer.Write(resp)
+	}
 }
 
-type UnicastHandler struct {
-	*context
+func doBroadcast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) (map[string]interface{}, *APIError) {
+	bcast := parsedBodyObj.(*Broadcast)
+	expire, apiErr := checkBroadcast(bcast)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+	chanId, err := sto.GetInternalChannelId(bcast.Channel)
+	if err != nil {
+		switch err {
+		case store.ErrUnknownChannel:
+			return nil, ErrUnknownChannel
+		default:
+			return nil, ErrUnknown
+		}
+	}
+	err = sto.AppendToChannel(chanId, bcast.Data, expire)
+	if err != nil {
+		ctx.logger.Errorf("could not store notification: %v", err)
+		return nil, ErrCouldNotStoreNotification
+	}
+
+	ctx.broker.Broadcast(chanId)
+	return nil, nil
 }
 
 func checkUnicast(ucast *Unicast) (time.Time, *APIError) {
@@ -363,62 +376,34 @@ var generateMsgId = func() string {
 	return base64.StdEncoding.EncodeToString(uuid.NewUUID())
 }
 
-func (h *UnicastHandler) doUnicast(sto store.PendingStore, ucast *Unicast) *APIError {
+func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) (map[string]interface{}, *APIError) {
+	ucast := parsedBodyObj.(*Unicast)
 	expire, apiErr := checkUnicast(ucast)
 	if apiErr != nil {
-		return apiErr
+		return nil, apiErr
 	}
 	chanId, err := sto.GetInternalChannelIdFromToken(ucast.Token, ucast.AppId, ucast.UserId, ucast.DeviceId)
 	if err != nil {
 		switch err {
 		case store.ErrUnknownToken:
-			return ErrUnknownToken
+			return nil, ErrUnknownToken
 		case store.ErrUnauthorized:
-			return ErrUnauthorized
+			return nil, ErrUnauthorized
 		default:
-			h.logger.Errorf("could not resolve token: %v", err)
-			return ErrCouldNotResolveToken
+			ctx.logger.Errorf("could not resolve token: %v", err)
+			return nil, ErrCouldNotResolveToken
 		}
 	}
 
 	msgId := generateMsgId()
 	err = sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, expire)
 	if err != nil {
-		h.logger.Errorf("could not store notification: %v", err)
-		return ErrCouldNotStoreNotification
+		ctx.logger.Errorf("could not store notification: %v", err)
+		return nil, ErrCouldNotStoreNotification
 	}
 
-	h.broker.Unicast(chanId)
-	return nil
-}
-
-func (h *UnicastHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	var apiErr *APIError
-	defer func() {
-		if apiErr != nil {
-			RespondError(writer, apiErr)
-		}
-	}()
-
-	unicast := &Unicast{}
-
-	sto, apiErr := h.prepare(writer, request, unicast)
-	if apiErr != nil {
-		return
-	}
-	defer sto.Close()
-
-	apiErr = h.doUnicast(sto, unicast)
-	if apiErr != nil {
-		return
-	}
-
-	writer.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(writer, `{"ok":true}`)
-}
-
-type RegisterHandler struct {
-	*context
+	ctx.broker.Unicast(chanId)
+	return nil, nil
 }
 
 func checkRegister(reg *Registration) *APIError {
@@ -428,49 +413,18 @@ func checkRegister(reg *Registration) *APIError {
 	return nil
 }
 
-func (h *RegisterHandler) doRegister(sto store.PendingStore, reg *Registration) (string, *APIError) {
+func doRegister(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) (map[string]interface{}, *APIError) {
+	reg := parsedBodyObj.(*Registration)
 	apiErr := checkRegister(reg)
 	if apiErr != nil {
-		return "", apiErr
+		return nil, apiErr
 	}
 	token, err := sto.Register(reg.DeviceId, reg.AppId)
 	if err != nil {
-		h.logger.Errorf("could not make a token: %v", err)
-		return "", ErrCouldNotMakeToken
+		ctx.logger.Errorf("could not make a token: %v", err)
+		return nil, ErrCouldNotMakeToken
 	}
-	return token, nil
-}
-
-func (h *RegisterHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	var apiErr *APIError
-	defer func() {
-		if apiErr != nil {
-			RespondError(writer, apiErr)
-		}
-	}()
-
-	reg := &Registration{}
-
-	sto, apiErr := h.prepare(writer, request, reg)
-	if apiErr != nil {
-		return
-	}
-	defer sto.Close()
-
-	token, apiErr := h.doRegister(sto, reg)
-	if apiErr != nil {
-		return
-	}
-
-	writer.Header().Set("Content-Type", "application/json")
-	res, err := json.Marshal(map[string]interface{}{
-		"ok":    true,
-		"token": token,
-	})
-	if err != nil {
-		panic(fmt.Errorf("couldn't marshal our own response: %v", err))
-	}
-	writer.Write(res)
+	return map[string]interface{}{"token": token}, nil
 }
 
 // MakeHandlersMux makes a handler that dispatches for the various API endpoints.
@@ -481,8 +435,20 @@ func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSendin
 		logger:          logger,
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/broadcast", &BroadcastHandler{context: ctx})
-	mux.Handle("/notify", &UnicastHandler{context: ctx})
-	mux.Handle("/register", &RegisterHandler{context: ctx})
+	mux.Handle("/broadcast", &JSONPostHandler{
+		context:        ctx,
+		parsingBodyObj: func() interface{} { return &Broadcast{} },
+		doHandle:       doBroadcast,
+	})
+	mux.Handle("/notify", &JSONPostHandler{
+		context:        ctx,
+		parsingBodyObj: func() interface{} { return &Unicast{} },
+		doHandle:       doUnicast,
+	})
+	mux.Handle("/register", &JSONPostHandler{
+		context:        ctx,
+		parsingBodyObj: func() interface{} { return &Registration{} },
+		doHandle:       doRegister,
+	})
 	return mux
 }
