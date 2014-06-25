@@ -382,3 +382,26 @@ func EnterMainLoop() {
 	var loop = C.g_main_loop_new(nil, 0)
 	go C.g_main_loop_run(loop)
 }
+
+var apps = make(map[string]MessagingMenuApp)
+
+type Card struct {
+	Summary   string
+	Body      string
+	Actions   []string
+	Icon      string
+	Timestamp int
+}
+
+func ShowCard(app string, id string, card Card) MessagingMenuMessage {
+	_app, ok := apps[app]
+	if !ok {
+		_app = NewApp(app)
+		_app.Register()
+		_app.AppendSource("source", card.Icon, "label") // The source label is not shown on the phone
+		apps[app] = _app
+	}
+	msg := NewMessage(id, card.Icon, card.Summary, "", card.Body, card.Timestamp)
+	_app.AppendMessage(msg, "inbox", false)
+	return msg
+}
