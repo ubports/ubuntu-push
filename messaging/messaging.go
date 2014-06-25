@@ -64,7 +64,7 @@ func NewApp(desktop_id string) MessagingMenuApp {
 }
 
 // wrapper for g_icon_new_for_string
-func getIcon(icon string) *C.GIcon{
+func getIcon(icon string) *C.GIcon {
 	var _icon = gchar(icon)
 	var gicon *C.GIcon
 	var gicon_error *C.GError
