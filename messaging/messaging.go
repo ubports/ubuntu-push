@@ -85,7 +85,9 @@ func NewMessage(id string, icon string, title string, subtitle string, body stri
 	var _title = gchar(title)
 	var _subtitle = gchar(subtitle)
 	var _body = gchar(body)
-	var msg = MessagingMenuMessage{C.messaging_menu_message_new(_id, getIcon(icon), _title,
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	var msg = MessagingMenuMessage{C.messaging_menu_message_new(_id, gicon, _title,
 		_subtitle, _body, (C.gint64)(C.int(time)))}
 	free(_id)
 	free(_title)
@@ -118,7 +120,9 @@ func free(s *C.gchar) {
 func (app *MessagingMenuApp) InsertSource(position int, id string, icon string, label string) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_insert_source(app.instance, (C.gint)(C.int(position)), _id, getIcon(icon), _label)
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_insert_source(app.instance, (C.gint)(C.int(position)), _id, gicon, _label)
 	free(_id)
 	free(_label)
 }
@@ -126,7 +130,9 @@ func (app *MessagingMenuApp) InsertSource(position int, id string, icon string, 
 func (app *MessagingMenuApp) AppendSource(id string, icon string, label string) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_append_source(app.instance, _id, getIcon(icon), _label)
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_append_source(app.instance, _id, gicon, _label)
 	free(_id)
 	free(_label)
 }
@@ -134,7 +140,9 @@ func (app *MessagingMenuApp) AppendSource(id string, icon string, label string) 
 func (app *MessagingMenuApp) InsertSourceWithCount(position int, id string, icon string, label string, count int) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_insert_source_with_count(app.instance, (C.gint)(C.int(position)), _id, getIcon(icon), _label, (C.guint)(C.uint(count)))
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_insert_source_with_count(app.instance, (C.gint)(C.int(position)), _id, gicon, _label, (C.guint)(C.uint(count)))
 	free(_id)
 	free(_label)
 }
@@ -142,7 +150,9 @@ func (app *MessagingMenuApp) InsertSourceWithCount(position int, id string, icon
 func (app *MessagingMenuApp) AppendSourceWithCount(id string, icon string, label string, count int) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_append_source_with_count(app.instance, _id, getIcon(icon), _label, (C.guint)(C.uint(count)))
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_append_source_with_count(app.instance, _id, gicon, _label, (C.guint)(C.uint(count)))
 	free(_id)
 	free(_label)
 }
@@ -150,7 +160,9 @@ func (app *MessagingMenuApp) AppendSourceWithCount(id string, icon string, label
 func (app *MessagingMenuApp) InsertSourceWithTime(position int, id string, icon string, label string, time int) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_insert_source_with_time(app.instance, (C.gint)(C.int(position)), _id, getIcon(icon), _label, (C.gint64)(C.int(time)))
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_insert_source_with_time(app.instance, (C.gint)(C.int(position)), _id, gicon, _label, (C.gint64)(C.int(time)))
 	free(_id)
 	free(_label)
 }
@@ -158,7 +170,9 @@ func (app *MessagingMenuApp) InsertSourceWithTime(position int, id string, icon 
 func (app *MessagingMenuApp) AppendSourceWithTime(id string, icon string, label string, time int) {
 	var _id = gchar(id)
 	var _label = gchar(label)
-	C.messaging_menu_app_append_source_with_time(app.instance, _id, getIcon(icon), _label, (C.gint64)(C.int(time)))
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_append_source_with_time(app.instance, _id, gicon, _label, (C.gint64)(C.int(time)))
 	free(_id)
 	free(_label)
 }
@@ -167,7 +181,9 @@ func (app *MessagingMenuApp) InsertSourceWithString(position int, id string, ico
 	var _id = gchar(id)
 	var _label = gchar(label)
 	var _str = gchar(str)
-	C.messaging_menu_app_insert_source_with_string(app.instance, (C.gint)(C.int(position)), _id, getIcon(icon), _label, _str)
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_insert_source_with_string(app.instance, (C.gint)(C.int(position)), _id, gicon, _label, _str)
 	free(_id)
 	free(_label)
 	free(_str)
@@ -177,7 +193,9 @@ func (app *MessagingMenuApp) AppendSourceWithString(id string, icon string, labe
 	var _id = gchar(id)
 	var _label = gchar(label)
 	var _str = gchar(str)
-	C.messaging_menu_app_append_source_with_string(app.instance, _id, getIcon(icon), _label, _str)
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_append_source_with_string(app.instance, _id, gicon, _label, _str)
 	free(_id)
 	free(_label)
 	free(_str)
@@ -206,7 +224,9 @@ func (app *MessagingMenuApp) SetSourceLabel(id string, label string) {
 
 func (app *MessagingMenuApp) SetSourceIcon(id string, icon string) {
 	var _id = gchar(id)
-	C.messaging_menu_app_set_source_icon(app.instance, _id, getIcon(icon))
+	gicon := getIcon(icon)
+	defer C.g_object_unref((C.gpointer)(gicon))
+	C.messaging_menu_app_set_source_icon(app.instance, _id, gicon)
 	free(_id)
 }
 
