@@ -845,7 +845,7 @@ func (s *handlersSuite) TestRespondsToUnregister(c *C) {
 	c.Check(response.Header.Get("Content-Type"), Equals, "application/json")
 	body, err := getResponseBody(response)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Matches, ".*ok.*")
+	c.Assert(string(body), Matches, OK)
 	c.Check(yay, HasLen, 1)
 }
 
