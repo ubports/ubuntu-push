@@ -29,6 +29,7 @@ void stop_observer(const gchar * appid, const gchar * instanceid, const gchar * 
 import "C"
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"time"
@@ -157,24 +158,29 @@ func (hr *HelperRunner) Start() {
 			hr.log.Errorf("Failed to create temp files: %v", err)
 			continue
 		}
-		defer os.Remove(helper.Input)
-		defer os.Remove(helper.Output)
 		err = ioutil.WriteFile(helper.Input, helper.Payload, os.ModeTemporary)
 		if err != nil {
 			hr.log.Errorf("Failed to write to input file: %v", err)
+			os.Remove(helper.Input)
+			os.Remove(helper.Output)
+			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
 			continue
 		}
 		result := hr.Run(helper.AppId, helper.Input, helper.Output)
 		// read the output file and build the result
 		if result != HelperFinished && result != HelperStopped && result != StopFailed {
 			hr.log.Errorf("Helper run failed with: %v, %v", helper, result)
+			os.Remove(helper.Input)
+			os.Remove(helper.Output)
+			hr.Results <- RunnerResult{result, helper, nil, errors.New("Helper failed.")}
 			continue
 		}
 		data, err := ioutil.ReadFile(helper.Output)
+		os.Remove(helper.Input)
+		os.Remove(helper.Output)
 		if err != nil {
 			hr.log.Errorf("Failed to read output file: %v", err)
-			hr.Results <- RunnerResult{result, helper, nil, err}
-			continue
+			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
 		} else {
 			hr.Results <- RunnerResult{result, helper, data, nil}
 		}
