@@ -415,6 +415,6 @@ func ShowCard(app string, id string, card *Card) MessagingMenuMessage {
 		apps[app] = _app
 	}
 	msg := NewMessage(id, card.Icon, card.Summary, "", card.Body, card.Timestamp)
-	_app.AppendMessage(msg, "inbox", false)
+	_app.AppendMessage(msg, "source", false)
 	return msg
 }
