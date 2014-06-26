@@ -31,7 +31,7 @@ func AppIconFromId(appId string) string {
 	_id := C.CString(appId)
 	defer C.free(unsafe.Pointer(_id))
 	_app_info := C.g_desktop_app_info_new(_id)
- 	defer C.g_app_info_delete(_app_info)
+	defer C.g_app_info_delete(_app_info)
 	_app_icon := C.g_app_info_get_icon(_app_info)
 	defer C.g_object_unref((C.gpointer)(_app_icon))
 	_icon_string := C.g_icon_to_string(_app_icon)
