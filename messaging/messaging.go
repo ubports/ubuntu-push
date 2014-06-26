@@ -405,17 +405,17 @@ var lock sync.Mutex
 // callbacks connected to it.
 //
 // Use the returned MessagingMenuMessage object to connect to signals
-func ShowCard(app string, id string, card *Card) MessagingMenuMessage {
+func ShowCard(appId string, notificationId string, card *Card) MessagingMenuMessage {
 	lock.Lock()
 	defer lock.Unlock()
-	_app, ok := apps[app]
+	app, ok := apps[appId]
 	if !ok {
-		_app = NewApp(app)
-		_app.Register()
-		_app.AppendSource("source", card.Icon, "label") // The source label is not shown on the phone
-		apps[app] = _app
+		app = NewApp(appId)
+		app.Register()
+		app.AppendSource("source", card.Icon, "label") // The source label is not shown on the phone
+		apps[appId] = app
 	}
-	msg := NewMessage(id, card.Icon, card.Summary, "", card.Body, card.Timestamp)
-	_app.AppendMessage(msg, "source", false)
+	msg := NewMessage(notificationId, card.Icon, card.Summary, "", card.Body, card.Timestamp)
+	app.AppendMessage(msg, "source", false)
 	return msg
 }
