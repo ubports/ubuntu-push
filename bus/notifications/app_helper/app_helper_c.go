@@ -34,6 +34,6 @@ func AppNameFromId(appId string) string {
 	name := C.GoString(_app_name)
 	C.free(unsafe.Pointer(_id))
 	C.free(unsafe.Pointer(_app_name))
-	C.free(unsafe.Pointer(_app_info))
+	C.g_object_unref((C.gpointer)(_app_info))
 	return name
 }
