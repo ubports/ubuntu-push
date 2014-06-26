@@ -23,8 +23,8 @@ import (
 	"path"
 	"testing"
 
+	"launchpad.net/go-xdg/v0"
 	. "launchpad.net/gocheck"
-
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -184,7 +184,7 @@ func (s *runnerSuite) TestFailtoCreateFile(c *C) {
 	startHelper = fakeStartFailure
 	stopHelper = fakeStop
 	// restore it when we are done
-	getTempFilename = func() (string, error) {
+	getTempFilename = func(pkgName string) (string, error) {
 		return "", errors.New("Can't create files.")
 	}
 	defer func() {
@@ -210,10 +210,13 @@ func (s *runnerSuite) TestFailtoCreateFile(c *C) {
 }
 
 func (s *runnerSuite) TestCreateTempFiles(c *C) {
-	tempDir = c.MkDir
+	tmpDir := c.MkDir()
+	getTempDir = func(pkgName string) (string, error) {
+		return tmpDir, nil
+	}
 	// restore it when we are done
 	defer func() {
-		tempDir = os.TempDir
+		getTempDir = _getTempDir
 	}()
 	helperArgs := HelperArgs{}
 	helperArgs.AppId = "bar1"
@@ -221,14 +224,13 @@ func (s *runnerSuite) TestCreateTempFiles(c *C) {
 	c.Check(helperArgs.Input, Equals, "")
 	c.Check(helperArgs.Output, Equals, "")
 	hr := New(s.testlog, "test_helper")
-	err := hr.createTempFiles(&helperArgs)
+	err := hr.createTempFiles(&helperArgs, helperArgs.AppId)
 	c.Check(err, IsNil)
-	s.testlog.Errorf("input: %v", helperArgs.Input)
 	c.Check(helperArgs.Input, Not(Equals), "")
 	c.Check(helperArgs.Output, Not(Equals), "")
 	files, err := ioutil.ReadDir(path.Dir(helperArgs.Input))
 	c.Check(err, IsNil)
-	c.Check(files, HasLen, 0)
+	c.Check(files, HasLen, 2)
 }
 
 func (s *runnerSuite) TestCreateTempFilesWithFilenames(c *C) {
@@ -239,7 +241,7 @@ func (s *runnerSuite) TestCreateTempFilesWithFilenames(c *C) {
 	c.Check(helperArgs.Input, Equals, input_path)
 	c.Check(helperArgs.Output, Equals, output_path)
 	hr := New(s.testlog, "test_helper")
-	err := hr.createTempFiles(&helperArgs)
+	err := hr.createTempFiles(&helperArgs, "pkg.name")
 	c.Check(err, IsNil)
 	files, err := ioutil.ReadDir(tmpDir)
 	c.Check(err, IsNil)
@@ -247,15 +249,31 @@ func (s *runnerSuite) TestCreateTempFilesWithFilenames(c *C) {
 }
 
 func (s *runnerSuite) TestGetTempFilename(c *C) {
-	tempDir = c.MkDir
+	getTempDir = func(pkgName string) (string, error) {
+		return c.MkDir(), nil
+	}
 	// restore it when we are done
 	defer func() {
-		tempDir = os.TempDir
+		getTempDir = _getTempDir
 	}()
-	fname, err := getTempFilename()
+	fname, err := getTempFilename("pkg.name")
 	c.Check(err, IsNil)
 	dirname := path.Dir(fname)
 	files, err := ioutil.ReadDir(dirname)
 	c.Check(err, IsNil)
-	c.Check(files, HasLen, 0)
+	c.Check(files, HasLen, 1)
+}
+
+func (s *runnerSuite) TestGetTempDir(c *C) {
+	tmpDir := c.MkDir()
+	xdgCacheHome = func() string {
+		return tmpDir
+	}
+	// restore it when we are done
+	defer func() {
+		xdgCacheHome = xdg.Cache.Home
+	}()
+	dname, err := getTempDir("pkg.name")
+	c.Check(err, IsNil)
+	c.Check(dname, Equals, path.Join(tmpDir, "pkg.name"))
 }

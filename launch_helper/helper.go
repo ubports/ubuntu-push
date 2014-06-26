@@ -32,9 +32,12 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"path"
+	"strings"
 	"time"
 	"unsafe"
 
+	"launchpad.net/go-xdg/v0"
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -153,7 +156,8 @@ func (hr *HelperRunner) Start() {
 	)
 	for helper := range hr.Helpers {
 		// create in/output files
-		err := hr.createTempFiles(&helper)
+		pkgName := strings.Split(helper.AppId, "_")[0]
+		err := hr.createTempFiles(&helper, pkgName)
 		if err != nil {
 			hr.log.Errorf("Failed to create temp files: %v", err)
 			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
@@ -239,12 +243,23 @@ func (hr *HelperRunner) Run(appId string, input string, output string) ReturnVal
 	}
 }
 
-var tempDir = os.TempDir
+var xdgCacheHome = xdg.Cache.Home
 
-func _getTempFilename() (string, error) {
-	file, err := ioutil.TempFile(tempDir(), "push-helper")
+func _getTempDir(pkgName string) (string, error) {
+	tmpDir := path.Join(xdgCacheHome(), pkgName)
+	err := os.MkdirAll(path.Dir(tmpDir), 0700)
+	return tmpDir, err
+}
+
+var getTempDir = _getTempDir
+
+func _getTempFilename(pkgName string) (string, error) {
+	tmpDir, err := getTempDir(pkgName)
+	if err != nil {
+		return "", err
+	}
+	file, err := ioutil.TempFile(tmpDir, "push-helper")
 	defer file.Close()
-	defer os.Remove(file.Name())
 	if err != nil {
 		return "", err
 	}
@@ -253,17 +268,17 @@ func _getTempFilename() (string, error) {
 
 var getTempFilename = _getTempFilename
 
-func (hr *HelperRunner) createTempFiles(helper *HelperArgs) error {
+func (hr *HelperRunner) createTempFiles(helper *HelperArgs, pkgName string) error {
 	var err error
 	if helper.Input == "" {
-		helper.Input, err = getTempFilename()
+		helper.Input, err = getTempFilename(pkgName)
 		if err != nil {
 			hr.log.Errorf("Failed to create input file: %v", err)
 			return err
 		}
 	}
 	if helper.Output == "" {
-		helper.Output, err = getTempFilename()
+		helper.Output, err = getTempFilename(pkgName)
 		if err != nil {
 			hr.log.Errorf("Failed to create output file: %v", err)
 			return err
