@@ -27,8 +27,8 @@ import (
 
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/logger"
 	c_helper "launchpad.net/ubuntu-push/bus/notifications/app_helper"
+	"launchpad.net/ubuntu-push/logger"
 )
 
 // Notifications lives on a well-knwon bus.Address
@@ -99,7 +99,6 @@ func (raw *RawNotifications) WatchActions() (<-chan RawActionReply, error) {
 	return ch, nil
 }
 
-
 type Card struct {
 	Summary   string
 	Body      string
@@ -109,7 +108,9 @@ type Card struct {
 }
 
 func (raw *RawNotifications) ShowCard(appId string, notificationId string, card *Card) (uint32, error) {
-	app_name := c_helper.AppNameFromId(appId)
+	app_icon := c_helper.AppIconFromId(appId)
 	reuse_id := crc32.ChecksumIEEE([]byte(notificationId)) // reuse the same bubble for the same notification
-	return raw.Notify(app_name, reuse_id, card.Icon, card.Summary, card.Body, card.Actions, nil, 5)  // FIXME: arbitraryy timeout
+	hints := make(map[string]*dbus.Variant)
+	hints["x-canonical-secondary-icon"] = &dbus.Variant{app_icon}
+	return raw.Notify(appId, reuse_id, card.Icon, card.Summary, card.Body, card.Actions, hints, 5)
 }

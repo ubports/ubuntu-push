@@ -27,13 +27,15 @@ package app_helper
 import "C"
 import "unsafe"
 
-func AppNameFromId(appId string) string {
+func AppIconFromId(appId string) string {
 	_id := C.CString(appId)
+	defer C.free(unsafe.Pointer(_id))
 	_app_info := C.g_desktop_app_info_new(_id)
-	_app_name := C.g_desktop_app_info_get_generic_name(_app_info)
-	name := C.GoString(_app_name)
-	C.free(unsafe.Pointer(_id))
-	C.free(unsafe.Pointer(_app_name))
-	C.g_object_unref((C.gpointer)(_app_info))
+ 	defer C.g_app_info_delete(_app_info)
+	_app_icon := C.g_app_info_get_icon(_app_info)
+	defer C.g_object_unref((C.gpointer)(_app_icon))
+	_icon_string := C.g_icon_to_string(_app_icon)
+	defer C.free(unsafe.Pointer(_icon_string))
+	name := C.GoString((*C.char)(_icon_string))
 	return name
 }
