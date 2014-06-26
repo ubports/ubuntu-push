@@ -27,7 +27,10 @@ package messaging
 #include <messaging-menu/messaging-menu-message.h>
 */
 import "C"
-import "unsafe"
+import (
+	"sync"
+	"unsafe"
+)
 
 const (
 	Available = C.MESSAGING_MENU_STATUS_AVAILABLE
@@ -381,4 +384,38 @@ func (msg *MessagingMenuMessage) Connect(detailed_signal string, callback unsafe
 func EnterMainLoop() {
 	var loop = C.g_main_loop_new(nil, 0)
 	go C.g_main_loop_run(loop)
+}
+
+var apps = make(map[string]MessagingMenuApp)
+
+type Card struct {
+	Summary   string
+	Body      string
+	Actions   []string
+	Icon      string
+	Timestamp int
+}
+
+var lock sync.Mutex
+
+// ShowCard shows the notification described in Card in the messaging menu.
+//
+// app is the name of the .desktop file for the app, id is a string
+// that identifies this notification and will be received by the
+// callbacks connected to it.
+//
+// Use the returned MessagingMenuMessage object to connect to signals
+func ShowCard(appId string, notificationId string, card *Card) MessagingMenuMessage {
+	lock.Lock()
+	defer lock.Unlock()
+	app, ok := apps[appId]
+	if !ok {
+		app = NewApp(appId)
+		app.Register()
+		app.AppendSource("source", card.Icon, "label") // The source label is not shown on the phone
+		apps[appId] = app
+	}
+	msg := NewMessage(notificationId, card.Icon, card.Summary, "", card.Body, card.Timestamp)
+	app.AppendMessage(msg, "source", false)
+	return msg
 }
