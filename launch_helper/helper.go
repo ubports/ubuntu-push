@@ -89,10 +89,10 @@ func twoStringsForC(f1 string, f2 string) []*C.char {
 }
 
 // run is a wrapper for ubuntu_app_launc_start_helper
-func run(helperType string, app_id string, fname1 string, fname2 string) bool {
+func run(helperType string, appId string, fname1 string, fname2 string) bool {
 	_helper_type := (*C.gchar)(C.CString(helperType))
 	defer C.free(unsafe.Pointer(_helper_type))
-	_app_id := (*C.gchar)(C.CString(app_id))
+	_app_id := (*C.gchar)(C.CString(appId))
 	defer C.free(unsafe.Pointer(_app_id))
 	c_fnames := twoStringsForC(fname1, fname2)
 	defer C.free(unsafe.Pointer(c_fnames[0]))
@@ -102,10 +102,10 @@ func run(helperType string, app_id string, fname1 string, fname2 string) bool {
 }
 
 // stop is a wrapper for ubuntu_app_launch_stop_helper
-func stop(helperType string, app_id string) bool {
+func stop(helperType string, appId string) bool {
 	_helper_type := (*C.gchar)(C.CString(helperType))
 	defer C.free(unsafe.Pointer(_helper_type))
-	_app_id := (*C.gchar)(C.CString(app_id))
+	_app_id := (*C.gchar)(C.CString(appId))
 	defer C.free(unsafe.Pointer(_app_id))
 	success := stopHelper(_helper_type, _app_id)
 	return (C.int)(success) != 0
