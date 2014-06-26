@@ -89,8 +89,8 @@ func twoStringsForC(f1 string, f2 string) []*C.char {
 }
 
 // run is a wrapper for ubuntu_app_launc_start_helper
-func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
-	_helper_type := (*C.gchar)(C.CString(helper_type))
+func run(helperType string, app_id string, fname1 string, fname2 string) bool {
+	_helper_type := (*C.gchar)(C.CString(helperType))
 	defer C.free(unsafe.Pointer(_helper_type))
 	_app_id := (*C.gchar)(C.CString(app_id))
 	defer C.free(unsafe.Pointer(_app_id))
@@ -102,8 +102,8 @@ func run(helper_type string, app_id string, fname1 string, fname2 string) bool {
 }
 
 // stop is a wrapper for ubuntu_app_launch_stop_helper
-func stop(helper_type string, app_id string) bool {
-	_helper_type := (*C.gchar)(C.CString(helper_type))
+func stop(helperType string, app_id string) bool {
+	_helper_type := (*C.gchar)(C.CString(helperType))
 	defer C.free(unsafe.Pointer(_helper_type))
 	_app_id := (*C.gchar)(C.CString(app_id))
 	defer C.free(unsafe.Pointer(_app_id))
@@ -130,14 +130,14 @@ type RunnerResult struct {
 // New Creates a HelperRunner
 //
 // log is a logger to use.
-func New(log logger.Logger, helper_type string) HelperRunner {
+func New(log logger.Logger, helperType string) HelperRunner {
 	input := make(chan HelperArgs)
 	output := make(chan RunnerResult)
 	return HelperRunner{
 		log,
 		input,
 		output,
-		helper_type,
+		helperType,
 	}
 
 }
@@ -146,7 +146,7 @@ func New(log logger.Logger, helper_type string) HelperRunner {
 // puts results in the results channel.
 // Should be called as a goroutine.
 func (hr *HelperRunner) Start() {
-	helper_type := (*C.gchar)(C.CString(hr.helper_type))
+	helper_type := (*C.gchar)(C.CString(hr.helperType))
 	defer C.free(unsafe.Pointer(helper_type))
 	// Create an observer to be notified when helpers stop
 	C.ubuntu_app_launch_observer_add_helper_stop(
@@ -194,16 +194,16 @@ func (hr *HelperRunner) Start() {
 
 // HelperRunner is the struct used to launch helpers.
 //
-// Helpers is the input channel and gets (helper_type, appid, file1, file2)
+// Helpers is the input channel and gets (helperType, appid, file1, file2)
 //
 // Results is the output channel, returns a RunnerResult struct.
 //
 // In that struct, helper is what was used as input and status is one of the ReturnValue constants defined in this package.
 type HelperRunner struct {
-	log         logger.Logger
-	Helpers     chan HelperArgs
-	Results     chan RunnerResult
-	helper_type string
+	log        logger.Logger
+	Helpers    chan HelperArgs
+	Results    chan RunnerResult
+	helperType string
 }
 
 // Run starts a helper via ubuntu_app_launch_start_helper, and either
@@ -218,8 +218,8 @@ func (hr *HelperRunner) Run(appId string, input string, output string) ReturnVal
 	timeout := make(chan bool)
 	// Always start with a clean finished channel to avoid races
 	finished = make(chan bool)
-	hr.log.Debugf("Starting helper: %s %s %s %s", hr.helper_type, appId, input, output)
-	success := run(hr.helper_type, appId, input, output)
+	hr.log.Debugf("Starting helper: %s %s %s %s", hr.helperType, appId, input, output)
+	success := run(hr.helperType, appId, input, output)
 	if success {
 		go func() {
 			time.Sleep(timeLimit)
@@ -228,7 +228,7 @@ func (hr *HelperRunner) Run(appId string, input string, output string) ReturnVal
 		select {
 		case <-timeout:
 			hr.log.Debugf("Timeout reached, stopping")
-			if stop(hr.helper_type, appId) {
+			if stop(hr.helperType, appId) {
 				return HelperStopped
 			} else {
 				return StopFailed
