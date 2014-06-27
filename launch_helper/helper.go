@@ -131,7 +131,7 @@ type HelperArgs struct {
 // RunnerResult represent the result of running a helper
 type RunnerResult struct {
 	Status ReturnValue
-	Helper HelperArgs
+	Helper *HelperArgs
 	Data   []byte
 	Error  error
 }
@@ -140,8 +140,8 @@ type RunnerResult struct {
 //
 // log is a logger to use.
 func New(log logger.Logger, helperType string) HelperRunner {
-	input := make(chan HelperArgs)
-	output := make(chan RunnerResult)
+	input := make(chan *HelperArgs)
+	output := make(chan *RunnerResult)
 	return HelperRunner{
 		log,
 		input,
@@ -163,13 +163,13 @@ func (hr *HelperRunner) Start() {
 		helper_type,
 		nil,
 	)
-	for helper := range hr.Helpers {
+	for helper := range hr.HelperCh {
 		// create in/output files
 		pkgName := strings.Split(helper.AppId, "_")[0]
-		err := hr.createTempFiles(&helper, pkgName)
+		err := hr.createTempFiles(helper, pkgName)
 		if err != nil {
 			hr.log.Errorf("failed to create temp files: %v", err)
-			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
+			hr.ResultCh <- &RunnerResult{Status: HelperFailed, Helper: helper, Error: err}
 			continue
 		}
 		err = ioutil.WriteFile(helper.Input, helper.Payload, os.ModeTemporary)
@@ -177,7 +177,7 @@ func (hr *HelperRunner) Start() {
 			hr.log.Errorf("failed to write to input file: %v", err)
 			os.Remove(helper.Input)
 			os.Remove(helper.Output)
-			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
+			hr.ResultCh <- &RunnerResult{Status: HelperFailed, Helper: helper, Error: err}
 			continue
 		}
 		result := hr.Run(helper.AppId, helper.Input, helper.Output)
@@ -186,7 +186,7 @@ func (hr *HelperRunner) Start() {
 			hr.log.Errorf("helper run failed with: %v, %v", helper, result)
 			os.Remove(helper.Input)
 			os.Remove(helper.Output)
-			hr.Results <- RunnerResult{result, helper, nil, errors.New("Helper failed.")}
+			hr.ResultCh <- &RunnerResult{Status: result, Helper: helper, Error: errors.New("Helper failed.")}
 			continue
 		}
 		data, err := ioutil.ReadFile(helper.Output)
@@ -194,24 +194,24 @@ func (hr *HelperRunner) Start() {
 		os.Remove(helper.Output)
 		if err != nil {
 			hr.log.Errorf("failed to read output file: %v", err)
-			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
+			hr.ResultCh <- &RunnerResult{Status: HelperFailed, Helper: helper, Error: err}
 		} else {
-			hr.Results <- RunnerResult{result, helper, data, nil}
+			hr.ResultCh <- &RunnerResult{Status: result, Helper: helper, Data: data}
 		}
 	}
 }
 
 // HelperRunner is the struct used to launch helpers.
 //
-// Helpers is the input channel and gets (helperType, appid, file1, file2)
+// HelperCh is the input channel and gets (helperType, appid, file1, file2)
 //
-// Results is the output channel, returns a RunnerResult struct.
+// ResultCh is the output channel, returns a RunnerResult struct.
 //
 // In that struct, helper is what was used as input and status is one of the ReturnValue constants defined in this package.
 type HelperRunner struct {
 	log        logger.Logger
-	Helpers    chan HelperArgs
-	Results    chan RunnerResult
+	HelperCh   chan *HelperArgs
+	ResultCh   chan *RunnerResult
 	helperType string
 }
 

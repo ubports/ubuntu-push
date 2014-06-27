@@ -80,13 +80,13 @@ func (s *runnerSuite) TestFileHandling(c *C) {
 	msg := []byte("{\"msg\": \"foo\"}")
 	ioutil.WriteFile(inputPath, []byte(""), os.ModePerm)
 	ioutil.WriteFile(outputPath, msg, os.ModePerm)
-	helperArgs := HelperArgs{"bar1", msg, inputPath, outputPath}
-	hr.Helpers <- helperArgs
-	result := <-hr.Results
+	helperArgs := &HelperArgs{"bar1", msg, inputPath, outputPath}
+	hr.HelperCh <- helperArgs
+	result := <-hr.ResultCh
 	// check the result
-	expected := RunnerResult{HelperFinished, helperArgs, msg, nil}
+	expected := &RunnerResult{HelperFinished, helperArgs, msg, nil}
 	c.Check(result, DeepEquals, expected)
-	close(hr.Helpers)
+	close(hr.HelperCh)
 	<-finished
 	files, err := ioutil.ReadDir(tmpDir)
 	c.Check(err, IsNil)
@@ -109,13 +109,13 @@ func (s *runnerSuite) TestFileHandlingLongRunningHelperOK(c *C) {
 	msg := []byte("{\"msg\": \"foo\"}")
 	ioutil.WriteFile(inputPath, []byte(""), os.ModePerm)
 	ioutil.WriteFile(outputPath, msg, os.ModePerm)
-	helperArgs := HelperArgs{"bar1", msg, inputPath, outputPath}
-	hr.Helpers <- helperArgs
-	result := <-hr.Results
+	helperArgs := &HelperArgs{"bar1", msg, inputPath, outputPath}
+	hr.HelperCh <- helperArgs
+	result := <-hr.ResultCh
 	// check the result
-	expected := RunnerResult{HelperStopped, helperArgs, msg, nil}
+	expected := &RunnerResult{HelperStopped, helperArgs, msg, nil}
 	c.Check(result, DeepEquals, expected)
-	close(hr.Helpers)
+	close(hr.HelperCh)
 	<-finished
 	files, err := ioutil.ReadDir(tmpDir)
 	c.Check(err, IsNil)
@@ -137,16 +137,16 @@ func (s *runnerSuite) TestFileHandlingLongRunningHelperNoOutput(c *C) {
 	}()
 	msg := []byte("{\"msg\": \"foo\"}")
 	ioutil.WriteFile(inputPath, []byte(""), os.ModePerm)
-	helperArgs := HelperArgs{"bar1", msg, inputPath, outputPath}
-	hr.Helpers <- helperArgs
-	result := <-hr.Results
+	helperArgs := &HelperArgs{"bar1", msg, inputPath, outputPath}
+	hr.HelperCh <- helperArgs
+	result := <-hr.ResultCh
 	// check the result
-	expected := RunnerResult{HelperFailed, helperArgs, msg, nil}
+	expected := &RunnerResult{HelperFailed, helperArgs, msg, nil}
 	c.Check(result.Status, Equals, expected.Status)
 	c.Check(result.Helper, DeepEquals, expected.Helper)
 	c.Check(string(result.Data), Equals, "")
 	c.Check(result.Error, ErrorMatches, ".*no such file.*")
-	close(hr.Helpers)
+	close(hr.HelperCh)
 	<-finished
 	files, err := ioutil.ReadDir(tmpDir)
 	c.Check(err, IsNil)
@@ -168,13 +168,13 @@ func (s *runnerSuite) TestFileHandlingFailed(c *C) {
 	}()
 	msg := []byte("{\"msg\": \"foo\"}")
 	ioutil.WriteFile(inputPath, []byte(""), os.ModePerm)
-	helperArgs := HelperArgs{"bar1", msg, inputPath, outputPath}
-	hr.Helpers <- helperArgs
-	result := <-hr.Results
+	helperArgs := &HelperArgs{"bar1", msg, inputPath, outputPath}
+	hr.HelperCh <- helperArgs
+	result := <-hr.ResultCh
 	// check the result
-	expected := RunnerResult{HelperFailed, helperArgs, nil, errors.New("Helper failed.")}
+	expected := &RunnerResult{HelperFailed, helperArgs, nil, errors.New("Helper failed.")}
 	c.Check(result, DeepEquals, expected)
-	close(hr.Helpers)
+	close(hr.HelperCh)
 	<-finished
 	files, err := ioutil.ReadDir(tmpDir)
 	c.Check(err, IsNil)
@@ -198,15 +198,13 @@ func (s *runnerSuite) TestFailtoCreateFile(c *C) {
 		hr.Start()
 		finished <- true
 	}()
-	helperArgs := HelperArgs{}
-	helperArgs.AppId = "bar1"
-	helperArgs.Payload = []byte("{\"msg\": \"foo\"}")
-	hr.Helpers <- helperArgs
-	result := <-hr.Results
+	helperArgs := &HelperArgs{AppId: "bar1", Payload: []byte(`{"msg": "foo"}`)}
+	hr.HelperCh <- helperArgs
+	result := <-hr.ResultCh
 	// check the result
-	expected := RunnerResult{HelperFailed, helperArgs, nil, errors.New("Can't create files.")}
+	expected := &RunnerResult{HelperFailed, helperArgs, nil, errors.New("Can't create files.")}
 	c.Check(result, DeepEquals, expected)
-	close(hr.Helpers)
+	close(hr.HelperCh)
 	<-finished
 }
 
@@ -219,13 +217,11 @@ func (s *runnerSuite) TestCreateTempFiles(c *C) {
 	defer func() {
 		getTempDir = _getTempDir
 	}()
-	helperArgs := HelperArgs{}
-	helperArgs.AppId = "bar1"
-	helperArgs.Payload = []byte{}
+	helperArgs := &HelperArgs{AppId: "bar1", Payload: []byte{}}
 	c.Check(helperArgs.Input, Equals, "")
 	c.Check(helperArgs.Output, Equals, "")
 	hr := New(s.testlog, "test_helper")
-	err := hr.createTempFiles(&helperArgs, helperArgs.AppId)
+	err := hr.createTempFiles(helperArgs, helperArgs.AppId)
 	c.Check(err, IsNil)
 	c.Check(helperArgs.Input, Not(Equals), "")
 	c.Check(helperArgs.Output, Not(Equals), "")
@@ -238,11 +234,11 @@ func (s *runnerSuite) TestCreateTempFilesWithFilenames(c *C) {
 	tmpDir := c.MkDir()
 	inputPath := tmpDir + "/test_helper_input"
 	outputPath := tmpDir + "/test_helper_output"
-	helperArgs := HelperArgs{"bar1", []byte{}, inputPath, outputPath}
+	helperArgs := &HelperArgs{"bar1", []byte{}, inputPath, outputPath}
 	c.Check(helperArgs.Input, Equals, inputPath)
 	c.Check(helperArgs.Output, Equals, outputPath)
 	hr := New(s.testlog, "test_helper")
-	err := hr.createTempFiles(&helperArgs, "pkg.name")
+	err := hr.createTempFiles(helperArgs, "pkg.name")
 	c.Check(err, IsNil)
 	files, err := ioutil.ReadDir(tmpDir)
 	c.Check(err, IsNil)
