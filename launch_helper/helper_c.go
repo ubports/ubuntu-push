@@ -25,10 +25,10 @@ package launch_helper
 #include <string.h>
 #include <glib.h>
 
-extern void goObserver();
+extern void goObserver(const gchar *);
 void stop_observer (const gchar * appid, const gchar * instanceid, const gchar * helpertype, gpointer user_data) {
     printf("%s | %s | %s \n", appid, instanceid, helpertype);
-    goObserver();
+    goObserver(instanceid);
 }
 
 */
@@ -41,46 +41,64 @@ import (
 )
 
 // Utility functions to avoid typing the same casts too many times
-func char(s string) *C.char {
-	return (*C.char)(C.CString(s))
+func gchar(s string) *C.gchar {
+	return (*C.gchar)(C.CString(s))
 }
 
-func free(s *C.char) {
+func free(s *C.gchar) {
 	C.free(unsafe.Pointer(s))
+}
+
+func gostring(s *C.gchar) string {
+	return C.GoString((*C.char)(s))
 }
 
 // These functions are used by tests, they can't be defined in the test file
 // because cgo is not allowed there
 
-func fakeStartLongLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gboolean {
+func stamp() string {
+	return time.Now().Format(time.StampMicro)
+}
+
+func fakeStartKnownIdDoesNotRun(*C.gchar, *C.gchar, **C.gchar) *C.gchar {
+	return gchar("hello")
+}
+
+func fakeStartLongLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
+	id := stamp()
 	go func() {
 		time.Sleep(timeLimit * 3)
-		goObserver()
+		iid := gchar(id)
+		defer free(iid)
+		goObserver(iid)
 	}()
-	return (C.gboolean)(1)
+	return gchar(id)
 }
 
-func fakeStartShortLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gboolean {
+func fakeStartShortLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
+	id := stamp()
 	go func() {
-		goObserver()
+		iid := gchar(id)
+		defer free(iid)
+		goObserver(iid)
 	}()
-	return (C.gboolean)(1)
+	return gchar(id)
 }
 
-func fakeStartFailure(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gboolean {
-	return (C.gboolean)(0)
+func fakeStartFailure(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
+	return nil
 }
 
-func fakeStartCheckCasting(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gboolean {
+func fakeStartCheckCasting(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
 
-	if "foo1" != C.GoString((*C.char)(helper_type)) {
+	if "foo1" != gostring(helper_type) {
 		fmt.Printf("helper_type is not properly casted")
-		return (C.gboolean)(1)
+		return gchar("hi")
 	}
 
-	if "bar1" != C.GoString((*C.char)(appid)) {
+	if "bar1" != gostring(appid) {
 		fmt.Printf("appid is not properly casted")
-		return (C.gboolean)(1)
+		return gchar("hi")
 	}
 
 	var uri string
@@ -89,39 +107,49 @@ func fakeStartCheckCasting(helper_type *C.gchar, appid *C.gchar, uris **C.gchar)
 	uri = C.GoString(*p)
 	if uri != "bat1" {
 		fmt.Printf("uri1 is not properly casted")
-		return (C.gboolean)(1)
+		return gchar("hi")
 	}
 	q += unsafe.Sizeof(q)
 	p = (**C.char)(unsafe.Pointer(q))
 	uri = C.GoString(*p)
 	if uri != "baz1" {
 		fmt.Printf("uri2 is not properly casted")
-		return (C.gboolean)(1)
+		return gchar("hi")
 	}
 	q += unsafe.Sizeof(q)
 	p = (**C.char)(unsafe.Pointer(q))
 	if *p != nil {
 		fmt.Printf("uris is not NULL terminated")
-		return (C.gboolean)(1)
+		return gchar("hi")
 	}
 
-	return (C.gboolean)(0)
+	return nil
 }
 
-func fakeStopCheckCasting(helper_type *C.gchar, appid *C.gchar) C.gboolean {
+func fakeStopCheckCasting(helper_type *C.gchar, app_id *C.gchar, instance_id *C.gchar) C.gboolean {
 
-	if "foo1" != C.GoString((*C.char)(helper_type)) {
+	if "foo1" != gostring(helper_type) {
 		fmt.Printf("helper_type is not properly casted")
-		return (C.gboolean)(1)
+		return C.TRUE
 	}
 
-	if "bar1" != C.GoString((*C.char)(appid)) {
-		fmt.Printf("appid is not properly casted")
-		return (C.gboolean)(1)
+	if "bar1" != gostring(app_id) {
+		fmt.Printf("app_id is not properly casted")
+		return C.TRUE
 	}
-	return (C.gboolean)(0)
+
+	if "hello" != gostring(instance_id) {
+		fmt.Printf("instance_id is not properly casted")
+		return C.TRUE
+	}
+
+	finishedCh <- gostring(instance_id)
+
+	return C.FALSE
 }
 
-func fakeStop(helper_type *C.gchar, appid *C.gchar) C.gboolean {
-	return (C.gboolean)(1)
+func fakeStop(helper_type *C.gchar, app_id *C.gchar, instance_id *C.gchar) C.gboolean {
+	finishedCh <- gostring(instance_id)
+
+	return C.TRUE
 }
