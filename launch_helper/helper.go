@@ -89,7 +89,7 @@ func twoStringsForC(f1 string, f2 string) []*C.gchar {
 	return ptr
 }
 
-// run is a wrapper for ubuntu_app_launc_start_multiple_helper
+// run is a wrapper for ubuntu_app_launch_start_multiple_helper
 //
 // XXX: also return an error
 func run(helperType string, appId string, uri1 string, uri2 string) string {
