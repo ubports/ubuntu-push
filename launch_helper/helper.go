@@ -73,11 +73,11 @@ var stopHelper = _stop_helper
 
 // this channel is global because it needs to be accessed from goObserver which needs
 // to be global to be exported
-var finishedCh = make(chan bool, 1)
+var finishedCh = make(chan string, 1)
 
 //export goObserver
-func goObserver() {
-	finishedCh <- true
+func goObserver(instance_id *C.gchar) {
+	finishedCh <- C.GoString((*C.char)(instance_id))
 }
 
 // Convert two strings into a proper NULL-terminated gchar**
@@ -231,19 +231,24 @@ func (hr *HelperRunner) Run(appId string, input string, output string) ReturnVal
 		return HelperFailed
 	}
 
-	select {
-	case <-time.After(timeLimit):
-		hr.log.Debugf("timeout reached, stopping")
-		if stop(hr.helperType, appId, instanceId) {
-			// wait for the stop to come in
-			<-finishedCh
-			return HelperStopped
-		} else {
-			return StopFailed
+	timeout := time.After(timeLimit)
+	for {
+		select {
+		case <-timeout:
+			hr.log.Debugf("timeout reached, stopping")
+			if stop(hr.helperType, appId, instanceId) {
+				// wait for the stop to come in
+				return HelperStopped
+			} else {
+				return StopFailed
+			}
+		case finishedId := <-finishedCh:
+			if finishedId == instanceId {
+				hr.log.Debugf("finished before timeout, doing nothing")
+				return HelperFinished
+			}
+			hr.log.Debugf("got unexpected instance id %v, ignoring", finishedId)
 		}
-	case <-finishedCh:
-		hr.log.Debugf("finished before timeout, doing nothing")
-		return HelperFinished
 	}
 }
 
