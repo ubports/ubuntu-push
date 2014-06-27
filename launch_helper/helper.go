@@ -38,6 +38,7 @@ import (
 	"unsafe"
 
 	"launchpad.net/go-xdg/v0"
+
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -58,56 +59,64 @@ const timeLimit = 500 * time.Millisecond
 
 // These are needed for testing because C functions can't be passed
 // around as values
-func _start_helper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) C.gboolean {
-	return C.ubuntu_app_launch_start_helper(helper_type, appid, uris)
+func _start_helper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
+	return C.ubuntu_app_launch_start_multiple_helper(helper_type, appid, uris)
 }
 
 var startHelper = _start_helper
 
-func _stop_helper(helper_type *C.gchar, appid *C.gchar) C.gboolean {
-	return C.ubuntu_app_launch_stop_helper(helper_type, appid)
+func _stop_helper(helper_type *C.gchar, app_id *C.gchar, instance_id *C.gchar) C.gboolean {
+	return C.ubuntu_app_launch_stop_multiple_helper(helper_type, app_id, instance_id)
 }
 
 var stopHelper = _stop_helper
 
 // this channel is global because it needs to be accessed from goObserver which needs
 // to be global to be exported
-var finished = make(chan bool)
+var finishedCh = make(chan bool, 1)
 
 //export goObserver
 func goObserver() {
-	finished <- true
+	finishedCh <- true
 }
 
-// Convert two strings into a proper NULL-terminated char**
-func twoStringsForC(f1 string, f2 string) []*C.char {
+// Convert two strings into a proper NULL-terminated gchar**
+func twoStringsForC(f1 string, f2 string) []*C.gchar {
 	// 3 because we need a NULL terminator
-	ptr := make([]*C.char, 3)
-	ptr[0] = C.CString(f1)
-	ptr[1] = C.CString(f2)
+	ptr := make([]*C.gchar, 3)
+	ptr[0] = gchar(f1)
+	ptr[1] = gchar(f2)
 	return ptr
 }
 
-// run is a wrapper for ubuntu_app_launc_start_helper
-func run(helperType string, appId string, fname1 string, fname2 string) bool {
-	_helper_type := (*C.gchar)(C.CString(helperType))
-	defer C.free(unsafe.Pointer(_helper_type))
-	_app_id := (*C.gchar)(C.CString(appId))
-	defer C.free(unsafe.Pointer(_app_id))
-	c_fnames := twoStringsForC(fname1, fname2)
-	defer C.free(unsafe.Pointer(c_fnames[0]))
-	defer C.free(unsafe.Pointer(c_fnames[1]))
-	success := startHelper(_helper_type, _app_id, (**C.gchar)(unsafe.Pointer(&c_fnames[0])))
-	return (C.int)(success) != 0
+// run is a wrapper for ubuntu_app_launc_start_multiple_helper
+//
+// XXX: also return an error
+func run(helperType string, appId string, uri1 string, uri2 string) string {
+	helper_type := gchar(helperType)
+	defer free(helper_type)
+	app_id := gchar(appId)
+	defer free(app_id)
+	c_uris := twoStringsForC(uri1, uri2)
+	defer free(c_uris[0])
+	defer free(c_uris[1])
+	instance_id := startHelper(helper_type, app_id, (**C.gchar)(unsafe.Pointer(&c_uris[0])))
+	if instance_id == nil {
+		return ""
+	}
+	defer free(instance_id)
+	return C.GoString((*C.char)(instance_id))
 }
 
-// stop is a wrapper for ubuntu_app_launch_stop_helper
-func stop(helperType string, appId string) bool {
-	_helper_type := (*C.gchar)(C.CString(helperType))
-	defer C.free(unsafe.Pointer(_helper_type))
-	_app_id := (*C.gchar)(C.CString(appId))
-	defer C.free(unsafe.Pointer(_app_id))
-	success := stopHelper(_helper_type, _app_id)
+// stop is a wrapper for ubuntu_app_launch_stop_multiple_helper
+func stop(helperType string, appId string, instanceId string) bool {
+	helper_type := gchar(helperType)
+	defer free(helper_type)
+	app_id := gchar(appId)
+	defer free(app_id)
+	instance_id := gchar(instanceId)
+	defer free(instance_id)
+	success := stopHelper(helper_type, app_id, instance_id)
 	return (C.int)(success) != 0
 }
 
@@ -146,8 +155,8 @@ func New(log logger.Logger, helperType string) HelperRunner {
 // puts results in the results channel.
 // Should be called as a goroutine.
 func (hr *HelperRunner) Start() {
-	helper_type := (*C.gchar)(C.CString(hr.helperType))
-	defer C.free(unsafe.Pointer(helper_type))
+	helper_type := gchar(hr.helperType)
+	defer free(helper_type)
 	// Create an observer to be notified when helpers stop
 	C.ubuntu_app_launch_observer_add_helper_stop(
 		(C.UbuntuAppLaunchHelperObserver)(C.stop_observer),
@@ -159,13 +168,13 @@ func (hr *HelperRunner) Start() {
 		pkgName := strings.Split(helper.AppId, "_")[0]
 		err := hr.createTempFiles(&helper, pkgName)
 		if err != nil {
-			hr.log.Errorf("Failed to create temp files: %v", err)
+			hr.log.Errorf("failed to create temp files: %v", err)
 			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
 			continue
 		}
 		err = ioutil.WriteFile(helper.Input, helper.Payload, os.ModeTemporary)
 		if err != nil {
-			hr.log.Errorf("Failed to write to input file: %v", err)
+			hr.log.Errorf("failed to write to input file: %v", err)
 			os.Remove(helper.Input)
 			os.Remove(helper.Output)
 			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
@@ -174,7 +183,7 @@ func (hr *HelperRunner) Start() {
 		result := hr.Run(helper.AppId, helper.Input, helper.Output)
 		// read the output file and build the result
 		if result != HelperFinished && result != HelperStopped && result != StopFailed {
-			hr.log.Errorf("Helper run failed with: %v, %v", helper, result)
+			hr.log.Errorf("helper run failed with: %v, %v", helper, result)
 			os.Remove(helper.Input)
 			os.Remove(helper.Output)
 			hr.Results <- RunnerResult{result, helper, nil, errors.New("Helper failed.")}
@@ -184,7 +193,7 @@ func (hr *HelperRunner) Start() {
 		os.Remove(helper.Input)
 		os.Remove(helper.Output)
 		if err != nil {
-			hr.log.Errorf("Failed to read output file: %v", err)
+			hr.log.Errorf("failed to read output file: %v", err)
 			hr.Results <- RunnerResult{HelperFailed, helper, nil, err}
 		} else {
 			hr.Results <- RunnerResult{result, helper, data, nil}
@@ -215,31 +224,26 @@ type HelperRunner struct {
 // You probably don't want to run this directly, but instead
 // use Start
 func (hr *HelperRunner) Run(appId string, input string, output string) ReturnValue {
-	timeout := make(chan bool)
-	// Always start with a clean finished channel to avoid races
-	finished = make(chan bool)
-	hr.log.Debugf("Starting helper: %s %s %s %s", hr.helperType, appId, input, output)
-	success := run(hr.helperType, appId, input, output)
-	if success {
-		go func() {
-			time.Sleep(timeLimit)
-			timeout <- true
-		}()
-		select {
-		case <-timeout:
-			hr.log.Debugf("Timeout reached, stopping")
-			if stop(hr.helperType, appId) {
-				return HelperStopped
-			} else {
-				return StopFailed
-			}
-		case <-finished:
-			hr.log.Debugf("Finished before timeout, doing nothing")
-			return HelperFinished
-		}
-	} else {
-		hr.log.Debugf("Failed to start helper")
+	hr.log.Debugf("starting helper: %s %s %s %s", hr.helperType, appId, input, output)
+	instanceId := run(hr.helperType, appId, input, output)
+	if instanceId == "" {
+		hr.log.Debugf("failed to start helper")
 		return HelperFailed
+	}
+
+	select {
+	case <-time.After(timeLimit):
+		hr.log.Debugf("timeout reached, stopping")
+		if stop(hr.helperType, appId, instanceId) {
+			// wait for the stop to come in
+			<-finishedCh
+			return HelperStopped
+		} else {
+			return StopFailed
+		}
+	case <-finishedCh:
+		hr.log.Debugf("finished before timeout, doing nothing")
+		return HelperFinished
 	}
 }
 
@@ -273,14 +277,14 @@ func (hr *HelperRunner) createTempFiles(helper *HelperArgs, pkgName string) erro
 	if helper.Input == "" {
 		helper.Input, err = getTempFilename(pkgName)
 		if err != nil {
-			hr.log.Errorf("Failed to create input file: %v", err)
+			hr.log.Errorf("failed to create input file: %v", err)
 			return err
 		}
 	}
 	if helper.Output == "" {
 		helper.Output, err = getTempFilename(pkgName)
 		if err != nil {
-			hr.log.Errorf("Failed to create output file: %v", err)
+			hr.log.Errorf("failed to create output file: %v", err)
 			return err
 		}
 	}

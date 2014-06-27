@@ -268,9 +268,9 @@ func (app *MessagingMenuApp) RemoveAttention(id string) {
 func (app *MessagingMenuApp) AppendMessage(msg MessagingMenuMessage, id string, notify bool) {
 	var _id = gchar(id)
 	if notify { // FIXME: how to convert from bool to int?
-		C.messaging_menu_app_append_message(app.instance, msg.instance, _id, (C.gboolean)(C.int(1)))
+		C.messaging_menu_app_append_message(app.instance, msg.instance, _id, C.TRUE)
 	} else {
-		C.messaging_menu_app_append_message(app.instance, msg.instance, _id, (C.gboolean)(C.int(0)))
+		C.messaging_menu_app_append_message(app.instance, msg.instance, _id, C.FALSE)
 	}
 	free(_id)
 }
@@ -338,9 +338,9 @@ func (msg *MessagingMenuMessage) GetDrawsAttention() bool {
 
 func (msg *MessagingMenuMessage) SetDrawsAttention(draws_attention bool) {
 	if draws_attention { // FIXME: how to convert from bool to int?
-		C.messaging_menu_message_set_draws_attention(msg.instance, (C.gboolean)(C.int(1)))
+		C.messaging_menu_message_set_draws_attention(msg.instance, C.TRUE)
 	} else {
-		C.messaging_menu_message_set_draws_attention(msg.instance, (C.gboolean)(C.int(0)))
+		C.messaging_menu_message_set_draws_attention(msg.instance, C.FALSE)
 	}
 }
 

@@ -42,14 +42,14 @@ func (s *runnerSuite) SetUpTest(c *C) {
 }
 
 var runnerTests = []struct {
-	expected ReturnValue                                                        // expected result
-	msg      string                                                             // description of failure
-	starter  func(*_Ctype_gchar, *_Ctype_gchar, **_Ctype_gchar) _Ctype_gboolean // starter fake
-	stopper  func(*_Ctype_gchar, *_Ctype_gchar) _Ctype_gboolean                 // stopper fake
+	expected ReturnValue                                                       // expected result
+	msg      string                                                            // description of failure
+	starter  func(*_Ctype_gchar, *_Ctype_gchar, **_Ctype_gchar) *_Ctype_gchar  // starter fake
+	stopper  func(*_Ctype_gchar, *_Ctype_gchar, *_Ctype_gchar) _Ctype_gboolean // stopper fake
 }{
 	{HelperStopped, "Long running helper is not stopped", fakeStartLongLivedHelper, fakeStop},
 	{HelperFinished, "Short running helper doesn't finish", fakeStartShortLivedHelper, fakeStop},
-	{HelperFailed, "Filure to start helper doesn't fail", fakeStartFailure, fakeStop},
+	{HelperFailed, "Failure to start helper doesn't fail", fakeStartFailure, fakeStop},
 	{HelperFailed, "Error in start argument casting", fakeStartCheckCasting, fakeStop},
 	{StopFailed, "Error in stop argument casting", fakeStartLongLivedHelper, fakeStopCheckCasting},
 }
