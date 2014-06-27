@@ -17,8 +17,13 @@
 package launch_helper
 
 import (
+	"errors"
+	"io/ioutil"
+	"os"
+	"path"
 	"testing"
 
+	"launchpad.net/go-xdg/v0"
 	. "launchpad.net/gocheck"
 
 	helpers "launchpad.net/ubuntu-push/testing"
@@ -49,12 +54,227 @@ var runnerTests = []struct {
 	{StopFailed, "Error in stop argument casting", fakeStartLongLivedHelper, fakeStopCheckCasting},
 }
 
-func (s *runnerSuite) TestRunner(c *C) {
+func (s *runnerSuite) TestARunner(c *C) {
 	for _, tt := range runnerTests {
 		startHelper = tt.starter
 		stopHelper = tt.stopper
-		runner := New(s.testlog, "foobar")
-		command := []string{"foo1", "bar1", "bat1", "baz1"}
-		c.Check(runner.Run(command), Equals, tt.expected, Commentf(tt.msg))
+		runner := New(s.testlog, "foo1")
+		result := runner.Run("bar1", "bat1", "baz1")
+		c.Check(result, Equals, tt.expected, Commentf(tt.msg))
 	}
+}
+
+func (s *runnerSuite) TestFileHandling(c *C) {
+	startHelper = fakeStartShortLivedHelper
+	stopHelper = fakeStop
+	hr := New(s.testlog, "test_helper")
+	tmpDir := c.MkDir()
+	inputPath := tmpDir + "/test_helper_input"
+	outputPath := tmpDir + "/test_helper_output"
+	// start the loop inside a function, with a channel to signal when it's done.
+	finished := make(chan bool)
+	go func() {
+		hr.Start()
+		finished <- true
+	}()
+	msg := []byte("{\"msg\": \"foo\"}")
+	ioutil.WriteFile(inputPath, []byte(""), os.ModePerm)
+	ioutil.WriteFile(outputPath, msg, os.ModePerm)
+	helperArgs := HelperArgs{"bar1", msg, inputPath, outputPath}
+	hr.Helpers <- helperArgs
+	result := <-hr.Results
+	// check the result
+	expected := RunnerResult{HelperFinished, helperArgs, msg, nil}
+	c.Check(result, DeepEquals, expected)
+	close(hr.Helpers)
+	<-finished
+	files, err := ioutil.ReadDir(tmpDir)
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 0)
+}
+
+func (s *runnerSuite) TestFileHandlingLongRunningHelperOK(c *C) {
+	startHelper = fakeStartLongLivedHelper
+	stopHelper = fakeStop
+	hr := New(s.testlog, "test_helper")
+	tmpDir := c.MkDir()
+	inputPath := tmpDir + "/test_helper_input"
+	outputPath := tmpDir + "/test_helper_output"
+	// start the loop inside a function, with a channel to signal when it's done.
+	finished := make(chan bool)
+	go func() {
+		hr.Start()
+		finished <- true
+	}()
+	msg := []byte("{\"msg\": \"foo\"}")
+	ioutil.WriteFile(inputPath, []byte(""), os.ModePerm)
+	ioutil.WriteFile(outputPath, msg, os.ModePerm)
+	helperArgs := HelperArgs{"bar1", msg, inputPath, outputPath}
+	hr.Helpers <- helperArgs
+	result := <-hr.Results
+	// check the result
+	expected := RunnerResult{HelperFinished, helperArgs, msg, nil}
+	c.Check(result, DeepEquals, expected)
+	close(hr.Helpers)
+	<-finished
+	files, err := ioutil.ReadDir(tmpDir)
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 0)
+}
+
+func (s *runnerSuite) TestFileHandlingLongRunningHelperNoOutput(c *C) {
+	startHelper = fakeStartLongLivedHelper
+	stopHelper = fakeStop
+	hr := New(s.testlog, "test_helper")
+	tmpDir := c.MkDir()
+	inputPath := tmpDir + "/test_helper_input"
+	outputPath := tmpDir + "/test_helper_output"
+	// start the loop inside a function, with a channel to signal when it's done.
+	finished := make(chan bool)
+	go func() {
+		hr.Start()
+		finished <- true
+	}()
+	msg := []byte("{\"msg\": \"foo\"}")
+	ioutil.WriteFile(inputPath, []byte(""), os.ModePerm)
+	helperArgs := HelperArgs{"bar1", msg, inputPath, outputPath}
+	hr.Helpers <- helperArgs
+	result := <-hr.Results
+	// check the result
+	expected := RunnerResult{HelperFailed, helperArgs, msg, nil}
+	c.Check(result.Status, Equals, expected.Status)
+	c.Check(result.Helper, DeepEquals, expected.Helper)
+	c.Check(string(result.Data), Equals, "")
+	c.Check(result.Error, ErrorMatches, ".*no such file.*")
+	close(hr.Helpers)
+	<-finished
+	files, err := ioutil.ReadDir(tmpDir)
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 0)
+}
+
+func (s *runnerSuite) TestFileHandlingFailed(c *C) {
+	startHelper = fakeStartFailure
+	stopHelper = fakeStop
+	hr := New(s.testlog, "test_helper")
+	tmpDir := c.MkDir()
+	inputPath := tmpDir + "/test_helper_input"
+	outputPath := tmpDir + "/test_helper_output"
+	// start the loop inside a function, with a channel to signal when it's done.
+	finished := make(chan bool)
+	go func() {
+		hr.Start()
+		finished <- true
+	}()
+	msg := []byte("{\"msg\": \"foo\"}")
+	ioutil.WriteFile(inputPath, []byte(""), os.ModePerm)
+	helperArgs := HelperArgs{"bar1", msg, inputPath, outputPath}
+	hr.Helpers <- helperArgs
+	result := <-hr.Results
+	// check the result
+	expected := RunnerResult{HelperFailed, helperArgs, nil, errors.New("Helper failed.")}
+	c.Check(result, DeepEquals, expected)
+	close(hr.Helpers)
+	<-finished
+	files, err := ioutil.ReadDir(tmpDir)
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 0)
+}
+
+func (s *runnerSuite) TestFailtoCreateFile(c *C) {
+	startHelper = fakeStartFailure
+	stopHelper = fakeStop
+	// restore it when we are done
+	getTempFilename = func(pkgName string) (string, error) {
+		return "", errors.New("Can't create files.")
+	}
+	defer func() {
+		getTempFilename = _getTempFilename
+	}()
+	hr := New(s.testlog, "test_helper")
+	// start the loop inside a function, with a channel to signal when it's done.
+	finished := make(chan bool)
+	go func() {
+		hr.Start()
+		finished <- true
+	}()
+	helperArgs := HelperArgs{}
+	helperArgs.AppId = "bar1"
+	helperArgs.Payload = []byte("{\"msg\": \"foo\"}")
+	hr.Helpers <- helperArgs
+	result := <-hr.Results
+	// check the result
+	expected := RunnerResult{HelperFailed, helperArgs, nil, errors.New("Can't create files.")}
+	c.Check(result, DeepEquals, expected)
+	close(hr.Helpers)
+	<-finished
+}
+
+func (s *runnerSuite) TestCreateTempFiles(c *C) {
+	tmpDir := c.MkDir()
+	getTempDir = func(pkgName string) (string, error) {
+		return tmpDir, nil
+	}
+	// restore it when we are done
+	defer func() {
+		getTempDir = _getTempDir
+	}()
+	helperArgs := HelperArgs{}
+	helperArgs.AppId = "bar1"
+	helperArgs.Payload = []byte{}
+	c.Check(helperArgs.Input, Equals, "")
+	c.Check(helperArgs.Output, Equals, "")
+	hr := New(s.testlog, "test_helper")
+	err := hr.createTempFiles(&helperArgs, helperArgs.AppId)
+	c.Check(err, IsNil)
+	c.Check(helperArgs.Input, Not(Equals), "")
+	c.Check(helperArgs.Output, Not(Equals), "")
+	files, err := ioutil.ReadDir(path.Dir(helperArgs.Input))
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 2)
+}
+
+func (s *runnerSuite) TestCreateTempFilesWithFilenames(c *C) {
+	tmpDir := c.MkDir()
+	inputPath := tmpDir + "/test_helper_input"
+	outputPath := tmpDir + "/test_helper_output"
+	helperArgs := HelperArgs{"bar1", []byte{}, inputPath, outputPath}
+	c.Check(helperArgs.Input, Equals, inputPath)
+	c.Check(helperArgs.Output, Equals, outputPath)
+	hr := New(s.testlog, "test_helper")
+	err := hr.createTempFiles(&helperArgs, "pkg.name")
+	c.Check(err, IsNil)
+	files, err := ioutil.ReadDir(tmpDir)
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 0)
+}
+
+func (s *runnerSuite) TestGetTempFilename(c *C) {
+	getTempDir = func(pkgName string) (string, error) {
+		return c.MkDir(), nil
+	}
+	// restore it when we are done
+	defer func() {
+		getTempDir = _getTempDir
+	}()
+	fname, err := getTempFilename("pkg.name")
+	c.Check(err, IsNil)
+	dirname := path.Dir(fname)
+	files, err := ioutil.ReadDir(dirname)
+	c.Check(err, IsNil)
+	c.Check(files, HasLen, 1)
+}
+
+func (s *runnerSuite) TestGetTempDir(c *C) {
+	tmpDir := c.MkDir()
+	xdgCacheHome = func() string {
+		return tmpDir
+	}
+	// restore it when we are done
+	defer func() {
+		xdgCacheHome = xdg.Cache.Home
+	}()
+	dname, err := getTempDir("pkg.name")
+	c.Check(err, IsNil)
+	c.Check(dname, Equals, path.Join(tmpDir, "pkg.name"))
 }
