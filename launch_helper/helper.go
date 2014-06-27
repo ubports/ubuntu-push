@@ -77,7 +77,7 @@ var finishedCh = make(chan string, 1)
 
 //export goObserver
 func goObserver(instance_id *C.gchar) {
-	finishedCh <- C.GoString((*C.char)(instance_id))
+	finishedCh <- gostring(instance_id)
 }
 
 // Convert two strings into a proper NULL-terminated gchar**
@@ -105,7 +105,7 @@ func run(helperType string, appId string, uri1 string, uri2 string) string {
 		return ""
 	}
 	defer free(instance_id)
-	return C.GoString((*C.char)(instance_id))
+	return gostring(instance_id)
 }
 
 // stop is a wrapper for ubuntu_app_launch_stop_multiple_helper

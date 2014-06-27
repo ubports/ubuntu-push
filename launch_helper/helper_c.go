@@ -49,26 +49,40 @@ func free(s *C.gchar) {
 	C.free(unsafe.Pointer(s))
 }
 
+func gostring(s *C.gchar) string {
+	return C.GoString((*C.char)(s))
+}
+
 // These functions are used by tests, they can't be defined in the test file
 // because cgo is not allowed there
 
-func fakeStartLongLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
-	go func() {
-		time.Sleep(timeLimit * 3)
-		iid := gchar("hello")
-		defer free(iid)
-		goObserver(iid)
-	}()
+func stamp() string {
+	return time.Now().Format(time.StampMicro)
+}
+
+func fakeStartKnownIdDoesNotRun(*C.gchar, *C.gchar, **C.gchar) *C.gchar {
 	return gchar("hello")
 }
 
-func fakeStartShortLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
+func fakeStartLongLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
+	id := stamp()
 	go func() {
-		iid := gchar("hi")
+		time.Sleep(timeLimit * 3)
+		iid := gchar(id)
 		defer free(iid)
 		goObserver(iid)
 	}()
-	return gchar("hi")
+	return gchar(id)
+}
+
+func fakeStartShortLivedHelper(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
+	id := stamp()
+	go func() {
+		iid := gchar(id)
+		defer free(iid)
+		goObserver(iid)
+	}()
+	return gchar(id)
 }
 
 func fakeStartFailure(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
@@ -77,12 +91,12 @@ func fakeStartFailure(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.g
 
 func fakeStartCheckCasting(helper_type *C.gchar, appid *C.gchar, uris **C.gchar) *C.gchar {
 
-	if "foo1" != C.GoString((*C.char)(helper_type)) {
+	if "foo1" != gostring(helper_type) {
 		fmt.Printf("helper_type is not properly casted")
 		return gchar("hi")
 	}
 
-	if "bar1" != C.GoString((*C.char)(appid)) {
+	if "bar1" != gostring(appid) {
 		fmt.Printf("appid is not properly casted")
 		return gchar("hi")
 	}
@@ -114,28 +128,28 @@ func fakeStartCheckCasting(helper_type *C.gchar, appid *C.gchar, uris **C.gchar)
 
 func fakeStopCheckCasting(helper_type *C.gchar, app_id *C.gchar, instance_id *C.gchar) C.gboolean {
 
-	if "foo1" != C.GoString((*C.char)(helper_type)) {
+	if "foo1" != gostring(helper_type) {
 		fmt.Printf("helper_type is not properly casted")
 		return C.TRUE
 	}
 
-	if "bar1" != C.GoString((*C.char)(app_id)) {
+	if "bar1" != gostring(app_id) {
 		fmt.Printf("app_id is not properly casted")
 		return C.TRUE
 	}
 
-	if "hello" != C.GoString((*C.char)(instance_id)) {
+	if "hello" != gostring(instance_id) {
 		fmt.Printf("instance_id is not properly casted")
 		return C.TRUE
 	}
 
-	finishedCh <- ""
+	finishedCh <- gostring(instance_id)
 
 	return C.FALSE
 }
 
 func fakeStop(helper_type *C.gchar, app_id *C.gchar, instance_id *C.gchar) C.gboolean {
-	finishedCh <- ""
+	finishedCh <- gostring(instance_id)
 
 	return C.TRUE
 }

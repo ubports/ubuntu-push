@@ -51,7 +51,7 @@ var runnerTests = []struct {
 	{HelperFinished, "Short running helper doesn't finish", fakeStartShortLivedHelper, fakeStop},
 	{HelperFailed, "Failure to start helper doesn't fail", fakeStartFailure, fakeStop},
 	{HelperFailed, "Error in start argument casting", fakeStartCheckCasting, fakeStop},
-	{StopFailed, "Error in stop argument casting", fakeStartLongLivedHelper, fakeStopCheckCasting},
+	{StopFailed, "Error in stop argument casting", fakeStartKnownIdDoesNotRun, fakeStopCheckCasting},
 }
 
 func (s *runnerSuite) TestARunner(c *C) {
@@ -113,7 +113,7 @@ func (s *runnerSuite) TestFileHandlingLongRunningHelperOK(c *C) {
 	hr.Helpers <- helperArgs
 	result := <-hr.Results
 	// check the result
-	expected := RunnerResult{HelperFinished, helperArgs, msg, nil}
+	expected := RunnerResult{HelperStopped, helperArgs, msg, nil}
 	c.Check(result, DeepEquals, expected)
 	close(hr.Helpers)
 	<-finished
