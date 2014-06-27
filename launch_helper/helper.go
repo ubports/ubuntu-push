@@ -73,7 +73,7 @@ var stopHelper = _stop_helper
 
 // this channel is global because it needs to be accessed from goObserver which needs
 // to be global to be exported
-var finishedCh = make(chan string, 1)
+var finishedCh = make(chan string, 10)
 
 //export goObserver
 func goObserver(instance_id *C.gchar) {
