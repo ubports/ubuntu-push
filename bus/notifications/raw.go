@@ -112,24 +112,26 @@ type Card struct {
 	Timestamp int
 }
 
-// XXX duplicated
-var ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
-
 // ShowCard displays a given card.
 //
-// If card.Actions is not empty, it will shown as a snap decision, and WatchActions will receive
-// something like this in the ActionId field:
+// If card.Actions has 1 action, it's an interactive notification.
+// If card.Actions has 2 or more actions, it will show as a snap decision.
+//
+// WatchActions will receive something like this in the ActionId field:
 // ::ubuntu-push-client::appId::notificationId::action.Id
 func (raw *RawNotifications) ShowCard(appId string, notificationId string, card *Card) (uint32, error) {
 	app_icon := c_helper.AppIconFromId(appId)
 	reuse_id := crc32.ChecksumIEEE([]byte(notificationId)) // reuse the same bubble for the same notification
 	hints := make(map[string]*dbus.Variant)
-	hints["x-canonical-secondary-icon"] = &dbus.Variant{app_icon}
+    hints["x-canonical-secondary-icon"] = &dbus.Variant{app_icon}
 
 	var actions []string
 	for _, action := range card.Actions {
-		actions = append(actions, ACTION_ID_SNOWFLAKE+appId+"::"+notificationId+"::"+action.Id)
+		actions = append(actions, appId+"::"+notificationId+"::"+action.Id)
 		actions = append(actions, action.Label)
+	}
+	if len(actions) > 2 {
+            hints["x-canonical-snap-decisions"] = &dbus.Variant{true}
 	}
 	return raw.Notify(appId, reuse_id, card.Icon, card.Summary, card.Body, actions, hints, 5)
 }
