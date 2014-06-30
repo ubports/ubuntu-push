@@ -40,10 +40,10 @@ func NewTrivialHelperLauncher(log logger.Logger) HelperLauncher {
 func (triv *trivialHelperLauncher) Run(appId string, message []byte) *HelperOutput {
 	out := new(HelperOutput)
 	err := json.Unmarshal(message, out)
-	if err == nil && out.Notification != nil {
+	if err == nil {
 		return out
 	}
-	triv.log.Debugf("failed to parse HelperOutput from message, leaving it alone")
+	triv.log.Debugf("failed to parse HelperOutput from message, leaving it alone: %v", err)
 	out.Message = message
 	out.Notification = nil
 

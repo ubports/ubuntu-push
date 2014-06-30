@@ -186,7 +186,7 @@ func (ss *postalSuite) TestInjectCallsMessageHandler(c *C) {
 	f := func(s *launch_helper.HelperOutput) error { ext = s; return nil }
 	svc.SetMessageHandler(f)
 	c.Check(svc.Inject("stuff", "{}"), IsNil)
-	c.Check(ext, DeepEquals, &launch_helper.HelperOutput{[]byte("{}"), nil})
+	c.Check(ext, DeepEquals, &launch_helper.HelperOutput{})
 	err := errors.New("ouch")
 	svc.SetMessageHandler(func(*launch_helper.HelperOutput) error { return err })
 	c.Check(svc.Inject("stuff", "{}"), Equals, err)
