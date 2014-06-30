@@ -95,3 +95,13 @@ func (s *RawSuite) TestWatchActionsFails(c *C) {
 	_, err := raw.WatchActions()
 	c.Check(err, NotNil)
 }
+
+func (s *RawSuite) TestShowCardNotifies(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	nid, err := raw.ShowCard("firefox.desktop", "notifId", &Card{"summary", "body", []Action{}, "", 0})
+	c.Check(err, IsNil)
+	c.Check(nid, Equals, uint32(1))
+}
+
+// XXX Missing test about ShowCard manipulating Actions and hints correctly.
