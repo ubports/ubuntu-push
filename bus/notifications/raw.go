@@ -99,18 +99,39 @@ func (raw *RawNotifications) WatchActions() (<-chan RawActionReply, error) {
 	return ch, nil
 }
 
+type Action struct {
+	Id    string
+	Label string
+}
+
 type Card struct {
 	Summary   string
 	Body      string
-	Actions   []string
+	Actions   []Action
 	Icon      string
 	Timestamp int
 }
 
+// ShowCard displays a given card.
+//
+// If card.Actions has 1 action, it's an interactive notification.
+// If card.Actions has 2 or more actions, it will show as a snap decision.
+//
+// WatchActions will receive something like this in the ActionId field:
+// appId::notificationId::action.Id
 func (raw *RawNotifications) ShowCard(appId string, notificationId string, card *Card) (uint32, error) {
 	app_icon := c_helper.AppIconFromId(appId)
 	reuse_id := crc32.ChecksumIEEE([]byte(notificationId)) // reuse the same bubble for the same notification
 	hints := make(map[string]*dbus.Variant)
 	hints["x-canonical-secondary-icon"] = &dbus.Variant{app_icon}
-	return raw.Notify(appId, reuse_id, card.Icon, card.Summary, card.Body, card.Actions, hints, 5)
+
+	var actions []string
+	for _, action := range card.Actions {
+		actions = append(actions, appId+"::"+notificationId+"::"+action.Id)
+		actions = append(actions, action.Label)
+	}
+	if len(actions) > 2 {
+		hints["x-canonical-snap-decisions"] = &dbus.Variant{true}
+	}
+	return raw.Notify(appId, reuse_id, card.Icon, card.Summary, card.Body, actions, hints, 5)
 }
