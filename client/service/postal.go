@@ -17,20 +17,26 @@
 package service
 
 import (
+	"errors"
 	"strings"
 
+	"launchpad.net/go-dbus/v1"
+
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
+	"launchpad.net/ubuntu-push/util"
 )
 
 // PostalService is the dbus api
 type PostalService struct {
 	DBusService
-	mbox           map[string][]string
-	msgHandler     func(*launch_helper.HelperOutput) error
-	HelperLauncher launch_helper.HelperLauncher
+	mbox              map[string][]string
+	msgHandler        func(*launch_helper.HelperOutput) error
+	HelperLauncher    launch_helper.HelperLauncher
+	notificationsEndp bus.Endpoint
 }
 
 var (
@@ -41,12 +47,20 @@ var (
 	}
 )
 
+var (
+	SystemUpdateUrl     = "settings:///system/system-update"
+	ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
+	ACTION_ID_BROADCAST = ACTION_ID_SNOWFLAKE + SystemUpdateUrl
+)
+
 // NewPostalService() builds a new service and returns it.
-func NewPostalService(bus bus.Endpoint, log logger.Logger) *PostalService {
+func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
-	svc.Bus = bus
+	svc.Bus = busEndp
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(log)
+	svc.notificationsEndp = notificationsEndp
+	svc.msgHandler = svc.messageHandler
 	return svc
 }
 
@@ -70,6 +84,14 @@ func (svc *PostalService) Start() error {
 		"Notifications": svc.notifications,
 		"Inject":        svc.inject,
 	}, PostalServiceBusAddress)
+}
+
+func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, error) {
+	iniCh := make(chan uint32)
+	go func() { iniCh <- util.NewAutoRedialer(svc.notificationsEndp).Redial() }()
+	<-iniCh
+	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()
+	return actionsCh, err
 }
 
 func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
@@ -122,4 +144,45 @@ func (svc *PostalService) Inject(appname string, notif string) error {
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 	return svc.Bus.Signal("Notification", []interface{}{appname})
+}
+
+func (svc *PostalService) messageHandler(notif *launch_helper.HelperOutput) error {
+	if notif.Notification == nil {
+		svc.Log.Errorf("Ignoring message: notification is nil: %v", notif)
+		return errors.New("Notification is nil.")
+	} else if notif.Notification.Card != nil {
+		card := notif.Notification.Card
+		action := ""
+		if len(card.Actions) >= 1 {
+			action = card.Actions[0]
+		}
+		not_id, err := svc.SendNotification(
+			ACTION_ID_SNOWFLAKE+action,
+			card.Icon, card.Summary, card.Body)
+		if err != nil {
+			svc.Log.Errorf("showing notification: %s", err)
+			return err
+		}
+		svc.Log.Debugf("got notification id %d", not_id)
+	} else {
+		svc.Log.Errorf("Ignoring message: notification.Card is nil: %v", notif)
+		return errors.New("Notification.Card is nil.")
+	}
+	return nil
+}
+
+func (svc *PostalService) SendNotification(action_id, icon, summary, body string) (uint32, error) {
+	a := []string{action_id, "Switch to app"} // action value not visible on the phone
+	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
+	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
+	return nots.Notify(
+		"ubuntu-push-client", // app name
+		uint32(0),            // id
+		icon,                 // icon
+		summary,              // summary
+		body,                 // body
+		a,                    // actions
+		h,                    // hints
+		int32(10*1000),       // timeout (ms)
+	)
 }
