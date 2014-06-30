@@ -40,6 +40,7 @@ import (
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -952,7 +953,8 @@ func (cs *clientSuite) TestMessageHandler(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
-	err := cli.messageHandler([]byte(`{"icon": "icon-value", "summary": "summary-value", "body": "body-value"}`))
+	output := &launch_helper.HelperOutput{[]byte(`{"icon": "icon-value", "summary": "summary-value", "body": "body-value"}`), nil}
+	err := cli.messageHandler(output)
 	c.Assert(err, IsNil)
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
@@ -966,8 +968,8 @@ func (cs *clientSuite) TestMessageHandler(c *C) {
 func (cs *clientSuite) TestMessageHandlerReportsUnmarshalErrors(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-
-	err := cli.messageHandler([]byte(`{"broken`))
+	output := &launch_helper.HelperOutput{[]byte(`broken`), nil}
+	err := cli.messageHandler(output)
 	c.Check(err, NotNil)
 	c.Check(cs.log.Captured(), Matches, "(?msi).*unable to unmarshal message:.*")
 }
@@ -977,7 +979,8 @@ func (cs *clientSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
-	err := cli.messageHandler([]byte(`{}`))
+	output := &launch_helper.HelperOutput{[]byte(`{}`), nil}
+	err := cli.messageHandler(output)
 	c.Assert(err, NotNil)
 	c.Check(cs.log.Captured(), Matches, "(?msi).*showing notification: no way$")
 }

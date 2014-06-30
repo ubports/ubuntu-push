@@ -55,3 +55,12 @@ func (s *runnerSuite) TestTrivialRunnerWorksOnBadInput(c *C) {
 	c.Check(out.Notification, IsNil)
 	c.Check(out.Message, DeepEquals, msg)
 }
+
+func (s *runnerSuite) TestTrivialRunnerWorksOnBadFormat(c *C) {
+	triv := NewTrivialHelperLauncher(s.testlog)
+	msg := []byte(`{"url": "foo/bar"}`)
+	out := triv.Run("foo", msg)
+	c.Assert(out, NotNil)
+	c.Check(out.Notification, IsNil)
+	c.Check(out.Message, DeepEquals, msg)
+}

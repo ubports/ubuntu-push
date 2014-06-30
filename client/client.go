@@ -43,6 +43,7 @@ import (
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
@@ -426,18 +427,34 @@ type UnicastMessage struct {
 	Blob    json.RawMessage `json:"blob"`
 }
 
-func (client *PushClient) messageHandler(message []byte) error {
-	var umsg = new(UnicastMessage)
-	err := json.Unmarshal(message, &umsg)
-	if err != nil {
-		client.log.Errorf("unable to unmarshal message: %v", err)
-		return err
+func (client *PushClient) messageHandler(notif *launch_helper.HelperOutput) error {
+	//var err error
+	//var not_id int64
+	var action, icon, summary, body string
+	if notif.Notification != nil && notif.Notification.Card != nil {
+		card := notif.Notification.Card
+		action = ""
+		if len(card.Actions) >= 1 {
+			action = card.Actions[0]
+		}
+		icon = card.Icon
+		summary = card.Summary
+		body = card.Summary
+	} else {
+		var umsg = new(UnicastMessage)
+		err := json.Unmarshal(notif.Message, &umsg)
+		if err != nil {
+			client.log.Errorf("unable to unmarshal message: %v - %v", err, notif.Message)
+			return err
+		}
+		action = umsg.URL
+		icon = umsg.Icon
+		summary = umsg.Summary
+		body = umsg.Body
 	}
-
 	not_id, err := client.sendNotification(
-		ACTION_ID_SNOWFLAKE+umsg.URL,
-		umsg.Icon, umsg.Summary, umsg.Body)
-
+		ACTION_ID_SNOWFLAKE+action,
+		icon, summary, body)
 	if err != nil {
 		client.log.Errorf("showing notification: %s", err)
 		return err
