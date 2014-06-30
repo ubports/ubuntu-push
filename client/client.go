@@ -418,15 +418,6 @@ func (client *PushClient) Loop() {
 		client.handleErr)
 }
 
-// these are the currently supported fields of a unicast message
-type UnicastMessage struct {
-	Icon    string          `json:"icon"`
-	Body    string          `json:"body"`
-	Summary string          `json:"summary"`
-	URL     string          `json:"url"`
-	Blob    json.RawMessage `json:"blob"`
-}
-
 func (client *PushClient) messageHandler(notif *launch_helper.HelperOutput) error {
 	if notif.Notification == nil {
 		client.log.Errorf("Ignoring message: notification is nil: %v", notif)
