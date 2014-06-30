@@ -118,7 +118,7 @@ type Card struct {
 // If card.Actions has 2 or more actions, it will show as a snap decision.
 //
 // WatchActions will receive something like this in the ActionId field:
-// ::ubuntu-push-client::appId::notificationId::action.Id
+// appId::notificationId::action.Id
 func (raw *RawNotifications) ShowCard(appId string, notificationId string, card *Card) (uint32, error) {
 	app_icon := c_helper.AppIconFromId(appId)
 	reuse_id := crc32.ChecksumIEEE([]byte(notificationId)) // reuse the same bubble for the same notification
