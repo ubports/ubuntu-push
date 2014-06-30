@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
 )
@@ -27,8 +28,9 @@ import (
 // PostalService is the dbus api
 type PostalService struct {
 	DBusService
-	mbox       map[string][]string
-	msgHandler func([]byte) error
+	mbox           map[string][]string
+	msgHandler     func(*launch_helper.HelperOutput) error
+	HelperLauncher launch_helper.HelperLauncher
 }
 
 var (
@@ -44,18 +46,19 @@ func NewPostalService(bus bus.Endpoint, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
 	svc.Bus = bus
+	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(log)
 	return svc
 }
 
 // SetMessageHandler() sets the message-handling callback
-func (svc *PostalService) SetMessageHandler(callback func([]byte) error) {
+func (svc *PostalService) SetMessageHandler(callback func(*launch_helper.HelperOutput) error) {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
 	svc.msgHandler = callback
 }
 
 // GetMessageHandler() returns the (possibly nil) messaging handler callback
-func (svc *PostalService) GetMessageHandler() func([]byte) error {
+func (svc *PostalService) GetMessageHandler() func(*launch_helper.HelperOutput) error {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
 	return svc.msgHandler
@@ -108,15 +111,15 @@ func (svc *PostalService) Inject(appname string, notif string) error {
 	if svc.mbox == nil {
 		svc.mbox = make(map[string][]string)
 	}
-	svc.mbox[appname] = append(svc.mbox[appname], notif)
+	output := svc.HelperLauncher.Run(appname, []byte(notif))
+	svc.mbox[appname] = append(svc.mbox[appname], string(output.Message))
 	if svc.msgHandler != nil {
-		err := svc.msgHandler([]byte(notif))
+		err := svc.msgHandler(output)
 		if err != nil {
 			svc.DBusService.Log.Errorf("msgHandler returned %v", err)
 			return err
 		}
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
-
 	return svc.Bus.Signal("Notification", []interface{}{appname})
 }

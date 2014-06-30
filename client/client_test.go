@@ -40,6 +40,7 @@ import (
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -669,7 +670,8 @@ func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
     handleUnicastNotification tests
 ******************************************************************/
 
-var notif = &protocol.Notification{AppId: "hello", Payload: []byte(`{"url": "xyzzy"}`), MsgId: "42"}
+var payload = `{"message": "aGVsbG8=", "notification": {"card": {"icon": "icon-value", "summary": "summary-value", "body": "body-value", "actions": []}}}`
+var notif = &protocol.Notification{AppId: "hello", Payload: []byte(payload), MsgId: "42"}
 
 func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -952,7 +954,9 @@ func (cs *clientSuite) TestMessageHandler(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
-	err := cli.messageHandler([]byte(`{"icon": "icon-value", "summary": "summary-value", "body": "body-value"}`))
+	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value"}
+	output := &launch_helper.HelperOutput{[]byte("aGVsbG8="), &launch_helper.Notification{Card: card}}
+	err := cli.messageHandler(output)
 	c.Assert(err, IsNil)
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
@@ -966,10 +970,10 @@ func (cs *clientSuite) TestMessageHandler(c *C) {
 func (cs *clientSuite) TestMessageHandlerReportsUnmarshalErrors(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-
-	err := cli.messageHandler([]byte(`{"broken`))
+	output := &launch_helper.HelperOutput{[]byte(`broken`), nil}
+	err := cli.messageHandler(output)
 	c.Check(err, NotNil)
-	c.Check(cs.log.Captured(), Matches, "(?msi).*unable to unmarshal message:.*")
+	c.Check(cs.log.Captured(), Matches, "(?msi).*Ignoring message: notification is nil.*")
 }
 
 func (cs *clientSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
@@ -977,9 +981,10 @@ func (cs *clientSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	cli.notificationsEndp = endp
 	cli.log = cs.log
-	err := cli.messageHandler([]byte(`{}`))
+	output := &launch_helper.HelperOutput{[]byte(`{}`), nil}
+	err := cli.messageHandler(output)
 	c.Assert(err, NotNil)
-	c.Check(cs.log.Captured(), Matches, "(?msi).*showing notification: no way$")
+	c.Check(cs.log.Captured(), Matches, "(?msi).*Ignoring message: notification is nil.*")
 }
 
 func (cs *clientSuite) TestInitSessionErr(c *C) {

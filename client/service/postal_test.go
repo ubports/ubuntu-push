@@ -23,6 +23,7 @@ import (
 
 	"launchpad.net/ubuntu-push/bus"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -118,7 +119,7 @@ func (ss *postalSuite) TestInjectFailsIfInjectFails(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true),
 		condition.Work(false))
 	svc := NewPostalService(bus, ss.log)
-	svc.SetMessageHandler(func([]byte) error { return errors.New("fail") })
+	svc.SetMessageHandler(func(*launch_helper.HelperOutput) error { return errors.New("fail") })
 	_, err := svc.inject("/hello", []interface{}{"xyzzy"}, nil)
 	c.Check(err, NotNil)
 }
@@ -168,24 +169,25 @@ func (ss *postalSuite) TestNotificationsFailsIfBadArgs(c *C) {
 func (ss *postalSuite) TestMessageHandler(c *C) {
 	svc := new(PostalService)
 	c.Assert(svc.msgHandler, IsNil)
-	var ext = []byte{}
+	var ext = &launch_helper.HelperOutput{}
 	e := errors.New("Hello")
-	f := func(s []byte) error { ext = s; return e }
+	f := func(s *launch_helper.HelperOutput) error { ext = s; return e }
 	c.Check(svc.GetMessageHandler(), IsNil)
 	svc.SetMessageHandler(f)
 	c.Check(svc.GetMessageHandler(), NotNil)
-	c.Check(svc.msgHandler([]byte("37")), Equals, e)
-	c.Check(ext, DeepEquals, []byte("37"))
+	hOutput := &launch_helper.HelperOutput{[]byte("37"), nil}
+	c.Check(svc.msgHandler(hOutput), Equals, e)
+	c.Check(ext, DeepEquals, hOutput)
 }
 
 func (ss *postalSuite) TestInjectCallsMessageHandler(c *C) {
-	var ext = []byte{}
+	var ext = &launch_helper.HelperOutput{}
 	svc := NewPostalService(ss.bus, ss.log)
-	f := func(s []byte) error { ext = s; return nil }
+	f := func(s *launch_helper.HelperOutput) error { ext = s; return nil }
 	svc.SetMessageHandler(f)
 	c.Check(svc.Inject("stuff", "{}"), IsNil)
-	c.Check(ext, DeepEquals, []byte("{}"))
+	c.Check(ext, DeepEquals, &launch_helper.HelperOutput{})
 	err := errors.New("ouch")
-	svc.SetMessageHandler(func([]byte) error { return err })
+	svc.SetMessageHandler(func(*launch_helper.HelperOutput) error { return err })
 	c.Check(svc.Inject("stuff", "{}"), Equals, err)
 }

@@ -43,7 +43,7 @@ func (triv *trivialHelperLauncher) Run(appId string, message []byte) *HelperOutp
 	if err == nil {
 		return out
 	}
-	triv.log.Debugf("failed to parse HelperOutput from message, leaving it alone")
+	triv.log.Debugf("failed to parse HelperOutput from message, leaving it alone: %v", err)
 	out.Message = message
 	out.Notification = nil
 

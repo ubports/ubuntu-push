@@ -43,6 +43,7 @@ import (
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
@@ -426,23 +427,28 @@ type UnicastMessage struct {
 	Blob    json.RawMessage `json:"blob"`
 }
 
-func (client *PushClient) messageHandler(message []byte) error {
-	var umsg = new(UnicastMessage)
-	err := json.Unmarshal(message, &umsg)
-	if err != nil {
-		client.log.Errorf("unable to unmarshal message: %v", err)
-		return err
+func (client *PushClient) messageHandler(notif *launch_helper.HelperOutput) error {
+	if notif.Notification == nil {
+		client.log.Errorf("Ignoring message: notification is nil: %v", notif)
+		return errors.New("Notification is nil.")
+	} else if notif.Notification.Card != nil {
+		card := notif.Notification.Card
+		action := ""
+		if len(card.Actions) >= 1 {
+			action = card.Actions[0]
+		}
+		not_id, err := client.sendNotification(
+			ACTION_ID_SNOWFLAKE+action,
+			card.Icon, card.Summary, card.Body)
+		if err != nil {
+			client.log.Errorf("showing notification: %s", err)
+			return err
+		}
+		client.log.Debugf("got notification id %d", not_id)
+	} else {
+		client.log.Errorf("Ignoring message: notification.Card is nil: %v", notif)
+		return errors.New("Notification.Card is nil.")
 	}
-
-	not_id, err := client.sendNotification(
-		ACTION_ID_SNOWFLAKE+umsg.URL,
-		umsg.Icon, umsg.Summary, umsg.Body)
-
-	if err != nil {
-		client.log.Errorf("showing notification: %s", err)
-		return err
-	}
-	client.log.Debugf("got notification id %d", not_id)
 	return nil
 }
 
