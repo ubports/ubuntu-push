@@ -22,6 +22,7 @@ package notifications
 import (
 	. "launchpad.net/gocheck"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -96,12 +97,44 @@ func (s *RawSuite) TestWatchActionsFails(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (s *RawSuite) TestShowCardNotifies(c *C) {
+func (s *RawSuite) TestPresentNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.ShowCard("firefox.desktop", "notifId", &Card{"summary", "body", []Action{}, "", 0})
+	nid, err := raw.Present("firefox.desktop", "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true}})
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(1))
+}
+
+func (s *RawSuite) TestPresentNoNotificationDoesNotNotify(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	nid, err := raw.Present("firefox.desktop", "notifId", nil)
+	c.Check(err, IsNil)
+	c.Check(nid, Equals, uint32(0))
+}
+
+func (s *RawSuite) TestPresentNoCardDoesNotNotify(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	nid, err := raw.Present("firefox.desktop", "notifId", &launch_helper.Notification{})
+	c.Check(err, IsNil)
+	c.Check(nid, Equals, uint32(0))
+}
+
+func (s *RawSuite) TestPresentNoSummaryDoesNotNotify(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	nid, err := raw.Present("firefox.desktop", "notifId", &launch_helper.Notification{Card: &launch_helper.Card{}})
+	c.Check(err, IsNil)
+	c.Check(nid, Equals, uint32(0))
+}
+
+func (s *RawSuite) TestPresentNoPopupNoNotify(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	nid, err := raw.Present("firefox.desktop", "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary"}})
+	c.Check(err, IsNil)
+	c.Check(nid, Equals, uint32(0))
 }
 
 // XXX Missing test about ShowCard manipulating Actions and hints correctly.

@@ -23,11 +23,13 @@ package notifications
 
 import (
 	"errors"
-	crc32 "hash/crc32"
+	"fmt"
+	"hash/crc32"
 
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/bus"
 	c_helper "launchpad.net/ubuntu-push/bus/notifications/app_helper"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -99,19 +101,6 @@ func (raw *RawNotifications) WatchActions() (<-chan RawActionReply, error) {
 	return ch, nil
 }
 
-type Action struct {
-	Id    string
-	Label string
-}
-
-type Card struct {
-	Summary   string
-	Body      string
-	Actions   []Action
-	Icon      string
-	Timestamp int
-}
-
 // ShowCard displays a given card.
 //
 // If card.Actions has 1 action, it's an interactive notification.
@@ -119,18 +108,23 @@ type Card struct {
 //
 // WatchActions will receive something like this in the ActionId field:
 // appId::notificationId::action.Id
-func (raw *RawNotifications) ShowCard(appId string, notificationId string, card *Card) (uint32, error) {
+func (raw *RawNotifications) Present(appId string, notificationId string, notification *launch_helper.Notification) (uint32, error) {
+	if notification == nil || notification.Card == nil || !notification.Card.Popup || notification.Card.Summary == "" {
+		return 0, nil
+	}
+
+	card := notification.Card
+
 	app_icon := c_helper.AppIconFromId(appId)
 	reuse_id := crc32.ChecksumIEEE([]byte(notificationId)) // reuse the same bubble for the same notification
 	hints := make(map[string]*dbus.Variant)
 	hints["x-canonical-secondary-icon"] = &dbus.Variant{app_icon}
 
-	var actions []string
-	for _, action := range card.Actions {
-		actions = append(actions, appId+"::"+notificationId+"::"+action.Id)
-		actions = append(actions, action.Label)
+	actions := make([]string, 0, len(card.Actions))
+	for i, action := range card.Actions {
+		actions = append(actions, fmt.Sprintf("%s::%s::%d", appId, notificationId, i), action)
 	}
-	if len(actions) > 2 {
+	if len(actions) > 1 {
 		hints["x-canonical-snap-decisions"] = &dbus.Variant{true}
 	}
 	return raw.Notify(appId, reuse_id, card.Icon, card.Summary, card.Body, actions, hints, 5)
