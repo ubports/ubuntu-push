@@ -24,6 +24,7 @@ ubuntu-push (0.41ubuntu1) UNRELEASED; urgency=medium
     client & service.
   * Do an HTTP POST to registration_url on register.
   * Fix debian/rules so packaging-time tests pass (ugh)
+  * Refactoring notification providers.
 
   [ Guillermo Gonzalez ]
   * Split DBus service into PushService and PostalService

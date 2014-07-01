@@ -46,7 +46,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastToConnected(c *C) {
 		AppId:    "app1",
 	})
 	c.Assert(err, IsNil)
-	c.Assert(res, Matches, ".*ok.*")
+	c.Assert(res, Matches, OK)
 	var reg map[string]interface{}
 	err = json.Unmarshal([]byte(res), &reg)
 	c.Assert(err, IsNil)
@@ -58,7 +58,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastToConnected(c *C) {
 		Data:     json.RawMessage(`{"a": 42}`),
 	})
 	c.Assert(err, IsNil)
-	c.Assert(got, Matches, ".*ok.*")
+	c.Assert(got, Matches, OK)
 	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"a":42};`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
@@ -81,7 +81,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastCorrectDistribution(c *C) {
 		Data:     json.RawMessage(`{"to": 1}`),
 	})
 	c.Assert(err, IsNil)
-	c.Assert(got, Matches, ".*ok.*")
+	c.Assert(got, Matches, OK)
 	got, err = s.PostRequest("/notify", &api.Unicast{
 		UserId:   userId2,
 		DeviceId: "DEV2",
@@ -90,7 +90,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastCorrectDistribution(c *C) {
 		Data:     json.RawMessage(`{"to": 2}`),
 	})
 	c.Assert(err, IsNil)
-	c.Assert(got, Matches, ".*ok.*")
+	c.Assert(got, Matches, OK)
 	c.Check(NextEvent(events1, errCh1), Equals, `unicast app:app1 payload:{"to":1};`)
 	c.Check(NextEvent(events2, errCh2), Equals, `unicast app:app1 payload:{"to":2};`)
 	stop1()
@@ -112,7 +112,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastPending(c *C) {
 		Data:     json.RawMessage(`{"a": 42}`),
 	})
 	c.Assert(err, IsNil)
-	c.Assert(got, Matches, ".*ok.*")
+	c.Assert(got, Matches, OK)
 
 	// get pending on connect
 	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth)
@@ -135,7 +135,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 			Data:     json.RawMessage(fmt.Sprintf(payloadFmt, i)),
 		})
 		c.Assert(err, IsNil)
-		c.Assert(got, Matches, ".*ok.*")
+		c.Assert(got, Matches, OK)
 	}
 
 	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)

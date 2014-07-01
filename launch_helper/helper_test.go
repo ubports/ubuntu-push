@@ -36,25 +36,22 @@ func (s *runnerSuite) SetUpTest(c *C) {
 	s.testlog = helpers.NewTestLogger(c, "error")
 }
 
-var runnerTests = []struct {
-	expected ReturnValue                                                        // expected result
-	msg      string                                                             // description of failure
-	starter  func(*_Ctype_gchar, *_Ctype_gchar, **_Ctype_gchar) _Ctype_gboolean // starter fake
-	stopper  func(*_Ctype_gchar, *_Ctype_gchar) _Ctype_gboolean                 // stopper fake
-}{
-	{HelperStopped, "Long running helper is not stopped", fakeStartLongLivedHelper, fakeStop},
-	{HelperFinished, "Short running helper doesn't finish", fakeStartShortLivedHelper, fakeStop},
-	{HelperFailed, "Filure to start helper doesn't fail", fakeStartFailure, fakeStop},
-	{HelperFailed, "Error in start argument casting", fakeStartCheckCasting, fakeStop},
-	{StopFailed, "Error in stop argument casting", fakeStartLongLivedHelper, fakeStopCheckCasting},
+func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
+	notif := &Notification{Sound: "42"}
+
+	triv := NewTrivialHelperLauncher(s.testlog)
+	// []byte is sent as a base64-encoded string
+	out := triv.Run("foo", []byte(`{"message": "aGVsbG8=", "notification": {"sound": "42"}}`))
+	c.Assert(out, NotNil)
+	c.Check(out.Message, DeepEquals, []byte("hello"))
+	c.Check(out.Notification, DeepEquals, notif)
 }
 
-func (s *runnerSuite) TestRunner(c *C) {
-	for _, tt := range runnerTests {
-		startHelper = tt.starter
-		stopHelper = tt.stopper
-		runner := New(s.testlog, "foobar")
-		command := []string{"foo1", "bar1", "bat1", "baz1"}
-		c.Check(runner.Run(command), Equals, tt.expected, Commentf(tt.msg))
-	}
+func (s *runnerSuite) TestTrivialRunnerWorksOnBadInput(c *C) {
+	triv := NewTrivialHelperLauncher(s.testlog)
+	msg := []byte(`this is a not your grandmother's json message`)
+	out := triv.Run("foo", msg)
+	c.Assert(out, NotNil)
+	c.Check(out.Notification, IsNil)
+	c.Check(out.Message, DeepEquals, msg)
 }

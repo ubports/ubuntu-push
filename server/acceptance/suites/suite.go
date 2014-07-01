@@ -198,3 +198,5 @@ func (ic *interceptingConn) Read(b []byte) (n int, err error) {
 
 // Long after the end of the tests.
 var future = time.Now().Add(9 * time.Hour).Format(time.RFC3339)
+
+const OK = `.*"ok":true.*`

@@ -19,43 +19,63 @@ package service
 import (
 	"strings"
 
+	"code.google.com/p/go-uuid/uuid"
+	"launchpad.net/go-dbus/v1"
+
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/messaging"
 	"launchpad.net/ubuntu-push/nih"
+	"launchpad.net/ubuntu-push/util"
 )
 
 // PostalService is the dbus api
 type PostalService struct {
 	DBusService
-	mbox       map[string][]string
-	msgHandler func([]byte) error
+	mbox              map[string][]string
+	msgHandler        func(string, string, *launch_helper.HelperOutput) error
+	HelperLauncher    launch_helper.HelperLauncher
+	messagingMenu     *messaging.MessagingMenu
+	notificationsEndp bus.Endpoint
 }
 
 var (
 	PostalServiceBusAddress = bus.Address{
 		Interface: "com.ubuntu.Postal",
-		Path:      "/com/ubuntu/Postal/*",
+		Path:      "/com/ubuntu/Postal",
 		Name:      "com.ubuntu.Postal",
 	}
 )
 
+var (
+	SystemUpdateUrl     = "settings:///system/system-update"
+	ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
+	ACTION_ID_BROADCAST = ACTION_ID_SNOWFLAKE + SystemUpdateUrl
+)
+
 // NewPostalService() builds a new service and returns it.
-func NewPostalService(bus bus.Endpoint, log logger.Logger) *PostalService {
+func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
-	svc.Bus = bus
+	svc.Bus = busEndp
+	svc.messagingMenu = messaging.New(log)
+	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(log)
+	svc.notificationsEndp = notificationsEndp
+	svc.msgHandler = svc.messageHandler
 	return svc
 }
 
 // SetMessageHandler() sets the message-handling callback
-func (svc *PostalService) SetMessageHandler(callback func([]byte) error) {
+func (svc *PostalService) SetMessageHandler(callback func(string, string, *launch_helper.HelperOutput) error) {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
 	svc.msgHandler = callback
 }
 
 // GetMessageHandler() returns the (possibly nil) messaging handler callback
-func (svc *PostalService) GetMessageHandler() func([]byte) error {
+func (svc *PostalService) GetMessageHandler() func(string, string, *launch_helper.HelperOutput) error {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
 	return svc.msgHandler
@@ -67,6 +87,14 @@ func (svc *PostalService) Start() error {
 		"Notifications": svc.notifications,
 		"Inject":        svc.inject,
 	}, PostalServiceBusAddress)
+}
+
+func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, error) {
+	iniCh := make(chan uint32)
+	go func() { iniCh <- util.NewAutoRedialer(svc.notificationsEndp).Redial() }()
+	<-iniCh
+	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()
+	return actionsCh, err
 }
 
 func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
@@ -87,6 +115,8 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 	return []interface{}{msgs}, nil
 }
 
+var newNid = uuid.New
+
 func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 1 {
 		return nil, BadArgCount
@@ -97,20 +127,25 @@ func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interfac
 	}
 	appname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 
-	return nil, svc.Inject(appname, notif)
+	nid := newNid()
+
+	return nil, svc.Inject(appname, nid, notif)
 }
 
 // Inject() signals to an application over dbus that a notification
 // has arrived.
-func (svc *PostalService) Inject(appname string, notif string) error {
+func (svc *PostalService) Inject(appname string, nid string, notif string) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
 		svc.mbox = make(map[string][]string)
 	}
-	svc.mbox[appname] = append(svc.mbox[appname], notif)
+	output := svc.HelperLauncher.Run(appname, []byte(notif))
+	// XXX also track the nid in the mbox
+	svc.mbox[appname] = append(svc.mbox[appname], string(output.Message))
+
 	if svc.msgHandler != nil {
-		err := svc.msgHandler([]byte(notif))
+		err := svc.msgHandler(appname, nid, output)
 		if err != nil {
 			svc.DBusService.Log.Errorf("msgHandler returned %v", err)
 			return err
@@ -118,5 +153,29 @@ func (svc *PostalService) Inject(appname string, notif string) error {
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 
-	return svc.Bus.Signal("Notification", []interface{}{appname})
+	return svc.Bus.Signal("Notification", "/"+string(nih.Quote([]byte(appname))), []interface{}{appname})
+}
+
+func (svc *PostalService) messageHandler(appname string, nid string, output *launch_helper.HelperOutput) error {
+	svc.messagingMenu.Present(appname, nid, output.Notification)
+	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
+	_, err := nots.Present(appname, nid, output.Notification)
+
+	return err
+}
+
+func (svc *PostalService) SendNotification(action_id, icon, summary, body string) (uint32, error) {
+	a := []string{action_id, "Switch to app"} // action value not visible on the phone
+	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
+	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
+	return nots.Notify(
+		"ubuntu-push-client", // app name
+		uint32(0),            // id
+		icon,                 // icon
+		summary,              // summary
+		body,                 // body
+		a,                    // actions
+		h,                    // hints
+		int32(10*1000),       // timeout (ms)
+	)
 }
