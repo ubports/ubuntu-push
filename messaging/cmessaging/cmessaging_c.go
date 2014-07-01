@@ -13,6 +13,9 @@
  You should have received a copy of the GNU General Public License along
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+package cmessaging
+
+/*
 #include <glib.h>
 #include <messaging-menu/messaging-menu-app.h>
 #include <messaging-menu/messaging-menu-message.h>
@@ -38,3 +41,5 @@ void add_notification(const gchar* app_id, const gchar* notification_id,
     g_signal_connect(msg, "activate", G_CALLBACK(activate_cb), obj);
 }
 
+*/
+import "C"
