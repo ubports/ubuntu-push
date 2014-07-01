@@ -22,7 +22,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -30,8 +29,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-
-	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
@@ -43,7 +40,6 @@ import (
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
@@ -97,12 +93,6 @@ type PushClient struct {
 	postalService         *service.PostalService
 }
 
-var (
-	system_update_url   = "settings:///system/system-update"
-	ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
-	ACTION_ID_BROADCAST = ACTION_ID_SNOWFLAKE + system_update_url
-)
-
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
 func NewPushClient(configPath string, leveldbPath string) *PushClient {
@@ -134,10 +124,12 @@ func (client *PushClient) configure() error {
 
 	// overridden for testing
 	client.idder = identifier.New()
-	client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
 	client.urlDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, client.log)
 	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
 	client.systemImageEndp = bus.SystemBus.Endpoint(systemimage.BusAddress, client.log)
+	if client.notificationsEndp == nil {
+		client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
+	}
 
 	client.connCh = make(chan bool, 1)
 	client.sessionConnectedCh = make(chan uint32, 1)
@@ -211,10 +203,8 @@ func (client *PushClient) takeTheBus() error {
 	go connectivity.ConnectedState(client.connectivityEndp,
 		client.config.ConnectivityConfig, client.log, client.connCh)
 	iniCh := make(chan uint32)
-	go func() { iniCh <- util.NewAutoRedialer(client.notificationsEndp).Redial() }()
 	go func() { iniCh <- util.NewAutoRedialer(client.urlDispatcherEndp).Redial() }()
 	go func() { iniCh <- util.NewAutoRedialer(client.systemImageEndp).Redial() }()
-	<-iniCh
 	<-iniCh
 	<-iniCh
 
@@ -224,8 +214,11 @@ func (client *PushClient) takeTheBus() error {
 		return err
 	}
 	client.systemImageInfo = info
+	return err
+}
 
-	actionsCh, err := notifications.Raw(client.notificationsEndp, client.log).WatchActions()
+func (client *PushClient) takePostalServiceBus() error {
+	actionsCh, err := client.postalService.TakeTheBus()
 	client.actionsCh = actionsCh
 	return err
 }
@@ -322,28 +315,12 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 	return false
 }
 
-func (client *PushClient) sendNotification(action_id, icon, summary, body string) (uint32, error) {
-	a := []string{action_id, "Switch to app"} // action value not visible on the phone
-	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
-	nots := notifications.Raw(client.notificationsEndp, client.log)
-	return nots.Notify(
-		"ubuntu-push-client", // app name
-		uint32(0),            // id
-		icon,                 // icon
-		summary,              // summary
-		body,                 // body
-		a,                    // actions
-		h,                    // hints
-		int32(10*1000),       // timeout (ms)
-	)
-}
-
 // handleBroadcastNotification deals with receiving a broadcast notification
 func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
 	if !client.filterBroadcastNotification(msg) {
 		return nil
 	}
-	not_id, err := client.sendNotification(ACTION_ID_BROADCAST,
+	not_id, err := client.postalService.SendNotification(service.ACTION_ID_BROADCAST,
 		"update_manager_icon", "There's an updated system image.",
 		"Tap to open the system updater.")
 	if err != nil {
@@ -368,7 +345,7 @@ func (client *PushClient) handleClick(action_id string) error {
 	//
 	// From ACM's SIGPLAN publication, (September, 1982), Article
 	// "Epigrams in Programming", by Alan J. Perlis of Yale University.
-	url := strings.TrimPrefix(action_id, ACTION_ID_SNOWFLAKE)
+	url := strings.TrimPrefix(action_id, service.ACTION_ID_SNOWFLAKE)
 	if len(url) == len(action_id) || len(url) == 0 {
 		// it didn't start with the prefix
 		return nil
@@ -418,40 +395,6 @@ func (client *PushClient) Loop() {
 		client.handleErr)
 }
 
-// these are the currently supported fields of a unicast message
-type UnicastMessage struct {
-	Icon    string          `json:"icon"`
-	Body    string          `json:"body"`
-	Summary string          `json:"summary"`
-	URL     string          `json:"url"`
-	Blob    json.RawMessage `json:"blob"`
-}
-
-func (client *PushClient) messageHandler(notif *launch_helper.HelperOutput) error {
-	if notif.Notification == nil {
-		client.log.Errorf("Ignoring message: notification is nil: %v", notif)
-		return errors.New("Notification is nil.")
-	} else if notif.Notification.Card != nil {
-		card := notif.Notification.Card
-		action := ""
-		if len(card.Actions) >= 1 {
-			action = card.Actions[0]
-		}
-		not_id, err := client.sendNotification(
-			ACTION_ID_SNOWFLAKE+action,
-			card.Icon, card.Summary, card.Body)
-		if err != nil {
-			client.log.Errorf("showing notification: %s", err)
-			return err
-		}
-		client.log.Debugf("got notification id %d", not_id)
-	} else {
-		client.log.Errorf("Ignoring message: notification.Card is nil: %v", notif)
-		return errors.New("Notification.Card is nil.")
-	}
-	return nil
-}
-
 func (client *PushClient) startService() error {
 	if client.pushServiceEndpoint == nil {
 		client.pushServiceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
@@ -464,11 +407,21 @@ func (client *PushClient) startService() error {
 	client.pushService.SetRegistrationURL(client.config.RegistrationURL)
 	client.pushService.SetAuthGetter(client.getAuthorization)
 	client.pushService.SetDeviceId(client.deviceId)
-	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.log)
-	client.postalService.SetMessageHandler(client.messageHandler)
 	if err := client.pushService.Start(); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (client *PushClient) setupPostalService() error {
+	if client.notificationsEndp == nil {
+		client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
+	}
+	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.log)
+	return nil
+}
+
+func (client *PushClient) startPostalService() error {
 	if err := client.postalService.Start(); err != nil {
 		return err
 	}
@@ -481,7 +434,10 @@ func (client *PushClient) Start() error {
 		client.configure,
 		client.getDeviceId,
 		client.startService,
+		client.setupPostalService,
+		client.startPostalService,
 		client.takeTheBus,
+		client.takePostalServiceBus,
 		client.initSession,
 	)
 }
