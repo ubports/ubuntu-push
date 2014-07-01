@@ -17,15 +17,16 @@
 package service
 
 import (
-	"errors"
 	"strings"
 
+	"code.google.com/p/go-uuid/uuid"
 	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/messaging"
 	"launchpad.net/ubuntu-push/nih"
 	"launchpad.net/ubuntu-push/util"
 )
@@ -34,15 +35,16 @@ import (
 type PostalService struct {
 	DBusService
 	mbox              map[string][]string
-	msgHandler        func(*launch_helper.HelperOutput) error
+	msgHandler        func(string, string, *launch_helper.HelperOutput) error
 	HelperLauncher    launch_helper.HelperLauncher
+	messagingMenu     *messaging.MessagingMenu
 	notificationsEndp bus.Endpoint
 }
 
 var (
 	PostalServiceBusAddress = bus.Address{
 		Interface: "com.ubuntu.Postal",
-		Path:      "/com/ubuntu/Postal/*",
+		Path:      "/com/ubuntu/Postal",
 		Name:      "com.ubuntu.Postal",
 	}
 )
@@ -58,6 +60,7 @@ func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, log 
 	var svc = &PostalService{}
 	svc.Log = log
 	svc.Bus = busEndp
+	svc.messagingMenu = messaging.New(log)
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(log)
 	svc.notificationsEndp = notificationsEndp
 	svc.msgHandler = svc.messageHandler
@@ -65,14 +68,14 @@ func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, log 
 }
 
 // SetMessageHandler() sets the message-handling callback
-func (svc *PostalService) SetMessageHandler(callback func(*launch_helper.HelperOutput) error) {
+func (svc *PostalService) SetMessageHandler(callback func(string, string, *launch_helper.HelperOutput) error) {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
 	svc.msgHandler = callback
 }
 
 // GetMessageHandler() returns the (possibly nil) messaging handler callback
-func (svc *PostalService) GetMessageHandler() func(*launch_helper.HelperOutput) error {
+func (svc *PostalService) GetMessageHandler() func(string, string, *launch_helper.HelperOutput) error {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
 	return svc.msgHandler
@@ -112,6 +115,8 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 	return []interface{}{msgs}, nil
 }
 
+var newNid = uuid.New
+
 func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interface{}, error) {
 	if len(args) != 1 {
 		return nil, BadArgCount
@@ -122,53 +127,41 @@ func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interfac
 	}
 	appname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 
-	return nil, svc.Inject(appname, notif)
+	nid := newNid()
+
+	return nil, svc.Inject(appname, nid, notif)
 }
 
 // Inject() signals to an application over dbus that a notification
 // has arrived.
-func (svc *PostalService) Inject(appname string, notif string) error {
+func (svc *PostalService) Inject(appname string, nid string, notif string) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
 		svc.mbox = make(map[string][]string)
 	}
 	output := svc.HelperLauncher.Run(appname, []byte(notif))
+	// XXX also track the nid in the mbox
 	svc.mbox[appname] = append(svc.mbox[appname], string(output.Message))
+
 	if svc.msgHandler != nil {
-		err := svc.msgHandler(output)
+		err := svc.msgHandler(appname, nid, output)
 		if err != nil {
 			svc.DBusService.Log.Errorf("msgHandler returned %v", err)
 			return err
 		}
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
-	return svc.Bus.Signal("Notification", []interface{}{appname})
+
+	return svc.Bus.Signal("Notification", "/"+string(nih.Quote([]byte(appname))), []interface{}{appname})
 }
 
-func (svc *PostalService) messageHandler(notif *launch_helper.HelperOutput) error {
-	if notif.Notification == nil {
-		svc.Log.Errorf("Ignoring message: notification is nil: %v", notif)
-		return errors.New("Notification is nil.")
-	} else if notif.Notification.Card != nil {
-		card := notif.Notification.Card
-		action := ""
-		if len(card.Actions) >= 1 {
-			action = card.Actions[0]
-		}
-		not_id, err := svc.SendNotification(
-			ACTION_ID_SNOWFLAKE+action,
-			card.Icon, card.Summary, card.Body)
-		if err != nil {
-			svc.Log.Errorf("showing notification: %s", err)
-			return err
-		}
-		svc.Log.Debugf("got notification id %d", not_id)
-	} else {
-		svc.Log.Errorf("Ignoring message: notification.Card is nil: %v", notif)
-		return errors.New("Notification.Card is nil.")
-	}
-	return nil
+func (svc *PostalService) messageHandler(appname string, nid string, output *launch_helper.HelperOutput) error {
+	svc.messagingMenu.Present(appname, nid, output.Notification)
+	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
+	_, err := nots.Present(appname, nid, output.Notification)
+
+	return err
 }
 
 func (svc *PostalService) SendNotification(action_id, icon, summary, body string) (uint32, error) {

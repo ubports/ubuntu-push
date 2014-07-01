@@ -83,7 +83,7 @@ func (svc *DBusService) Start(dispatchMap bus.DispatchMap, busAddr bus.Address) 
 			}
 		}
 	}()
-	svc.Bus.WatchMethod(dispatchMap, svc)
+	svc.Bus.WatchMethod(dispatchMap, "/*", svc)
 	svc.state = StateRunning
 	return nil
 }

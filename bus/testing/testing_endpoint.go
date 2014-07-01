@@ -187,7 +187,7 @@ func (tc *testingEndpoint) GrabName(allowReplacement bool) <-chan error {
 	return nil
 }
 
-func (tc *testingEndpoint) WatchMethod(dispatch bus.DispatchMap, extra ...interface{}) {
+func (tc *testingEndpoint) WatchMethod(dispatch bus.DispatchMap, suffix string, extra ...interface{}) {
 	tc.callArgsLck.Lock()
 	defer tc.callArgsLck.Unlock()
 
@@ -196,12 +196,12 @@ func (tc *testingEndpoint) WatchMethod(dispatch bus.DispatchMap, extra ...interf
 	tc.callArgs = append(tc.callArgs, args)
 }
 
-func (tc *testingEndpoint) Signal(member string, args []interface{}) error {
+func (tc *testingEndpoint) Signal(member string, suffix string, args []interface{}) error {
 	tc.callArgsLck.Lock()
 	defer tc.callArgsLck.Unlock()
 
 	callargs := callArgs{Member: "::Signal"}
-	callargs.Args = append(callargs.Args, member, args)
+	callargs.Args = append(callargs.Args, member, suffix, args)
 	tc.callArgs = append(tc.callArgs, callargs)
 
 	return nil
