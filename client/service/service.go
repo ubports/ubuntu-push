@@ -44,7 +44,7 @@ type PushService struct {
 var (
 	PushServiceBusAddress = bus.Address{
 		Interface: "com.ubuntu.PushNotifications",
-		Path:      "/com/ubuntu/PushNotifications/*",
+		Path:      "/com/ubuntu/PushNotifications",
 		Name:      "com.ubuntu.PushNotifications",
 	}
 )

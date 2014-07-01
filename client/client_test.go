@@ -319,7 +319,6 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	c.Assert(cli.setupPostalService(), IsNil)
 	c.Assert(cli.startPostalService(), IsNil)
 	c.Check(cli.postalService.IsRunning(), Equals, true)
-	c.Check(cli.postalService.GetMessageHandler(), NotNil)
 	cli.pushService.Stop()
 	cli.postalService.Stop()
 }
