@@ -336,15 +336,20 @@ func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) 
 }
 
 // handleClick deals with the user clicking a notification
-func (client *PushClient) handleClick(action_id string) error {
+func (client *PushClient) handleClick(actionId string) error {
 	// “The string is a stark data structure and everywhere it is passed
 	// there is much duplication of process. It is a perfect vehicle for
 	// hiding information.”
 	//
 	// From ACM's SIGPLAN publication, (September, 1982), Article
 	// "Epigrams in Programming", by Alan J. Perlis of Yale University.
-	url := strings.TrimPrefix(action_id, service.ACTION_ID_SNOWFLAKE)
-	if len(url) == len(action_id) || len(url) == 0 {
+	url := actionId
+	// XXX: branch for the broadcast notifications
+	if strings.HasPrefix(actionId, service.ACTION_ID_PREFIX) {
+		parts := strings.Split(actionId, "::")
+		url = parts[1]
+	}
+	if len(url) == len(actionId) || len(url) == 0 {
 		// it didn't start with the prefix
 		return nil
 	}

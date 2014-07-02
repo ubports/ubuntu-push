@@ -49,9 +49,9 @@ var (
 )
 
 var (
-	SystemUpdateUrl     = "settings:///system/system-update"
-	ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
-	ACTION_ID_BROADCAST = ACTION_ID_SNOWFLAKE + SystemUpdateUrl
+	SystemUpdateUrl  = "settings:///system/system-update"
+	ACTION_ID_PREFIX = "ubuntu-push-client::"
+	ACTION_ID_SUFFIX = "::0"
 )
 
 // NewPostalService() builds a new service and returns it.
@@ -162,11 +162,12 @@ func (svc *PostalService) messageHandler(appname string, nid string, output *lau
 }
 
 func (svc *PostalService) InjectBroadcast() (uint32, error) {
+	// XXX: Present force us to send the url as the notificationId
 	icon := "update_manager_icon"
 	summary := "There's an updated system image."
 	body := "Tap to open the system updater."
-	actions := []string{ACTION_ID_BROADCAST, "Switch to app"} // action value not visible on the phone
+	actions := []string{"Switch to app"} // action value not visible on the phone
 	card := &launch_helper.Card{Icon: icon, Summary: summary, Body: body, Actions: actions, Popup: true}
 	output := &launch_helper.HelperOutput{[]byte(""), &launch_helper.Notification{Card: card}}
-	return 0, svc.msgHandler("ubuntu-push-client", "0", output)
+	return 0, svc.msgHandler("ubuntu-push-client", SystemUpdateUrl, output)
 }

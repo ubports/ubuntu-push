@@ -712,6 +712,8 @@ func (cs *clientSuite) TestHandleUcastNotification(c *C) {
     handleClick tests
 ******************************************************************/
 
+var ACTION_ID_BROADCAST = service.ACTION_ID_PREFIX + service.SystemUpdateUrl + service.ACTION_ID_SUFFIX
+
 func (cs *clientSuite) TestHandleClick(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
@@ -723,14 +725,14 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 0)
 	// check we worked with the right action id
-	c.Check(cli.handleClick(service.ACTION_ID_BROADCAST), IsNil)
+	c.Check(cli.handleClick(ACTION_ID_BROADCAST), IsNil)
 	// check we sent the notification
 	args = testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Check(args[0].Args, DeepEquals, []interface{}{service.SystemUpdateUrl})
 	// check we worked with the right action id
-	c.Check(cli.handleClick(service.ACTION_ID_SNOWFLAKE+"foo"), IsNil)
+	c.Check(cli.handleClick(service.ACTION_ID_PREFIX+"foo"), IsNil)
 	// check we sent the notification
 	args = testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 2)
@@ -879,7 +881,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
 
 	//  * actionsCh to the click handler/url dispatcher
-	aCh <- notifications.RawActionReply{ActionId: service.ACTION_ID_BROADCAST}
+	aCh <- notifications.RawActionReply{ActionId: ACTION_ID_BROADCAST}
 	tick()
 	uargs := testibus.GetCallArgs(cli.urlDispatcherEndp)
 	c.Assert(uargs, HasLen, 1)
