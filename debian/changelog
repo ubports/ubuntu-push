@@ -1,4 +1,4 @@
-ubuntu-push (0.42ubuntu1) UNRELEASED; urgency=medium
+ubuntu-push (0.42+14.10.20140702-0ubuntu1) utopic; urgency=medium
 
   [ Samuele Pedroni ]
   * Support registering tokens and sending notifications with a token
@@ -30,7 +30,7 @@ ubuntu-push (0.42ubuntu1) UNRELEASED; urgency=medium
   [ Guillermo Gonzalez ]
   * Split DBus service into PushService and PostalService
 
- -- John R. Lenton <john.lenton@canonical.com>  Wed, 02 Jul 2014 13:49:01 +0100
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Wed, 02 Jul 2014 13:14:03 +0000
 
 ubuntu-push (0.3+14.10.20140605-0ubuntu1) utopic; urgency=medium
 
