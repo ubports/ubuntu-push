@@ -157,6 +157,38 @@ func (ss *postalSuite) TestInjectFailsIfBadArgs(c *C) {
 }
 
 //
+// Injection (Broadcast) tests
+
+func (ss *postalSuite) TestInjectBroadcast(c *C) {
+	bus := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	svc := NewPostalService(ss.bus, bus, ss.log)
+	//svc.msgHandler = nil
+	rvs, err := svc.InjectBroadcast()
+	c.Assert(err, IsNil)
+	c.Check(rvs, Equals, uint32(0))
+	c.Assert(err, IsNil)
+	// and check it fired the right signal (twice)
+	callArgs := testibus.GetCallArgs(bus)
+	c.Assert(callArgs, HasLen, 1)
+	c.Check(callArgs[0].Member, Equals, "Notify")
+	c.Check(callArgs[0].Args[0:6], DeepEquals, []interface{}{"ubuntu-push-client", uint32(0), "update_manager_icon",
+		"There's an updated system image.", "Tap to open the system updater.",
+		[]string{"ubuntu-push-client::settings:///system/system-update::0", "Switch to app"}})
+	// TODO: check the map in callArgs?
+	// c.Check(callArgs[0].Args[7]["x-canonical-secondary-icon"], NotNil)
+	// c.Check(callArgs[0].Args[7]["x-canonical-snap-decisions"], NotNil)
+}
+
+func (ss *postalSuite) TestInjectBroadcastFails(c *C) {
+	bus := testibus.NewTestingEndpoint(condition.Work(true),
+		condition.Work(false))
+	svc := NewPostalService(ss.bus, bus, ss.log)
+	svc.SetMessageHandler(func(string, string, *launch_helper.HelperOutput) error { return errors.New("fail") })
+	_, err := svc.InjectBroadcast()
+	c.Check(err, NotNil)
+}
+
+//
 // Notifications tests
 func (ss *postalSuite) TestNotificationsWorks(c *C) {
 	svc := NewPostalService(ss.bus, ss.notifBus, ss.log)
