@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	"code.google.com/p/go-uuid/uuid"
-	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/notifications"
@@ -90,9 +89,7 @@ func (svc *PostalService) Start() error {
 }
 
 func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, error) {
-	iniCh := make(chan uint32)
-	go func() { iniCh <- util.NewAutoRedialer(svc.notificationsEndp).Redial() }()
-	<-iniCh
+	util.NewAutoRedialer(svc.notificationsEndp).Redial()
 	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()
 	return actionsCh, err
 }
@@ -164,18 +161,12 @@ func (svc *PostalService) messageHandler(appname string, nid string, output *lau
 	return err
 }
 
-func (svc *PostalService) SendNotification(action_id, icon, summary, body string) (uint32, error) {
-	a := []string{action_id, "Switch to app"} // action value not visible on the phone
-	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
-	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
-	return nots.Notify(
-		"ubuntu-push-client", // app name
-		uint32(0),            // id
-		icon,                 // icon
-		summary,              // summary
-		body,                 // body
-		a,                    // actions
-		h,                    // hints
-		int32(10*1000),       // timeout (ms)
-	)
+func (svc *PostalService) InjectBroadcast() (uint32, error) {
+	icon := "update_manager_icon"
+	summary := "There's an updated system image."
+	body := "Tap to open the system updater."
+	actions := []string{ACTION_ID_BROADCAST, "Switch to app"} // action value not visible on the phone
+	card := &launch_helper.Card{Icon: icon, Summary: summary, Body: body, Actions: actions, Popup: true}
+	output := &launch_helper.HelperOutput{[]byte(""), &launch_helper.Notification{Card: card}}
+	return 0, svc.msgHandler("ubuntu-push-client", "0", output)
 }

@@ -320,9 +320,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 	if !client.filterBroadcastNotification(msg) {
 		return nil
 	}
-	not_id, err := client.postalService.SendNotification(service.ACTION_ID_BROADCAST,
-		"update_manager_icon", "There's an updated system image.",
-		"Tap to open the system updater.")
+	not_id, err := client.postalService.InjectBroadcast()
 	if err != nil {
 		client.log.Errorf("showing notification: %s", err)
 		return err
