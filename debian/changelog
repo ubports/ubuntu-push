@@ -1,4 +1,4 @@
-ubuntu-push (0.41ubuntu2) UNRELEASED; urgency=medium
+ubuntu-push (0.42ubuntu1) UNRELEASED; urgency=medium
 
   [ Samuele Pedroni ]
   * Support registering tokens and sending notifications with a token
@@ -24,7 +24,7 @@ ubuntu-push (0.41ubuntu2) UNRELEASED; urgency=medium
     client & service.
   * Do an HTTP POST to registration_url on register.
   * Fix debian/rules so packaging-time tests pass (ugh)
-  * Get the small messaging-menu working (thanks larsu & dednick)
+  * Get the small messaging-menu wrapper working (thanks larsu & dednick)
 
   [ Guillermo Gonzalez ]
   * Split DBus service into PushService and PostalService
