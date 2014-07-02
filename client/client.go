@@ -22,15 +22,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
-
-	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
@@ -63,39 +61,37 @@ type ClientConfig struct {
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
 	// How to invoke the auth helper
-	AuthHelper []string `json:"auth_helper"`
+	AuthHelper      string `json:"auth_helper"`
+	SessionURL      string `json:"session_url"`
+	RegistrationURL string `json:"registration_url"`
 	// The logging level (one of "debug", "info", "error")
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
 }
 
 // PushClient is the Ubuntu Push Notifications client-side daemon.
 type PushClient struct {
-	leveldbPath        string
-	configPath         string
-	config             ClientConfig
-	log                logger.Logger
-	pem                []byte
-	idder              identifier.Id
-	deviceId           string
-	notificationsEndp  bus.Endpoint
-	urlDispatcherEndp  bus.Endpoint
-	connectivityEndp   bus.Endpoint
-	systemImageEndp    bus.Endpoint
-	systemImageInfo    *systemimage.InfoResult
-	connCh             chan bool
-	hasConnectivity    bool
-	actionsCh          <-chan notifications.RawActionReply
-	session            *session.ClientSession
-	sessionConnectedCh chan uint32
-	serviceEndpoint    bus.Endpoint
-	service            *service.Service
+	leveldbPath           string
+	configPath            string
+	config                ClientConfig
+	log                   logger.Logger
+	pem                   []byte
+	idder                 identifier.Id
+	deviceId              string
+	notificationsEndp     bus.Endpoint
+	urlDispatcherEndp     bus.Endpoint
+	connectivityEndp      bus.Endpoint
+	systemImageEndp       bus.Endpoint
+	systemImageInfo       *systemimage.InfoResult
+	connCh                chan bool
+	hasConnectivity       bool
+	actionsCh             <-chan notifications.RawActionReply
+	session               *session.ClientSession
+	sessionConnectedCh    chan uint32
+	pushServiceEndpoint   bus.Endpoint
+	pushService           *service.PushService
+	postalServiceEndpoint bus.Endpoint
+	postalService         *service.PostalService
 }
-
-var (
-	system_update_url   = "settings:///system/system-update"
-	ACTION_ID_SNOWFLAKE = "::ubuntu-push-client::"
-	ACTION_ID_BROADCAST = ACTION_ID_SNOWFLAKE + system_update_url
-)
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
@@ -128,10 +124,12 @@ func (client *PushClient) configure() error {
 
 	// overridden for testing
 	client.idder = identifier.New()
-	client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
 	client.urlDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, client.log)
 	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
 	client.systemImageEndp = bus.SystemBus.Endpoint(systemimage.BusAddress, client.log)
+	if client.notificationsEndp == nil {
+		client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
+	}
 
 	client.connCh = make(chan bool, 1)
 	client.sessionConnectedCh = make(chan uint32, 1)
@@ -160,7 +158,27 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
 		PEM:        client.pem,
 		Info:       info,
-		AuthHelper: client.config.AuthHelper,
+		AuthGetter: client.getAuthorization,
+		AuthURL:    client.config.SessionURL,
+	}
+}
+
+// getAuthorization gets the authorization blob to send to the server
+func (client *PushClient) getAuthorization(url string) string {
+	client.log.Debugf("getting authorization for %s", url)
+	// using a helper, for now at least
+	if len(client.config.AuthHelper) == 0 {
+		// do nothing if helper is unset or empty
+		return ""
+	}
+
+	auth, err := exec.Command(client.config.AuthHelper, url).Output()
+	if err != nil {
+		// For now we just log the error, as we don't want to block unauthorized users
+		client.log.Errorf("unable to get the authorization token from the account: %v", err)
+		return ""
+	} else {
+		return strings.TrimSpace(string(auth))
 	}
 }
 
@@ -185,10 +203,8 @@ func (client *PushClient) takeTheBus() error {
 	go connectivity.ConnectedState(client.connectivityEndp,
 		client.config.ConnectivityConfig, client.log, client.connCh)
 	iniCh := make(chan uint32)
-	go func() { iniCh <- util.NewAutoRedialer(client.notificationsEndp).Redial() }()
 	go func() { iniCh <- util.NewAutoRedialer(client.urlDispatcherEndp).Redial() }()
 	go func() { iniCh <- util.NewAutoRedialer(client.systemImageEndp).Redial() }()
-	<-iniCh
 	<-iniCh
 	<-iniCh
 
@@ -198,8 +214,11 @@ func (client *PushClient) takeTheBus() error {
 		return err
 	}
 	client.systemImageInfo = info
+	return err
+}
 
-	actionsCh, err := notifications.Raw(client.notificationsEndp, client.log).WatchActions()
+func (client *PushClient) takePostalServiceBus() error {
+	actionsCh, err := client.postalService.TakeTheBus()
 	client.actionsCh = actionsCh
 	return err
 }
@@ -296,28 +315,12 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 	return false
 }
 
-func (client *PushClient) sendNotification(action_id, icon, summary, body string) (uint32, error) {
-	a := []string{action_id, "Switch to app"} // action value not visible on the phone
-	h := map[string]*dbus.Variant{"x-canonical-switch-to-application": &dbus.Variant{true}}
-	nots := notifications.Raw(client.notificationsEndp, client.log)
-	return nots.Notify(
-		"ubuntu-push-client", // app name
-		uint32(0),            // id
-		icon,                 // icon
-		summary,              // summary
-		body,                 // body
-		a,                    // actions
-		h,                    // hints
-		int32(10*1000),       // timeout (ms)
-	)
-}
-
 // handleBroadcastNotification deals with receiving a broadcast notification
 func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
 	if !client.filterBroadcastNotification(msg) {
 		return nil
 	}
-	not_id, err := client.sendNotification(ACTION_ID_BROADCAST,
+	not_id, err := client.postalService.SendNotification(service.ACTION_ID_BROADCAST,
 		"update_manager_icon", "There's an updated system image.",
 		"Tap to open the system updater.")
 	if err != nil {
@@ -331,7 +334,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.service.Inject(msg.AppId, string(msg.Payload))
+	return client.postalService.Inject(msg.AppId, msg.MsgId, string(msg.Payload))
 }
 
 // handleClick deals with the user clicking a notification
@@ -342,7 +345,7 @@ func (client *PushClient) handleClick(action_id string) error {
 	//
 	// From ACM's SIGPLAN publication, (September, 1982), Article
 	// "Epigrams in Programming", by Alan J. Perlis of Yale University.
-	url := strings.TrimPrefix(action_id, ACTION_ID_SNOWFLAKE)
+	url := strings.TrimPrefix(action_id, service.ACTION_ID_SNOWFLAKE)
 	if len(url) == len(action_id) || len(url) == 0 {
 		// it didn't start with the prefix
 		return nil
@@ -392,52 +395,49 @@ func (client *PushClient) Loop() {
 		client.handleErr)
 }
 
-// these are the currently supported fields of a unicast message
-type UnicastMessage struct {
-	Icon    string          `json:"icon"`
-	Body    string          `json:"body"`
-	Summary string          `json:"summary"`
-	URL     string          `json:"url"`
-	Blob    json.RawMessage `json:"blob"`
-}
-
-func (client *PushClient) messageHandler(message []byte) error {
-	var umsg = new(UnicastMessage)
-	err := json.Unmarshal(message, &umsg)
-	if err != nil {
-		client.log.Errorf("unable to unmarshal message: %v", err)
-		return err
+func (client *PushClient) startService() error {
+	if client.pushServiceEndpoint == nil {
+		client.pushServiceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
+	}
+	if client.postalServiceEndpoint == nil {
+		client.postalServiceEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
 	}
 
-	not_id, err := client.sendNotification(
-		ACTION_ID_SNOWFLAKE+umsg.URL,
-		umsg.Icon, umsg.Summary, umsg.Body)
-
-	if err != nil {
-		client.log.Errorf("showing notification: %s", err)
+	client.pushService = service.NewPushService(client.pushServiceEndpoint, client.log)
+	client.pushService.SetRegistrationURL(client.config.RegistrationURL)
+	client.pushService.SetAuthGetter(client.getAuthorization)
+	client.pushService.SetDeviceId(client.deviceId)
+	if err := client.pushService.Start(); err != nil {
 		return err
 	}
-	client.log.Debugf("got notification id %d", not_id)
 	return nil
 }
 
-func (client *PushClient) startService() error {
-	if client.serviceEndpoint == nil {
-		client.serviceEndpoint = bus.SessionBus.Endpoint(service.BusAddress, client.log)
+func (client *PushClient) setupPostalService() error {
+	if client.notificationsEndp == nil {
+		client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
 	}
+	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.log)
+	return nil
+}
 
-	client.service = service.NewService(client.serviceEndpoint, client.log)
-	client.service.SetMessageHandler(client.messageHandler)
-	return client.service.Start()
+func (client *PushClient) startPostalService() error {
+	if err := client.postalService.Start(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Start calls doStart with the "real" starters
 func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
-		client.startService,
 		client.getDeviceId,
+		client.startService,
+		client.setupPostalService,
+		client.startPostalService,
 		client.takeTheBus,
+		client.takePostalServiceBus,
 		client.initSession,
 	)
 }

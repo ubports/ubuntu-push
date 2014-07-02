@@ -14,196 +14,184 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// package service implements the dbus-level service with which client
-// applications are expected to interact.
 package service
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
-	"sync"
+	"strings"
 
 	"launchpad.net/ubuntu-push/bus"
+	http13 "launchpad.net/ubuntu-push/http13client"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/nih"
 )
 
-// Service is the dbus api
-type Service struct {
-	lock       sync.RWMutex
-	state      ServiceState
-	mbox       map[string][]string
-	msgHandler func([]byte) error
-	Log        logger.Logger
-	Bus        bus.Endpoint
+// PushService is the dbus api
+type PushService struct {
+	DBusService
+	regURL     string
+	deviceId   string
+	authGetter func(string) string
+	httpCli    http13.Client
 }
 
-// the service can be in a numnber of states
-type ServiceState uint8
-
-const (
-	StateUnknown  ServiceState = iota
-	StateRunning               // Start() has been successfully called
-	StateFinished              // Stop() has been successfully called
-)
-
 var (
-	NotConfigured  = errors.New("not configured")
-	AlreadyStarted = errors.New("already started")
-	BusAddress     = bus.Address{
+	PushServiceBusAddress = bus.Address{
 		Interface: "com.ubuntu.PushNotifications",
 		Path:      "/com/ubuntu/PushNotifications",
 		Name:      "com.ubuntu.PushNotifications",
 	}
 )
 
-// NewService() builds a new service and returns it.
-func NewService(bus bus.Endpoint, log logger.Logger) *Service {
-	return &Service{Log: log, Bus: bus}
+// NewPushService() builds a new service and returns it.
+func NewPushService(bus bus.Endpoint, log logger.Logger) *PushService {
+	var svc = &PushService{}
+	svc.Log = log
+	svc.Bus = bus
+	return svc
 }
 
-// SetMessageHandler() sets the message-handling callback
-func (svc *Service) SetMessageHandler(callback func([]byte) error) {
+// SetRegistrationURL() sets the registration url for the service
+func (svc *PushService) SetRegistrationURL(url string) {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
-	svc.msgHandler = callback
+	svc.regURL = url
 }
 
-// GetMessageHandler() returns the (possibly nil) messaging handler callback
-func (svc *Service) GetMessageHandler() func([]byte) error {
+// SetAuthGetter() sets the authorization getter for the service
+func (svc *PushService) SetAuthGetter(authGetter func(string) string) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	svc.authGetter = authGetter
+}
+
+// getRegistrationAuthorization() returns the authorization header for
+// POSTing to the registration HTTP endpoint
+//
+// (this is for calling with the lock held)
+func (svc *PushService) getRegistrationAuthorization() string {
+	if svc.authGetter != nil && svc.regURL != "" {
+		return svc.authGetter(svc.regURL)
+	} else {
+		return ""
+	}
+}
+
+// GetRegistrationAuthorization() returns the authorization header for
+// POSTing to the registration HTTP endpoint
+func (svc *PushService) GetRegistrationAuthorization() string {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
-	return svc.msgHandler
+	return svc.getRegistrationAuthorization()
 }
 
-// IsRunning() returns whether the service's state is StateRunning
-func (svc *Service) IsRunning() bool {
+// SetDeviceId() sets the device id
+func (svc *PushService) SetDeviceId(deviceId string) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	svc.deviceId = deviceId
+}
+
+// GetDeviceId() returns the device id
+func (svc *PushService) GetDeviceId() string {
 	svc.lock.RLock()
 	defer svc.lock.RUnlock()
-	return svc.state == StateRunning
+	return svc.deviceId
 }
 
-// Start() dials the bus, grab the name, and listens for method calls.
-func (svc *Service) Start() error {
-	svc.lock.Lock()
-	defer svc.lock.Unlock()
-	if svc.state != StateUnknown {
-		return AlreadyStarted
-	}
-	if svc.Log == nil || svc.Bus == nil {
-		return NotConfigured
-	}
-	err := svc.Bus.Dial()
-	if err != nil {
-		return err
-	}
-	ch := svc.Bus.GrabName(true)
-	log := svc.Log
-	go func() {
-		for err := range ch {
-			if !svc.IsRunning() {
-				break
-			}
-			if err != nil {
-				log.Fatalf("name channel for %s got: %v",
-					BusAddress.Name, err)
-			}
-		}
-	}()
-	svc.Bus.WatchMethod(bus.DispatchMap{
-		"Register":      svc.register,
-		"Notifications": svc.notifications,
-		"Inject":        svc.inject,
-	}, svc)
-	svc.state = StateRunning
-	return nil
-}
-
-// Stop() closes the bus and sets the state to StateFinished
-func (svc *Service) Stop() {
-	svc.lock.Lock()
-	defer svc.lock.Unlock()
-	if svc.Bus != nil {
-		svc.Bus.Close()
-	}
-	svc.state = StateFinished
+func (svc *PushService) Start() error {
+	return svc.DBusService.Start(bus.DispatchMap{
+		"Register": svc.register,
+	}, PushServiceBusAddress)
 }
 
 var (
-	BadArgCount = errors.New("Wrong number of arguments")
-	BadArgType  = errors.New("Bad argument type")
+	BadServer  = errors.New("Bad server")
+	BadRequest = errors.New("Bad request")
+	BadToken   = errors.New("Bad token")
+	BadAuth    = errors.New("Bad auth")
 )
 
-func (svc *Service) register(args []interface{}, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 1 {
-		return nil, BadArgCount
-	}
-	appname, ok := args[0].(string)
-	if !ok {
-		return nil, BadArgType
-	}
-
-	rv := os.Getenv("PUSH_REG_" + appname)
-	if rv == "" {
-		rv = "this-is-an-opaque-block-of-random-bits-i-promise"
-	}
-
-	return []interface{}{rv}, nil
+type registrationRequest struct {
+	DeviceId string `json:"deviceid"`
+	AppId    string `json:"appid"`
 }
 
-func (svc *Service) notifications(args []interface{}, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 1 {
-		return nil, BadArgCount
-	}
-	appname, ok := args[0].(string)
-	if !ok {
-		return nil, BadArgType
-	}
-
-	svc.lock.Lock()
-	defer svc.lock.Unlock()
-
-	if svc.mbox == nil {
-		return []interface{}{[]string(nil)}, nil
-	}
-	msgs := svc.mbox[appname]
-	delete(svc.mbox, appname)
-
-	return []interface{}{msgs}, nil
+type registrationReply struct {
+	Token   string `json:"token"`   // the bit we're after
+	Ok      bool   `json:"ok"`      // only ever true or absent
+	Error   string `json:"error"`   // these two only used for debugging
+	Message string `json:"message"` //
 }
 
-func (svc *Service) inject(args []interface{}, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 2 {
+func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
+	svc.lock.RLock()
+	defer svc.lock.RUnlock()
+	if len(args) != 0 {
 		return nil, BadArgCount
 	}
-	appname, ok := args[0].(string)
-	if !ok {
-		return nil, BadArgType
-	}
-	notif, ok := args[1].(string)
-	if !ok {
-		return nil, BadArgType
+	raw_appname := path[strings.LastIndex(path, "/")+1:]
+	appname := string(nih.Unquote([]byte(raw_appname)))
+
+	rv := os.Getenv("PUSH_REG_" + raw_appname)
+	if rv != "" {
+		return []interface{}{rv}, nil
 	}
 
-	return nil, svc.Inject(appname, notif)
-}
-
-// Inject() signals to an application over dbus that a notification
-// has arrived.
-func (svc *Service) Inject(appname string, notif string) error {
-	svc.lock.Lock()
-	defer svc.lock.Unlock()
-	if svc.mbox == nil {
-		svc.mbox = make(map[string][]string)
+	req_body, err := json.Marshal(registrationRequest{svc.deviceId, appname})
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal register request body: %v", err)
 	}
-	svc.mbox[appname] = append(svc.mbox[appname], notif)
-	if svc.msgHandler != nil {
-		err := svc.msgHandler([]byte(notif))
-		if err != nil {
-			svc.Log.Errorf("msgHandler returned %v", err)
-			return err
+	req, err := http13.NewRequest("POST", svc.regURL, bytes.NewReader(req_body))
+	if err != nil {
+		return nil, fmt.Errorf("unable to build register request: %v", err)
+	}
+	auth := svc.getRegistrationAuthorization()
+	if auth == "" {
+		return nil, BadAuth
+	}
+	req.Header.Add("Authorization", auth)
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := svc.httpCli.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("unable to request registration: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		svc.Log.Errorf("register endpoint replied %d", resp.StatusCode)
+		switch {
+		case resp.StatusCode >= http.StatusInternalServerError:
+			// XXX retry on 503
+			return nil, BadServer
+		default:
+			return nil, BadRequest
 		}
-		svc.Log.Debugf("call to msgHandler successful")
+	}
+	// errors below here Can't Happen (tm).
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		svc.Log.Errorf("Reading response body: %v", err)
+		return nil, err
 	}
 
-	return svc.Bus.Signal("Notification", []interface{}{appname})
+	var reply registrationReply
+	err = json.Unmarshal(body, &reply)
+	if err != nil {
+		svc.Log.Errorf("Unmarshalling response body: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal register response: %v", err)
+	}
+
+	if !reply.Ok || reply.Token == "" {
+		svc.Log.Errorf("Unexpected response: %#v", reply)
+		return nil, BadToken
+	}
+
+	return []interface{}{reply.Token}, nil
 }

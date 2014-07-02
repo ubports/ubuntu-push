@@ -33,6 +33,7 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <QUrlQuery>
 
 #include "ssoservice.h"
 #include "token.h"
@@ -63,12 +64,8 @@ namespace UbuntuOne {
     void SigningExample::handleCredentialsFound(Token token)
     {
         qDebug() << "Credentials found, signing url.";
-
-        QString authHeader = token.signUrl(this->url, QStringLiteral("GET"), true);
-
-        std::cout << authHeader.toStdString() << "\n";
+        std::cout << token.signUrl(this->url, QStringLiteral("POST")).toStdString();
         QCoreApplication::instance()->exit(0);
-
     }
 
     void SigningExample::handleCredentialsNotFound()
@@ -84,13 +81,12 @@ namespace UbuntuOne {
 int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
-
-    UbuntuOne::SigningExample *example = new UbuntuOne::SigningExample(&a);
-
+    if (argc<2) {
+        return 2;
+    }
+    UbuntuOne::SigningExample *example = new UbuntuOne::SigningExample(&a, argv[1]);
     QObject::connect(example, SIGNAL(finished()), &a, SLOT(quit()));
-
     QTimer::singleShot(0, example, SLOT(doExample()));
-
     return a.exec();
 }
 

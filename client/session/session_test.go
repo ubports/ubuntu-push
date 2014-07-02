@@ -353,34 +353,21 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
 ****************************************************************/
 
 func (cs *clientSessionSuite) TestAddAuthorizationAddsAuthorization(c *C) {
+	url := "xyzzy://"
 	sess := &ClientSession{Log: cs.log}
-	sess.AuthHelper = []string{"echo", "some auth"}
+	sess.AuthGetter = func(url string) string { return url + " auth'ed" }
+	sess.AuthURL = url
 	c.Assert(sess.auth, Equals, "")
 	err := sess.addAuthorization()
 	c.Assert(err, IsNil)
-	c.Check(sess.auth, Equals, "some auth")
+	c.Check(sess.auth, Equals, "xyzzy:// auth'ed")
 }
 
-func (cs *clientSessionSuite) TestAddAuthorizationIgnoresErrors(c *C) {
+func (cs *clientSessionSuite) TestAddAuthorizationSkipsIfUnset(c *C) {
 	sess := &ClientSession{Log: cs.log}
-	sess.AuthHelper = []string{"sh", "-c", "echo hello; false"}
-
+	sess.AuthGetter = nil
 	c.Assert(sess.auth, Equals, "")
 	err := sess.addAuthorization()
-	c.Assert(err, IsNil)
-	c.Check(sess.auth, Equals, "")
-}
-
-func (cs *clientSessionSuite) TestAddAuthorizationSkipsIfUnsetOrNil(c *C) {
-	sess := &ClientSession{Log: cs.log}
-	sess.AuthHelper = nil
-	c.Assert(sess.auth, Equals, "")
-	err := sess.addAuthorization()
-	c.Assert(err, IsNil)
-	c.Check(sess.auth, Equals, "")
-
-	sess.AuthHelper = []string{}
-	err = sess.addAuthorization()
 	c.Assert(err, IsNil)
 	c.Check(sess.auth, Equals, "")
 }

@@ -214,24 +214,24 @@ func (s *TestingEndpointSuite) TestGrabNameUpdatesCallArgs(c *C) {
 // Test that Signal updates callArgs
 func (s *TestingEndpointSuite) TestSignalUpdatesCallArgs(c *C) {
 	endp := NewTestingEndpoint(nil, condition.Work(true))
-	endp.Signal("hello", []interface{}{"world"})
-	endp.Signal("hello", []interface{}{"there"})
+	endp.Signal("hello", "", []interface{}{"world"})
+	endp.Signal("hello", "/potato", []interface{}{"there"})
 	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{
 		{
 			Member: "::Signal",
-			Args:   []interface{}{"hello", []interface{}{"world"}},
+			Args:   []interface{}{"hello", "", []interface{}{"world"}},
 		}, {
 			Member: "::Signal",
-			Args:   []interface{}{"hello", []interface{}{"there"}},
+			Args:   []interface{}{"hello", "/potato", []interface{}{"there"}},
 		}})
 }
 
 // Test that WatchMethod updates callArgs
 func (s *TestingEndpointSuite) TestWatchMethodUpdatesCallArgs(c *C) {
 	endp := NewTestingEndpoint(nil, condition.Work(true))
-	foo := func([]interface{}, []interface{}) ([]interface{}, error) { return nil, nil }
+	foo := func(string, []interface{}, []interface{}) ([]interface{}, error) { return nil, nil }
 	foomp := bus.DispatchMap{"foo": foo}
-	endp.WatchMethod(foomp)
+	endp.WatchMethod(foomp, "/*")
 	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{
 		{
 			Member: "::WatchMethod",

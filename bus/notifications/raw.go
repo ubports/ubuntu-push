@@ -23,9 +23,12 @@ package notifications
 
 import (
 	"errors"
+	"fmt"
 
 	"launchpad.net/go-dbus/v1"
 	"launchpad.net/ubuntu-push/bus"
+	c_helper "launchpad.net/ubuntu-push/bus/notifications/app_helper"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -95,4 +98,37 @@ func (raw *RawNotifications) WatchActions() (<-chan RawActionReply, error) {
 		return nil, err
 	}
 	return ch, nil
+}
+
+// ShowCard displays a given card.
+//
+// If card.Actions has 1 action, it's an interactive notification.
+// If card.Actions has 2 or more actions, it will show as a snap decision.
+//
+// WatchActions will receive something like this in the ActionId field:
+// appId::notificationId::action.Id
+func (raw *RawNotifications) Present(appId string, notificationId string, notification *launch_helper.Notification) (uint32, error) {
+	if notification == nil || notification.Card == nil || !notification.Card.Popup || notification.Card.Summary == "" {
+		raw.log.Debugf("skipping notification: nil, or nil card, or not popup, or no summary: %#v", notification)
+		return 0, nil
+	}
+
+	card := notification.Card
+
+	app_icon := c_helper.AppIconFromId(appId)
+	hints := make(map[string]*dbus.Variant)
+	hints["x-canonical-secondary-icon"] = &dbus.Variant{app_icon}
+
+	actions := make([]string, 2*len(card.Actions))
+	for i, action := range card.Actions {
+		actions[2*i] = fmt.Sprintf("%s::%s::%d", appId, notificationId, i)
+		actions[2*i+1] = action
+	}
+	switch len(actions) {
+	case 2:
+		hints["x-canonical-switch-to-application"] = &dbus.Variant{true}
+	case 4:
+		hints["x-canonical-snap-decisions"] = &dbus.Variant{true}
+	}
+	return raw.Notify(appId, 0, card.Icon, card.Summary, card.Body, actions, hints, 30*1000)
 }

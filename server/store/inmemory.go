@@ -17,7 +17,10 @@
 package store
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +45,34 @@ func NewInMemoryPendingStore() *InMemoryPendingStore {
 	return &InMemoryPendingStore{
 		store: make(map[InternalChannelId]*channel),
 	}
+}
+
+func (sto *InMemoryPendingStore) Register(deviceId, appId string) (string, error) {
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s::%s", appId, deviceId))), nil
+}
+
+func (sto *InMemoryPendingStore) Unregister(deviceId, appId string) error {
+	// do nothing, tokens here are computed deterministically and not stored
+	return nil
+}
+
+func (sto *InMemoryPendingStore) GetInternalChannelIdFromToken(token, appId, userId, deviceId string) (InternalChannelId, error) {
+	if token != "" && appId != "" {
+		decoded, err := base64.StdEncoding.DecodeString(token)
+		if err != nil {
+			return "", ErrUnknownToken
+		}
+		token = string(decoded)
+		if !strings.HasPrefix(token, appId+"::") {
+			return "", ErrUnauthorized
+		}
+		deviceId := token[len(appId)+2:]
+		return UnicastInternalChannelId(deviceId, deviceId), nil
+	}
+	if userId != "" && deviceId != "" {
+		return UnicastInternalChannelId(userId, deviceId), nil
+	}
+	return "", ErrUnknownToken
 }
 
 func (sto *InMemoryPendingStore) GetInternalChannelId(name string) (InternalChannelId, error) {

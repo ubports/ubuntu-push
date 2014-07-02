@@ -162,14 +162,15 @@ func (cbsend *checkBrokerSending) Unicast(chanIds ...store.InternalChannelId) {
 func (s *handlersSuite) TestDoBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	bsend := &checkBrokerSending{store: sto}
-	bh := &BroadcastHandler{&context{nil, bsend, nil}}
+	ctx := &context{nil, bsend, nil}
 	payload := json.RawMessage(`{"a": 1}`)
-	apiErr := bh.doBroadcast(sto, &Broadcast{
+	res, apiErr := doBroadcast(ctx, sto, &Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
 		Data:     payload,
 	})
-	c.Check(apiErr, IsNil)
+	c.Assert(apiErr, IsNil)
+	c.Assert(res, IsNil)
 	c.Check(bsend.err, IsNil)
 	c.Check(bsend.chanId, Equals, store.SystemInternalChannelId)
 	c.Check(bsend.top, Equals, int64(1))
@@ -178,8 +179,7 @@ func (s *handlersSuite) TestDoBroadcast(c *C) {
 
 func (s *handlersSuite) TestDoBroadcastUnknownChannel(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	bh := &BroadcastHandler{}
-	apiErr := bh.doBroadcast(sto, &Broadcast{
+	_, apiErr := doBroadcast(nil, sto, &Broadcast{
 		Channel:  "unknown",
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 1}`),
@@ -190,6 +190,21 @@ func (s *handlersSuite) TestDoBroadcastUnknownChannel(c *C) {
 type interceptInMemoryPendingStore struct {
 	*store.InMemoryPendingStore
 	intercept func(meth string, err error) error
+}
+
+func (isto *interceptInMemoryPendingStore) Register(appId, deviceId string) (string, error) {
+	token, err := isto.InMemoryPendingStore.Register(appId, deviceId)
+	return token, isto.intercept("Register", err)
+}
+
+func (isto *interceptInMemoryPendingStore) Unregister(appId, deviceId string) error {
+	err := isto.InMemoryPendingStore.Unregister(appId, deviceId)
+	return isto.intercept("Unregister", err)
+}
+
+func (isto *interceptInMemoryPendingStore) GetInternalChannelIdFromToken(token, appId, userId, deviceId string) (store.InternalChannelId, error) {
+	chanId, err := isto.InMemoryPendingStore.GetInternalChannelIdFromToken(token, appId, userId, deviceId)
+	return chanId, isto.intercept("GetInternalChannelIdFromToken", err)
 }
 
 func (isto *interceptInMemoryPendingStore) GetInternalChannelId(channel string) (store.InternalChannelId, error) {
@@ -214,8 +229,7 @@ func (s *handlersSuite) TestDoBroadcastUnknownError(c *C) {
 			return errors.New("other")
 		},
 	}
-	bh := &BroadcastHandler{}
-	apiErr := bh.doBroadcast(sto, &Broadcast{
+	_, apiErr := doBroadcast(nil, sto, &Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 1}`),
@@ -234,8 +248,7 @@ func (s *handlersSuite) TestDoBroadcastCouldNotStoreNotification(c *C) {
 		},
 	}
 	ctx := &context{logger: s.testlog}
-	bh := &BroadcastHandler{ctx}
-	apiErr := bh.doBroadcast(sto, &Broadcast{
+	_, apiErr := doBroadcast(ctx, sto, &Broadcast{
 		Channel:  "system",
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 1}`),
@@ -257,6 +270,14 @@ func (s *handlersSuite) TestCheckUnicast(c *C) {
 	}
 	u := unicast()
 	expire, apiErr := checkUnicast(u)
+	c.Assert(apiErr, IsNil)
+	c.Check(expire.Format(time.RFC3339), Equals, future)
+
+	u = unicast()
+	u.UserId = ""
+	u.DeviceId = ""
+	u.Token = "TOKEN"
+	expire, apiErr = checkUnicast(u)
 	c.Assert(apiErr, IsNil)
 	c.Check(expire.Format(time.RFC3339), Equals, future)
 
@@ -298,16 +319,17 @@ func (s *handlersSuite) TestDoUnicast(c *C) {
 	}
 	sto := store.NewInMemoryPendingStore()
 	bsend := &checkBrokerSending{store: sto}
-	bh := &UnicastHandler{&context{nil, bsend, nil}}
+	ctx := &context{nil, bsend, nil}
 	payload := json.RawMessage(`{"a": 1}`)
-	apiErr := bh.doUnicast(sto, &Unicast{
+	res, apiErr := doUnicast(ctx, sto, &Unicast{
 		UserId:   "user1",
 		DeviceId: "DEV1",
 		AppId:    "app1",
 		ExpireOn: future,
 		Data:     payload,
 	})
-	c.Check(apiErr, IsNil)
+	c.Assert(apiErr, IsNil)
+	c.Check(res, IsNil)
 	c.Check(bsend.err, IsNil)
 	c.Check(bsend.chanId, Equals, store.UnicastInternalChannelId("user1", "DEV1"))
 	c.Check(bsend.top, Equals, int64(0))
@@ -322,8 +344,7 @@ func (s *handlersSuite) TestDoUnicast(c *C) {
 
 func (s *handlersSuite) TestDoUnicastMissingIdField(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	bh := &UnicastHandler{}
-	apiErr := bh.doUnicast(sto, &Unicast{
+	_, apiErr := doUnicast(nil, sto, &Unicast{
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 1}`),
 	})
@@ -341,8 +362,7 @@ func (s *handlersSuite) TestDoUnicastCouldNotStoreNotification(c *C) {
 		},
 	}
 	ctx := &context{logger: s.testlog}
-	bh := &UnicastHandler{ctx}
-	apiErr := bh.doUnicast(sto, &Unicast{
+	_, apiErr := doUnicast(ctx, sto, &Unicast{
 		UserId:   "user1",
 		DeviceId: "DEV1",
 		AppId:    "app1",
@@ -351,6 +371,39 @@ func (s *handlersSuite) TestDoUnicastCouldNotStoreNotification(c *C) {
 	})
 	c.Check(apiErr, Equals, ErrCouldNotStoreNotification)
 	c.Check(s.testlog.Captured(), Equals, "ERROR could not store notification: fail\n")
+}
+
+func (s *handlersSuite) TestDoUnicastFromTokenFailures(c *C) {
+	fail := errors.New("fail")
+	sto := &interceptInMemoryPendingStore{
+		store.NewInMemoryPendingStore(),
+		func(meth string, err error) error {
+			if meth == "GetInternalChannelIdFromToken" {
+				return fail
+			}
+			return err
+		},
+	}
+	ctx := &context{logger: s.testlog}
+	u := &Unicast{
+		Token:    "tok",
+		AppId:    "app1",
+		ExpireOn: future,
+		Data:     json.RawMessage(`{"a": 1}`),
+	}
+	_, apiErr := doUnicast(ctx, sto, u)
+	c.Check(apiErr, Equals, ErrCouldNotResolveToken)
+	c.Check(s.testlog.Captured(), Equals, "ERROR could not resolve token: fail\n")
+	s.testlog.ResetCapture()
+
+	fail = store.ErrUnknownToken
+	_, apiErr = doUnicast(ctx, sto, u)
+	c.Check(apiErr, Equals, ErrUnknownToken)
+	c.Check(s.testlog.Captured(), Equals, "")
+	fail = store.ErrUnauthorized
+	_, apiErr = doUnicast(ctx, sto, u)
+	c.Check(apiErr, Equals, ErrUnauthorized)
+	c.Check(s.testlog.Captured(), Equals, "")
 }
 
 func newPostRequest(path string, message interface{}, server *httptest.Server) *http.Request {
@@ -427,7 +480,7 @@ func (s *handlersSuite) TestRespondsToBasicSystemBroadcast(c *C) {
 	dest := make(map[string]bool)
 	err = json.Unmarshal(body, &dest)
 	c.Assert(err, IsNil)
-	c.Check(dest, DeepEquals, map[string]bool{"ok": true})
+	c.Assert(dest, DeepEquals, map[string]bool{"ok": true})
 
 	top, _, err := sto.GetChannelSnapshot(store.SystemInternalChannelId)
 	c.Assert(err, IsNil)
@@ -481,7 +534,11 @@ func (s *handlersSuite) TestMissingData(c *C) {
 		return store.NewInMemoryPendingStore(), nil
 	}
 	ctx := &context{stoForReq, nil, nil}
-	testServer := httptest.NewServer(&BroadcastHandler{ctx})
+	testServer := httptest.NewServer(&JSONPostHandler{
+		context:        ctx,
+		parsingBodyObj: func() interface{} { return &Broadcast{} },
+		doHandle:       doBroadcast,
+	})
 	defer testServer.Close()
 
 	packedMessage := []byte(`{"channel": "system"}`)
@@ -502,7 +559,10 @@ func (s *handlersSuite) TestCannotBroadcastMalformedData(c *C) {
 		return store.NewInMemoryPendingStore(), nil
 	}
 	ctx := &context{stoForReq, nil, nil}
-	testServer := httptest.NewServer(&BroadcastHandler{ctx})
+	testServer := httptest.NewServer(&JSONPostHandler{
+		context:        ctx,
+		parsingBodyObj: func() interface{} { return &Broadcast{} },
+	})
 	defer testServer.Close()
 
 	packedMessage := []byte("{some bogus-message: ")
@@ -519,7 +579,7 @@ func (s *handlersSuite) TestCannotBroadcastMalformedData(c *C) {
 }
 
 func (s *handlersSuite) TestCannotBroadcastTooBigMessages(c *C) {
-	testServer := httptest.NewServer(&BroadcastHandler{})
+	testServer := httptest.NewServer(&JSONPostHandler{})
 	defer testServer.Close()
 
 	bigString := strings.Repeat("a", MaxRequestBodyBytes)
@@ -537,7 +597,7 @@ func (s *handlersSuite) TestCannotBroadcastTooBigMessages(c *C) {
 }
 
 func (s *handlersSuite) TestCannotBroadcastWithoutContentLength(c *C) {
-	testServer := httptest.NewServer(&BroadcastHandler{})
+	testServer := httptest.NewServer(&JSONPostHandler{})
 	defer testServer.Close()
 
 	dataString := `{"foo":"bar"}`
@@ -555,7 +615,7 @@ func (s *handlersSuite) TestCannotBroadcastWithoutContentLength(c *C) {
 }
 
 func (s *handlersSuite) TestCannotBroadcastEmptyMessages(c *C) {
-	testServer := httptest.NewServer(&BroadcastHandler{})
+	testServer := httptest.NewServer(&JSONPostHandler{})
 	defer testServer.Close()
 
 	packedMessage := make([]byte, 0)
@@ -572,7 +632,7 @@ func (s *handlersSuite) TestCannotBroadcastEmptyMessages(c *C) {
 }
 
 func (s *handlersSuite) TestCannotBroadcastNonJSONMessages(c *C) {
-	testServer := httptest.NewServer(&BroadcastHandler{})
+	testServer := httptest.NewServer(&JSONPostHandler{})
 	defer testServer.Close()
 
 	dataString := `{"foo":"bar"}`
@@ -590,7 +650,7 @@ func (s *handlersSuite) TestCannotBroadcastNonJSONMessages(c *C) {
 }
 
 func (s *handlersSuite) TestCannotBroadcastNonPostMessages(c *C) {
-	testServer := httptest.NewServer(&BroadcastHandler{})
+	testServer := httptest.NewServer(&JSONPostHandler{})
 	defer testServer.Close()
 
 	dataString := `{"foo":"bar"}`
@@ -612,6 +672,8 @@ func (s *handlersSuite) TestCannotBroadcastNonPostMessages(c *C) {
 
 	checkError(c, response, ErrWrongRequestMethod)
 }
+
+const OK = `.*"ok":true.*`
 
 func (s *handlersSuite) TestRespondsUnicast(c *C) {
 	sto := store.NewInMemoryPendingStore()
@@ -639,7 +701,7 @@ func (s *handlersSuite) TestRespondsUnicast(c *C) {
 	c.Check(response.Header.Get("Content-Type"), Equals, "application/json")
 	body, err := getResponseBody(response)
 	c.Assert(err, IsNil)
-	c.Check(string(body), Matches, ".*ok.*")
+	c.Assert(string(body), Matches, OK)
 
 	chanId := store.UnicastInternalChannelId("user2", "dev3")
 	c.Check(<-bsend.chanId, Equals, chanId)
@@ -649,36 +711,166 @@ func (s *handlersSuite) TestRespondsUnicast(c *C) {
 	c.Check(notifications, HasLen, 1)
 }
 
-func (s *handlersSuite) TestCannotUnicastTooBigMessages(c *C) {
-	testServer := httptest.NewServer(&UnicastHandler{})
-	defer testServer.Close()
+func (s *handlersSuite) TestCheckRegister(c *C) {
+	registration := func() *Registration {
+		return &Registration{
+			DeviceId: "DEV1",
+			AppId:    "app1",
+		}
+	}
+	reg := registration()
+	apiErr := checkRegister(reg)
+	c.Assert(apiErr, IsNil)
 
-	bigString := strings.Repeat("a", MaxRequestBodyBytes)
-	dataString := fmt.Sprintf(`"%v"`, bigString)
+	reg = registration()
+	reg.AppId = ""
+	apiErr = checkRegister(reg)
+	c.Check(apiErr, Equals, ErrMissingIdField)
 
-	request := newPostRequest("/", &Unicast{
-		ExpireOn: future,
-		Data:     json.RawMessage([]byte(dataString)),
-	}, testServer)
-
-	response, err := s.client.Do(request)
-	c.Assert(err, IsNil)
-	checkError(c, response, ErrRequestBodyTooLarge)
+	reg = registration()
+	reg.DeviceId = ""
+	apiErr = checkRegister(reg)
+	c.Check(apiErr, Equals, ErrMissingIdField)
 }
 
-func (s *handlersSuite) TestCannotUnicastWithMissingFields(c *C) {
-	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
-		return store.NewInMemoryPendingStore(), nil
+func (s *handlersSuite) TestDoRegisterMissingIdField(c *C) {
+	sto := store.NewInMemoryPendingStore()
+	token, apiErr := doRegister(nil, sto, &Registration{})
+	c.Check(apiErr, Equals, ErrMissingIdField)
+	c.Check(token, IsNil)
+}
+
+func (s *handlersSuite) TestDoRegisterCouldNotMakeToken(c *C) {
+	sto := &interceptInMemoryPendingStore{
+		store.NewInMemoryPendingStore(),
+		func(meth string, err error) error {
+			if meth == "Register" {
+				return errors.New("fail")
+			}
+			return err
+		},
 	}
-	ctx := &context{stoForReq, nil, nil}
-	testServer := httptest.NewServer(&UnicastHandler{ctx})
+	ctx := &context{logger: s.testlog}
+	_, apiErr := doRegister(ctx, sto, &Registration{
+		DeviceId: "DEV1",
+		AppId:    "app1",
+	})
+	c.Check(apiErr, Equals, ErrCouldNotMakeToken)
+	c.Check(s.testlog.Captured(), Equals, "ERROR could not make a token: fail\n")
+}
+
+func (s *handlersSuite) TestRespondsToRegisterAndUnicast(c *C) {
+	sto := store.NewInMemoryPendingStore()
+	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+		return sto, nil
+	}
+	bsend := testBrokerSending{make(chan store.InternalChannelId, 1)}
+	testServer := httptest.NewServer(MakeHandlersMux(stoForReq, bsend, nil))
 	defer testServer.Close()
 
-	request := newPostRequest("/", &Unicast{
-		Data: json.RawMessage(`{"foo":"bar"}`),
+	request := newPostRequest("/register", &Registration{
+		DeviceId: "dev3",
+		AppId:    "app2",
 	}, testServer)
 
 	response, err := s.client.Do(request)
 	c.Assert(err, IsNil)
-	checkError(c, response, ErrMissingIdField)
+
+	c.Check(response.StatusCode, Equals, http.StatusOK)
+	c.Check(response.Header.Get("Content-Type"), Equals, "application/json")
+	body, err := getResponseBody(response)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Matches, OK)
+	var reg map[string]interface{}
+	err = json.Unmarshal(body, &reg)
+	c.Assert(err, IsNil)
+
+	token, ok := reg["token"].(string)
+	c.Assert(ok, Equals, true)
+	c.Check(token, Not(Equals), nil)
+
+	payload := json.RawMessage(`{"foo":"bar"}`)
+
+	request = newPostRequest("/notify", &Unicast{
+		Token:    token,
+		AppId:    "app2",
+		ExpireOn: future,
+		Data:     payload,
+	}, testServer)
+
+	response, err = s.client.Do(request)
+	c.Assert(err, IsNil)
+
+	c.Check(response.StatusCode, Equals, http.StatusOK)
+	c.Check(response.Header.Get("Content-Type"), Equals, "application/json")
+	body, err = getResponseBody(response)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Matches, OK)
+
+	chanId := store.UnicastInternalChannelId("dev3", "dev3")
+	c.Check(<-bsend.chanId, Equals, chanId)
+	top, notifications, err := sto.GetChannelSnapshot(chanId)
+	c.Assert(err, IsNil)
+	c.Check(top, Equals, int64(0))
+	c.Check(notifications, HasLen, 1)
+}
+
+func (s *handlersSuite) TestRespondsToUnregister(c *C) {
+	yay := make(chan bool, 1)
+	sto := &interceptInMemoryPendingStore{
+		store.NewInMemoryPendingStore(),
+		func(meth string, err error) error {
+			if meth == "Unregister" {
+				yay <- true
+			}
+			return err
+		},
+	}
+	stoForReq := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+		return sto, nil
+	}
+	bsend := testBrokerSending{make(chan store.InternalChannelId, 1)}
+	testServer := httptest.NewServer(MakeHandlersMux(stoForReq, bsend, nil))
+	defer testServer.Close()
+
+	request := newPostRequest("/unregister", &Registration{
+		DeviceId: "dev3",
+		AppId:    "app2",
+	}, testServer)
+
+	response, err := s.client.Do(request)
+	c.Assert(err, IsNil)
+
+	c.Check(response.StatusCode, Equals, http.StatusOK)
+	c.Check(response.Header.Get("Content-Type"), Equals, "application/json")
+	body, err := getResponseBody(response)
+	c.Assert(err, IsNil)
+	c.Assert(string(body), Matches, OK)
+	c.Check(yay, HasLen, 1)
+}
+
+func (s *handlersSuite) TestDoUnregisterMissingIdField(c *C) {
+	sto := store.NewInMemoryPendingStore()
+	token, apiErr := doUnregister(nil, sto, &Registration{})
+	c.Check(apiErr, Equals, ErrMissingIdField)
+	c.Check(token, IsNil)
+}
+
+func (s *handlersSuite) TestDoUnregisterCouldNotRemoveToken(c *C) {
+	sto := &interceptInMemoryPendingStore{
+		store.NewInMemoryPendingStore(),
+		func(meth string, err error) error {
+			if meth == "Unregister" {
+				return errors.New("fail")
+			}
+			return err
+		},
+	}
+	ctx := &context{logger: s.testlog}
+	_, apiErr := doUnregister(ctx, sto, &Registration{
+		DeviceId: "DEV1",
+		AppId:    "app1",
+	})
+	c.Check(apiErr, Equals, ErrCouldNotRemoveToken)
+	c.Check(s.testlog.Captured(), Equals, "ERROR could not remove token: fail\n")
 }

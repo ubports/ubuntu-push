@@ -21,7 +21,9 @@ package bus
 import (
 	"errors"
 	"fmt"
+
 	"launchpad.net/go-dbus/v1"
+
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -29,15 +31,15 @@ import (
  *    Endpoint (and its implementation)
  */
 
-type BusMethod func([]interface{}, []interface{}) ([]interface{}, error)
+type BusMethod func(string, []interface{}, []interface{}) ([]interface{}, error)
 type DispatchMap map[string]BusMethod
 
 // bus.Endpoint represents the DBus connection itself.
 type Endpoint interface {
 	GrabName(allowReplacement bool) <-chan error
 	WatchSignal(member string, f func(...interface{}), d func()) error
-	WatchMethod(DispatchMap, ...interface{})
-	Signal(string, []interface{}) error
+	WatchMethod(DispatchMap, string, ...interface{})
+	Signal(string, string, []interface{}) error
 	Call(member string, args []interface{}, rvs ...interface{}) error
 	GetProperty(property string) (interface{}, error)
 	Dial() error
@@ -212,8 +214,9 @@ func (endp *endpoint) GrabName(allowReplacement bool) <-chan error {
 // Signal() sends out a signal called <member> containing <args>.
 //
 // XXX: untested
-func (endp *endpoint) Signal(member string, args []interface{}) error {
-	msg := dbus.NewSignalMessage(dbus.ObjectPath(endp.addr.Path), endp.addr.Interface, member)
+func (endp *endpoint) Signal(member string, suffix string, args []interface{}) error {
+	path := dbus.ObjectPath(endp.addr.Path + suffix)
+	msg := dbus.NewSignalMessage(path, endp.addr.Interface, member)
 	if args != nil {
 		err := msg.AppendArgs(args...)
 		if err != nil {
@@ -234,7 +237,7 @@ func (endp *endpoint) Signal(member string, args []interface{}) error {
 // calls.
 //
 // XXX: untested
-func (endp *endpoint) WatchMethod(dispatch DispatchMap, extra ...interface{}) {
+func (endp *endpoint) WatchMethod(dispatch DispatchMap, suffix string, extra ...interface{}) {
 	ch := make(chan *dbus.Message)
 	go func() {
 		var reply *dbus.Message
@@ -249,12 +252,12 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap, extra ...interface{}) {
 				endp.log.Errorf("WatchMethod: unknown method %s", msg.Member)
 			} else {
 				args := msg.AllArgs()
-				rvals, err := meth(args, extra)
+				rvals, err := meth(string(msg.Path), args, extra)
 				if err != nil {
 					reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
-					endp.log.Errorf("WatchMethod: %s(%#v, %#v) failure: %#v", msg.Member, args, extra, err)
+					endp.log.Errorf("WatchMethod: %s(%v, %#v, %#v) failure: %#v", msg.Member, msg.Path, args, extra, err)
 				} else {
-					endp.log.Debugf("WatchMethod: %s(%#v, %#v) success: %#v", msg.Member, args, extra, rvals)
+					endp.log.Debugf("WatchMethod: %s(%v, %#v, %#v) success: %#v", msg.Member, msg.Path, args, extra, rvals)
 					reply = dbus.NewMethodReturnMessage(msg)
 					err = reply.AppendArgs(rvals...)
 					if err != nil {
@@ -270,7 +273,8 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap, extra ...interface{}) {
 
 		}
 	}()
-	endp.bus.RegisterObjectPath(dbus.ObjectPath(endp.addr.Path), ch)
+	path := dbus.ObjectPath(endp.addr.Path + suffix)
+	endp.bus.RegisterObjectPath(path, ch)
 }
 
 /*

@@ -89,7 +89,7 @@ type AcceptanceSuite struct {
 	// to kill the server process
 	KillGroup map[string]func(os.Signal)
 	// hook to adjust requests
-	MassageRequest func(req *http.Request) *http.Request
+	MassageRequest func(req *http.Request, message interface{}) *http.Request
 	// other state
 	httpClient *http.Client
 }
@@ -124,7 +124,7 @@ func (s *AcceptanceSuite) PostRequest(path string, message interface{}) (string,
 	request.Header.Set("Content-Type", "application/json")
 
 	if s.MassageRequest != nil {
-		request = s.MassageRequest(request)
+		request = s.MassageRequest(request, message)
 	}
 
 	resp, err := s.httpClient.Do(request)
@@ -198,3 +198,5 @@ func (ic *interceptingConn) Read(b []byte) (n int, err error) {
 
 // Long after the end of the tests.
 var future = time.Now().Add(9 * time.Hour).Format(time.RFC3339)
+
+const OK = `.*"ok":true.*`

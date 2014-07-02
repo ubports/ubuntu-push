@@ -52,6 +52,8 @@ func (icid InternalChannelId) UnicastUserAndDevice() (userId, deviceId string) {
 }
 
 var ErrUnknownChannel = errors.New("unknown channel name")
+var ErrUnknownToken = errors.New("unknown token")
+var ErrUnauthorized = errors.New("unauthorized")
 var ErrFull = errors.New("channel is full")
 var ErrExpected128BitsHexRepr = errors.New("expected 128 bits hex repr")
 
@@ -98,11 +100,19 @@ func UnicastInternalChannelId(userId, deviceId string) InternalChannelId {
 
 // PendingStore let store notifications into channels.
 type PendingStore interface {
+	// Register returns a token for a device id, application id pair.
+	Register(deviceId, appId string) (token string, err error)
+	// Unregister forgets the token for a device id, application id pair.
+	Unregister(deviceId, appId string) error
 	// GetInternalChannelId returns the internal store id for a channel
 	// given the name.
 	GetInternalChannelId(name string) (InternalChannelId, error)
 	// AppendToChannel appends a notification to the channel.
 	AppendToChannel(chanId InternalChannelId, notification json.RawMessage, expiration time.Time) error
+	// GetInternalChannelIdFromToken returns the matching internal store
+	// id for a channel given a registered token and application id or
+	// directly a device id, user id pair.
+	GetInternalChannelIdFromToken(token, appId, userId, deviceId string) (InternalChannelId, error)
 	// AppendToUnicastChannel appends a notification to the unicast channel.
 	// GetChannelSnapshot gets all the current notifications and
 	AppendToUnicastChannel(chanId InternalChannelId, appId string, notification json.RawMessage, msgId string, expiration time.Time) error

@@ -17,7 +17,10 @@
 package service
 
 import (
-	"errors"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -45,7 +48,7 @@ func (ss *serviceSuite) SetUpTest(c *C) {
 }
 
 func (ss *serviceSuite) TestStart(c *C) {
-	svc := NewService(ss.bus, ss.log)
+	svc := NewPushService(ss.bus, ss.log)
 	c.Check(svc.IsRunning(), Equals, false)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.IsRunning(), Equals, true)
@@ -53,31 +56,31 @@ func (ss *serviceSuite) TestStart(c *C) {
 }
 
 func (ss *serviceSuite) TestStartTwice(c *C) {
-	svc := NewService(ss.bus, ss.log)
+	svc := NewPushService(ss.bus, ss.log)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.Start(), Equals, AlreadyStarted)
 	svc.Stop()
 }
 
 func (ss *serviceSuite) TestStartNoLog(c *C) {
-	svc := NewService(ss.bus, nil)
+	svc := NewPushService(ss.bus, nil)
 	c.Check(svc.Start(), Equals, NotConfigured)
 }
 
 func (ss *serviceSuite) TestStartNoBus(c *C) {
-	svc := NewService(nil, ss.log)
+	svc := NewPushService(nil, ss.log)
 	c.Check(svc.Start(), Equals, NotConfigured)
 }
 
 func (ss *serviceSuite) TestStartFailsOnBusDialFailure(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	svc := NewService(bus, ss.log)
+	svc := NewPushService(bus, ss.log)
 	c.Check(svc.Start(), ErrorMatches, `.*(?i)cond said no.*`)
 	svc.Stop()
 }
 
 func (ss *serviceSuite) TestStartGrabsName(c *C) {
-	svc := NewService(ss.bus, ss.log)
+	svc := NewPushService(ss.bus, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	callArgs := testibus.GetCallArgs(ss.bus)
 	defer svc.Stop()
@@ -86,7 +89,7 @@ func (ss *serviceSuite) TestStartGrabsName(c *C) {
 }
 
 func (ss *serviceSuite) TestStopClosesBus(c *C) {
-	svc := NewService(ss.bus, ss.log)
+	svc := NewPushService(ss.bus, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	svc.Stop()
 	callArgs := testibus.GetCallArgs(ss.bus)
@@ -96,36 +99,75 @@ func (ss *serviceSuite) TestStopClosesBus(c *C) {
 
 // registration tests
 
+func (ss *serviceSuite) TestSetRegURLWorks(c *C) {
+	svc := NewPushService(ss.bus, ss.log)
+	c.Check(svc.regURL, Equals, "")
+	svc.SetRegistrationURL("xyzzy://")
+	c.Check(svc.regURL, Equals, "xyzzy://")
+}
+
+func (ss *serviceSuite) TestSetAuthGetterWorks(c *C) {
+	svc := NewPushService(ss.bus, ss.log)
+	c.Check(svc.authGetter, IsNil)
+	f := func(string) string { return "" }
+	svc.SetAuthGetter(f)
+	c.Check(fmt.Sprintf("%#v", svc.authGetter), Equals, fmt.Sprintf("%#v", f))
+}
+
+func (ss *serviceSuite) TestGetRegAuthWorks(c *C) {
+	svc := NewPushService(ss.bus, ss.log)
+	svc.SetRegistrationURL("xyzzy://")
+	ch := make(chan string, 1)
+	f := func(s string) string { ch <- s; return "Auth " + s }
+	svc.SetAuthGetter(f)
+	c.Check(svc.getRegistrationAuthorization(), Equals, "Auth xyzzy://")
+	c.Assert(len(ch), Equals, 1)
+	c.Check(<-ch, Equals, "xyzzy://")
+}
+
+func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
+	svc := NewPushService(ss.bus, ss.log)
+	c.Check(svc.getRegistrationAuthorization(), Equals, "")
+}
+
 func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
-	for i, s := range []struct {
-		args []interface{}
-		errt error
-	}{
-		{nil, BadArgCount},                 // no args
-		{[]interface{}{}, BadArgCount},     // still no args
-		{[]interface{}{42}, BadArgType},    // bad arg type
-		{[]interface{}{1, 2}, BadArgCount}, // too many args
-	} {
-		reg, err := new(Service).register(s.args, nil)
-		c.Check(reg, IsNil, Commentf("iteration #%d", i))
-		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
-	}
+	reg, err := new(PushService).register("", []interface{}{1}, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, Equals, BadArgCount)
 }
 
 func (ss *serviceSuite) TestRegistrationWorks(c *C) {
-	reg, err := new(Service).register([]interface{}{"this"}, nil)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 256)
+		n, e := r.Body.Read(buf)
+		c.Assert(e, IsNil)
+		req := registrationRequest{}
+		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintln(w, `{"ok":true,"token":"blob-of-bytes"}`)
+	}))
+	defer ts.Close()
+
+	svc := NewPushService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	svc.SetDeviceId("fake-device-id")
+	// this'll check (un)quoting, too
+	reg, err := svc.register("/an_2dapp_2did", nil, nil)
+	c.Assert(err, IsNil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
-	c.Check(regs, Not(Equals), "")
-	c.Check(err, IsNil)
+	c.Check(regs, Equals, "blob-of-bytes")
 }
 
 func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	os.Setenv("PUSH_REG_stuff", "42")
 	defer os.Setenv("PUSH_REG_stuff", "")
 
-	reg, err := new(Service).register([]interface{}{"stuff"}, nil)
+	reg, err := new(PushService).register("/stuff", nil, nil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
@@ -133,115 +175,103 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	c.Check(err, IsNil)
 }
 
-//
-// Injection tests
-
-func (ss *serviceSuite) TestInjectWorks(c *C) {
-	svc := NewService(ss.bus, ss.log)
-	rvs, err := svc.inject([]interface{}{"hello", "world"}, nil)
-	c.Assert(err, IsNil)
-	c.Check(rvs, IsNil)
-	rvs, err = svc.inject([]interface{}{"hello", "there"}, nil)
-	c.Assert(err, IsNil)
-	c.Check(rvs, IsNil)
-	c.Assert(svc.mbox, HasLen, 1)
-	c.Assert(svc.mbox["hello"], HasLen, 2)
-	c.Check(svc.mbox["hello"][0], Equals, "world")
-	c.Check(svc.mbox["hello"][1], Equals, "there")
-
-	// and check it fired the right signal (twice)
-	callArgs := testibus.GetCallArgs(ss.bus)
-	c.Assert(callArgs, HasLen, 2)
-	c.Check(callArgs[0].Member, Equals, "::Signal")
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"Notification", []interface{}{"hello"}})
-	c.Check(callArgs[1], DeepEquals, callArgs[0])
+func (ss *serviceSuite) TestRegistrationFailsOnBadReqURL(c *C) {
+	svc := NewPushService(ss.bus, ss.log)
+	svc.SetRegistrationURL("%gh")
+	reg, err := svc.register("thing", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, ErrorMatches, "unable to build register request: .*")
 }
 
-func (ss *serviceSuite) TestInjectFailsIfInjectFails(c *C) {
-	bus := testibus.NewTestingEndpoint(condition.Work(true),
-		condition.Work(false))
-	svc := NewService(bus, ss.log)
-	svc.SetMessageHandler(func([]byte) error { return errors.New("fail") })
-	_, err := svc.inject([]interface{}{"hello", "xyzzy"}, nil)
-	c.Check(err, NotNil)
+func (ss *serviceSuite) TestRegistrationFailsOnBadAuth(c *C) {
+	svc := NewPushService(ss.bus, ss.log)
+	// ... no auth added
+	reg, err := svc.register("thing", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, Equals, BadAuth)
 }
 
-func (ss *serviceSuite) TestInjectFailsIfBadArgs(c *C) {
-	for i, s := range []struct {
-		args []interface{}
-		errt error
-	}{
-		{nil, BadArgCount},
-		{[]interface{}{}, BadArgCount},
-		{[]interface{}{1}, BadArgCount},
-		{[]interface{}{1, 2}, BadArgType},
-		{[]interface{}{"1", 2}, BadArgType},
-		{[]interface{}{1, "2"}, BadArgType},
-		{[]interface{}{1, 2, 3}, BadArgCount},
-	} {
-		reg, err := new(Service).inject(s.args, nil)
-		c.Check(reg, IsNil, Commentf("iteration #%d", i))
-		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
-	}
+func (ss *serviceSuite) TestRegistrationFailsOnNoServer(c *C) {
+	svc := NewPushService(ss.bus, ss.log)
+	svc.SetRegistrationURL("xyzzy://")
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	reg, err := svc.register("thing", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, ErrorMatches, "unable to request registration: .*")
 }
 
-//
-// Notifications tests
-func (ss *serviceSuite) TestNotificationsWorks(c *C) {
-	svc := NewService(ss.bus, ss.log)
-	nots, err := svc.notifications([]interface{}{"hello"}, nil)
-	c.Assert(err, IsNil)
-	c.Assert(nots, NotNil)
-	c.Assert(nots, HasLen, 1)
-	c.Check(nots[0], HasLen, 0)
-	if svc.mbox == nil {
-		svc.mbox = make(map[string][]string)
-	}
-	svc.mbox["hello"] = append(svc.mbox["hello"], "this", "thing")
-	nots, err = svc.notifications([]interface{}{"hello"}, nil)
-	c.Assert(err, IsNil)
-	c.Assert(nots, NotNil)
-	c.Assert(nots, HasLen, 1)
-	c.Check(nots[0], DeepEquals, []string{"this", "thing"})
+func (ss *serviceSuite) TestRegistrationFailsOn40x(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "I'm a teapot", 418)
+	}))
+	defer ts.Close()
+
+	svc := NewPushService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	reg, err := svc.register("/thing", nil, nil)
+	c.Check(err, Equals, BadRequest)
+	c.Check(reg, IsNil)
 }
 
-func (ss *serviceSuite) TestNotificationsFailsIfBadArgs(c *C) {
-	for i, s := range []struct {
-		args []interface{}
-		errt error
-	}{
-		{nil, BadArgCount},                 // no args
-		{[]interface{}{}, BadArgCount},     // still no args
-		{[]interface{}{42}, BadArgType},    // bad arg type
-		{[]interface{}{1, 2}, BadArgCount}, // too many args
-	} {
-		reg, err := new(Service).notifications(s.args, nil)
-		c.Check(reg, IsNil, Commentf("iteration #%d", i))
-		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
-	}
+func (ss *serviceSuite) TestRegistrationFailsOn50x(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Not implemented", 501)
+	}))
+	defer ts.Close()
+
+	svc := NewPushService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	reg, err := svc.register("/thing", nil, nil)
+	c.Check(err, Equals, BadServer)
+	c.Check(reg, IsNil)
 }
 
-func (ss *serviceSuite) TestMessageHandler(c *C) {
-	svc := new(Service)
-	c.Assert(svc.msgHandler, IsNil)
-	var ext = []byte{}
-	e := errors.New("Hello")
-	f := func(s []byte) error { ext = s; return e }
-	c.Check(svc.GetMessageHandler(), IsNil)
-	svc.SetMessageHandler(f)
-	c.Check(svc.GetMessageHandler(), NotNil)
-	c.Check(svc.msgHandler([]byte("37")), Equals, e)
-	c.Check(ext, DeepEquals, []byte("37"))
+func (ss *serviceSuite) TestRegistrationFailsOnBadJSON(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 256)
+		n, e := r.Body.Read(buf)
+		c.Assert(e, IsNil)
+		req := registrationRequest{}
+		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintln(w, `{`)
+	}))
+	defer ts.Close()
+
+	svc := NewPushService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	svc.SetDeviceId("fake-device-id")
+	// this'll check (un)quoting, too
+	reg, err := svc.register("/an_2dapp_2did", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, ErrorMatches, "unable to unmarshal register response: .*")
 }
 
-func (ss *serviceSuite) TestInjectCallsMessageHandler(c *C) {
-	var ext = []byte{}
-	svc := NewService(ss.bus, ss.log)
-	f := func(s []byte) error { ext = s; return nil }
-	svc.SetMessageHandler(f)
-	c.Check(svc.Inject("stuff", "{}"), IsNil)
-	c.Check(ext, DeepEquals, []byte("{}"))
-	err := errors.New("ouch")
-	svc.SetMessageHandler(func([]byte) error { return err })
-	c.Check(svc.Inject("stuff", "{}"), Equals, err)
+func (ss *serviceSuite) TestRegistrationFailsOnBadJSONDocument(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 256)
+		n, e := r.Body.Read(buf)
+		c.Assert(e, IsNil)
+		req := registrationRequest{}
+		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
+
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintln(w, `{"bananas": "very yes"}`)
+	}))
+	defer ts.Close()
+
+	svc := NewPushService(ss.bus, ss.log)
+	svc.SetAuthGetter(func(string) string { return "tok" })
+	svc.SetRegistrationURL(ts.URL)
+	svc.SetDeviceId("fake-device-id")
+	// this'll check (un)quoting, too
+	reg, err := svc.register("/an_2dapp_2did", nil, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, Equals, BadToken)
 }
