@@ -162,6 +162,7 @@ func (svc *PostalService) messageHandler(appname string, nid string, output *lau
 }
 
 func (svc *PostalService) InjectBroadcast() (uint32, error) {
+	// XXX: call a helper?
 	// XXX: Present force us to send the url as the notificationId
 	icon := "update_manager_icon"
 	summary := "There's an updated system image."
