@@ -299,7 +299,7 @@ func (ss *serviceSuite) TestUnregistrationWorks(c *C) {
 		c.Check(r.URL.Path, Equals, "/unregister")
 		invoked <- true
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintln(w, `{"ok":true,"token":"blob-of-bytes"}`)
+		fmt.Fprintln(w, `{"ok":true}`)
 	}))
 	defer ts.Close()
 	setup := &PushServiceSetup{
