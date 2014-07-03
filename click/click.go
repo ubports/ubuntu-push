@@ -29,10 +29,12 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 type ClickUser struct {
 	cuser *C.ClickUser
+	lock  sync.Mutex
 }
 
 func gchar(s string) *C.gchar {
@@ -51,7 +53,7 @@ func User() (*ClickUser, error) {
 	if gerr != nil {
 		return nil, fmt.Errorf("faild to make ClickUser: %s", C.GoString((*C.char)(gerr.message)))
 	}
-	res := &ClickUser{cuser}
+	res := &ClickUser{cuser: cuser}
 	runtime.SetFinalizer(res, func(cu *ClickUser) {
 		C.g_object_unref((C.gpointer)(cu.cuser))
 	})
@@ -79,6 +81,8 @@ func (cu *ClickUser) hasPackageName(pkgName string) bool {
 
 // HasPackage checks if the appId is installed for user.
 func (cu *ClickUser) HasPackage(appId string) bool {
+	cu.lock.Lock()
+	defer cu.lock.Unlock()
 	comps := strings.Split(appId, "_")
 	if len(comps) < 2 {
 		return false
