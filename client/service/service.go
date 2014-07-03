@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -32,10 +33,17 @@ import (
 	"launchpad.net/ubuntu-push/nih"
 )
 
+// PushServiceSetup encapsulates the params for setting up a PushService.
+type PushServiceSetup struct {
+	RegURL     *url.URL
+	DeviceId   string
+	AuthGetter func(string) string
+}
+
 // PushService is the dbus api
 type PushService struct {
 	DBusService
-	regURL     string
+	regURL     *url.URL
 	deviceId   string
 	authGetter func(string) string
 	httpCli    http13.Client
@@ -50,59 +58,28 @@ var (
 )
 
 // NewPushService() builds a new service and returns it.
-func NewPushService(bus bus.Endpoint, log logger.Logger) *PushService {
+func NewPushService(bus bus.Endpoint, setup *PushServiceSetup, log logger.Logger) *PushService {
 	var svc = &PushService{}
 	svc.Log = log
 	svc.Bus = bus
+	svc.regURL = setup.RegURL
+	svc.deviceId = setup.DeviceId
+	svc.authGetter = setup.AuthGetter
 	return svc
 }
 
-// SetRegistrationURL() sets the registration url for the service
-func (svc *PushService) SetRegistrationURL(url string) {
-	svc.lock.Lock()
-	defer svc.lock.Unlock()
-	svc.regURL = url
-}
-
-// SetAuthGetter() sets the authorization getter for the service
-func (svc *PushService) SetAuthGetter(authGetter func(string) string) {
-	svc.lock.Lock()
-	defer svc.lock.Unlock()
-	svc.authGetter = authGetter
-}
-
-// getRegistrationAuthorization() returns the authorization header for
-// POSTing to the registration HTTP endpoint
-//
-// (this is for calling with the lock held)
-func (svc *PushService) getRegistrationAuthorization() string {
-	if svc.authGetter != nil && svc.regURL != "" {
-		return svc.authGetter(svc.regURL)
-	} else {
-		return ""
+// getAuthorization() returns the URL and the authorization header for
+// POSTing to the registration HTTP endpoint for op
+func (svc *PushService) getAuthorization(op string) (string, string) {
+	if svc.authGetter == nil || svc.regURL == nil {
+		return "", ""
 	}
-}
-
-// GetRegistrationAuthorization() returns the authorization header for
-// POSTing to the registration HTTP endpoint
-func (svc *PushService) GetRegistrationAuthorization() string {
-	svc.lock.RLock()
-	defer svc.lock.RUnlock()
-	return svc.getRegistrationAuthorization()
-}
-
-// SetDeviceId() sets the device id
-func (svc *PushService) SetDeviceId(deviceId string) {
-	svc.lock.Lock()
-	defer svc.lock.Unlock()
-	svc.deviceId = deviceId
-}
-
-// GetDeviceId() returns the device id
-func (svc *PushService) GetDeviceId() string {
-	svc.lock.RLock()
-	defer svc.lock.RUnlock()
-	return svc.deviceId
+	purl, err := svc.regURL.Parse(op)
+	if err != nil {
+		panic("op to getAuthorization was invalid")
+	}
+	url := purl.String()
+	return url, svc.authGetter(url)
 }
 
 func (svc *PushService) Start() error {
@@ -130,31 +107,20 @@ type registrationReply struct {
 	Message string `json:"message"` //
 }
 
-func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
-	svc.lock.RLock()
-	defer svc.lock.RUnlock()
-	if len(args) != 0 {
-		return nil, BadArgCount
-	}
-	raw_appname := path[strings.LastIndex(path, "/")+1:]
-	appname := string(nih.Unquote([]byte(raw_appname)))
-
-	rv := os.Getenv("PUSH_REG_" + raw_appname)
-	if rv != "" {
-		return []interface{}{rv}, nil
-	}
-
-	req_body, err := json.Marshal(registrationRequest{svc.deviceId, appname})
+func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) {
+	req_body, err := json.Marshal(registrationRequest{svc.deviceId, appId})
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal register request body: %v", err)
 	}
-	req, err := http13.NewRequest("POST", svc.regURL, bytes.NewReader(req_body))
-	if err != nil {
-		return nil, fmt.Errorf("unable to build register request: %v", err)
-	}
-	auth := svc.getRegistrationAuthorization()
+
+	url, auth := svc.getAuthorization(op)
 	if auth == "" {
 		return nil, BadAuth
+	}
+
+	req, err := http13.NewRequest("POST", url, bytes.NewReader(req_body))
+	if err != nil {
+		panic(fmt.Errorf("unable to build register request: %v", err))
 	}
 	req.Header.Add("Authorization", auth)
 	req.Header.Add("Content-Type", "application/json")
@@ -188,10 +154,35 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 		return nil, fmt.Errorf("unable to unmarshal register response: %v", err)
 	}
 
+	return &reply, nil
+}
+
+func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
+	if len(args) != 0 {
+		return nil, BadArgCount
+	}
+	raw_appname := path[strings.LastIndex(path, "/")+1:]
+	appname := string(nih.Unquote([]byte(raw_appname)))
+
+	rv := os.Getenv("PUSH_REG_" + raw_appname)
+	if rv != "" {
+		return []interface{}{rv}, nil
+	}
+
+	reply, err := svc.manageReg("/register", appname)
+	if err != nil {
+		return nil, err
+	}
+
 	if !reply.Ok || reply.Token == "" {
 		svc.Log.Errorf("Unexpected response: %#v", reply)
 		return nil, BadToken
 	}
 
 	return []interface{}{reply.Token}, nil
+}
+
+func (svc *PushService) Unregister(appId string) error {
+	_, err := svc.manageReg("/unregister", appId)
+	return err
 }

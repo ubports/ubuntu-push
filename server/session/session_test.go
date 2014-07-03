@@ -373,6 +373,7 @@ func (s *sessionSuite) TestPingTimerReset(c *C) {
 		pingTimer:     time.NewTimer(pingInterval),
 		intervalStart: now,
 	}
+	time.Sleep(10 * time.Millisecond)
 	l.pingTimer.Stop()
 	done := l.pingTimerReset(true)
 	c.Assert(done, Equals, true)
