@@ -47,8 +47,25 @@ func (ss *serviceSuite) SetUpTest(c *C) {
 	ss.bus = testibus.NewTestingEndpoint(condition.Work(true), nil)
 }
 
+var testSetup = &PushServiceSetup{}
+
+func (ss *serviceSuite) TestBuild(c *C) {
+	setup := &PushServiceSetup{
+		RegURL:   helpers.ParseURL("http://reg"),
+		DeviceId: "FOO",
+		AuthGetter: func(s string) string {
+			return ""
+		},
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
+	c.Check(svc.Bus, Equals, ss.bus)
+	c.Check(svc.regURL, DeepEquals, helpers.ParseURL("http://reg"))
+	c.Check(fmt.Sprintf("%#v", svc.authGetter), Equals, fmt.Sprintf("%#v", setup.AuthGetter))
+	// ...
+}
+
 func (ss *serviceSuite) TestStart(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
+	svc := NewPushService(ss.bus, testSetup, ss.log)
 	c.Check(svc.IsRunning(), Equals, false)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.IsRunning(), Equals, true)
@@ -56,31 +73,31 @@ func (ss *serviceSuite) TestStart(c *C) {
 }
 
 func (ss *serviceSuite) TestStartTwice(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
+	svc := NewPushService(ss.bus, testSetup, ss.log)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.Start(), Equals, AlreadyStarted)
 	svc.Stop()
 }
 
 func (ss *serviceSuite) TestStartNoLog(c *C) {
-	svc := NewPushService(ss.bus, nil)
+	svc := NewPushService(ss.bus, testSetup, nil)
 	c.Check(svc.Start(), Equals, NotConfigured)
 }
 
 func (ss *serviceSuite) TestStartNoBus(c *C) {
-	svc := NewPushService(nil, ss.log)
+	svc := NewPushService(nil, testSetup, ss.log)
 	c.Check(svc.Start(), Equals, NotConfigured)
 }
 
 func (ss *serviceSuite) TestStartFailsOnBusDialFailure(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	svc := NewPushService(bus, ss.log)
+	svc := NewPushService(bus, testSetup, ss.log)
 	c.Check(svc.Start(), ErrorMatches, `.*(?i)cond said no.*`)
 	svc.Stop()
 }
 
 func (ss *serviceSuite) TestStartGrabsName(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
+	svc := NewPushService(ss.bus, testSetup, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	callArgs := testibus.GetCallArgs(ss.bus)
 	defer svc.Stop()
@@ -89,7 +106,7 @@ func (ss *serviceSuite) TestStartGrabsName(c *C) {
 }
 
 func (ss *serviceSuite) TestStopClosesBus(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
+	svc := NewPushService(ss.bus, testSetup, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	svc.Stop()
 	callArgs := testibus.GetCallArgs(ss.bus)
@@ -99,35 +116,27 @@ func (ss *serviceSuite) TestStopClosesBus(c *C) {
 
 // registration tests
 
-func (ss *serviceSuite) TestSetRegURLWorks(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
-	c.Check(svc.regURL, Equals, "")
-	svc.SetRegistrationURL("xyzzy://")
-	c.Check(svc.regURL, Equals, "xyzzy://")
-}
-
-func (ss *serviceSuite) TestSetAuthGetterWorks(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
-	c.Check(svc.authGetter, IsNil)
-	f := func(string) string { return "" }
-	svc.SetAuthGetter(f)
-	c.Check(fmt.Sprintf("%#v", svc.authGetter), Equals, fmt.Sprintf("%#v", f))
-}
-
 func (ss *serviceSuite) TestGetRegAuthWorks(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
-	svc.SetRegistrationURL("xyzzy://")
 	ch := make(chan string, 1)
-	f := func(s string) string { ch <- s; return "Auth " + s }
-	svc.SetAuthGetter(f)
-	c.Check(svc.getRegistrationAuthorization(), Equals, "Auth xyzzy://")
+	setup := &PushServiceSetup{
+		RegURL: helpers.ParseURL("http://foo"),
+		AuthGetter: func(s string) string {
+			ch <- s
+			return "Auth " + s
+		},
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
+	url, auth := svc.getAuthorization("/op")
+	c.Check(auth, Equals, "Auth http://foo/op")
 	c.Assert(len(ch), Equals, 1)
-	c.Check(<-ch, Equals, "xyzzy://")
+	c.Check(<-ch, Equals, "http://foo/op")
+	c.Check(url, Equals, "http://foo/op")
 }
 
 func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
-	c.Check(svc.getRegistrationAuthorization(), Equals, "")
+	svc := NewPushService(ss.bus, testSetup, ss.log)
+	_, auth := svc.getAuthorization("/op")
+	c.Check(auth, Equals, "")
 }
 
 func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
@@ -144,16 +153,17 @@ func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
 		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
-
+		c.Check(r.URL.Path, Equals, "/register")
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{"ok":true,"token":"blob-of-bytes"}`)
 	}))
 	defer ts.Close()
-
-	svc := NewPushService(ss.bus, ss.log)
-	svc.SetAuthGetter(func(string) string { return "tok" })
-	svc.SetRegistrationURL(ts.URL)
-	svc.SetDeviceId("fake-device-id")
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL(ts.URL),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
 	// this'll check (un)quoting, too
 	reg, err := svc.register("/an_2dapp_2did", nil, nil)
 	c.Assert(err, IsNil)
@@ -175,60 +185,59 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (ss *serviceSuite) TestRegistrationFailsOnBadReqURL(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
-	svc.SetRegistrationURL("%gh")
-	reg, err := svc.register("thing", nil, nil)
-	c.Check(reg, IsNil)
-	c.Check(err, ErrorMatches, "unable to build register request: .*")
-}
-
-func (ss *serviceSuite) TestRegistrationFailsOnBadAuth(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
+func (ss *serviceSuite) TestManageRegFailsOnBadAuth(c *C) {
 	// ... no auth added
+	svc := NewPushService(ss.bus, testSetup, ss.log)
 	reg, err := svc.register("thing", nil, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, Equals, BadAuth)
 }
 
-func (ss *serviceSuite) TestRegistrationFailsOnNoServer(c *C) {
-	svc := NewPushService(ss.bus, ss.log)
-	svc.SetRegistrationURL("xyzzy://")
-	svc.SetAuthGetter(func(string) string { return "tok" })
+func (ss *serviceSuite) TestManageRegFailsOnNoServer(c *C) {
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL("xyzzy://"),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
 	reg, err := svc.register("thing", nil, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, ErrorMatches, "unable to request registration: .*")
 }
 
-func (ss *serviceSuite) TestRegistrationFailsOn40x(c *C) {
+func (ss *serviceSuite) TestManageRegFailsOn40x(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "I'm a teapot", 418)
 	}))
 	defer ts.Close()
-
-	svc := NewPushService(ss.bus, ss.log)
-	svc.SetAuthGetter(func(string) string { return "tok" })
-	svc.SetRegistrationURL(ts.URL)
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL(ts.URL),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
 	reg, err := svc.register("/thing", nil, nil)
 	c.Check(err, Equals, BadRequest)
 	c.Check(reg, IsNil)
 }
 
-func (ss *serviceSuite) TestRegistrationFailsOn50x(c *C) {
+func (ss *serviceSuite) TestManageRegFailsOn50x(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Not implemented", 501)
 	}))
 	defer ts.Close()
-
-	svc := NewPushService(ss.bus, ss.log)
-	svc.SetAuthGetter(func(string) string { return "tok" })
-	svc.SetRegistrationURL(ts.URL)
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL(ts.URL),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
 	reg, err := svc.register("/thing", nil, nil)
 	c.Check(err, Equals, BadServer)
 	c.Check(reg, IsNil)
 }
 
-func (ss *serviceSuite) TestRegistrationFailsOnBadJSON(c *C) {
+func (ss *serviceSuite) TestManageRegFailsOnBadJSON(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, 256)
 		n, e := r.Body.Read(buf)
@@ -241,18 +250,19 @@ func (ss *serviceSuite) TestRegistrationFailsOnBadJSON(c *C) {
 		fmt.Fprintln(w, `{`)
 	}))
 	defer ts.Close()
-
-	svc := NewPushService(ss.bus, ss.log)
-	svc.SetAuthGetter(func(string) string { return "tok" })
-	svc.SetRegistrationURL(ts.URL)
-	svc.SetDeviceId("fake-device-id")
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL(ts.URL),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
 	// this'll check (un)quoting, too
 	reg, err := svc.register("/an_2dapp_2did", nil, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, ErrorMatches, "unable to unmarshal register response: .*")
 }
 
-func (ss *serviceSuite) TestRegistrationFailsOnBadJSONDocument(c *C) {
+func (ss *serviceSuite) TestManageRegFailsOnBadJSONDocument(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, 256)
 		n, e := r.Body.Read(buf)
@@ -265,13 +275,40 @@ func (ss *serviceSuite) TestRegistrationFailsOnBadJSONDocument(c *C) {
 		fmt.Fprintln(w, `{"bananas": "very yes"}`)
 	}))
 	defer ts.Close()
-
-	svc := NewPushService(ss.bus, ss.log)
-	svc.SetAuthGetter(func(string) string { return "tok" })
-	svc.SetRegistrationURL(ts.URL)
-	svc.SetDeviceId("fake-device-id")
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL(ts.URL),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
 	// this'll check (un)quoting, too
 	reg, err := svc.register("/an_2dapp_2did", nil, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, Equals, BadToken)
+}
+
+func (ss *serviceSuite) TestUnregistrationWorks(c *C) {
+	invoked := make(chan bool, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 256)
+		n, e := r.Body.Read(buf)
+		c.Assert(e, IsNil)
+		req := registrationRequest{}
+		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
+		c.Check(r.URL.Path, Equals, "/unregister")
+		invoked <- true
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintln(w, `{"ok":true}`)
+	}))
+	defer ts.Close()
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL(ts.URL),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
+	err := svc.Unregister("an-app-id")
+	c.Assert(err, IsNil)
+	c.Check(invoked, HasLen, 1)
 }
