@@ -140,9 +140,20 @@ func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
 }
 
 func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
-	reg, err := new(PushService).register("", []interface{}{1}, nil)
-	c.Check(reg, IsNil)
-	c.Check(err, Equals, BadArgCount)
+	for i, s := range []struct {
+		args []interface{}
+		errt error
+	}{
+		{nil, BadArgCount},
+		{[]interface{}{}, BadArgCount},
+		{[]interface{}{1}, BadArgType},
+		{[]interface{}{"foo", "bar"}, BadArgCount},
+	} {
+		reg, err := new(PushService).register("", s.args, nil)
+		c.Check(reg, IsNil, Commentf("iteration #%d", i))
+		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
+	}
+
 }
 
 func (ss *serviceSuite) TestRegistrationWorks(c *C) {
@@ -152,7 +163,7 @@ func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 		c.Assert(e, IsNil)
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
-		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "a-pkg_app-id"})
 		c.Check(r.URL.Path, Equals, "/register")
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{"ok":true,"token":"blob-of-bytes"}`)
@@ -165,7 +176,7 @@ func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 	}
 	svc := NewPushService(ss.bus, setup, ss.log)
 	// this'll check (un)quoting, too
-	reg, err := svc.register("/an_2dapp_2did", nil, nil)
+	reg, err := svc.register("/some/path/a_2dpkg", []interface{}{"a-pkg_app-id"}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
@@ -174,10 +185,10 @@ func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 }
 
 func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
-	os.Setenv("PUSH_REG_stuff", "42")
-	defer os.Setenv("PUSH_REG_stuff", "")
+	os.Setenv("PUSH_REG_a_2dpkg_5fapp_2did", "42")
+	defer os.Setenv("PUSH_REG_a_2dpkg_5fapp_2did", "")
 
-	reg, err := new(PushService).register("/stuff", nil, nil)
+	reg, err := new(PushService).register("/a_2dpkg", []interface{}{"a-pkg_app-id"}, nil)
 	c.Assert(reg, HasLen, 1)
 	regs, ok := reg[0].(string)
 	c.Check(ok, Equals, true)
@@ -185,10 +196,16 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (ss *serviceSuite) TestRegistrationFailsIfPkgAppMismatch(c *C) {
+	reg, err := new(PushService).register("/a_2dpkg", []interface{}{"b-pkg_app-id"}, nil)
+	c.Check(reg, IsNil)
+	c.Check(err, Equals, BadAppId)
+}
+
 func (ss *serviceSuite) TestManageRegFailsOnBadAuth(c *C) {
 	// ... no auth added
 	svc := NewPushService(ss.bus, testSetup, ss.log)
-	reg, err := svc.register("thing", nil, nil)
+	reg, err := svc.register("/a_2dpkg", []interface{}{"a-pkg_app-id"}, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, Equals, BadAuth)
 }
@@ -200,7 +217,7 @@ func (ss *serviceSuite) TestManageRegFailsOnNoServer(c *C) {
 		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(ss.bus, setup, ss.log)
-	reg, err := svc.register("thing", nil, nil)
+	reg, err := svc.register("/a_2dpkg", []interface{}{"a-pkg_app-id"}, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, ErrorMatches, "unable to request registration: .*")
 }
@@ -216,7 +233,7 @@ func (ss *serviceSuite) TestManageRegFailsOn40x(c *C) {
 		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(ss.bus, setup, ss.log)
-	reg, err := svc.register("/thing", nil, nil)
+	reg, err := svc.register("/a_2dpkg", []interface{}{"a-pkg_app-id"}, nil)
 	c.Check(err, Equals, BadRequest)
 	c.Check(reg, IsNil)
 }
@@ -232,7 +249,7 @@ func (ss *serviceSuite) TestManageRegFailsOn50x(c *C) {
 		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(ss.bus, setup, ss.log)
-	reg, err := svc.register("/thing", nil, nil)
+	reg, err := svc.register("/a_2dpkg", []interface{}{"a-pkg_app-id"}, nil)
 	c.Check(err, Equals, BadServer)
 	c.Check(reg, IsNil)
 }
@@ -244,7 +261,7 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSON(c *C) {
 		c.Assert(e, IsNil)
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
-		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "a-pkg_app-id"})
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{`)
@@ -257,7 +274,7 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSON(c *C) {
 	}
 	svc := NewPushService(ss.bus, setup, ss.log)
 	// this'll check (un)quoting, too
-	reg, err := svc.register("/an_2dapp_2did", nil, nil)
+	reg, err := svc.register("/a_2dpkg", []interface{}{"a-pkg_app-id"}, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, ErrorMatches, "unable to unmarshal register response: .*")
 }
@@ -269,7 +286,7 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSONDocument(c *C) {
 		c.Assert(e, IsNil)
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
-		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "a-pkg_app-id"})
 
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{"bananas": "very yes"}`)
@@ -282,7 +299,7 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSONDocument(c *C) {
 	}
 	svc := NewPushService(ss.bus, setup, ss.log)
 	// this'll check (un)quoting, too
-	reg, err := svc.register("/an_2dapp_2did", nil, nil)
+	reg, err := svc.register("/a_2dpkg", []interface{}{"a-pkg_app-id"}, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, Equals, BadToken)
 }

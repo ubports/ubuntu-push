@@ -93,6 +93,7 @@ var (
 	BadRequest = errors.New("Bad request")
 	BadToken   = errors.New("Bad token")
 	BadAuth    = errors.New("Bad auth")
+	BadAppId   = errors.New("Package must be prefix of app id")
 )
 
 type registrationRequest struct {
@@ -158,12 +159,20 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 }
 
 func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 0 {
+	if len(args) != 1 {
 		return nil, BadArgCount
 	}
-	raw_appname := path[strings.LastIndex(path, "/")+1:]
-	appname := string(nih.Unquote([]byte(raw_appname)))
+	appname, ok := args[0].(string)
+	if !ok {
+		return nil, BadArgType
+	}
+	raw_pkgname := path[strings.LastIndex(path, "/")+1:]
+	pkgname := string(nih.Unquote([]byte(raw_pkgname)))
+	if !strings.HasPrefix(appname, pkgname) {
+		return nil, BadAppId
+	}
 
+	raw_appname := string(nih.Quote([]byte(appname)))
 	rv := os.Getenv("PUSH_REG_" + raw_appname)
 	if rv != "" {
 		return []interface{}{rv}, nil
