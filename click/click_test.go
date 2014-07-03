@@ -55,5 +55,5 @@ func (s *clickSuite) TestHasPackageClock(c *C) {
 		c.Skip("no com.ubuntu.clock pkg installed")
 	}
 	c.Check(u.HasPackage("com.ubuntu.clock_clock"), Equals, true)
-	c.Check(u.HasPackage("com.ubuntu.clock_clock_" + ver), Equals, true)
+	c.Check(u.HasPackage("com.ubuntu.clock_clock_"+ver), Equals, true)
 }
