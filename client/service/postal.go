@@ -83,8 +83,8 @@ func (svc *PostalService) GetMessageHandler() func(string, string, *launch_helpe
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *PostalService) Start() error {
 	return svc.DBusService.Start(bus.DispatchMap{
-		"Notifications": svc.notifications,
-		"Inject":        svc.inject,
+		"Messages": svc.notifications,
+		"Post":     svc.inject,
 	}, PostalServiceBusAddress)
 }
 
@@ -115,23 +115,30 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 var newNid = uuid.New
 
 func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 1 {
+	if len(args) != 2 {
 		return nil, BadArgCount
 	}
-	notif, ok := args[0].(string)
+	appname, ok := args[0].(string)
 	if !ok {
 		return nil, BadArgType
 	}
-	appname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
+	notif, ok := args[1].(string)
+	if !ok {
+		return nil, BadArgType
+	}
+	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
+	if !strings.HasPrefix(appname, pkgname) {
+		return nil, BadAppId
+	}
 
 	nid := newNid()
 
-	return nil, svc.Inject(appname, nid, notif)
+	return nil, svc.Inject(pkgname, appname, nid, notif)
 }
 
 // Inject() signals to an application over dbus that a notification
 // has arrived.
-func (svc *PostalService) Inject(appname string, nid string, notif string) error {
+func (svc *PostalService) Inject(pkgname string, appname string, nid string, notif string) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
@@ -150,7 +157,7 @@ func (svc *PostalService) Inject(appname string, nid string, notif string) error
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 
-	return svc.Bus.Signal("Notification", "/"+string(nih.Quote([]byte(appname))), []interface{}{appname})
+	return svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(pkgname))), []interface{}{appname})
 }
 
 func (svc *PostalService) messageHandler(appname string, nid string, output *launch_helper.HelperOutput) error {

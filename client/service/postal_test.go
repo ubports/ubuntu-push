@@ -112,22 +112,22 @@ func (ss *postalSuite) TestStopClosesBus(c *C) {
 func (ss *postalSuite) TestInjectWorks(c *C) {
 	svc := NewPostalService(ss.bus, ss.notifBus, ss.log)
 	svc.msgHandler = nil
-	rvs, err := svc.inject("/hello", []interface{}{"world"}, nil)
+	rvs, err := svc.inject("/a_2dpkg", []interface{}{"a-pkg_app-id", "world"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
-	rvs, err = svc.inject("/hello", []interface{}{"there"}, nil)
+	rvs, err = svc.inject("/a_2dpkg", []interface{}{"a-pkg_app-id", "there"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
 	c.Assert(svc.mbox, HasLen, 1)
-	c.Assert(svc.mbox["hello"], HasLen, 2)
-	c.Check(svc.mbox["hello"][0], Equals, "world")
-	c.Check(svc.mbox["hello"][1], Equals, "there")
+	c.Assert(svc.mbox["a-pkg_app-id"], HasLen, 2)
+	c.Check(svc.mbox["a-pkg_app-id"][0], Equals, "world")
+	c.Check(svc.mbox["a-pkg_app-id"][1], Equals, "there")
 
 	// and check it fired the right signal (twice)
 	callArgs := testibus.GetCallArgs(ss.bus)
 	c.Assert(callArgs, HasLen, 2)
 	c.Check(callArgs[0].Member, Equals, "::Signal")
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"Notification", "/hello", []interface{}{"hello"}})
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"Post", "/a_2dpkg", []interface{}{"a-pkg_app-id"}})
 	c.Check(callArgs[1], DeepEquals, callArgs[0])
 }
 
@@ -147,10 +147,13 @@ func (ss *postalSuite) TestInjectFailsIfBadArgs(c *C) {
 	}{
 		{nil, BadArgCount},
 		{[]interface{}{}, BadArgCount},
-		{[]interface{}{1}, BadArgType},
-		{[]interface{}{1, 2}, BadArgCount},
+		{[]interface{}{1}, BadArgCount},
+		{[]interface{}{"hello", 1}, BadArgType},
+		{[]interface{}{1, "hello"}, BadArgType},
+		{[]interface{}{1, 2, 3}, BadArgCount},
+		{[]interface{}{"bar", "hello"}, BadAppId},
 	} {
-		reg, err := new(PostalService).inject("", s.args, nil)
+		reg, err := new(PostalService).inject("/foo", s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
@@ -233,11 +236,11 @@ func (ss *postalSuite) TestInjectCallsMessageHandler(c *C) {
 	svc := NewPostalService(ss.bus, ss.notifBus, ss.log)
 	f := func(app string, nid string, s *launch_helper.HelperOutput) error { ext = s; return nil }
 	svc.SetMessageHandler(f)
-	c.Check(svc.Inject("stuff", "thing", "{}"), IsNil)
+	c.Check(svc.Inject("pkg", "app", "thing", "{}"), IsNil)
 	c.Check(ext, DeepEquals, &launch_helper.HelperOutput{})
 	err := errors.New("ouch")
 	svc.SetMessageHandler(func(string, string, *launch_helper.HelperOutput) error { return err })
-	c.Check(svc.Inject("stuff", "", "{}"), Equals, err)
+	c.Check(svc.Inject("pkg", "app", "", "{}"), Equals, err)
 }
 
 func (ss *postalSuite) TestMessageHandler(c *C) {
