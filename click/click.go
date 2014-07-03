@@ -19,7 +19,7 @@ package click
 
 /*
 #cgo pkg-config: click-0.4
-#cgo LDFLAGS: -lglib-2.0 -lgobject-2.0
+#cgo pkg-config: glib-2.0 gobject-2.0
 
 #include <click-0.4/click.h>
 */
