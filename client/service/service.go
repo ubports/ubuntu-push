@@ -84,7 +84,8 @@ func (svc *PushService) getAuthorization(op string) (string, string) {
 
 func (svc *PushService) Start() error {
 	return svc.DBusService.Start(bus.DispatchMap{
-		"Register": svc.register,
+		"Register":   svc.register,
+		"Unregister": svc.unregister,
 	}, PushServiceBusAddress)
 }
 
@@ -189,6 +190,27 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 	}
 
 	return []interface{}{reply.Token}, nil
+}
+
+func (svc *PushService) unregister(path string, args, _ []interface{}) ([]interface{}, error) {
+	if len(args) != 1 {
+		return nil, BadArgCount
+	}
+	appname, ok := args[0].(string)
+	if !ok {
+		return nil, BadArgType
+	}
+	raw_pkgname := path[strings.LastIndex(path, "/")+1:]
+	pkgname := string(nih.Unquote([]byte(raw_pkgname)))
+	if !strings.HasPrefix(appname, pkgname) {
+		return nil, BadAppId
+	}
+
+	if err := svc.Unregister(appname); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
 
 func (svc *PushService) Unregister(appId string) error {

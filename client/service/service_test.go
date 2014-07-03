@@ -139,7 +139,7 @@ func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
 	c.Check(auth, Equals, "")
 }
 
-func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
+func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
 	for i, s := range []struct {
 		args []interface{}
 		errt error
@@ -147,13 +147,17 @@ func (ss *serviceSuite) TestRegistrationFailsIfBadArgs(c *C) {
 		{nil, BadArgCount},
 		{[]interface{}{}, BadArgCount},
 		{[]interface{}{1}, BadArgType},
+		{[]interface{}{"foo"}, BadAppId},
 		{[]interface{}{"foo", "bar"}, BadArgCount},
 	} {
-		reg, err := new(PushService).register("", s.args, nil)
+		reg, err := new(PushService).register("/bar", s.args, nil)
+		c.Check(reg, IsNil, Commentf("iteration #%d", i))
+		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
+
+		reg, err = new(PushService).unregister("/bar", s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
-
 }
 
 func (ss *serviceSuite) TestRegistrationWorks(c *C) {
@@ -194,12 +198,6 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	c.Check(ok, Equals, true)
 	c.Check(regs, Equals, "42")
 	c.Check(err, IsNil)
-}
-
-func (ss *serviceSuite) TestRegistrationFailsIfPkgAppMismatch(c *C) {
-	reg, err := new(PushService).register("/a_2dpkg", []interface{}{"b-pkg_app-id"}, nil)
-	c.Check(reg, IsNil)
-	c.Check(err, Equals, BadAppId)
 }
 
 func (ss *serviceSuite) TestManageRegFailsOnBadAuth(c *C) {
