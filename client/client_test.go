@@ -289,11 +289,56 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	// finally compare
 	conf := cli.deriveSessionConfig(info)
 	// compare authGetter by string
-	c.Check(fmt.Sprintf("%v", conf.AuthGetter), Equals, fmt.Sprintf("%v", cli.getAuthorization))
+	c.Check(fmt.Sprintf("%#v", conf.AuthGetter), Equals, fmt.Sprintf("%#v", cli.getAuthorization))
 	// and set it to nil
 	conf.AuthGetter = nil
 	expected.AuthGetter = nil
 	c.Check(conf, DeepEquals, expected)
+}
+
+/*****************************************************************
+    derivePushServiceSetup tests
+******************************************************************/
+
+func (cs *clientSuite) TestDerivePushServiceSetup(c *C) {
+	cs.writeTestConfig(map[string]interface{}{})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	cli.deviceId = "zoo"
+	expected := &service.PushServiceSetup{
+		DeviceId:   "zoo",
+		AuthGetter: func(string) string { return "" },
+		RegURL:     helpers.ParseURL("reg://"),
+	}
+	// sanity check that we are looking at all fields
+	vExpected := reflect.ValueOf(expected).Elem()
+	nf := vExpected.NumField()
+	for i := 0; i < nf; i++ {
+		fv := vExpected.Field(i)
+		// field isn't empty/zero
+		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
+	}
+	// finally compare
+	setup, err := cli.derivePushServiceSetup()
+	c.Assert(err, IsNil)
+	// compare authGetter by string
+	c.Check(fmt.Sprintf("%#v", setup.AuthGetter), Equals, fmt.Sprintf("%#v", cli.getAuthorization))
+	// and set it to nil
+	setup.AuthGetter = nil
+	expected.AuthGetter = nil
+	c.Check(setup, DeepEquals, expected)
+}
+
+func (cs *clientSuite) TestDerivePushServiceSetupError(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"registration_url": "%gh",
+	})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	_, err = cli.derivePushServiceSetup()
+	c.Check(err, ErrorMatches, "cannot parse registration url:.*")
 }
 
 /*****************************************************************
@@ -305,7 +350,8 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 		"auth_helper": helpers.ScriptAbsPath("dummyauth.sh"),
 	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.configure()
+	err := cli.configure()
+	c.Assert(err, IsNil)
 	cli.log = cs.log
 	cli.deviceId = "fake-id"
 	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
@@ -314,13 +360,22 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	c.Check(cli.startService(), IsNil)
 	c.Assert(cli.pushService, NotNil)
 	c.Check(cli.pushService.IsRunning(), Equals, true)
-	c.Check(cli.pushService.GetDeviceId(), Equals, "fake-id")
-	c.Check(cli.pushService.GetRegistrationAuthorization(), Equals, "hello reg://")
 	c.Assert(cli.setupPostalService(), IsNil)
 	c.Assert(cli.startPostalService(), IsNil)
 	c.Check(cli.postalService.IsRunning(), Equals, true)
 	cli.pushService.Stop()
 	cli.postalService.Stop()
+}
+
+func (cs *clientSuite) TestStartServiceSetupError(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"registration_url": "%gh",
+	})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	err = cli.startService()
+	c.Check(err, ErrorMatches, "cannot parse registration url:.*")
 }
 
 func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
