@@ -29,6 +29,7 @@ gchar* app_icon_filename_from_id (gchar* app_id) {
         GIcon* icon = g_app_info_get_icon (app_info);
         if (icon != NULL) {
             filename = g_icon_to_string (icon);
+            // g_app_info_get_icon has "transfer none"
         }
         g_object_unref (app_info);
     }
