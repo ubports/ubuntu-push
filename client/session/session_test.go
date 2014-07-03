@@ -798,7 +798,23 @@ func (s *msgSuite) TestHandleBroadcastDoesNotClearDelayOnError(c *C) {
   handleNotifications() tests
 ****************************************************************/
 
+type testAddresseeChecking struct {
+	ops     chan string
+	missing string
+}
+
+func (ac *testAddresseeChecking) StartAddresseeBatch() {
+	ac.ops <- "start"
+}
+
+func (ac *testAddresseeChecking) CheckForAddressee(notif *protocol.Notification) bool {
+	ac.ops <- notif.AppId
+	return notif.AppId != ac.missing
+}
+
 func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
+	ac := &testAddresseeChecking{ops: make(chan string, 10)}
+	s.sess.AddresseeChecker = ac
 	s.sess.setShouldDelay()
 	n1 := protocol.Notification{
 		AppId:   "app1",
@@ -820,12 +836,22 @@ func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
 	c.Check(s.sess.ShouldDelay(), Equals, false)
-	c.Assert(len(s.sess.NotificationsCh), Equals, 2)
+	c.Assert(s.sess.NotificationsCh, HasLen, 2)
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n1)
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+	c.Check(ac.ops, HasLen, 3)
+	c.Check(<-ac.ops, Equals, "start")
+	c.Check(<-ac.ops, Equals, "app1")
+	c.Check(<-ac.ops, Equals, "app2")
 }
 
-func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
+func (s *msgSuite) TestHandleNotificationsAddresseeCheck(c *C) {
+	ac := &testAddresseeChecking{
+		ops:     make(chan string, 10),
+		missing: "app1",
+	}
+	s.sess.AddresseeChecker = ac
+	s.sess.setShouldDelay()
 	n1 := protocol.Notification{
 		AppId:   "app1",
 		MsgId:   "a",
@@ -845,16 +871,48 @@ func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
-	c.Assert(len(s.sess.NotificationsCh), Equals, 2)
+	c.Check(s.sess.ShouldDelay(), Equals, false)
+	c.Assert(s.sess.NotificationsCh, HasLen, 1)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+	c.Check(ac.ops, HasLen, 3)
+	c.Check(<-ac.ops, Equals, "start")
+	c.Check(<-ac.ops, Equals, "app1")
+}
+
+func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
+	ac := &testAddresseeChecking{ops: make(chan string, 10)}
+	s.sess.AddresseeChecker = ac
+	n1 := protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "a",
+		Payload: json.RawMessage(`{"m": 1}`),
+	}
+	n2 := protocol.Notification{
+		AppId:   "app2",
+		MsgId:   "b",
+		Payload: json.RawMessage(`{"m": 2}`),
+	}
+	msg := serverMsg{"notifications",
+		protocol.BroadcastMsg{},
+		protocol.NotificationsMsg{
+			Notifications: []protocol.Notification{n1, n2},
+		}, protocol.ConnBrokenMsg{}}
+	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
+	s.upCh <- nil // ack ok
+	c.Check(<-s.errCh, Equals, nil)
+	c.Assert(s.sess.NotificationsCh, HasLen, 2)
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n1)
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+	c.Check(ac.ops, HasLen, 3)
 
 	// second time they get ignored
 	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
-	c.Assert(len(s.sess.NotificationsCh), Equals, 0)
+	c.Assert(s.sess.NotificationsCh, HasLen, 0)
+	c.Check(ac.ops, HasLen, 4)
 }
 
 func (s *msgSuite) TestHandleNotificationsBadAckWrite(c *C) {
