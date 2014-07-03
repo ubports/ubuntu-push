@@ -181,3 +181,8 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 
 	return []interface{}{reply.Token}, nil
 }
+
+func (svc *PushService) Unregister(appId string) error {
+	_, err := svc.manageReg("/unregister", appId)
+	return err
+}

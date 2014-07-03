@@ -153,7 +153,7 @@ func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
 		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
-
+		c.Check(r.URL.Path, Equals, "/register")
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{"ok":true,"token":"blob-of-bytes"}`)
 	}))
@@ -285,4 +285,30 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSONDocument(c *C) {
 	reg, err := svc.register("/an_2dapp_2did", nil, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, Equals, BadToken)
+}
+
+func (ss *serviceSuite) TestUnregistrationWorks(c *C) {
+	invoked := make(chan bool, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 256)
+		n, e := r.Body.Read(buf)
+		c.Assert(e, IsNil)
+		req := registrationRequest{}
+		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
+		c.Check(req, DeepEquals, registrationRequest{"fake-device-id", "an-app-id"})
+		c.Check(r.URL.Path, Equals, "/unregister")
+		invoked <- true
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintln(w, `{"ok":true,"token":"blob-of-bytes"}`)
+	}))
+	defer ts.Close()
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL(ts.URL),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(ss.bus, setup, ss.log)
+	err := svc.Unregister("an-app-id")
+	c.Assert(err, IsNil)
+	c.Check(invoked, HasLen, 1)
 }
