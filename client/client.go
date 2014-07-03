@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -161,6 +162,19 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		AuthGetter: client.getAuthorization,
 		AuthURL:    client.config.SessionURL,
 	}
+}
+
+// derivePushServiceSetup derives the service setup from the client configuration bits.
+func (client *PushClient) derivePushServiceSetup() (*service.PushServiceSetup, error) {
+	setup := new(service.PushServiceSetup)
+	purl, err := url.Parse(client.config.RegistrationURL)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse registration url: %v", err)
+	}
+	setup.RegURL = purl
+	setup.DeviceId = client.deviceId
+	setup.AuthGetter = client.getAuthorization
+	return setup, nil
 }
 
 // getAuthorization gets the authorization blob to send to the server
@@ -399,6 +413,10 @@ func (client *PushClient) Loop() {
 }
 
 func (client *PushClient) startService() error {
+	setup, err := client.derivePushServiceSetup()
+	if err != nil {
+		return err
+	}
 	if client.pushServiceEndpoint == nil {
 		client.pushServiceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
 	}
@@ -406,10 +424,7 @@ func (client *PushClient) startService() error {
 		client.postalServiceEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
 	}
 
-	client.pushService = service.NewPushService(client.pushServiceEndpoint, client.log)
-	client.pushService.SetRegistrationURL(client.config.RegistrationURL)
-	client.pushService.SetAuthGetter(client.getAuthorization)
-	client.pushService.SetDeviceId(client.deviceId)
+	client.pushService = service.NewPushService(client.pushServiceEndpoint, setup, client.log)
 	if err := client.pushService.Start(); err != nil {
 		return err
 	}
