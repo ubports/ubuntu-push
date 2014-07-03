@@ -58,26 +58,36 @@ func User() (*ClickUser, error) {
 	return res, nil
 }
 
+func (cu *ClickUser) getVersion(pkgName string) string {
+	pkgname := gchar(pkgName)
+	defer gfree(pkgname)
+	var gerr *C.GError
+	defer C.g_clear_error(&gerr)
+	ver := C.click_user_get_version(cu.cuser, pkgname, &gerr)
+	if gerr != nil {
+		return ""
+	}
+	defer gfree(ver)
+	return C.GoString((*C.char)(ver))
+}
+
+func (cu *ClickUser) hasPackageName(pkgName string) bool {
+	pkgname := gchar(pkgName)
+	defer gfree(pkgname)
+	return C.click_user_has_package_name(cu.cuser, pkgname) == C.TRUE
+}
+
 // HasPackage checks if the appId is installed for user.
 func (cu *ClickUser) HasPackage(appId string) bool {
 	comps := strings.Split(appId, "_")
 	if len(comps) < 2 {
 		return false
 	}
-	pkgname := gchar(comps[0])
-	defer gfree(pkgname)
 	switch len(comps) {
 	case 3: // with version
-		var gerr *C.GError
-		defer C.g_clear_error(&gerr)
-		ver := C.click_user_get_version(cu.cuser, pkgname, &gerr)
-		if gerr != nil {
-			return false
-		}
-		defer gfree(ver)
-		return C.GoString((*C.char)(ver)) == comps[2]
+		return cu.getVersion(comps[0]) == comps[2]
 	case 2:
-		return C.click_user_has_package_name(cu.cuser, pkgname) == C.TRUE
+		return cu.hasPackageName(comps[0])
 	default:
 		return false
 	}

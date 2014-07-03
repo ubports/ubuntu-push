@@ -46,3 +46,14 @@ func (s *clickSuite) TestHasPackageVersionNegative(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(u.HasPackage("com.ubuntu.clock_clock_1000.0"), Equals, false)
 }
+
+func (s *clickSuite) TestHasPackageClock(c *C) {
+	u, err := User()
+	c.Assert(err, IsNil)
+	ver := u.getVersion("com.ubuntu.clock")
+	if ver == "" {
+		c.Skip("no com.ubuntu.clock pkg installed")
+	}
+	c.Check(u.HasPackage("com.ubuntu.clock_clock"), Equals, true)
+	c.Check(u.HasPackage("com.ubuntu.clock_clock_" + ver), Equals, true)
+}
