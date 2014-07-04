@@ -148,7 +148,7 @@ func (ss *postalSuite) TestInjectFailsIfBadArgs(c *C) {
 		{nil, BadArgCount},
 		{[]interface{}{}, BadArgCount},
 		{[]interface{}{1}, BadArgCount},
-		{[]interface{}{"hello", 1}, BadArgType},
+		{[]interface{}{anAppId, 1}, BadArgType},
 		{[]interface{}{1, "hello"}, BadArgType},
 		{[]interface{}{1, 2, 3}, BadArgCount},
 		{[]interface{}{"bar", "hello"}, BadAppId},

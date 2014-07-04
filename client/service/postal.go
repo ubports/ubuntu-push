@@ -17,13 +17,10 @@
 package service
 
 import (
-	"strings"
-
 	"code.google.com/p/go-uuid/uuid"
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/notifications"
-	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging"
@@ -96,16 +93,9 @@ func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, err
 }
 
 func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 1 {
-		return nil, BadArgCount
-	}
-	appId, ok := args[0].(string)
-	if !ok {
-		return nil, BadArgType
-	}
-	pkg := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
-	if !click.AppInPackage(appId, pkg) {
-		return nil, BadAppId
+	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	if err != nil {
+		return nil, err
 	}
 
 	svc.lock.Lock()
@@ -123,25 +113,18 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 var newNid = uuid.New
 
 func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 2 {
-		return nil, BadArgCount
-	}
-	appname, ok := args[0].(string)
-	if !ok {
-		return nil, BadArgType
+	pkg, appId, err := grabDBusPackageAndAppId(path, args, 1)
+	if err != nil {
+		return nil, err
 	}
 	notif, ok := args[1].(string)
 	if !ok {
 		return nil, BadArgType
 	}
-	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
-	if !click.AppInPackage(appname, pkgname) {
-		return nil, BadAppId
-	}
 
 	nid := newNid()
 
-	return nil, svc.Inject(pkgname, appname, nid, notif)
+	return nil, svc.Inject(pkg, appId, nid, notif)
 }
 
 // Inject() signals to an application over dbus that a notification

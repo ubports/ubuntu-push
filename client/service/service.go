@@ -25,10 +25,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 
 	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/click"
 	http13 "launchpad.net/ubuntu-push/http13client"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
@@ -161,16 +159,9 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 }
 
 func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 1 {
-		return nil, BadArgCount
-	}
-	appId, ok := args[0].(string)
-	if !ok {
-		return nil, BadArgType
-	}
-	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
-	if !click.AppInPackage(appId, pkgname) {
-		return nil, BadAppId
+	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	if err != nil {
+		return nil, err
 	}
 
 	rawAppId := string(nih.Quote([]byte(appId)))
@@ -193,16 +184,9 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 }
 
 func (svc *PushService) unregister(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 1 {
-		return nil, BadArgCount
-	}
-	appId, ok := args[0].(string)
-	if !ok {
-		return nil, BadArgType
-	}
-	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
-	if !click.AppInPackage(appId, pkgname) {
-		return nil, BadAppId
+	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	if err != nil {
+		return nil, err
 	}
 
 	return nil, svc.Unregister(appId)
