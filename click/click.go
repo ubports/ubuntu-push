@@ -1,5 +1,5 @@
 /*
- Copyright 2013-2014 Canonical Ltd.
+ Copyright 2014 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -14,85 +14,73 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package click wraps libclick to check if packages are installed.
+// Package click exposes some utilities related to click packages and
+// wraps libclick to check if packages are installed.
 package click
 
-/*
-#cgo pkg-config: click-0.4
-#cgo pkg-config: glib-2.0 gobject-2.0
-
-#include <click-0.4/click.h>
-*/
-import "C"
-
 import (
-	"fmt"
-	"runtime"
-	"strings"
+	"errors"
+	"regexp"
 	"sync"
+
+	"launchpad.net/ubuntu-push/click/cclick"
 )
 
+// AppId holds a parsed application id.
+type AppId struct {
+	Package     string
+	Application string
+	Version     string
+}
+
+// from https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId
+// except the version is made optional
+var rx = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_([0-9][a-zA-Z0-9.+:~-]*))?$`)
+
+var (
+	ErrInvalidAppId = errors.New("invalid application id")
+)
+
+func ParseAppId(id string) (*AppId, error) {
+	m := rx.FindStringSubmatch(id)
+	if len(m) == 0 {
+		return nil, ErrInvalidAppId
+	}
+	return &AppId{Package: m[1], Application: m[2], Version: m[3]}, nil
+}
+
+func AppInPackage(appId, pkgname string) bool {
+	id, _ := ParseAppId(appId)
+	return id != nil && id.Package == pkgname
+}
+
+// ClickUser exposes the click package registry for the user.
 type ClickUser struct {
-	cuser *C.ClickUser
-	lock  sync.Mutex
-}
-
-func gchar(s string) *C.gchar {
-	return (*C.gchar)(C.CString(s))
-}
-
-func gfree(s *C.gchar) {
-	C.g_free((C.gpointer)(s))
+	cclick.CClickUser
+	lock sync.Mutex
 }
 
 // User makes a new ClickUser object for the current user.
 func User() (*ClickUser, error) {
-	var gerr *C.GError
-	cuser := C.click_user_new_for_user(nil, nil, &gerr)
-	defer C.g_clear_error(&gerr)
-	if gerr != nil {
-		return nil, fmt.Errorf("faild to make ClickUser: %s", C.GoString((*C.char)(gerr.message)))
+	cu := new(ClickUser)
+	err := cu.CInit(cu)
+	if err != nil {
+		return nil, err
 	}
-	res := &ClickUser{cuser: cuser}
-	runtime.SetFinalizer(res, func(cu *ClickUser) {
-		C.g_object_unref((C.gpointer)(cu.cuser))
-	})
-	return res, nil
-}
-
-func (cu *ClickUser) getVersion(pkgName string) string {
-	pkgname := gchar(pkgName)
-	defer gfree(pkgname)
-	var gerr *C.GError
-	defer C.g_clear_error(&gerr)
-	ver := C.click_user_get_version(cu.cuser, pkgname, &gerr)
-	if gerr != nil {
-		return ""
-	}
-	defer gfree(ver)
-	return C.GoString((*C.char)(ver))
-}
-
-func (cu *ClickUser) hasPackageName(pkgName string) bool {
-	pkgname := gchar(pkgName)
-	defer gfree(pkgname)
-	return C.click_user_has_package_name(cu.cuser, pkgname) == C.TRUE
+	return cu, nil
 }
 
 // HasPackage checks if the appId is installed for user.
 func (cu *ClickUser) HasPackage(appId string) bool {
 	cu.lock.Lock()
 	defer cu.lock.Unlock()
-	comps := strings.Split(appId, "_")
-	if len(comps) < 2 {
+	id, err := ParseAppId(appId)
+	if err != nil {
 		return false
 	}
-	switch len(comps) {
-	case 3: // with version
-		return cu.getVersion(comps[0]) == comps[2]
-	case 2:
-		return cu.hasPackageName(comps[0])
-	default:
-		return false
+	if id.Version != "" {
+		return cu.CGetVersion(id.Package) == id.Version
+	} else {
+		return cu.CHasPackageName(id.Package)
 	}
 }
