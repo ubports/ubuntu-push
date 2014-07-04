@@ -70,6 +70,14 @@ type ClientConfig struct {
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
 }
 
+// PushService is the interface we use of service.PushService.
+type PushService interface {
+	// Start starts the service.
+	Start() error
+	// Unregister unregisters the token for appId.
+	Unregister(appId string) error
+}
+
 // PushClient is the Ubuntu Push Notifications client-side daemon.
 type PushClient struct {
 	leveldbPath           string
@@ -90,9 +98,13 @@ type PushClient struct {
 	session               *session.ClientSession
 	sessionConnectedCh    chan uint32
 	pushServiceEndpoint   bus.Endpoint
-	pushService           *service.PushService
+	pushService           PushService
 	postalServiceEndpoint bus.Endpoint
 	postalService         *service.PostalService
+	unregisterCh          chan string
+	trackAddressees       map[string]bool
+	clickUser             *click.ClickUser
+	hasPackage            func(string) bool
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
@@ -123,6 +135,16 @@ func (client *PushClient) configure() error {
 
 	// later, we'll be specifying more logging options in the config file
 	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel.Level())
+
+	clickUser, err := click.User()
+	if err != nil {
+		return fmt.Errorf("libclick: %v", err)
+	}
+	client.clickUser = clickUser
+	// overridden for testing
+	client.hasPackage = clickUser.HasPackage
+
+	client.unregisterCh = make(chan string, 10)
 
 	// overridden for testing
 	client.idder = identifier.New()
@@ -158,10 +180,11 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		ExchangeTimeout:        client.config.ExchangeTimeout.TimeDuration(),
 		HostsCachingExpiryTime: client.config.HostsCachingExpiryTime.TimeDuration(),
 		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
-		PEM:        client.pem,
-		Info:       info,
-		AuthGetter: client.getAuthorization,
-		AuthURL:    client.config.SessionURL,
+		PEM:              client.pem,
+		Info:             info,
+		AuthGetter:       client.getAuthorization,
+		AuthURL:          client.config.SessionURL,
+		AddresseeChecker: client,
 	}
 }
 
@@ -261,6 +284,42 @@ func (client *PushClient) seenStateFactory() (seenstate.SeenState, error) {
 		return seenstate.NewSeenState()
 	} else {
 		return seenstate.NewSqliteSeenState(client.leveldbPath)
+	}
+}
+
+// StartAddresseeBatch starts a batch of checks for addressees.
+func (client *PushClient) StartAddresseeBatch() {
+	client.trackAddressees = make(map[string]bool, 10)
+}
+
+// CheckForAddressee check for the addressee presence.
+func (client *PushClient) CheckForAddressee(notif *protocol.Notification) bool {
+	appId := notif.AppId
+	present, ok := client.trackAddressees[appId]
+	if ok {
+		return present
+	}
+	present = client.hasPackage(appId)
+	client.trackAddressees[appId] = present
+	if !present {
+		client.unregisterCh <- appId
+	}
+	return present
+}
+
+// handleUnregister deals with tokens of uninstalled apps
+func (client *PushClient) handleUnregister(appId string) {
+	if !client.hasPackage(appId) {
+		// xxx small chance of race here, in case the app gets
+		// reinstalled and registers itself before we finish
+		// the unregister; we need click and app launching
+		// collaboration to do better. we redo the hasPackage
+		// check here just before to keep the race window as
+		// small as possible
+		err := client.pushService.Unregister(appId)
+		if err != nil {
+			client.log.Errorf("unregistering %s: %s", appId, err)
+		}
 	}
 }
 
@@ -379,7 +438,7 @@ func (client *PushClient) handleClick(actionId string) error {
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(*protocol.Notification) error, errhandler func(error)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(*protocol.Notification) error, errhandler func(error), unregisterhandler func(string)) {
 	for {
 		select {
 		case state := <-client.connCh:
@@ -394,6 +453,8 @@ func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(strin
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
 			client.log.Debugf("Session connected after %d attempts", count)
+		case appId := <-client.unregisterCh:
+			unregisterhandler(appId)
 		}
 	}
 }
@@ -415,7 +476,8 @@ func (client *PushClient) Loop() {
 		client.handleClick,
 		client.handleBroadcastNotification,
 		client.handleUnicastNotification,
-		client.handleErr)
+		client.handleErr,
+		client.handleUnregister)
 }
 
 func (client *PushClient) startService() error {

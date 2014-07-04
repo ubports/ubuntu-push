@@ -54,3 +54,33 @@ func (cs *clickSuite) TestInPackage(c *C) {
 	c.Check(AppInPackage("com.ubuntu.clock", "com.ubuntu.clock"), Equals, false)
 	c.Check(AppInPackage("bananas", "fruit"), Equals, false)
 }
+
+func (s *clickSuite) TestUser(c *C) {
+	u, err := User()
+	c.Assert(err, IsNil)
+	c.Assert(u, NotNil)
+}
+
+func (s *clickSuite) TestHasPackageNegative(c *C) {
+	u, err := User()
+	c.Assert(err, IsNil)
+	c.Check(u.HasPackage("com.foo.bar"), Equals, false)
+	c.Check(u.HasPackage("com.foo.bar_baz"), Equals, false)
+}
+
+func (s *clickSuite) TestHasPackageVersionNegative(c *C) {
+	u, err := User()
+	c.Assert(err, IsNil)
+	c.Check(u.HasPackage("com.ubuntu.clock_clock_1000.0"), Equals, false)
+}
+
+func (s *clickSuite) TestHasPackageClock(c *C) {
+	u, err := User()
+	c.Assert(err, IsNil)
+	ver := u.ccu.CGetVersion("com.ubuntu.clock")
+	if ver == "" {
+		c.Skip("no com.ubuntu.clock pkg installed")
+	}
+	c.Check(u.HasPackage("com.ubuntu.clock_clock"), Equals, true)
+	c.Check(u.HasPackage("com.ubuntu.clock_clock_"+ver), Equals, true)
+}

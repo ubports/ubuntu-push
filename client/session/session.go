@@ -78,6 +78,12 @@ type hostGetter interface {
 	Get() (*gethosts.Host, error)
 }
 
+// AddresseeChecking can check if a notification can be delivered.
+type AddresseeChecking interface {
+	StartAddresseeBatch()
+	CheckForAddressee(*protocol.Notification) bool
+}
+
 // ClientSessionConfig groups the client session configuration.
 type ClientSessionConfig struct {
 	ConnectTimeout         time.Duration
@@ -88,6 +94,7 @@ type ClientSessionConfig struct {
 	Info                   map[string]interface{}
 	AuthGetter             func(string) string
 	AuthURL                string
+	AddresseeChecker       AddresseeChecking
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -426,8 +433,12 @@ func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
 		return err
 	}
 	sess.clearShouldDelay()
+	sess.AddresseeChecker.StartAddresseeBatch()
 	for i := range notifs {
 		notif := &notifs[i]
+		if !sess.AddresseeChecker.CheckForAddressee(notif) {
+			continue
+		}
 		sess.Log.Debugf("unicast app:%v msg:%s payload:%s",
 			notif.AppId, notif.MsgId, notif.Payload)
 		sess.Log.Debugf("sending ucast over")
