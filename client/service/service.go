@@ -89,11 +89,11 @@ func (svc *PushService) Start() error {
 }
 
 var (
-	BadServer  = errors.New("Bad server")
-	BadRequest = errors.New("Bad request")
-	BadToken   = errors.New("Bad token")
-	BadAuth    = errors.New("Bad auth")
-	BadAppId   = errors.New("Package must be prefix of app id")
+	BadServer  = errors.New("bad server")
+	BadRequest = errors.New("bad request")
+	BadToken   = errors.New("bad token")
+	BadAuth    = errors.New("bad auth")
+	BadAppId   = errors.New("package must be prefix of app id")
 )
 
 type registrationRequest struct {
