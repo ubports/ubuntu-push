@@ -28,6 +28,33 @@ type clickSuite struct{}
 
 var _ = Suite(&clickSuite{})
 
+func (cs *clickSuite) TestParseAppId(c *C) {
+	id, err := ParseAppId("com.ubuntu.clock_clock")
+	c.Assert(err, IsNil)
+	c.Check(id.Package, Equals, "com.ubuntu.clock")
+	c.Check(id.Application, Equals, "clock")
+	c.Check(id.Version, Equals, "")
+
+	id, err = ParseAppId("com.ubuntu.clock_clock_10")
+	c.Assert(err, IsNil)
+	c.Check(id.Package, Equals, "com.ubuntu.clock")
+	c.Check(id.Application, Equals, "clock")
+	c.Check(id.Version, Equals, "10")
+
+	for _, s := range []string{"com.ubuntu.clock_clock_10_4", "com.ubuntu.clock", ""} {
+		id, err = ParseAppId(s)
+		c.Check(id, IsNil)
+		c.Check(err, Equals, ErrInvalidAppId)
+	}
+}
+
+func (cs *clickSuite) TestInPackage(c *C) {
+	c.Check(AppInPackage("com.ubuntu.clock_clock", "com.ubuntu.clock"), Equals, true)
+	c.Check(AppInPackage("com.ubuntu.clock_clock_10", "com.ubuntu.clock"), Equals, true)
+	c.Check(AppInPackage("com.ubuntu.clock", "com.ubuntu.clock"), Equals, false)
+	c.Check(AppInPackage("bananas", "fruit"), Equals, false)
+}
+
 func (s *clickSuite) TestUser(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
@@ -50,7 +77,7 @@ func (s *clickSuite) TestHasPackageVersionNegative(c *C) {
 func (s *clickSuite) TestHasPackageClock(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
-	ver := u.getVersion("com.ubuntu.clock")
+	ver := u.CGetVersion("com.ubuntu.clock")
 	if ver == "" {
 		c.Skip("no com.ubuntu.clock pkg installed")
 	}
