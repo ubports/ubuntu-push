@@ -44,7 +44,7 @@ func (cs *clickSuite) TestParseAppId(c *C) {
 	for _, s := range []string{"com.ubuntu.clock_clock_10_4", "com.ubuntu.clock", ""} {
 		id, err = ParseAppId(s)
 		c.Check(id, IsNil)
-		c.Check(err, Equals, InvalidAppId)
+		c.Check(err, Equals, ErrInvalidAppId)
 	}
 }
 

@@ -14,7 +14,7 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package click exposes some utilities related to click packages
+// Package click exposes some utilities related to click packages.
 package click
 
 import (
@@ -22,6 +22,7 @@ import (
 	"regexp"
 )
 
+// AppId holds a parsed application id.
 type AppId struct {
 	Package     string
 	Application string
@@ -33,18 +34,18 @@ type AppId struct {
 var rx = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_([0-9][a-zA-Z0-9.+:~-]*))?$`)
 
 var (
-	InvalidAppId = errors.New("Invalid App Id")
+	ErrInvalidAppId = errors.New("invalid application id")
 )
 
 func ParseAppId(id string) (*AppId, error) {
 	m := rx.FindStringSubmatch(id)
 	if len(m) == 0 {
-		return nil, InvalidAppId
+		return nil, ErrInvalidAppId
 	}
 	return &AppId{Package: m[1], Application: m[2], Version: m[3]}, nil
 }
 
-func AppInPackage(app string, pkg string) bool {
-	id, _ := ParseAppId(app)
-	return id != nil && id.Package == pkg
+func AppInPackage(appId, pkgname string) bool {
+	id, _ := ParseAppId(appId)
+	return id != nil && id.Package == pkgname
 }
