@@ -205,6 +205,15 @@ func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
 	c.Assert(cli.connCh, NotNil)
 }
 
+func (cs *clientSuite) TestConfigureSetsUpAddresseeChecks(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	c.Check(cli.unregisterCh, IsNil)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	c.Assert(cli.unregisterCh, NotNil)
+	c.Assert(cli.hasPackage("com.bar.baz_foo"), Equals, false)
+}
+
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
 	cli := NewPushClient("/does/not/exist", cs.leveldbPath)
 	err := cli.configure()
@@ -255,6 +264,35 @@ func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
 }
 
 /*****************************************************************
+    addresses checking tests
+******************************************************************/
+
+func (cs *clientSuite) TestCheckForAddressee(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.unregisterCh = make(chan string, 5)
+	cli.StartAddresseeBatch()
+	calls := 0
+	cli.hasPackage = func(appId string) bool {
+		calls++
+		if appId == "app1" {
+			return false
+		}
+		return true
+	}
+	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: "app1"}), Equals, false)
+	c.Check(calls, Equals, 1)
+	c.Assert(cli.unregisterCh, HasLen, 1)
+	c.Check(<-cli.unregisterCh, Equals, "app1")
+	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: "app2"}), Equals, true)
+	c.Check(calls, Equals, 2)
+	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: "app1"}), Equals, false)
+	c.Check(calls, Equals, 2)
+	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: "app2"}), Equals, true)
+	c.Check(calls, Equals, 2)
+	c.Check(cli.unregisterCh, HasLen, 0)
+}
+
+/*****************************************************************
     deriveSessionConfig tests
 ******************************************************************/
 
@@ -273,10 +311,11 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExchangeTimeout:        10 * time.Millisecond,
 		HostsCachingExpiryTime: 1 * time.Hour,
 		ExpectAllRepairedTime:  30 * time.Minute,
-		PEM:        cli.pem,
-		Info:       info,
-		AuthGetter: func(string) string { return "" },
-		AuthURL:    "xyzzy://",
+		PEM:              cli.pem,
+		Info:             info,
+		AuthGetter:       func(string) string { return "" },
+		AuthURL:          "xyzzy://",
+		AddresseeChecker: cli,
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)
@@ -289,11 +328,56 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	// finally compare
 	conf := cli.deriveSessionConfig(info)
 	// compare authGetter by string
-	c.Check(fmt.Sprintf("%v", conf.AuthGetter), Equals, fmt.Sprintf("%v", cli.getAuthorization))
+	c.Check(fmt.Sprintf("%#v", conf.AuthGetter), Equals, fmt.Sprintf("%#v", cli.getAuthorization))
 	// and set it to nil
 	conf.AuthGetter = nil
 	expected.AuthGetter = nil
 	c.Check(conf, DeepEquals, expected)
+}
+
+/*****************************************************************
+    derivePushServiceSetup tests
+******************************************************************/
+
+func (cs *clientSuite) TestDerivePushServiceSetup(c *C) {
+	cs.writeTestConfig(map[string]interface{}{})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	cli.deviceId = "zoo"
+	expected := &service.PushServiceSetup{
+		DeviceId:   "zoo",
+		AuthGetter: func(string) string { return "" },
+		RegURL:     helpers.ParseURL("reg://"),
+	}
+	// sanity check that we are looking at all fields
+	vExpected := reflect.ValueOf(expected).Elem()
+	nf := vExpected.NumField()
+	for i := 0; i < nf; i++ {
+		fv := vExpected.Field(i)
+		// field isn't empty/zero
+		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
+	}
+	// finally compare
+	setup, err := cli.derivePushServiceSetup()
+	c.Assert(err, IsNil)
+	// compare authGetter by string
+	c.Check(fmt.Sprintf("%#v", setup.AuthGetter), Equals, fmt.Sprintf("%#v", cli.getAuthorization))
+	// and set it to nil
+	setup.AuthGetter = nil
+	expected.AuthGetter = nil
+	c.Check(setup, DeepEquals, expected)
+}
+
+func (cs *clientSuite) TestDerivePushServiceSetupError(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"registration_url": "%gh",
+	})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	_, err = cli.derivePushServiceSetup()
+	c.Check(err, ErrorMatches, "cannot parse registration url:.*")
 }
 
 /*****************************************************************
@@ -305,7 +389,8 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 		"auth_helper": helpers.ScriptAbsPath("dummyauth.sh"),
 	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.configure()
+	err := cli.configure()
+	c.Assert(err, IsNil)
 	cli.log = cs.log
 	cli.deviceId = "fake-id"
 	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
@@ -313,14 +398,24 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	c.Check(cli.pushService, IsNil)
 	c.Check(cli.startService(), IsNil)
 	c.Assert(cli.pushService, NotNil)
-	c.Check(cli.pushService.IsRunning(), Equals, true)
-	c.Check(cli.pushService.GetDeviceId(), Equals, "fake-id")
-	c.Check(cli.pushService.GetRegistrationAuthorization(), Equals, "hello reg://")
+	pushService := cli.pushService.(*service.PushService)
+	c.Check(pushService.IsRunning(), Equals, true)
 	c.Assert(cli.setupPostalService(), IsNil)
 	c.Assert(cli.startPostalService(), IsNil)
 	c.Check(cli.postalService.IsRunning(), Equals, true)
-	cli.pushService.Stop()
+	pushService.Stop()
 	cli.postalService.Stop()
+}
+
+func (cs *clientSuite) TestStartServiceSetupError(c *C) {
+	cs.writeTestConfig(map[string]interface{}{
+		"registration_url": "%gh",
+	})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	err = cli.startService()
+	c.Check(err, ErrorMatches, "cannot parse registration url:.*")
 }
 
 func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
@@ -741,6 +836,64 @@ func (cs *clientSuite) TestHandleClick(c *C) {
 }
 
 /*****************************************************************
+    handleUnregister tests
+******************************************************************/
+
+type testPushService struct {
+	err          error
+	unregistered string
+}
+
+func (ps *testPushService) Start() error {
+	return nil
+}
+
+func (ps *testPushService) Unregister(appId string) error {
+	ps.unregistered = appId
+	return ps.err
+}
+
+func (cs *clientSuite) TestHandleUnregister(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.hasPackage = func(appId string) bool {
+		c.Check(appId, Equals, "app1")
+		return false
+	}
+	ps := &testPushService{}
+	cli.pushService = ps
+	cli.handleUnregister("app1")
+	c.Assert(ps.unregistered, Equals, "app1")
+	c.Check(cs.log.Captured(), Equals, "")
+}
+
+func (cs *clientSuite) TestHandleUnregisterNop(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.hasPackage = func(appId string) bool {
+		c.Check(appId, Equals, "app1")
+		return true
+	}
+	ps := &testPushService{}
+	cli.pushService = ps
+	cli.handleUnregister("app1")
+	c.Assert(ps.unregistered, Equals, "")
+}
+
+func (cs *clientSuite) TestHandleUnregisterError(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.hasPackage = func(appId string) bool {
+		return false
+	}
+	fail := errors.New("BAD")
+	ps := &testPushService{err: fail}
+	cli.pushService = ps
+	cli.handleUnregister("app1")
+	c.Check(cs.log.Captured(), Matches, "ERROR unregistering app1: BAD\n")
+}
+
+/*****************************************************************
     doLoop tests
 ******************************************************************/
 
@@ -749,6 +902,7 @@ var nopClick = func(string) error { return nil }
 var nopBcast = func(*session.BroadcastNotification) error { return nil }
 var nopUcast = func(*protocol.Notification) error { return nil }
 var nopError = func(error) {}
+var nopUnregister = func(string) {}
 
 func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -759,7 +913,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	c.Assert(cli.initSession(), IsNil)
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) { ch <- true }, nopClick, nopBcast, nopUcast, nopError)
+	go cli.doLoop(func(bool) { ch <- true }, nopClick, nopBcast, nopUcast, nopError, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -773,7 +927,7 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli.actionsCh = aCh
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, func(_ string) error { ch <- true; return nil }, nopBcast, nopUcast, nopError)
+	go cli.doLoop(nopConn, func(_ string) error { ch <- true; return nil }, nopBcast, nopUcast, nopError, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -786,7 +940,7 @@ func (cs *clientSuite) TestDoLoopBroadcast(c *C) {
 	cli.session.BroadcastCh <- &session.BroadcastNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopClick, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopError)
+	go cli.doLoop(nopConn, nopClick, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopError, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -799,7 +953,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.session.NotificationsCh <- &protocol.Notification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopClick, nopBcast, func(*protocol.Notification) error { ch <- true; return nil }, nopError)
+	go cli.doLoop(nopConn, nopClick, nopBcast, func(*protocol.Notification) error { ch <- true; return nil }, nopError, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -812,7 +966,20 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli.session.ErrCh <- nil
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopClick, nopBcast, nopUcast, func(error) { ch <- true })
+	go cli.doLoop(nopConn, nopClick, nopBcast, nopUcast, func(error) { ch <- true }, nopUnregister)
+	c.Check(takeNextBool(ch), Equals, true)
+}
+
+func (cs *clientSuite) TestDoLoopUnregister(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
+	c.Assert(cli.initSession(), IsNil)
+	cli.unregisterCh = make(chan string, 1)
+	cli.unregisterCh <- "app1"
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(nopConn, nopClick, nopBcast, nopUcast, nopError, func(appId string) { c.Check(appId, Equals, "app1"); ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -958,8 +1125,8 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and a service,
 	c.Check(cli.pushService, NotNil)
 	// and everthying us just peachy!
-	cli.pushService.Stop()   // cleanup
-	cli.postalService.Stop() // cleanup
+	cli.pushService.(*service.PushService).Stop() // cleanup
+	cli.postalService.Stop()                      // cleanup
 }
 
 func (cs *clientSuite) TestStartCanFail(c *C) {
