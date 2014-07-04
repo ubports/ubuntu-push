@@ -93,7 +93,6 @@ var (
 	BadRequest = errors.New("bad request")
 	BadToken   = errors.New("bad token")
 	BadAuth    = errors.New("bad auth")
-	BadAppId   = errors.New("package must be prefix of app id")
 )
 
 type registrationRequest struct {

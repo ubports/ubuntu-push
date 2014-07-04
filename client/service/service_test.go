@@ -82,18 +82,18 @@ func (ss *serviceSuite) TestStart(c *C) {
 func (ss *serviceSuite) TestStartTwice(c *C) {
 	svc := NewPushService(ss.bus, testSetup, ss.log)
 	c.Check(svc.Start(), IsNil)
-	c.Check(svc.Start(), Equals, AlreadyStarted)
+	c.Check(svc.Start(), Equals, ErrAlreadyStarted)
 	svc.Stop()
 }
 
 func (ss *serviceSuite) TestStartNoLog(c *C) {
 	svc := NewPushService(ss.bus, testSetup, nil)
-	c.Check(svc.Start(), Equals, NotConfigured)
+	c.Check(svc.Start(), Equals, ErrNotConfigured)
 }
 
 func (ss *serviceSuite) TestStartNoBus(c *C) {
 	svc := NewPushService(nil, testSetup, ss.log)
-	c.Check(svc.Start(), Equals, NotConfigured)
+	c.Check(svc.Start(), Equals, ErrNotConfigured)
 }
 
 func (ss *serviceSuite) TestStartFailsOnBusDialFailure(c *C) {
@@ -151,11 +151,11 @@ func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
 		args []interface{}
 		errt error
 	}{
-		{nil, BadArgCount},
-		{[]interface{}{}, BadArgCount},
-		{[]interface{}{1}, BadArgType},
-		{[]interface{}{"foo"}, BadAppId},
-		{[]interface{}{"foo", "bar"}, BadArgCount},
+		{nil, ErrBadArgCount},
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{1}, ErrBadArgType},
+		{[]interface{}{"foo"}, ErrBadAppId},
+		{[]interface{}{"foo", "bar"}, ErrBadArgCount},
 	} {
 		reg, err := new(PushService).register("/bar", s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
