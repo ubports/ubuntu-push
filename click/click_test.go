@@ -77,7 +77,7 @@ func (s *clickSuite) TestHasPackageVersionNegative(c *C) {
 func (s *clickSuite) TestHasPackageClock(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
-	ver := u.CGetVersion("com.ubuntu.clock")
+	ver := u.ccu.CGetVersion("com.ubuntu.clock")
 	if ver == "" {
 		c.Skip("no com.ubuntu.clock pkg installed")
 	}

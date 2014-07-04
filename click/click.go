@@ -56,14 +56,14 @@ func AppInPackage(appId, pkgname string) bool {
 
 // ClickUser exposes the click package registry for the user.
 type ClickUser struct {
-	cclick.CClickUser
+	ccu cclick.CClickUser
 	lock sync.Mutex
 }
 
 // User makes a new ClickUser object for the current user.
 func User() (*ClickUser, error) {
 	cu := new(ClickUser)
-	err := cu.CInit(cu)
+	err := cu.ccu.CInit(cu)
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +79,8 @@ func (cu *ClickUser) HasPackage(appId string) bool {
 		return false
 	}
 	if id.Version != "" {
-		return cu.CGetVersion(id.Package) == id.Version
+		return cu.ccu.CGetVersion(id.Package) == id.Version
 	} else {
-		return cu.CHasPackageName(id.Package)
+		return cu.ccu.CHasPackageName(id.Package)
 	}
 }
