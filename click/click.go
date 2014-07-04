@@ -56,7 +56,7 @@ func AppInPackage(appId, pkgname string) bool {
 
 // ClickUser exposes the click package registry for the user.
 type ClickUser struct {
-	ccu cclick.CClickUser
+	ccu  cclick.CClickUser
 	lock sync.Mutex
 }
 
