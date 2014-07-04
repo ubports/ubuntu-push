@@ -62,6 +62,7 @@ func (id *Identifier) Generate() error {
 		if gerr == nil && cs != nil {
 			goto Success
 		}
+		C.g_clear_error(&gerr)
 		time.Sleep(600 * time.Millisecond)
 	}
 	return errors.New("whoopsie_identifier_generate still bad after 2m; giving up")
