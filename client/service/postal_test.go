@@ -112,22 +112,22 @@ func (ss *postalSuite) TestStopClosesBus(c *C) {
 func (ss *postalSuite) TestInjectWorks(c *C) {
 	svc := NewPostalService(ss.bus, ss.notifBus, ss.log)
 	svc.msgHandler = nil
-	rvs, err := svc.inject("/a_2dpkg", []interface{}{"a-pkg_app-id", "world"}, nil)
+	rvs, err := svc.inject(aPackageOnBus, []interface{}{anAppId, "world"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
-	rvs, err = svc.inject("/a_2dpkg", []interface{}{"a-pkg_app-id", "there"}, nil)
+	rvs, err = svc.inject(aPackageOnBus, []interface{}{anAppId, "there"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
 	c.Assert(svc.mbox, HasLen, 1)
-	c.Assert(svc.mbox["a-pkg_app-id"], HasLen, 2)
-	c.Check(svc.mbox["a-pkg_app-id"][0], Equals, "world")
-	c.Check(svc.mbox["a-pkg_app-id"][1], Equals, "there")
+	c.Assert(svc.mbox[anAppId], HasLen, 2)
+	c.Check(svc.mbox[anAppId][0], Equals, "world")
+	c.Check(svc.mbox[anAppId][1], Equals, "there")
 
 	// and check it fired the right signal (twice)
 	callArgs := testibus.GetCallArgs(ss.bus)
 	c.Assert(callArgs, HasLen, 2)
 	c.Check(callArgs[0].Member, Equals, "::Signal")
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"Post", "/a_2dpkg", []interface{}{"a-pkg_app-id"}})
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"Post", aPackageOnBus, []interface{}{anAppId}})
 	c.Check(callArgs[1], DeepEquals, callArgs[0])
 }
 
@@ -153,7 +153,7 @@ func (ss *postalSuite) TestInjectFailsIfBadArgs(c *C) {
 		{[]interface{}{1, 2, 3}, BadArgCount},
 		{[]interface{}{"bar", "hello"}, BadAppId},
 	} {
-		reg, err := new(PostalService).inject("/foo", s.args, nil)
+		reg, err := new(PostalService).inject(aPackageOnBus, s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
@@ -195,7 +195,7 @@ func (ss *postalSuite) TestInjectBroadcastFails(c *C) {
 // Notifications tests
 func (ss *postalSuite) TestNotificationsWorks(c *C) {
 	svc := NewPostalService(ss.bus, ss.notifBus, ss.log)
-	nots, err := svc.notifications("/hello", nil, nil)
+	nots, err := svc.notifications(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(nots, NotNil)
 	c.Assert(nots, HasLen, 1)
@@ -203,8 +203,8 @@ func (ss *postalSuite) TestNotificationsWorks(c *C) {
 	if svc.mbox == nil {
 		svc.mbox = make(map[string][]string)
 	}
-	svc.mbox["hello"] = append(svc.mbox["hello"], "this", "thing")
-	nots, err = svc.notifications("/hello", nil, nil)
+	svc.mbox[anAppId] = append(svc.mbox[anAppId], "this", "thing")
+	nots, err = svc.notifications(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(nots, NotNil)
 	c.Assert(nots, HasLen, 1)
@@ -212,9 +212,19 @@ func (ss *postalSuite) TestNotificationsWorks(c *C) {
 }
 
 func (ss *postalSuite) TestNotificationsFailsIfBadArgs(c *C) {
-	reg, err := new(PostalService).notifications("/foo", []interface{}{1}, nil)
-	c.Check(reg, IsNil)
-	c.Check(err, Equals, BadArgCount)
+	for i, s := range []struct {
+		args []interface{}
+		errt error
+	}{
+		{nil, BadArgCount},
+		{[]interface{}{}, BadArgCount},
+		{[]interface{}{1}, BadArgType},
+		{[]interface{}{"potato"}, BadAppId},
+	} {
+		reg, err := new(PostalService).notifications(aPackageOnBus, s.args, nil)
+		c.Check(reg, IsNil, Commentf("iteration #%d", i))
+		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
+	}
 }
 
 func (ss *postalSuite) TestMessageHandlerPublicAPI(c *C) {

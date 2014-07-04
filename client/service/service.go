@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/click"
 	http13 "launchpad.net/ubuntu-push/http13client"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
@@ -163,23 +164,22 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 	if len(args) != 1 {
 		return nil, BadArgCount
 	}
-	appname, ok := args[0].(string)
+	appId, ok := args[0].(string)
 	if !ok {
 		return nil, BadArgType
 	}
-	raw_pkgname := path[strings.LastIndex(path, "/")+1:]
-	pkgname := string(nih.Unquote([]byte(raw_pkgname)))
-	if !strings.HasPrefix(appname, pkgname) {
+	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
+	if !click.AppInPackage(appId, pkgname) {
 		return nil, BadAppId
 	}
 
-	raw_appname := string(nih.Quote([]byte(appname)))
-	rv := os.Getenv("PUSH_REG_" + raw_appname)
+	rawAppId := string(nih.Quote([]byte(appId)))
+	rv := os.Getenv("PUSH_REG_" + rawAppId)
 	if rv != "" {
 		return []interface{}{rv}, nil
 	}
 
-	reply, err := svc.manageReg("/register", appname)
+	reply, err := svc.manageReg("/register", appId)
 	if err != nil {
 		return nil, err
 	}
@@ -196,21 +196,16 @@ func (svc *PushService) unregister(path string, args, _ []interface{}) ([]interf
 	if len(args) != 1 {
 		return nil, BadArgCount
 	}
-	appname, ok := args[0].(string)
+	appId, ok := args[0].(string)
 	if !ok {
 		return nil, BadArgType
 	}
-	raw_pkgname := path[strings.LastIndex(path, "/")+1:]
-	pkgname := string(nih.Unquote([]byte(raw_pkgname)))
-	if !strings.HasPrefix(appname, pkgname) {
+	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
+	if !click.AppInPackage(appId, pkgname) {
 		return nil, BadAppId
 	}
 
-	if err := svc.Unregister(appname); err != nil {
-		return nil, err
-	}
-
-	return nil, nil
+	return nil, svc.Unregister(appId)
 }
 
 func (svc *PushService) Unregister(appId string) error {

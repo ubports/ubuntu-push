@@ -37,6 +37,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/systemimage"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/client/service"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
@@ -345,9 +346,13 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
+	appId, err := click.ParseAppId(msg.AppId)
+	if err != nil {
+		client.log.Debugf("notification %#v for invalid app id %#v.", msg.MsgId, msg.AppId)
+		return errors.New("invalid app id in notification")
+	}
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	pkg := msg.AppId[strings.LastIndex(msg.AppId, "_")+1:]
-	return client.postalService.Inject(pkg, msg.AppId, msg.MsgId, string(msg.Payload))
+	return client.postalService.Inject(appId.Package, msg.AppId, msg.MsgId, string(msg.Payload))
 }
 
 // handleClick deals with the user clicking a notification

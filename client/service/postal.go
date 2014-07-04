@@ -23,6 +23,7 @@ import (
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging"
@@ -95,10 +96,17 @@ func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, err
 }
 
 func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 0 {
+	if len(args) != 1 {
 		return nil, BadArgCount
 	}
-	appname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
+	appId, ok := args[0].(string)
+	if !ok {
+		return nil, BadArgType
+	}
+	pkg := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
+	if !click.AppInPackage(appId, pkg) {
+		return nil, BadAppId
+	}
 
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
@@ -106,8 +114,8 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 	if svc.mbox == nil {
 		return []interface{}{[]string(nil)}, nil
 	}
-	msgs := svc.mbox[appname]
-	delete(svc.mbox, appname)
+	msgs := svc.mbox[appId]
+	delete(svc.mbox, appId)
 
 	return []interface{}{msgs}, nil
 }
@@ -127,7 +135,7 @@ func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interfac
 		return nil, BadArgType
 	}
 	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
-	if !strings.HasPrefix(appname, pkgname) {
+	if !click.AppInPackage(appname, pkgname) {
 		return nil, BadAppId
 	}
 

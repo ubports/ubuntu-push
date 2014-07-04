@@ -741,7 +741,7 @@ func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
 ******************************************************************/
 
 var payload = `{"message": "aGVsbG8=", "notification": {"card": {"icon": "icon-value", "summary": "summary-value", "body": "body-value", "actions": []}}}`
-var notif = &protocol.Notification{AppId: "hello", Payload: []byte(payload), MsgId: "42"}
+var notif = &protocol.Notification{AppId: "com.example.test_hello", Payload: []byte(payload), MsgId: "42"}
 
 func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -760,7 +760,14 @@ func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	args := testibus.GetCallArgs(postEndp)
 	c.Assert(len(args), Not(Equals), 0)
 	c.Check(args[len(args)-1].Member, Equals, "::Signal")
-	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "hello".*`)
+	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "com.example.test_hello".*`)
+}
+
+func (cs *clientSuite) TestHandleUcastFailsOnBadAppId(c *C) {
+	notif := &protocol.Notification{AppId: "bad-app-id", MsgId: "-1"}
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	c.Check(cli.handleUnicastNotification(notif), ErrorMatches, "invalid app id in notification")
 }
 
 /*****************************************************************
