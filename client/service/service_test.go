@@ -213,7 +213,7 @@ func (ss *serviceSuite) TestManageRegFailsOnBadAuth(c *C) {
 	svc := NewPushService(ss.bus, testSetup, ss.log)
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Check(reg, IsNil)
-	c.Check(err, Equals, BadAuth)
+	c.Check(err, Equals, ErrBadAuth)
 }
 
 func (ss *serviceSuite) TestManageRegFailsOnNoServer(c *C) {
@@ -240,7 +240,7 @@ func (ss *serviceSuite) TestManageRegFailsOn40x(c *C) {
 	}
 	svc := NewPushService(ss.bus, setup, ss.log)
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
-	c.Check(err, Equals, BadRequest)
+	c.Check(err, Equals, ErrBadRequest)
 	c.Check(reg, IsNil)
 }
 
@@ -256,7 +256,7 @@ func (ss *serviceSuite) TestManageRegFailsOn50x(c *C) {
 	}
 	svc := NewPushService(ss.bus, setup, ss.log)
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
-	c.Check(err, Equals, BadServer)
+	c.Check(err, Equals, ErrBadServer)
 	c.Check(reg, IsNil)
 }
 
@@ -307,7 +307,7 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSONDocument(c *C) {
 	// this'll check (un)quoting, too
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Check(reg, IsNil)
-	c.Check(err, Equals, BadToken)
+	c.Check(err, Equals, ErrBadToken)
 }
 
 func (ss *serviceSuite) TestDBusUnregisterWorks(c *C) {
