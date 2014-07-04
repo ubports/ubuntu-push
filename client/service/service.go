@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 
 	"launchpad.net/ubuntu-push/bus"
 	http13 "launchpad.net/ubuntu-push/http13client"
@@ -84,7 +83,8 @@ func (svc *PushService) getAuthorization(op string) (string, string) {
 
 func (svc *PushService) Start() error {
 	return svc.DBusService.Start(bus.DispatchMap{
-		"Register": svc.register,
+		"Register":   svc.register,
+		"Unregister": svc.unregister,
 	}, PushServiceBusAddress)
 }
 
@@ -93,6 +93,7 @@ var (
 	BadRequest = errors.New("Bad request")
 	BadToken   = errors.New("Bad token")
 	BadAuth    = errors.New("Bad auth")
+	BadAppId   = errors.New("Package must be prefix of app id")
 )
 
 type registrationRequest struct {
@@ -158,18 +159,18 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 }
 
 func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 0 {
-		return nil, BadArgCount
+	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	if err != nil {
+		return nil, err
 	}
-	raw_appname := path[strings.LastIndex(path, "/")+1:]
-	appname := string(nih.Unquote([]byte(raw_appname)))
 
-	rv := os.Getenv("PUSH_REG_" + raw_appname)
+	rawAppId := string(nih.Quote([]byte(appId)))
+	rv := os.Getenv("PUSH_REG_" + rawAppId)
 	if rv != "" {
 		return []interface{}{rv}, nil
 	}
 
-	reply, err := svc.manageReg("/register", appname)
+	reply, err := svc.manageReg("/register", appId)
 	if err != nil {
 		return nil, err
 	}
@@ -180,6 +181,15 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 	}
 
 	return []interface{}{reply.Token}, nil
+}
+
+func (svc *PushService) unregister(path string, args, _ []interface{}) ([]interface{}, error) {
+	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, svc.Unregister(appId)
 }
 
 func (svc *PushService) Unregister(appId string) error {

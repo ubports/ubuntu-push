@@ -405,8 +405,13 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
+	appId, err := click.ParseAppId(msg.AppId)
+	if err != nil {
+		client.log.Debugf("notification %#v for invalid app id %#v.", msg.MsgId, msg.AppId)
+		return errors.New("invalid app id in notification")
+	}
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.postalService.Inject(msg.AppId, msg.MsgId, string(msg.Payload))
+	return client.postalService.Inject(appId.Package, msg.AppId, msg.MsgId, string(msg.Payload))
 }
 
 // handleClick deals with the user clicking a notification

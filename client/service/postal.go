@@ -17,8 +17,6 @@
 package service
 
 import (
-	"strings"
-
 	"code.google.com/p/go-uuid/uuid"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -83,8 +81,8 @@ func (svc *PostalService) GetMessageHandler() func(string, string, *launch_helpe
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *PostalService) Start() error {
 	return svc.DBusService.Start(bus.DispatchMap{
-		"Notifications": svc.notifications,
-		"Inject":        svc.inject,
+		"Messages": svc.notifications,
+		"Post":     svc.inject,
 	}, PostalServiceBusAddress)
 }
 
@@ -95,10 +93,10 @@ func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, err
 }
 
 func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 0 {
-		return nil, BadArgCount
+	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	if err != nil {
+		return nil, err
 	}
-	appname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
@@ -106,8 +104,8 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 	if svc.mbox == nil {
 		return []interface{}{[]string(nil)}, nil
 	}
-	msgs := svc.mbox[appname]
-	delete(svc.mbox, appname)
+	msgs := svc.mbox[appId]
+	delete(svc.mbox, appId)
 
 	return []interface{}{msgs}, nil
 }
@@ -115,23 +113,23 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 var newNid = uuid.New
 
 func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interface{}, error) {
-	if len(args) != 1 {
-		return nil, BadArgCount
+	pkg, appId, err := grabDBusPackageAndAppId(path, args, 1)
+	if err != nil {
+		return nil, err
 	}
-	notif, ok := args[0].(string)
+	notif, ok := args[1].(string)
 	if !ok {
 		return nil, BadArgType
 	}
-	appname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 
 	nid := newNid()
 
-	return nil, svc.Inject(appname, nid, notif)
+	return nil, svc.Inject(pkg, appId, nid, notif)
 }
 
 // Inject() signals to an application over dbus that a notification
 // has arrived.
-func (svc *PostalService) Inject(appname string, nid string, notif string) error {
+func (svc *PostalService) Inject(pkgname string, appname string, nid string, notif string) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
@@ -150,7 +148,7 @@ func (svc *PostalService) Inject(appname string, nid string, notif string) error
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 
-	return svc.Bus.Signal("Notification", "/"+string(nih.Quote([]byte(appname))), []interface{}{appname})
+	return svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(pkgname))), []interface{}{appname})
 }
 
 func (svc *PostalService) messageHandler(appname string, nid string, output *launch_helper.HelperOutput) error {
