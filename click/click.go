@@ -14,12 +14,16 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package click exposes some utilities related to click packages.
+// Package click exposes some utilities related to click packages and
+// wraps libclick to check if packages are installed.
 package click
 
 import (
 	"errors"
 	"regexp"
+	"sync"
+
+	"launchpad.net/ubuntu-push/click/cclick"
 )
 
 // AppId holds a parsed application id.
@@ -48,4 +52,35 @@ func ParseAppId(id string) (*AppId, error) {
 func AppInPackage(appId, pkgname string) bool {
 	id, _ := ParseAppId(appId)
 	return id != nil && id.Package == pkgname
+}
+
+// ClickUser exposes the click package registry for the user.
+type ClickUser struct {
+	ccu  cclick.CClickUser
+	lock sync.Mutex
+}
+
+// User makes a new ClickUser object for the current user.
+func User() (*ClickUser, error) {
+	cu := new(ClickUser)
+	err := cu.ccu.CInit(cu)
+	if err != nil {
+		return nil, err
+	}
+	return cu, nil
+}
+
+// HasPackage checks if the appId is installed for user.
+func (cu *ClickUser) HasPackage(appId string) bool {
+	cu.lock.Lock()
+	defer cu.lock.Unlock()
+	id, err := ParseAppId(appId)
+	if err != nil {
+		return false
+	}
+	if id.Version != "" {
+		return cu.ccu.CGetVersion(id.Package) == id.Version
+	} else {
+		return cu.ccu.CHasPackageName(id.Package)
+	}
 }
