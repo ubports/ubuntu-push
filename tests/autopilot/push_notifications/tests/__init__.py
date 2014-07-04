@@ -208,10 +208,22 @@ class PushNotificationTestBase(UnityTestCase):
         # validate dialog
         self.assert_notification_dialog(
             dialog, summary=message)
-        # press dialog to dismiss
-        self.press_notification_dialog(dialog)
+        # wait for dialog to dismiss automatically
+        self.wait_until_dialog_dismissed(dialog)
         # check the dialog is no longer displayed
         self.validate_notification_not_displayed(wait=False)
+
+    def wait_until_dialog_dismissed(self, dialog):
+        """Wait for the dialog to dismiss automatically"""
+        dialog_disappeared = False
+        try:
+            # waiting for this property to change will cause a not found
+            # exception once the dialog disappears
+            dialog.visible.wait_for(False)
+        except dbus.StateNotFoundError:
+            dialog_disappeared = True
+        # check that the dialog did disappear
+        self.assertTrue(dialog_disappeared)
 
     def press_notification_dialog(self, dialog):
         """
@@ -230,4 +242,4 @@ class PushNotificationTestBase(UnityTestCase):
         except dbus.StateNotFoundError:
             dialog = None
         if dialog:
-            self.press_notification_dialog(dialog)
+            self.wait_until_dialog_dismissed(dialog)
