@@ -42,7 +42,7 @@ func (cs *commonSuite) TestGrabDBusPackageAndAppIdFails(c *C) {
 	for i, s := range []struct {
 		path     string
 		args     []interface{}
-		numExtra uint
+		numExtra int
 		errt     error
 	}{
 		{aDBusPath, []interface{}{}, 0, BadArgCount},

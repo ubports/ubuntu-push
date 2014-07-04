@@ -104,8 +104,8 @@ func (svc *DBusService) Stop() {
 // grabDBusPackageAndAppId() extracts the appId from a dbus-provided
 // []interface{}, and checks it against the package in the last
 // element of the dbus path.
-func grabDBusPackageAndAppId(path string, args []interface{}, numExtra uint) (pkgname string, appId string, err error) {
-	if uint(len(args)) != 1+numExtra {
+func grabDBusPackageAndAppId(path string, args []interface{}, numExtra int) (pkgname string, appId string, err error) {
+	if len(args) != 1+numExtra {
 		return "", "", BadArgCount
 	}
 	appId, ok := args[0].(string)
