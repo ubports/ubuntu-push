@@ -48,8 +48,8 @@ const (
 var (
 	NotConfigured  = errors.New("not configured")
 	AlreadyStarted = errors.New("already started")
-	BadArgCount    = errors.New("Wrong number of arguments")
-	BadArgType     = errors.New("Bad argument type")
+	BadArgCount    = errors.New("wrong number of arguments")
+	BadArgType     = errors.New("bad argument type")
 )
 
 // IsRunning() returns whether the service's state is StateRunning
