@@ -161,6 +161,7 @@ class PushNotificationHelper:
     """
 
     DEFAULT_BROADCAST_URL = '/broadcast'
+    UNICAST_URL = '/notify'
 
     def get_device_info(self):
         """
@@ -278,3 +279,28 @@ class PushNotificationHelper:
         # combine target time and time zone offset
         iso_time = '{0}-{1}'.format(target_time_fmt, tz_fmt)
         return iso_time
+
+    def _http_request(self, server_addr, url, method='GET',
+                      body=None):
+        headers = {'Content-type': 'application/json'}
+        conn = http.HTTPConnection(server_addr)
+        conn.request(
+            method,
+            url,
+            headers=headers,
+            body=body)
+        return conn.getresponse()
+
+    def register(self, appid):
+        """Register the device/appid with the push server."""
+        path = appid.split("_")[0].replace(".", "_2e")
+        cmd = ["gdbus", "call", "-e", "-d", "com.ubuntu.PushNotifications",
+               "-o", "/com/ubuntu/PushNotifications/%s" % path,
+               "-m", "com.ubuntu.PushNotifications.Register", appid]
+        output = subprocess.check_output(cmd)
+        return output[2:-4].decode("utf-8")
+
+    def send_unicast(self, msg, server_addr, url=UNICAST_URL):
+        """Send a unicast notification"""
+        return self._http_request(server_addr, url, method='POST',
+                                  body=json.dumps(msg))
