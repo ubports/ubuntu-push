@@ -871,7 +871,7 @@ func (cs *clientSuite) TestHandleUnregister(c *C) {
 	cli.pushService = ps
 	cli.handleUnregister("app1")
 	c.Assert(ps.unregistered, Equals, "app1")
-	c.Check(cs.log.Captured(), Equals, "")
+	c.Check(cs.log.Captured(), Equals, "DEBUG unregistered token for app1\n")
 }
 
 func (cs *clientSuite) TestHandleUnregisterNop(c *C) {

@@ -319,6 +319,8 @@ func (client *PushClient) handleUnregister(appId string) {
 		err := client.pushService.Unregister(appId)
 		if err != nil {
 			client.log.Errorf("unregistering %s: %s", appId, err)
+		} else {
+			client.log.Debugf("unregistered token for %s", appId)
 		}
 	}
 }
