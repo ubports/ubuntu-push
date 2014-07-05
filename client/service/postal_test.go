@@ -53,18 +53,18 @@ func (ss *postalSuite) TestStart(c *C) {
 func (ss *postalSuite) TestStartTwice(c *C) {
 	svc := NewPostalService(ss.bus, ss.notifBus, ss.log)
 	c.Check(svc.Start(), IsNil)
-	c.Check(svc.Start(), Equals, AlreadyStarted)
+	c.Check(svc.Start(), Equals, ErrAlreadyStarted)
 	svc.Stop()
 }
 
 func (ss *postalSuite) TestStartNoLog(c *C) {
 	svc := NewPostalService(ss.bus, ss.notifBus, nil)
-	c.Check(svc.Start(), Equals, NotConfigured)
+	c.Check(svc.Start(), Equals, ErrNotConfigured)
 }
 
 func (ss *postalSuite) TestStartNoBus(c *C) {
 	svc := NewPostalService(nil, ss.notifBus, ss.log)
-	c.Check(svc.Start(), Equals, NotConfigured)
+	c.Check(svc.Start(), Equals, ErrNotConfigured)
 }
 
 func (ss *postalSuite) TestTakeTheBustFail(c *C) {
@@ -145,13 +145,13 @@ func (ss *postalSuite) TestInjectFailsIfBadArgs(c *C) {
 		args []interface{}
 		errt error
 	}{
-		{nil, BadArgCount},
-		{[]interface{}{}, BadArgCount},
-		{[]interface{}{1}, BadArgCount},
-		{[]interface{}{anAppId, 1}, BadArgType},
-		{[]interface{}{1, "hello"}, BadArgType},
-		{[]interface{}{1, 2, 3}, BadArgCount},
-		{[]interface{}{"bar", "hello"}, BadAppId},
+		{nil, ErrBadArgCount},
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{1}, ErrBadArgCount},
+		{[]interface{}{anAppId, 1}, ErrBadArgType},
+		{[]interface{}{1, "hello"}, ErrBadArgType},
+		{[]interface{}{1, 2, 3}, ErrBadArgCount},
+		{[]interface{}{"bar", "hello"}, ErrBadAppId},
 	} {
 		reg, err := new(PostalService).inject(aPackageOnBus, s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
@@ -216,10 +216,10 @@ func (ss *postalSuite) TestNotificationsFailsIfBadArgs(c *C) {
 		args []interface{}
 		errt error
 	}{
-		{nil, BadArgCount},
-		{[]interface{}{}, BadArgCount},
-		{[]interface{}{1}, BadArgType},
-		{[]interface{}{"potato"}, BadAppId},
+		{nil, ErrBadArgCount},
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{1}, ErrBadArgType},
+		{[]interface{}{"potato"}, ErrBadAppId},
 	} {
 		reg, err := new(PostalService).notifications(aPackageOnBus, s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
