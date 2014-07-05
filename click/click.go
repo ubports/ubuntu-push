@@ -42,7 +42,7 @@ var rxClick = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_(
 
 // we assume in particular that legacy app ids don't contain _
 // xxx good enough?
-var rxLegacy = regexp.MustCompile(`^([a-zA-Z0-9+.-]+)$`)
+var rxLegacy = regexp.MustCompile(`^[a-zA-Z0-9+.-]+$`)
 
 var (
 	ErrInvalidAppId = errors.New("invalid application id")
