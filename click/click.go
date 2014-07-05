@@ -23,6 +23,8 @@ import (
 	"regexp"
 	"sync"
 
+	"launchpad.net/go-xdg/v0"
+
 	"launchpad.net/ubuntu-push/click/cclick"
 )
 
@@ -31,22 +33,38 @@ type AppId struct {
 	Package     string
 	Application string
 	Version     string
+	Click       bool
 }
 
 // from https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId
 // except the version is made optional
-var rx = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_([0-9][a-zA-Z0-9.+:~-]*))?$`)
+var rxClick = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_([0-9][a-zA-Z0-9.+:~-]*))?$`)
+
+// we assume in particular that legacy app ids don't contain _
+// xxx good enough?
+var rxLegacy = regexp.MustCompile(`^([a-zA-Z0-9+.-]+)$`)
 
 var (
 	ErrInvalidAppId = errors.New("invalid application id")
 )
 
 func ParseAppId(id string) (*AppId, error) {
-	m := rx.FindStringSubmatch(id)
+	m := rxClick.FindStringSubmatch(id)
 	if len(m) == 0 {
+		if len(id) > 0 {
+			if !rxLegacy.MatchString(id) {
+				return nil, ErrInvalidAppId
+			}
+			_, err := xdg.Data.Find("applications/" + id + ".desktop")
+			if err != nil {
+				return nil, ErrInvalidAppId
+
+			}
+			return &AppId{Package: id, Application: id}, nil
+		}
 		return nil, ErrInvalidAppId
 	}
-	return &AppId{Package: m[1], Application: m[2], Version: m[3]}, nil
+	return &AppId{Package: m[1], Application: m[2], Version: m[3], Click: true}, nil
 }
 
 func AppInPackage(appId, pkgname string) bool {
@@ -77,6 +95,9 @@ func (cu *ClickUser) HasPackage(appId string) bool {
 	id, err := ParseAppId(appId)
 	if err != nil {
 		return false
+	}
+	if !id.Click {
+		return true
 	}
 	if id.Version != "" {
 		return cu.ccu.CGetVersion(id.Package) == id.Version
