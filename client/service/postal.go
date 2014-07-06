@@ -27,6 +27,7 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging"
 	"launchpad.net/ubuntu-push/nih"
+	"launchpad.net/ubuntu-push/sounds"
 	"launchpad.net/ubuntu-push/util"
 )
 
@@ -165,6 +166,7 @@ func (svc *PostalService) messageHandler(appname string, nid string, output *lau
 	_, err := nots.Present(appname, nid, output.Notification)
 	emblemcounter.New(svc.emblemcounterEndp, svc.Log).Present(appname, nid, output.Notification)
 	haptic.New(svc.hapticEndp, svc.Log).Present(appname, nid, output.Notification)
+	sounds.New(svc.Log).Present(appname, nid, output.Notification)
 
 	return err
 }
