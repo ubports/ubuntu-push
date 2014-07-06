@@ -17,6 +17,8 @@
 package service
 
 import (
+	"sync"
+
 	"code.google.com/p/go-uuid/uuid"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -93,10 +95,22 @@ func (svc *PostalService) Start() error {
 }
 
 func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, error) {
-	util.NewAutoRedialer(svc.notificationsEndp).Redial()
+	var wg sync.WaitGroup
+	endps := []bus.Endpoint{
+		svc.notificationsEndp,
+		svc.emblemcounterEndp,
+		svc.hapticEndp,
+	}
+	wg.Add(len(endps))
+	for _, endp := range endps {
+		go func(endp bus.Endpoint) {
+			util.NewAutoRedialer(endp).Redial()
+			wg.Done()
+		}(endp)
+	}
+	wg.Wait()
 	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()
-	util.NewAutoRedialer(svc.emblemcounterEndp).Redial()
-	util.NewAutoRedialer(svc.hapticEndp).Redial()
+
 	return actionsCh, err
 }
 
