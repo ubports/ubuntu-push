@@ -127,7 +127,7 @@ func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interfac
 	}
 	notif, ok := args[1].(string)
 	if !ok {
-		return nil, BadArgType
+		return nil, ErrBadArgType
 	}
 
 	nid := newNid()
