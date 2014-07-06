@@ -42,14 +42,14 @@ func (cs *commonSuite) TestGrabDBusPackageAndAppIdFails(c *C) {
 	for i, s := range []struct {
 		path     string
 		args     []interface{}
-		numExtra uint
+		numExtra int
 		errt     error
 	}{
-		{aDBusPath, []interface{}{}, 0, BadArgCount},
-		{aDBusPath, []interface{}{anAppId}, 1, BadArgCount},
-		{aDBusPath, []interface{}{anAppId, anAppId}, 0, BadArgCount},
-		{aDBusPath, []interface{}{1}, 0, BadArgType},
-		{aDBusPath, []interface{}{aPackage}, 0, BadAppId},
+		{aDBusPath, []interface{}{}, 0, ErrBadArgCount},
+		{aDBusPath, []interface{}{anAppId}, 1, ErrBadArgCount},
+		{aDBusPath, []interface{}{anAppId, anAppId}, 0, ErrBadArgCount},
+		{aDBusPath, []interface{}{1}, 0, ErrBadArgType},
+		{aDBusPath, []interface{}{aPackage}, 0, ErrBadAppId},
 	} {
 		comment := Commentf("iteration #%d", i)
 		pkg, app, err := grabDBusPackageAndAppId(s.path, s.args, s.numExtra)
