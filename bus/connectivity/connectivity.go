@@ -129,7 +129,7 @@ Loop:
 		case v, ok := <-cs.networkStateCh:
 			if !ok {
 				// tear it all down and start over
-				return false, errors.New("Got not-OK from StateChanged watch")
+				return false, errors.New("got not-OK from StateChanged watch")
 			}
 			cs.webgetCh = nil
 			cs.currentState = v
