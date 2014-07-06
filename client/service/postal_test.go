@@ -33,6 +33,7 @@ type postalSuite struct {
 	bus        bus.Endpoint
 	notifBus   bus.Endpoint
 	counterBus bus.Endpoint
+	hapticBus  bus.Endpoint
 }
 
 var _ = Suite(&postalSuite{})
@@ -42,10 +43,11 @@ func (ss *postalSuite) SetUpTest(c *C) {
 	ss.bus = testibus.NewTestingEndpoint(condition.Work(true), nil)
 	ss.notifBus = testibus.NewTestingEndpoint(condition.Work(true), nil)
 	ss.counterBus = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	ss.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), nil)
 }
 
 func (ss *postalSuite) TestStart(c *C) {
-	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	c.Check(svc.IsRunning(), Equals, false)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.IsRunning(), Equals, true)
@@ -53,45 +55,45 @@ func (ss *postalSuite) TestStart(c *C) {
 }
 
 func (ss *postalSuite) TestStartTwice(c *C) {
-	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.Start(), Equals, AlreadyStarted)
 	svc.Stop()
 }
 
 func (ss *postalSuite) TestStartNoLog(c *C) {
-	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, nil)
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, nil)
 	c.Check(svc.Start(), Equals, NotConfigured)
 }
 
 func (ss *postalSuite) TestStartNoBus(c *C) {
-	svc := NewPostalService(nil, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(nil, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	c.Check(svc.Start(), Equals, NotConfigured)
 }
 
 func (ss *postalSuite) TestTakeTheBustFail(c *C) {
 	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), condition.Work(false), []interface{}{uint32(1), "hello"})
-	svc := NewPostalService(ss.bus, nEndp, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, nEndp, ss.counterBus, ss.hapticBus, ss.log)
 	_, err := svc.TakeTheBus()
 	c.Check(err, NotNil)
 }
 
 func (ss *postalSuite) TestTakeTheBustOk(c *C) {
 	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), condition.Work(true), []interface{}{uint32(1), "hello"})
-	svc := NewPostalService(ss.bus, nEndp, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, nEndp, ss.counterBus, ss.hapticBus, ss.log)
 	_, err := svc.TakeTheBus()
 	c.Check(err, IsNil)
 }
 
 func (ss *postalSuite) TestStartFailsOnBusDialFailure(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	svc := NewPostalService(bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	c.Check(svc.Start(), ErrorMatches, `.*(?i)cond said no.*`)
 	svc.Stop()
 }
 
 func (ss *postalSuite) TestStartGrabsName(c *C) {
-	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	callArgs := testibus.GetCallArgs(ss.bus)
 	defer svc.Stop()
@@ -100,7 +102,7 @@ func (ss *postalSuite) TestStartGrabsName(c *C) {
 }
 
 func (ss *postalSuite) TestStopClosesBus(c *C) {
-	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	c.Assert(svc.Start(), IsNil)
 	svc.Stop()
 	callArgs := testibus.GetCallArgs(ss.bus)
@@ -112,7 +114,7 @@ func (ss *postalSuite) TestStopClosesBus(c *C) {
 // Injection tests
 
 func (ss *postalSuite) TestInjectWorks(c *C) {
-	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	svc.msgHandler = nil
 	rvs, err := svc.inject(aPackageOnBus, []interface{}{anAppId, "world"}, nil)
 	c.Assert(err, IsNil)
@@ -136,7 +138,7 @@ func (ss *postalSuite) TestInjectWorks(c *C) {
 func (ss *postalSuite) TestInjectFailsIfInjectFails(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true),
 		condition.Work(false))
-	svc := NewPostalService(bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	svc.SetMessageHandler(func(string, string, *launch_helper.HelperOutput) error { return errors.New("fail") })
 	_, err := svc.inject("/hello", []interface{}{"xyzzy"}, nil)
 	c.Check(err, NotNil)
@@ -166,7 +168,7 @@ func (ss *postalSuite) TestInjectFailsIfBadArgs(c *C) {
 
 func (ss *postalSuite) TestInjectBroadcast(c *C) {
 	bus := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
-	svc := NewPostalService(ss.bus, bus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, bus, ss.counterBus, ss.hapticBus, ss.log)
 	//svc.msgHandler = nil
 	rvs, err := svc.InjectBroadcast()
 	c.Assert(err, IsNil)
@@ -187,7 +189,7 @@ func (ss *postalSuite) TestInjectBroadcast(c *C) {
 func (ss *postalSuite) TestInjectBroadcastFails(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true),
 		condition.Work(false))
-	svc := NewPostalService(ss.bus, bus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, bus, ss.counterBus, ss.hapticBus, ss.log)
 	svc.SetMessageHandler(func(string, string, *launch_helper.HelperOutput) error { return errors.New("fail") })
 	_, err := svc.InjectBroadcast()
 	c.Check(err, NotNil)
@@ -196,7 +198,7 @@ func (ss *postalSuite) TestInjectBroadcastFails(c *C) {
 //
 // Notifications tests
 func (ss *postalSuite) TestNotificationsWorks(c *C) {
-	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	nots, err := svc.notifications(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(nots, NotNil)
@@ -245,7 +247,7 @@ func (ss *postalSuite) TestMessageHandlerPublicAPI(c *C) {
 
 func (ss *postalSuite) TestInjectCallsMessageHandler(c *C) {
 	var ext = &launch_helper.HelperOutput{}
-	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	f := func(app string, nid string, s *launch_helper.HelperOutput) error { ext = s; return nil }
 	svc.SetMessageHandler(f)
 	c.Check(svc.Inject("pkg", "app", "thing", "{}"), IsNil)
@@ -257,7 +259,7 @@ func (ss *postalSuite) TestInjectCallsMessageHandler(c *C) {
 
 func (ss *postalSuite) TestMessageHandler(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
-	svc := NewPostalService(ss.bus, endp, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, endp, ss.counterBus, ss.hapticBus, ss.log)
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true}
 	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
 	err := svc.messageHandler("xyzzy", "", output)
@@ -273,7 +275,7 @@ func (ss *postalSuite) TestMessageHandler(c *C) {
 
 func (ss *postalSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
-	svc := NewPostalService(ss.bus, endp, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, endp, ss.counterBus, ss.hapticBus, ss.log)
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true}
 	notif := &launch_helper.Notification{Card: card}
 	output := &launch_helper.HelperOutput{Notification: notif}
@@ -282,7 +284,7 @@ func (ss *postalSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 }
 
 func (ss *postalSuite) TestMessageHandlerReportsButIgnoresUnmarshalErrors(c *C) {
-	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.log)
 	output := &launch_helper.HelperOutput{[]byte(`broken`), nil}
 	err := svc.messageHandler("", "", output)
 	c.Check(err, IsNil)
@@ -291,7 +293,7 @@ func (ss *postalSuite) TestMessageHandlerReportsButIgnoresUnmarshalErrors(c *C) 
 
 func (ss *postalSuite) TestMessageHandlerReportsButIgnoresNilNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
-	svc := NewPostalService(ss.bus, endp, ss.counterBus, ss.log)
+	svc := NewPostalService(ss.bus, endp, ss.counterBus, ss.hapticBus, ss.log)
 	output := &launch_helper.HelperOutput{[]byte(`{}`), nil}
 	err := svc.messageHandler("", "", output)
 	c.Assert(err, IsNil)

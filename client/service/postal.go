@@ -21,6 +21,7 @@ import (
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/emblemcounter"
+	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -37,6 +38,7 @@ type PostalService struct {
 	HelperLauncher    launch_helper.HelperLauncher
 	messagingMenu     *messaging.MessagingMenu
 	emblemcounterEndp bus.Endpoint
+	hapticEndp        bus.Endpoint
 	notificationsEndp bus.Endpoint
 }
 
@@ -55,7 +57,7 @@ var (
 )
 
 // NewPostalService() builds a new service and returns it.
-func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, log logger.Logger) *PostalService {
+func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, hapticEndp bus.Endpoint, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
 	svc.Bus = busEndp
@@ -63,6 +65,7 @@ func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, embl
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(log)
 	svc.notificationsEndp = notificationsEndp
 	svc.emblemcounterEndp = emblemcounterEndp
+	svc.hapticEndp = hapticEndp
 	svc.msgHandler = svc.messageHandler
 	return svc
 }
@@ -93,6 +96,7 @@ func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, err
 	util.NewAutoRedialer(svc.notificationsEndp).Redial()
 	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()
 	util.NewAutoRedialer(svc.emblemcounterEndp).Redial()
+	util.NewAutoRedialer(svc.hapticEndp).Redial()
 	return actionsCh, err
 }
 
@@ -160,6 +164,7 @@ func (svc *PostalService) messageHandler(appname string, nid string, output *lau
 	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
 	_, err := nots.Present(appname, nid, output.Notification)
 	emblemcounter.New(svc.emblemcounterEndp, svc.Log).Present(appname, nid, output.Notification)
+	haptic.New(svc.hapticEndp, svc.Log).Present(appname, nid, output.Notification)
 
 	return err
 }
