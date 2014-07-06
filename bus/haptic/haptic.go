@@ -14,6 +14,8 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// Package haptic can present notifications as a vibration pattern
+// using the usensord/haptic interface
 package haptic
 
 import (
@@ -29,6 +31,7 @@ var BusAddress bus.Address = bus.Address{
 	Name:      "com.canonical.usensord",
 }
 
+// Haptic encapsulates info needed to call out to usensord/haptic
 type Haptic struct {
 	bus bus.Endpoint
 	log logger.Logger
