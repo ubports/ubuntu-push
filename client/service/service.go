@@ -89,11 +89,10 @@ func (svc *PushService) Start() error {
 }
 
 var (
-	BadServer  = errors.New("Bad server")
-	BadRequest = errors.New("Bad request")
-	BadToken   = errors.New("Bad token")
-	BadAuth    = errors.New("Bad auth")
-	BadAppId   = errors.New("Package must be prefix of app id")
+	ErrBadServer  = errors.New("bad server")
+	ErrBadRequest = errors.New("bad request")
+	ErrBadToken   = errors.New("bad token")
+	ErrBadAuth    = errors.New("bad auth")
 )
 
 type registrationRequest struct {
@@ -116,7 +115,7 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 
 	url, auth := svc.getAuthorization(op)
 	if auth == "" {
-		return nil, BadAuth
+		return nil, ErrBadAuth
 	}
 
 	req, err := http13.NewRequest("POST", url, bytes.NewReader(req_body))
@@ -136,9 +135,9 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 		switch {
 		case resp.StatusCode >= http.StatusInternalServerError:
 			// XXX retry on 503
-			return nil, BadServer
+			return nil, ErrBadServer
 		default:
-			return nil, BadRequest
+			return nil, ErrBadRequest
 		}
 	}
 	// errors below here Can't Happen (tm).
@@ -177,7 +176,7 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 
 	if !reply.Ok || reply.Token == "" {
 		svc.Log.Errorf("Unexpected response: %#v", reply)
-		return nil, BadToken
+		return nil, ErrBadToken
 	}
 
 	return []interface{}{reply.Token}, nil

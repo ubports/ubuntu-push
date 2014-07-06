@@ -46,10 +46,11 @@ const (
 )
 
 var (
-	NotConfigured  = errors.New("not configured")
-	AlreadyStarted = errors.New("already started")
-	BadArgCount    = errors.New("Wrong number of arguments")
-	BadArgType     = errors.New("Bad argument type")
+	ErrNotConfigured  = errors.New("not configured")
+	ErrAlreadyStarted = errors.New("already started")
+	ErrBadArgCount    = errors.New("wrong number of arguments")
+	ErrBadArgType     = errors.New("bad argument type")
+	ErrBadAppId       = errors.New("package must be prefix of app id")
 )
 
 // IsRunning() returns whether the service's state is StateRunning
@@ -64,10 +65,10 @@ func (svc *DBusService) Start(dispatchMap bus.DispatchMap, busAddr bus.Address) 
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.state != StateUnknown {
-		return AlreadyStarted
+		return ErrAlreadyStarted
 	}
 	if svc.Log == nil || svc.Bus == nil {
-		return NotConfigured
+		return ErrNotConfigured
 	}
 	err := svc.Bus.Dial()
 	if err != nil {
@@ -104,17 +105,17 @@ func (svc *DBusService) Stop() {
 // grabDBusPackageAndAppId() extracts the appId from a dbus-provided
 // []interface{}, and checks it against the package in the last
 // element of the dbus path.
-func grabDBusPackageAndAppId(path string, args []interface{}, numExtra uint) (pkgname string, appId string, err error) {
-	if uint(len(args)) != 1+numExtra {
-		return "", "", BadArgCount
+func grabDBusPackageAndAppId(path string, args []interface{}, numExtra int) (pkgname string, appId string, err error) {
+	if len(args) != 1+numExtra {
+		return "", "", ErrBadArgCount
 	}
 	appId, ok := args[0].(string)
 	if !ok {
-		return "", "", BadArgType
+		return "", "", ErrBadArgType
 	}
 	pkgname = string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 	if !click.AppInPackage(appId, pkgname) {
-		return "", "", BadAppId
+		return "", "", ErrBadAppId
 	}
 	return
 }
