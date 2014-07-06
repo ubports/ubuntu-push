@@ -1,3 +1,21 @@
+/*
+ Copyright 2014 Canonical Ltd.
+
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of the GNU General Public License version 3, as published
+ by the Free Software Foundation.
+
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranties of
+ MERCHANTABILITY, SATISFACTORY QUALITY, or FITNESS FOR A PARTICULAR
+ PURPOSE.  See the GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License along
+ with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// Package emblemcounter can present notifications as a counter on an
+// emblem on an item in the launcher.
 package emblemcounter
 
 import (
@@ -10,6 +28,7 @@ import (
 	"launchpad.net/ubuntu-push/nih"
 )
 
+// emblemcounter works by setting properties on a well-known dbus name.
 var BusAddress = bus.Address{
 	Interface: "com.canonical.Unity.Launcher.Item",
 	Path:      "/com/canonical/Unity/Launcher",
@@ -29,7 +48,7 @@ func New(endp bus.Endpoint, log logger.Logger) *EmblemCounter {
 }
 
 // Look for an EmblemCounter section in a Notification and, if
-// present, present it to the user.
+// present, presents it to the user.
 func (ctr *EmblemCounter) Present(appId string, notificationId string, notification *launch_helper.Notification) {
 	if notification == nil || notification.EmblemCounter == nil {
 		ctr.log.Debugf("no notification or no EmblemCounter in the notification; doing nothing: %#v", notification)
