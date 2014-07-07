@@ -20,6 +20,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/emblemcounter"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -35,6 +36,7 @@ type PostalService struct {
 	msgHandler        func(string, string, *launch_helper.HelperOutput) error
 	HelperLauncher    launch_helper.HelperLauncher
 	messagingMenu     *messaging.MessagingMenu
+	emblemcounterEndp bus.Endpoint
 	notificationsEndp bus.Endpoint
 }
 
@@ -53,13 +55,14 @@ var (
 )
 
 // NewPostalService() builds a new service and returns it.
-func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, log logger.Logger) *PostalService {
+func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
 	svc.Bus = busEndp
 	svc.messagingMenu = messaging.New(log)
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(log)
 	svc.notificationsEndp = notificationsEndp
+	svc.emblemcounterEndp = emblemcounterEndp
 	svc.msgHandler = svc.messageHandler
 	return svc
 }
@@ -89,6 +92,7 @@ func (svc *PostalService) Start() error {
 func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, error) {
 	util.NewAutoRedialer(svc.notificationsEndp).Redial()
 	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()
+	util.NewAutoRedialer(svc.emblemcounterEndp).Redial()
 	return actionsCh, err
 }
 
@@ -155,6 +159,7 @@ func (svc *PostalService) messageHandler(appname string, nid string, output *lau
 	svc.messagingMenu.Present(appname, nid, output.Notification)
 	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
 	_, err := nots.Present(appname, nid, output.Notification)
+	emblemcounter.New(svc.emblemcounterEndp, svc.Log).Present(appname, nid, output.Notification)
 
 	return err
 }

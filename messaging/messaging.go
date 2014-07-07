@@ -43,6 +43,7 @@ func (mmu *MessagingMenu) addNotification(appId string, notificationId string, c
 
 func (mmu *MessagingMenu) Present(appId string, notificationId string, notification *launch_helper.Notification) {
 	if notification == nil || notification.Card == nil || !notification.Card.Persist || notification.Card.Summary == "" {
+		mmu.Log.Debugf("[%s] no notification or notification has no persistable card: %#v", notificationId, notification)
 		return
 	}
 

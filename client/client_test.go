@@ -187,14 +187,24 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+
+	// keep these in the same order as in the client struct, for sanity
 	c.Check(cli.notificationsEndp, IsNil)
 	c.Check(cli.urlDispatcherEndp, IsNil)
 	c.Check(cli.connectivityEndp, IsNil)
+	c.Check(cli.emblemcounterEndp, IsNil)
+	c.Check(cli.systemImageEndp, IsNil)
+	c.Check(cli.pushServiceEndpoint, IsNil)
+	c.Check(cli.postalServiceEndpoint, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	c.Assert(cli.notificationsEndp, NotNil)
-	c.Assert(cli.urlDispatcherEndp, NotNil)
-	c.Assert(cli.connectivityEndp, NotNil)
+	c.Check(cli.notificationsEndp, NotNil)
+	c.Check(cli.urlDispatcherEndp, NotNil)
+	c.Check(cli.connectivityEndp, NotNil)
+	c.Check(cli.emblemcounterEndp, NotNil)
+	c.Check(cli.systemImageEndp, NotNil)
+	c.Check(cli.pushServiceEndpoint, NotNil)
+	c.Check(cli.postalServiceEndpoint, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
@@ -499,6 +509,8 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	siCond := condition.Fail2Work(2)
 	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})
 	testibus.SetWatchTicker(cEndp, make(chan bool))
+	ecCond := condition.Fail2Work(13)
+	ecEndp := testibus.NewTestingEndpoint(ecCond, condition.Work(true))
 	// ok, create the thing
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
@@ -511,6 +523,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	cli.config.ConnectivityConfig.ConnectivityCheckURL = ts.URL
 	cli.config.ConnectivityConfig.ConnectivityCheckMD5 = staticHash
 	cli.notificationsEndp = nEndp
+	cli.emblemcounterEndp = ecEndp
 	cli.urlDispatcherEndp = uEndp
 	cli.connectivityEndp = cEndp
 	cli.systemImageEndp = siEndp
@@ -529,6 +542,8 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	c.Check(cCond.OK(), Equals, true)
 	// the systemimage endpoint retried until connected
 	c.Check(siCond.OK(), Equals, true)
+	// the emblemcounter endpoint retried until connected
+	c.Check(ecCond.OK(), Equals, true)
 }
 
 // takeTheBus can, in fact, fail
@@ -542,6 +557,7 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 
 	// and stomp on things for testing
 	cli.notificationsEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.emblemcounterEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.systemImageEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
@@ -749,7 +765,7 @@ func (cs *clientSuite) TestHandleBroadcastNotification(c *C) {
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "Notify")
-	c.Check(cs.log.Captured(), Matches, `.* got notification id \d+\s*`)
+	c.Check(cs.log.Captured(), Matches, `(?s).* got notification id \d+\s*`)
 }
 
 func (cs *clientSuite) TestHandleBroadcastNotificationNothingToDo(c *C) {
@@ -785,14 +801,9 @@ var notif = &protocol.Notification{AppId: "com.example.test_hello", Payload: []b
 
 func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	svcEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	postEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	cli.log = cs.log
-	cli.pushServiceEndpoint = svcEndp
 	cli.postalServiceEndpoint = postEndp
-	notsEndp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
-	cli.notificationsEndp = notsEndp
-	c.Assert(cli.startService(), IsNil)
 	c.Assert(cli.setupPostalService(), IsNil)
 	c.Assert(cli.startPostalService(), IsNil)
 	c.Check(cli.handleUnicastNotification(notif), IsNil)
@@ -1119,7 +1130,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// so we start,
 	err := cli.Start()
 	// and it works
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 
 	// and now everthing is better! We have a config,
 	c.Check(string(cli.config.Addr), Equals, ":0")
