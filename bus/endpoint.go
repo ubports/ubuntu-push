@@ -42,6 +42,7 @@ type Endpoint interface {
 	Signal(string, string, []interface{}) error
 	Call(member string, args []interface{}, rvs ...interface{}) error
 	GetProperty(property string) (interface{}, error)
+	SetProperty(property string, suffix string, value interface{}) error
 	Dial() error
 	Close()
 	String() string
@@ -176,6 +177,16 @@ func (endp *endpoint) GetProperty(property string) (interface{}, error) {
 		return nil, fmt.Errorf("Response from Properties.Get wasn't a *dbus.Variant")
 	}
 	return variant.Value, nil
+}
+
+// SetProperty calls org.freedesktop.DBus.Properties's Set method
+//
+// XXX: untested
+func (endp *endpoint) SetProperty(property string, suffix string, value interface{}) error {
+	// can't use the pre-existing ObjectProxy for this one
+	proxy := endp.bus.Object(endp.addr.Name, dbus.ObjectPath(endp.addr.Path+suffix))
+	_, err := proxy.Call("org.freedesktop.DBus.Properties", "Set", endp.addr.Interface, property, value)
+	return err
 }
 
 // Close the connection to dbus.
