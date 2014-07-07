@@ -82,5 +82,4 @@ func (ss *soundsSuite) TestPresentFails(c *C) {
 	f.Close()
 	s.dataDirs = func() []string { return []string{"", d} }
 	c.Check(s.Present("com.example.test_test", "", &launch_helper.Notification{Sound: "hello"}), Equals, true)
-
 }
