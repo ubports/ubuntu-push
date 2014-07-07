@@ -18,6 +18,7 @@ package service
 
 import (
 	"errors"
+	"sort"
 
 	. "launchpad.net/gocheck"
 
@@ -255,20 +256,25 @@ func (ss *postalSuite) TestInjectCallsMessageHandler(c *C) {
 	c.Check(svc.Inject("pkg", "app", "", "{}"), Equals, err)
 }
 
-func (ss *postalSuite) TestMessageHandler(c *C) {
+func (ss *postalSuite) TestMessageHandlerPresents(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
-	svc := NewPostalService(ss.bus, endp, ss.counterBus, ss.log)
-	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true}
-	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
-	err := svc.messageHandler("xyzzy", "", output)
+	svc := NewPostalService(endp, endp, endp, ss.log)
+	// Persist is false so we just check the log
+	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true, Persist: false}
+	emb := &launch_helper.EmblemCounter{Count: 2, Visible: true}
+	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card, EmblemCounter: emb}}
+	err := svc.messageHandler("com.example.test_test", "", output)
 	c.Assert(err, IsNil)
 	args := testibus.GetCallArgs(endp)
-	c.Assert(args, HasLen, 1)
-	c.Check(args[0].Member, Equals, "Notify")
-	c.Check(args[0].Args[0], Equals, "xyzzy")
-	c.Check(args[0].Args[2], Equals, "icon-value")
-	c.Check(args[0].Args[3], Equals, "summary-value")
-	c.Check(args[0].Args[4], Equals, "body-value")
+	c.Assert(args, HasLen, 3)
+	mm := make([]string, len(args))
+	for i, m := range args {
+		mm[i] = m.Member
+	}
+	sort.Strings(mm)
+	// just check the right dbus methods are called
+	c.Check(mm, DeepEquals, []string{"::SetProperty", "::SetProperty", "Notify"})
+	c.Check(ss.log.Captured(), Matches, `(?sm).* no persistable card:.*`)
 }
 
 func (ss *postalSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
