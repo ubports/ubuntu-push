@@ -11,7 +11,7 @@ OPTIONS:
 EOF
 }
 
-while getopts "d:" opt; do
+while getopts "d:v" opt; do
         case $opt in
                 d) DEVICE_ID=$OPTARG;;
                 v) VERBOSITY="-v";;
