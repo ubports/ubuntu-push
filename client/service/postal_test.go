@@ -275,9 +275,12 @@ func (ss *postalSuite) TestMessageHandlerPresents(c *C) {
 		mm[i] = m.Member
 	}
 	sort.Strings(mm)
-	// just check the right dbus methods are called
+	// check the Present() methods were called.
+	// For dbus-backed presenters, just check the right dbus methods are called
 	c.Check(mm, DeepEquals, []string{"::SetProperty", "::SetProperty", "Notify", "VibratePattern"})
+	// For the other ones, check the logs
 	c.Check(ss.log.Captured(), Matches, `(?sm).* no persistable card:.*`)
+	c.Check(ss.log.Captured(), Matches, `(?sm).* no Sound in the notification.*`)
 }
 
 func (ss *postalSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
