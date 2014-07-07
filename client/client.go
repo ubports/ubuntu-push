@@ -34,6 +34,7 @@ import (
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/bus/emblemcounter"
+	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/systemimage"
@@ -92,6 +93,7 @@ type PushClient struct {
 	urlDispatcherEndp     bus.Endpoint
 	connectivityEndp      bus.Endpoint
 	emblemcounterEndp     bus.Endpoint
+	hapticEndp            bus.Endpoint
 	systemImageEndp       bus.Endpoint
 	systemImageInfo       *systemimage.InfoResult
 	connCh                chan bool
@@ -155,6 +157,7 @@ func (client *PushClient) configure() error {
 	client.systemImageEndp = bus.SystemBus.Endpoint(systemimage.BusAddress, client.log)
 	client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
 	client.emblemcounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, client.log)
+	client.hapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, client.log)
 	client.postalServiceEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
 	client.pushServiceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
 
@@ -497,7 +500,7 @@ func (client *PushClient) startService() error {
 }
 
 func (client *PushClient) setupPostalService() error {
-	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.emblemcounterEndp, client.log)
+	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.emblemcounterEndp, client.hapticEndp, client.log)
 	return nil
 }
 
