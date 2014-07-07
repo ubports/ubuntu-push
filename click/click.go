@@ -20,7 +20,10 @@ package click
 
 import (
 	"errors"
+	"fmt"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 
 	"launchpad.net/go-xdg/v0"
@@ -34,42 +37,63 @@ type AppId struct {
 	Application string
 	Version     string
 	Click       bool
+	original    string
 }
 
 // from https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId
 // except the version is made optional
 var rxClick = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_([0-9][a-zA-Z0-9.+:~-]*))?$`)
 
-// we assume in particular that legacy app ids don't contain _
-// xxx good enough?
-var rxLegacy = regexp.MustCompile(`^[a-zA-Z0-9+.-]+$`)
+// no / and not starting with .
+var rxLegacy = regexp.MustCompile(`^[^./][^/]*$`)
 
 var (
 	ErrInvalidAppId = errors.New("invalid application id")
 )
 
 func ParseAppId(id string) (*AppId, error) {
-	m := rxClick.FindStringSubmatch(id)
-	if len(m) == 0 {
-		if len(id) > 0 {
-			if !rxLegacy.MatchString(id) {
-				return nil, ErrInvalidAppId
-			}
-			_, err := xdg.Data.Find("applications/" + id + ".desktop")
-			if err != nil {
-				return nil, ErrInvalidAppId
-
-			}
-			return &AppId{Package: id, Application: id}, nil
+	if strings.HasPrefix(id, "_") { // legacy
+		appname := id[1:]
+		if !rxLegacy.MatchString(appname) {
+			return nil, ErrInvalidAppId
 		}
-		return nil, ErrInvalidAppId
+		return &AppId{
+			Application: appname,
+			original:    id,
+		}, nil
+	} else {
+		m := rxClick.FindStringSubmatch(id)
+		if len(m) == 0 {
+			return nil, ErrInvalidAppId
+		}
+		return &AppId{
+			Package:     m[1],
+			Application: m[2],
+			Version:     m[3],
+			Click:       true,
+			original:    id,
+		}, nil
 	}
-	return &AppId{Package: m[1], Application: m[2], Version: m[3], Click: true}, nil
 }
 
-func AppInPackage(appId, pkgname string) bool {
-	id, _ := ParseAppId(appId)
-	return id != nil && id.Package == pkgname
+func (id *AppId) InPackage(pkgname string) bool {
+	return id.Package == pkgname
+}
+
+func (id *AppId) Original() string {
+	return id.original
+}
+
+func (id *AppId) Versioned() string {
+	if id.Click {
+		return id.Package + "_" + id.Application + "_" + id.Version
+	} else {
+		return id.Application
+	}
+}
+
+func (id *AppId) DesktopId() string {
+	return id.Versioned() + ".desktop"
 }
 
 // ClickUser exposes the click package registry for the user.
@@ -88,20 +112,27 @@ func User() (*ClickUser, error) {
 	return cu, nil
 }
 
-// HasPackage checks if the appId is installed for user.
-func (cu *ClickUser) HasPackage(appId string) bool {
+// Installed checks if the appId is installed for user, optionally setting
+// the version if it was absent.
+func (cu *ClickUser) Installed(appId *AppId, setVersion bool) bool {
 	cu.lock.Lock()
 	defer cu.lock.Unlock()
-	id, err := ParseAppId(appId)
-	if err != nil {
-		return false
-	}
-	if !id.Click {
+	if appId.Click {
+		ver := cu.ccu.CGetVersion(appId.Package)
+		if ver == "" {
+			return false
+		}
+		if appId.Version != "" {
+			fmt.Println("1")
+			return appId.Version == ver
+		} else if setVersion {
+			fmt.Println("2")
+			appId.Version = ver
+		}
+		fmt.Println("3")
 		return true
-	}
-	if id.Version != "" {
-		return cu.ccu.CGetVersion(id.Package) == id.Version
 	} else {
-		return cu.ccu.CHasPackageName(id.Package)
+		_, err := xdg.Data.Find(filepath.Join("applications", appId.DesktopId()))
+		return err == nil
 	}
 }
