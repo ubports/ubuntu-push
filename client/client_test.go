@@ -513,6 +513,8 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	testibus.SetWatchTicker(cEndp, make(chan bool))
 	ecCond := condition.Fail2Work(13)
 	ecEndp := testibus.NewTestingEndpoint(ecCond, condition.Work(true))
+	haCond := condition.Fail2Work(2)
+	haEndp := testibus.NewTestingEndpoint(haCond, condition.Work(true))
 	// ok, create the thing
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
@@ -525,9 +527,10 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	cli.config.ConnectivityConfig.ConnectivityCheckURL = ts.URL
 	cli.config.ConnectivityConfig.ConnectivityCheckMD5 = staticHash
 	cli.notificationsEndp = nEndp
-	cli.emblemcounterEndp = ecEndp
 	cli.urlDispatcherEndp = uEndp
 	cli.connectivityEndp = cEndp
+	cli.emblemcounterEndp = ecEndp
+	cli.hapticEndp = haEndp
 	cli.systemImageEndp = siEndp
 
 	c.Assert(cli.takeTheBus(), IsNil)
@@ -546,6 +549,8 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	c.Check(siCond.OK(), Equals, true)
 	// the emblemcounter endpoint retried until connected
 	c.Check(ecCond.OK(), Equals, true)
+	// the haptic endpoint retried until connected
+	c.Check(haCond.OK(), Equals, true)
 }
 
 // takeTheBus can, in fact, fail
@@ -559,9 +564,10 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 
 	// and stomp on things for testing
 	cli.notificationsEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
-	cli.emblemcounterEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.emblemcounterEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.hapticEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.systemImageEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 
 	c.Check(cli.takeTheBus(), NotNil)
