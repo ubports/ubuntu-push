@@ -238,3 +238,14 @@ func (s *TestingEndpointSuite) TestWatchMethodUpdatesCallArgs(c *C) {
 			Args:   []interface{}{foomp, []interface{}(nil)},
 		}})
 }
+
+// Test that SetProperty updates callArgs
+func (s *TestingEndpointSuite) TestSetPropertyUpdatesCallArgs(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true))
+	endp.SetProperty("prop", "suffix", "value")
+	c.Check(GetCallArgs(endp), DeepEquals, []callArgs{
+		{
+			Member: "::SetProperty",
+			Args:   []interface{}{"prop", "suffix", "value"},
+		}})
+}
