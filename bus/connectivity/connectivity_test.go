@@ -167,6 +167,7 @@ func (*racyEndpoint) Call(string, []interface{}, ...interface{}) error          
 func (*racyEndpoint) GrabName(bool) <-chan error                                    { return nil }
 func (*racyEndpoint) WatchMethod(bus.DispatchMap, string, ...interface{})           {}
 func (*racyEndpoint) Signal(member string, suffix string, args []interface{}) error { return nil }
+func (*racyEndpoint) SetProperty(string, string, interface{}) error                 { return nil }
 
 var _ bus.Endpoint = (*racyEndpoint)(nil)
 

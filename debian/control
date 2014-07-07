@@ -20,6 +20,7 @@ Build-Depends: debhelper (>= 9),
                libubuntuoneauth-2.0-dev,
                libdbus-1-dev,
                libnih-dbus-dev,
+               libclick-0.4-dev,
                cmake,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push

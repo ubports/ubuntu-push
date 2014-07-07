@@ -20,6 +20,7 @@ package testing
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -159,4 +160,13 @@ func Ns(payloads ...json.RawMessage) []protocol.Notification {
 		res[i].Payload = payloads[i]
 	}
 	return res
+}
+
+// ParseURL parses a URL conveniently.
+func ParseURL(s string) *url.URL {
+	purl, err := url.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return purl
 }

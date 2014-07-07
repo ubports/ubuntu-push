@@ -150,6 +150,21 @@ func (tc *testingEndpoint) GetProperty(property string) (interface{}, error) {
 	return res, err
 }
 
+// See Endpoint's SetProperty. This one does nothing beyond
+// registering being called.
+func (tc *testingEndpoint) SetProperty(property string, suffix string, value interface{}) error {
+	tc.callArgsLck.Lock()
+	defer tc.callArgsLck.Unlock()
+
+	args := callArgs{
+		Member: "::SetProperty",
+		Args:   []interface{}{property, suffix, value},
+	}
+	tc.callArgs = append(tc.callArgs, args)
+
+	return nil
+}
+
 // See Endpoint's Dial. This one will check its dialCondition to
 // decide whether to return an error or not.
 func (endp *testingEndpoint) Dial() error {

@@ -1,3 +1,18 @@
+ubuntu-push (0.43) UNRELEASED; urgency=medium
+
+  [ Samuele Pedroni ]
+  * Logic to support unregistering tokens lazily for uninstalled apps
+  * Minimal wrapping of libclick to check if a package is installed for a user
+  * Refactor and cleanup of cleanup/service
+
+  [ John R. Lenton ]
+  * Finalized DBus API (hopefully)
+  * Support emblem counter notifications
+  * Support haptic (vibration) notifications
+  * Support sound notifications
+
+ -- John R. Lenton <john.lenton@canonical.com>  Mon, 07 Jul 2014 15:22:42 +0100
+
 ubuntu-push (0.42+14.10.20140702-0ubuntu1) utopic; urgency=medium
 
   [ Samuele Pedroni ]
