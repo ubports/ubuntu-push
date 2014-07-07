@@ -59,7 +59,7 @@ func (snd *Sound) Present(appId string, nid string, notification *launch_helper.
 	go func() {
 		err := cmd.Wait()
 		if err != nil {
-			snd.log.Debugf("[%s] error playing sound: %v", nid, err)
+			snd.log.Debugf("[%s] error playing sound %s: %v", nid, absPath, err)
 		}
 	}()
 	return true
