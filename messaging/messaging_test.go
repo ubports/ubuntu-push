@@ -61,7 +61,7 @@ func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNoSummary(c *C) {
 
 	mmu.Present("app-id", "notif-id", &notif)
 
-	c.Check(ms.log.Captured(), Equals, "")
+	c.Check(ms.log.Captured(), Matches, "(?sm).*has no persistable card.*")
 }
 
 func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNotPersist(c *C) {
@@ -71,17 +71,17 @@ func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNotPersist(c *C) {
 
 	mmu.Present("app-id", "notif-id", &notif)
 
-	c.Check(ms.log.Captured(), Equals, "")
+	c.Check(ms.log.Captured(), Matches, "(?sm).*has no persistable card.*")
 }
 
 func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNil(c *C) {
 	mmu := New(ms.log)
 	mmu.Present("app-id", "notif-id", nil)
-	c.Check(ms.log.Captured(), Equals, "")
+	c.Check(ms.log.Captured(), Matches, "(?sm).*no notification.*")
 }
 
 func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNilCard(c *C) {
 	mmu := New(ms.log)
 	mmu.Present("app-id", "notif-id", &launch_helper.Notification{})
-	c.Check(ms.log.Captured(), Equals, "")
+	c.Check(ms.log.Captured(), Matches, "(?sm).*no notification.*")
 }
