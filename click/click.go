@@ -20,7 +20,6 @@ package click
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -49,6 +48,7 @@ var rxLegacy = regexp.MustCompile(`^[^./][^/]*$`)
 
 var (
 	ErrInvalidAppId = errors.New("invalid application id")
+	ErrMissingAppId = errors.New("missing application id")
 )
 
 func ParseAppId(id string) (*AppId, error) {
@@ -102,6 +102,24 @@ type ClickUser struct {
 	lock sync.Mutex
 }
 
+type InstalledChecker interface {
+	Installed(appId *AppId, setVersion bool) bool
+}
+
+// ParseAndVerifyAppId parses the given app id and checks if the
+// corresponding app is installed, returning the parsed id or
+// ErrInvalidAppId, ErrMissingAppId respectively.
+func ParseAndVerifyAppId(id string, installedChecker InstalledChecker) (*AppId, error) {
+	appId, err := ParseAppId(id)
+	if err != nil {
+		return nil, err
+	}
+	if installedChecker != nil && !installedChecker.Installed(appId, true) {
+		return nil, ErrMissingAppId
+	}
+	return appId, nil
+}
+
 // User makes a new ClickUser object for the current user.
 func User() (*ClickUser, error) {
 	cu := new(ClickUser)
@@ -123,13 +141,10 @@ func (cu *ClickUser) Installed(appId *AppId, setVersion bool) bool {
 			return false
 		}
 		if appId.Version != "" {
-			fmt.Println("1")
 			return appId.Version == ver
 		} else if setVersion {
-			fmt.Println("2")
 			appId.Version = ver
 		}
-		fmt.Println("3")
 		return true
 	} else {
 		_, err := xdg.Data.Find(filepath.Join("applications", appId.DesktopId()))

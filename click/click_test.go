@@ -81,7 +81,7 @@ func (s *clickSuite) TestUser(c *C) {
 	c.Assert(u, NotNil)
 }
 
-func (s *clickSuite) TestHasPackageNegative(c *C) {
+func (s *clickSuite) TestInstalledNegative(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
 	id, err := ParseAppId("com.foo.bar_baz")
@@ -89,7 +89,7 @@ func (s *clickSuite) TestHasPackageNegative(c *C) {
 	c.Check(u.Installed(id, false), Equals, false)
 }
 
-func (s *clickSuite) TestHasPackageVersionNegative(c *C) {
+func (s *clickSuite) TestInstalledVersionNegative(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
 	id, err := ParseAppId("com.ubuntu.clock_clock_1000.0")
@@ -97,7 +97,7 @@ func (s *clickSuite) TestHasPackageVersionNegative(c *C) {
 	c.Check(u.Installed(id, false), Equals, false)
 }
 
-func (s *clickSuite) TestHasPackageClock(c *C) {
+func (s *clickSuite) TestInstalledClock(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
 	ver := u.ccu.CGetVersion("com.ubuntu.clock")
@@ -122,10 +122,29 @@ func (s *clickSuite) TestHasPackageClock(c *C) {
 	c.Check(id.Version, Equals, ver)
 }
 
-func (s *clickSuite) TestHasPackageLegacy(c *C) {
+func (s *clickSuite) TestInstalledLegacy(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
 	id, err := ParseAppId("_python3.4")
 	c.Assert(err, IsNil)
 	c.Check(u.Installed(id, false), Equals, true)
+}
+
+func (s *clickSuite) TestParseAndVerifyAppId(c *C) {
+	u, err := User()
+	c.Assert(err, IsNil)
+
+	id, err := ParseAndVerifyAppId("_.foo", nil)
+	c.Assert(err, Equals, ErrInvalidAppId)
+	c.Check(id, IsNil)
+
+	id, err = ParseAndVerifyAppId("com.foo.bar_baz", nil)
+	c.Assert(err, IsNil)
+	c.Check(id.Click, Equals, true)
+	c.Check(id.Application, Equals, "baz")
+
+	id, err = ParseAndVerifyAppId("_non-existent-app", u)
+	c.Assert(err, Equals, ErrMissingAppId)
+	c.Check(id, IsNil)
+
 }
