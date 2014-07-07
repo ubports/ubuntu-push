@@ -249,7 +249,6 @@ class PushNotificationTestBase(UnityTestCase):
     # unicast messages
     def send_unicast_notification(self, icon="messages-app",
                                   body="A unicast message", summary="Look!"):
-
         """Build and send a push unicast message.
 
         Which should trigger a notification

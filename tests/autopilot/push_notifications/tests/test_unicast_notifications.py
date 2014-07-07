@@ -25,9 +25,7 @@ from push_notifications.tests import PushNotificationTestBase
 
 
 class TestPushClientUnicast(PushNotificationTestBase):
-    """
-    Test cases for unicast push notifications
-    """
+    """Test cases for unicast push notifications."""
 
     DEFAULT_DISPLAY_MESSAGE = 'Look!'
 
@@ -37,10 +35,11 @@ class TestPushClientUnicast(PushNotificationTestBase):
         self.token = self.push_helper.register(appid=self.appid)
 
     def test_unicast_push_notification_incoming_screen_off(self):
-        """
-        Send a push message whilst the device's screen is turned off
+        """Send a push message whilst the device's screen is turned off.
+
         Notification should still be displayed in the incoming menu
-        when it is turned on
+        when it is turned on.
+
         """
         # Assumes greeter starts in locked state
         # Turn display off
@@ -53,23 +52,21 @@ class TestPushClientUnicast(PushNotificationTestBase):
         self.press_power_button()
         self.validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
+        # XXX: once we get messaging menu notifications, add a check here. for
+        # the moment, just fail.
+        self.fail("No messaging menu notification checks.")
 
     def test_unicast_push_notification_locked_greeter(self):
-        """
-        Positive test case to send a valid unicast push notification
-        to the client and validate that a notification message is displayed
-        whist the greeter screen is displayed
+        """Send a push notification while in the greeter scrren.
+
+        The notification should be displayed on top of the greeter.
         """
         # Assumes greeter starts in locked state
         self.send_unicast_notification(summary="Locked greeter")
-        self.validate_and_dismiss_notification_dialog(
-            "Locked greeter")
+        self.validate_and_dismiss_notification_dialog("Locked greeter")
 
     def test_unicast_push_notification(self):
-        """
-        Positive test case to send a valid unicast push notification
-        to the client and validate that a notification message is displayed
-        """
+        """Send a push notificationn and validate it's displayed."""
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         self.send_unicast_notification()
@@ -77,9 +74,9 @@ class TestPushClientUnicast(PushNotificationTestBase):
             self.DEFAULT_DISPLAY_MESSAGE)
 
     def test_unicast_push_notification_on_connect(self):
-        """
-        Send a unicast notification whilst the push client is disconnected
-        from the server. Then reconnect and ensure message is displayed
+        """Send a unicast notification whilst the push client is disconnected.
+
+        Then reconnect and ensure message is displayed.
         """
 
         # Assumes greeter starts in locked state
@@ -91,9 +88,7 @@ class TestPushClientUnicast(PushNotificationTestBase):
             self.DEFAULT_DISPLAY_MESSAGE)
 
     def test_expired_unicast_push_notification(self):
-        """
-        Send an expired unicast notification message to server
-        """
+        """Send an expired unicast notification message to server."""
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         # create notification message using past expiry time
