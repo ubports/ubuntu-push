@@ -1,4 +1,4 @@
-ubuntu-push (0.43) UNRELEASED; urgency=medium
+ubuntu-push (0.43+14.10.20140707-0ubuntu1) utopic; urgency=medium
 
   [ Samuele Pedroni ]
   * Logic to support unregistering tokens lazily for uninstalled apps
@@ -11,7 +11,7 @@ ubuntu-push (0.43) UNRELEASED; urgency=medium
   * Support haptic (vibration) notifications
   * Support sound notifications
 
- -- John R. Lenton <john.lenton@canonical.com>  Mon, 07 Jul 2014 15:22:42 +0100
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 07 Jul 2014 14:26:27 +0000
 
 ubuntu-push (0.42+14.10.20140702-0ubuntu1) utopic; urgency=medium
 
