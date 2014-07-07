@@ -248,7 +248,8 @@ class PushNotificationTestBase(UnityTestCase):
 
     # unicast messages
     def send_unicast_notification(self, icon="messages-app",
-                                  body="A unicast message", summary="Look!"):
+                                  body="A unicast message", summary="Look!",
+                                  persist=False, popup=True, actions=[]):
         """Build and send a push unicast message.
 
         Which should trigger a notification
@@ -260,8 +261,9 @@ class PushNotificationTestBase(UnityTestCase):
                                   {"icon": icon,
                                    "summary": summary,
                                    "body": body,
-                                   "popup": True,
-                                   "actions": []
+                                   "popup": popup,
+                                   "persist": persist,
+                                   "actions": actions,
                                    }
                                   }
                  }
@@ -274,3 +276,12 @@ class PushNotificationTestBase(UnityTestCase):
         response = self.push_helper.send_unicast(
             data, self.test_config.server_listener_addr)
         self.validate_response(response)
+
+    def get_messaging_menu(self):
+        """Swiping open an indicator must show its correct title.
+
+        See https://bugs.launchpad.net/ubuntu-ux/+bug/1253804 .
+        """
+        indicator_page = self.main_window.open_indicator_page(
+            "indicator-messages")
+        return indicator_page

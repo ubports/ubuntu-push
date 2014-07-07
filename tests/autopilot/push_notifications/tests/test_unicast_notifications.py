@@ -45,16 +45,15 @@ class TestPushClientUnicast(PushNotificationTestBase):
         # Turn display off
         self.press_power_button()
         # send message
-        self.send_unicast_notification()
+        self.send_unicast_notification(persist=True, popup=True)
         # wait before turning screen on
         time.sleep(2)
         # Turn display on
         self.press_power_button()
-        self.validate_and_dismiss_notification_dialog(
-            self.DEFAULT_DISPLAY_MESSAGE)
-        # XXX: once we get messaging menu notifications, add a check here. for
-        # the moment, just fail.
-        self.fail("No messaging menu notification checks.")
+        self.unlock_greeter()
+        messaging = self.get_messaging_menu()
+        label = messaging.select_single('Label', objectName='emptyLabel')
+        self.assertNotEqual(label.text, "Empty!", "The incoming list is empty")
 
     def test_unicast_push_notification_locked_greeter(self):
         """Send a push notification while in the greeter scrren.
