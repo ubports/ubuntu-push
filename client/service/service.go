@@ -56,6 +56,7 @@ var (
 	}
 )
 
+// XXX WIP set installedChecker
 // NewPushService() builds a new service and returns it.
 func NewPushService(bus bus.Endpoint, setup *PushServiceSetup, log logger.Logger) *PushService {
 	var svc = &PushService{}
@@ -158,18 +159,18 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 }
 
 func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
-	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	appId, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	rawAppId := string(nih.Quote([]byte(appId)))
+	rawAppId := string(nih.Quote([]byte(appId.Original())))
 	rv := os.Getenv("PUSH_REG_" + rawAppId)
 	if rv != "" {
 		return []interface{}{rv}, nil
 	}
 
-	reply, err := svc.manageReg("/register", appId)
+	reply, err := svc.manageReg("/register", appId.Original())
 	if err != nil {
 		return nil, err
 	}
@@ -183,12 +184,12 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 }
 
 func (svc *PushService) unregister(path string, args, _ []interface{}) ([]interface{}, error) {
-	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	appId, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, svc.Unregister(appId)
+	return nil, svc.Unregister(appId.Original())
 }
 
 func (svc *PushService) Unregister(appId string) error {

@@ -59,6 +59,7 @@ var (
 	ACTION_ID_SUFFIX = "::0"
 )
 
+// XXX WIP set installedChecker
 // NewPostalService() builds a new service and returns it.
 func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, hapticEndp bus.Endpoint, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
@@ -116,7 +117,7 @@ func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, err
 }
 
 func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
-	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	appId, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -127,8 +128,8 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 	if svc.mbox == nil {
 		return []interface{}{[]string(nil)}, nil
 	}
-	msgs := svc.mbox[appId]
-	delete(svc.mbox, appId)
+	msgs := svc.mbox[appId.Original()]
+	delete(svc.mbox, appId.Original())
 
 	return []interface{}{msgs}, nil
 }
@@ -136,7 +137,7 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 var newNid = uuid.New
 
 func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interface{}, error) {
-	pkg, appId, err := grabDBusPackageAndAppId(path, args, 1)
+	appId, err := svc.grabDBusPackageAndAppId(path, args, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +148,8 @@ func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interfac
 
 	nid := newNid()
 
-	return nil, svc.Inject(pkg, appId, nid, notif)
+	// XXX WIP pass appId directly
+	return nil, svc.Inject(appId.Package, appId.Original(), nid, notif)
 }
 
 // Inject() signals to an application over dbus that a notification

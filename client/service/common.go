@@ -30,10 +30,11 @@ import (
 )
 
 type DBusService struct {
-	lock  sync.RWMutex
-	state ServiceState
-	Log   logger.Logger
-	Bus   bus.Endpoint
+	lock             sync.RWMutex
+	state            ServiceState
+	Log              logger.Logger
+	Bus              bus.Endpoint
+	installedChecker click.InstalledChecker
 }
 
 // the service can be in a numnber of states
@@ -105,17 +106,21 @@ func (svc *DBusService) Stop() {
 // grabDBusPackageAndAppId() extracts the appId from a dbus-provided
 // []interface{}, and checks it against the package in the last
 // element of the dbus path.
-func grabDBusPackageAndAppId(path string, args []interface{}, numExtra int) (pkgname string, appId string, err error) {
+func (svc *DBusService) grabDBusPackageAndAppId(path string, args []interface{}, numExtra int) (appId *click.AppId, err error) {
 	if len(args) != 1+numExtra {
-		return "", "", ErrBadArgCount
+		return nil, ErrBadArgCount
 	}
-	appId, ok := args[0].(string)
+	id, ok := args[0].(string)
 	if !ok {
-		return "", "", ErrBadArgType
+		return nil, ErrBadArgType
 	}
-	pkgname = string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
-	if !click.AppInPackage(appId, pkgname) {
-		return "", "", ErrBadAppId
+	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
+	appId, err = click.ParseAndVerifyAppId(id, svc.installedChecker)
+	if err != nil {
+		return nil, ErrBadAppId
+	}
+	if !appId.InPackage(pkgname) {
+		return nil, ErrBadAppId
 	}
 	return
 }
