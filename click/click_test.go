@@ -110,6 +110,16 @@ func (s *clickSuite) TestHasPackageClock(c *C) {
 	id, err = ParseAppId("com.ubuntu.clock_clock_" + ver)
 	c.Assert(err, IsNil)
 	c.Check(u.Installed(id, false), Equals, true)
+
+	id, err = ParseAppId("com.ubuntu.clock_clock_10" + ver)
+	c.Assert(err, IsNil)
+	c.Check(u.Installed(id, false), Equals, false)
+
+	// setVersion
+	id, err := ParseAppId("com.ubuntu.clock_clock")
+	c.Assert(err, IsNil)
+	c.Check(u.Installed(id, true), Equals, true)
+	c.Check(id.Version, Equals, ver)
 }
 
 func (s *clickSuite) TestHasPackageLegacy(c *C) {
