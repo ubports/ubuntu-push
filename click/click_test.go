@@ -116,7 +116,7 @@ func (s *clickSuite) TestHasPackageClock(c *C) {
 	c.Check(u.Installed(id, false), Equals, false)
 
 	// setVersion
-	id, err := ParseAppId("com.ubuntu.clock_clock")
+	id, err = ParseAppId("com.ubuntu.clock_clock")
 	c.Assert(err, IsNil)
 	c.Check(u.Installed(id, true), Equals, true)
 	c.Check(id.Version, Equals, ver)
