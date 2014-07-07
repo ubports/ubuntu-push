@@ -17,32 +17,69 @@
 package sounds
 
 import (
+	"os"
 	"os/exec"
+	"path"
 
+	"launchpad.net/go-xdg/v0"
+
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 )
 
 type Sound struct {
-	player string
-	log    logger.Logger
+	player   string
+	log      logger.Logger
+	dataDirs func() []string
+	dataFind func(string) (string, error)
 }
 
 func New(log logger.Logger) *Sound {
-	return &Sound{player: "paplay", log: log}
+	return &Sound{player: "paplay", log: log, dataDirs: xdg.Data.Dirs, dataFind: xdg.Data.Find}
 }
 
-func (snd *Sound) Present(_, _ string, notification *launch_helper.Notification) bool {
+func (snd *Sound) Present(appId string, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil || notification.Sound == "" {
-		snd.log.Debugf("no notification or no Sound in the notification; doing nothing: %#v", notification)
+		snd.log.Debugf("[%s] no notification or no Sound in the notification; doing nothing: %#v", nid, notification)
 		return false
 	}
-	snd.log.Debugf("playing sound %s using %s", notification.Sound, snd.player)
-	cmd := exec.Command(snd.player, notification.Sound)
+	absPath := snd.findSoundFile(appId, nid, notification.Sound)
+	if absPath == "" {
+		snd.log.Debugf("[%s] unable to find sound %s", nid, notification.Sound)
+		return false
+	}
+	snd.log.Debugf("[%s] playing sound %s using %s", nid, absPath, snd.player)
+	cmd := exec.Command(snd.player, absPath)
 	err := cmd.Start()
 	if err != nil {
-		snd.log.Debugf("unable to play: %v", err)
+		snd.log.Debugf("[%s] unable to play: %v", nid, err)
 		return false
 	}
 	return true
+}
+
+func (snd *Sound) findSoundFile(appId string, nid string, sound string) string {
+	parsed, err := click.ParseAppId(appId)
+	if err != nil {
+		snd.log.Debugf("[%s] no appId in %#v", nid, appId)
+		return ""
+	}
+	// XXX also support legacy appIds?
+	// first, check package-specific
+	absPath, err := snd.dataFind(path.Join(parsed.Package, sound))
+	if err == nil {
+		// ffffound
+		return absPath
+	}
+	// next, check the XDG data dirs (but skip the first one -- that's "home")
+	// XXX should we only check in $XDG/sounds ? (that's for sound *themes*...)
+	for _, dir := range snd.dataDirs()[1:] {
+		absPath := path.Join(dir, sound)
+		_, err := os.Stat(absPath)
+		if err == nil {
+			return absPath
+		}
+	}
+	return ""
 }

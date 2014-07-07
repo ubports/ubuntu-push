@@ -17,6 +17,9 @@
 package sounds
 
 import (
+	"errors"
+	"os"
+	"path"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -44,10 +47,14 @@ func (ss *soundsSuite) TestNew(c *C) {
 }
 
 func (ss *soundsSuite) TestPresent(c *C) {
-	s := &Sound{player: "echo", log: ss.log}
+	s := &Sound{
+		player: "echo", log: ss.log,
+		dataFind: func(s string) (string, error) { return s, nil },
+	}
 
-	c.Check(s.Present("", "", &launch_helper.Notification{Sound: "hello"}), Equals, true)
-	c.Check(ss.log.Captured(), Matches, `(?sm).* playing sound hello using echo`)
+	c.Check(s.Present("com.example.test_test", "",
+		&launch_helper.Notification{Sound: "hello"}), Equals, true)
+	c.Check(ss.log.Captured(), Matches, `(?sm).* playing sound com.example.test/hello using echo`)
 }
 
 func (ss *soundsSuite) TestPresentFails(c *C) {
@@ -59,4 +66,21 @@ func (ss *soundsSuite) TestPresentFails(c *C) {
 	c.Check(s.Present("", "", &launch_helper.Notification{}), Equals, false)
 	// bad player
 	c.Check(s.Present("", "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
+	s.player = "echo"
+	// bad app id
+	c.Check(s.Present("", "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
+	s.dataFind = func(string) (string, error) { return "", errors.New("nope") }
+	s.dataDirs = func() []string { return []string{""} }
+	// no file found
+	c.Check(s.Present("com.example.test_test", "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
+
+	// and now, just to prove it would've worked,
+
+	d := c.MkDir()
+	f, err := os.Create(path.Join(d, "hello"))
+	c.Assert(err, IsNil)
+	f.Close()
+	s.dataDirs = func() []string { return []string{"", d} }
+	c.Check(s.Present("com.example.test_test", "", &launch_helper.Notification{Sound: "hello"}), Equals, true)
+
 }
