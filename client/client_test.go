@@ -37,6 +37,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/systemimage"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/client/service"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
@@ -223,7 +224,9 @@ func (cs *clientSuite) TestConfigureSetsUpAddresseeChecks(c *C) {
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	c.Assert(cli.unregisterCh, NotNil)
-	c.Assert(cli.hasPackage("com.bar.baz_foo"), Equals, false)
+	app, err := click.ParseAppId("com.bar.baz_foo")
+	c.Assert(err, IsNil)
+	c.Assert(cli.installedChecker.Installed(app, false), Equals, false)
 }
 
 func (cs *clientSuite) TestConfigureBailsOnBadFilename(c *C) {
@@ -279,29 +282,60 @@ func (cs *clientSuite) TestConfigureRemovesBlanksInAddr(c *C) {
     addresses checking tests
 ******************************************************************/
 
+type testInstalledChecker func(*click.AppId, bool) bool
+
+func (tic testInstalledChecker) Installed(app *click.AppId, setVersion bool) bool {
+	return tic(app, setVersion)
+}
+
+var (
+	appId1     = "com.example.app1_app1"
+	appId2     = "com.example.app2_app2"
+	appIdHello = "com.example.test_hello"
+	app1       = helpers.MustParseAppId(appId1)
+	app2       = helpers.MustParseAppId(appId2)
+	appHello   = helpers.MustParseAppId(appIdHello)
+)
+
 func (cs *clientSuite) TestCheckForAddressee(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.unregisterCh = make(chan string, 5)
+	cli.log = cs.log
+	cli.unregisterCh = make(chan *click.AppId, 5)
 	cli.StartAddresseeBatch()
 	calls := 0
-	cli.hasPackage = func(appId string) bool {
+	cli.installedChecker = testInstalledChecker(func(app *click.AppId, setVersion bool) bool {
 		calls++
-		if appId == "app1" {
+		c.Assert(setVersion, Equals, true)
+		if app.Original() == appId1 {
 			return false
 		}
 		return true
-	}
-	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: "app1"}), Equals, false)
+	})
+
+	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: "bad-id"}), IsNil)
+	c.Check(calls, Equals, 0)
+	c.Assert(cli.unregisterCh, HasLen, 0)
+	c.Check(cs.log.Captured(), Matches, `DEBUG notification "" for invalid app id "bad-id".\n`)
+	cs.log.ResetCapture()
+
+	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: appId1}), IsNil)
 	c.Check(calls, Equals, 1)
 	c.Assert(cli.unregisterCh, HasLen, 1)
-	c.Check(<-cli.unregisterCh, Equals, "app1")
-	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: "app2"}), Equals, true)
+	c.Check(<-cli.unregisterCh, DeepEquals, app1)
+	c.Check(cs.log.Captured(), Matches, `DEBUG notification "" for missing app id "com.example.app1_app1".\n`)
+	cs.log.ResetCapture()
+
+	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: appId2}), DeepEquals, app2)
 	c.Check(calls, Equals, 2)
-	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: "app1"}), Equals, false)
+	c.Check(cs.log.Captured(), Matches, "")
+	cs.log.ResetCapture()
+
+	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: appId1}), IsNil)
 	c.Check(calls, Equals, 2)
-	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: "app2"}), Equals, true)
+	c.Check(cli.CheckForAddressee(&protocol.Notification{AppId: appId2}), DeepEquals, app2)
 	c.Check(calls, Equals, 2)
 	c.Check(cli.unregisterCh, HasLen, 0)
+	c.Check(cs.log.Captured(), Matches, "")
 }
 
 /*****************************************************************
@@ -358,9 +392,10 @@ func (cs *clientSuite) TestDerivePushServiceSetup(c *C) {
 	c.Assert(err, IsNil)
 	cli.deviceId = "zoo"
 	expected := &service.PushServiceSetup{
-		DeviceId:   "zoo",
-		AuthGetter: func(string) string { return "" },
-		RegURL:     helpers.ParseURL("reg://"),
+		DeviceId:         "zoo",
+		AuthGetter:       func(string) string { return "" },
+		RegURL:           helpers.ParseURL("reg://"),
+		InstalledChecker: cli.installedChecker,
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected).Elem()
@@ -805,7 +840,7 @@ func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
 ******************************************************************/
 
 var payload = `{"message": "aGVsbG8=", "notification": {"card": {"icon": "icon-value", "summary": "summary-value", "body": "body-value", "actions": []}}}`
-var notif = &protocol.Notification{AppId: "com.example.test_hello", Payload: []byte(payload), MsgId: "42"}
+var notif = &protocol.Notification{AppId: appIdHello, Payload: []byte(payload), MsgId: "42"}
 
 func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -814,19 +849,12 @@ func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli.postalServiceEndpoint = postEndp
 	c.Assert(cli.setupPostalService(), IsNil)
 	c.Assert(cli.startPostalService(), IsNil)
-	c.Check(cli.handleUnicastNotification(notif), IsNil)
+	c.Check(cli.handleUnicastNotification(session.AddressedNotification{appHello, notif}), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(postEndp)
 	c.Assert(len(args), Not(Equals), 0)
 	c.Check(args[len(args)-1].Member, Equals, "::Signal")
 	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "com.example.test_hello".*`)
-}
-
-func (cs *clientSuite) TestHandleUcastFailsOnBadAppId(c *C) {
-	notif := &protocol.Notification{AppId: "bad-app-id", MsgId: "-1"}
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	c.Check(cli.handleUnicastNotification(notif), ErrorMatches, "invalid app id in notification")
 }
 
 /*****************************************************************
@@ -882,41 +910,43 @@ func (ps *testPushService) Unregister(appId string) error {
 func (cs *clientSuite) TestHandleUnregister(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.hasPackage = func(appId string) bool {
-		c.Check(appId, Equals, "app1")
+	cli.installedChecker = testInstalledChecker(func(app *click.AppId, setVersion bool) bool {
+		c.Check(setVersion, Equals, false)
+		c.Check(app.Original(), Equals, appId1)
 		return false
-	}
+	})
 	ps := &testPushService{}
 	cli.pushService = ps
-	cli.handleUnregister("app1")
-	c.Assert(ps.unregistered, Equals, "app1")
-	c.Check(cs.log.Captured(), Equals, "")
+	cli.handleUnregister(app1)
+	c.Assert(ps.unregistered, Equals, appId1)
+	c.Check(cs.log.Captured(), Equals, "DEBUG unregistered token for com.example.app1_app1\n")
 }
 
 func (cs *clientSuite) TestHandleUnregisterNop(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.hasPackage = func(appId string) bool {
-		c.Check(appId, Equals, "app1")
+	cli.installedChecker = testInstalledChecker(func(app *click.AppId, setVersion bool) bool {
+		c.Check(setVersion, Equals, false)
+		c.Check(app.Original(), Equals, appId1)
 		return true
-	}
+	})
 	ps := &testPushService{}
 	cli.pushService = ps
-	cli.handleUnregister("app1")
+	cli.handleUnregister(app1)
 	c.Assert(ps.unregistered, Equals, "")
 }
 
 func (cs *clientSuite) TestHandleUnregisterError(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.hasPackage = func(appId string) bool {
+	cli.installedChecker = testInstalledChecker(func(app *click.AppId, setVersion bool) bool {
 		return false
-	}
+	})
 	fail := errors.New("BAD")
 	ps := &testPushService{err: fail}
 	cli.pushService = ps
-	cli.handleUnregister("app1")
-	c.Check(cs.log.Captured(), Matches, "ERROR unregistering app1: BAD\n")
+	cli.handleUnregister(app1)
+	c.Check(cs.log.Captured(), Matches, "ERROR unregistering com.example.app1_app1: BAD\n")
 }
 
 /*****************************************************************
@@ -926,9 +956,9 @@ func (cs *clientSuite) TestHandleUnregisterError(c *C) {
 var nopConn = func(bool) {}
 var nopClick = func(string) error { return nil }
 var nopBcast = func(*session.BroadcastNotification) error { return nil }
-var nopUcast = func(*protocol.Notification) error { return nil }
+var nopUcast = func(session.AddressedNotification) error { return nil }
 var nopError = func(error) {}
-var nopUnregister = func(string) {}
+var nopUnregister = func(*click.AppId) {}
 
 func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -975,11 +1005,11 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
-	cli.session.NotificationsCh = make(chan *protocol.Notification, 1)
-	cli.session.NotificationsCh <- &protocol.Notification{}
+	cli.session.NotificationsCh = make(chan session.AddressedNotification, 1)
+	cli.session.NotificationsCh <- session.AddressedNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopClick, nopBcast, func(*protocol.Notification) error { ch <- true; return nil }, nopError, nopUnregister)
+	go cli.doLoop(nopConn, nopClick, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopError, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1001,11 +1031,11 @@ func (cs *clientSuite) TestDoLoopUnregister(c *C) {
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
-	cli.unregisterCh = make(chan string, 1)
-	cli.unregisterCh <- "app1"
+	cli.unregisterCh = make(chan *click.AppId, 1)
+	cli.unregisterCh <- app1
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopClick, nopBcast, nopUcast, nopError, func(appId string) { c.Check(appId, Equals, "app1"); ch <- true })
+	go cli.doLoop(nopConn, nopClick, nopBcast, nopUcast, nopError, func(app *click.AppId) { c.Check(app.Original(), Equals, appId1); ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
