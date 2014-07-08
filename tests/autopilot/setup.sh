@@ -34,11 +34,12 @@ DEVICE_ID=${DEVICE_ID:-"emulator-5554"}
 BRANCH_URL=${BRANCH_URL:-"lp:ubuntu-push/automatic"}
 ROOT_DIR=`bzr root`
 
-
-# in case apt fails to fetch some packages
-DEPS_OK=$(adb -s ${DEVICE_ID} shell "[ -f autopilot-deps.ok ] && echo 1 || echo 0")
-if [[ ${DEPS_OK} == 1 ]] 
+DEPS_OK=$(adb -s ${DEVICE_ID} shell "[ ! -f autopilot-deps.ok ] && echo 1 || echo 0")
+# get substring [0] of the returned 1/0 value because we get a trailing ^M
+if [[ "${DEPS_OK:0:1}" == "1" ]] 
 then
+    echo "installing dependencies"
+    # in case apt fails to fetch some packages
     adb -s ${DEVICE_ID} shell "DEBIAN_FRONTEND=noninteractive apt-get -y -qq update"
     # required for running the autopilot tests
     adb -s ${DEVICE_ID} shell "DEBIAN_FRONTEND=noninteractive apt-get -y -qq install unity8-autopilot unity-scope-click bzr"
@@ -47,11 +48,12 @@ fi
 # fetch the code
 BASE_DIR="ubuntu-push/src/launchpad.net"
 BRANCH_DIR="$BASE_DIR/ubuntu-push"
-BRANCH_OK=$(adb -s ${DEVICE_ID} shell "su - phablet bash -c '[ -d "${BRANCH_DIR}" ] && echo 1 || echo 0'")
-if [[ ${BRANCH_OK} == 1 ]] 
+BRANCH_OK=$(adb -s ${DEVICE_ID} shell "su - phablet bash -c '[ ! -d "${BRANCH_DIR}/tests/autopilot" ] && echo 1 || echo 0'")
+if [[ "${BRANCH_OK:0:1}" == 1 ]] 
 then
+    echo "fetching code."
     adb -s ${DEVICE_ID} shell "su - phablet bash -c 'mkdir -p ${BASE_DIR}'"
-    adb -s ${DEVICE_ID} shell "su - phablet bash -c '[ ! -d "${BRANCH_DIR}" ] && bzr branch ${BRANCH} ${BRANCH_DIR}'"
+    adb -s ${DEVICE_ID} shell "su - phablet bash -c 'bzr branch ${BRANCH_URL} ${BRANCH_DIR}'"
 fi
 adb -s ${DEVICE_ID} shell "su - phablet bash -c 'sed -i 's/192.168.1.3/${PUSH_SERVER}/' ${BRANCH_DIR}/tests/autopilot/push_notifications/config/push.conf'"
 
