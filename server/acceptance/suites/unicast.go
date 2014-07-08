@@ -139,7 +139,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 	}
 
 	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
-	// gettting pending on connect
+	// getting pending on connect
 	n := 0
 	for {
 		evt := NextEvent(events, errCh)
@@ -195,7 +195,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastTooManyCleanPending(c *C) {
 	c.Assert(got, Matches, OK)
 
 	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
-	// gettting the 1 pending on connect
+	// getting the 1 pending on connect
 	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"serial":1000};`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
