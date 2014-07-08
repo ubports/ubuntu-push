@@ -59,6 +59,12 @@ func (cs *clickSuite) TestParseAppId(c *C) {
 	}
 }
 
+func (cs *clickSuite) TestVersionedPanic(c *C) {
+	app, err := ParseAppId("com.ubuntu.clock_clock")
+	c.Assert(err, IsNil)
+	c.Check(func() { app.Versioned() }, PanicMatches, `Versioned\(\) on AppId without version/not verified:.*`)
+}
+
 func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
 	app, err := ParseAppId("_python3.4")
 	c.Assert(err, IsNil)

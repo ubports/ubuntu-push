@@ -20,6 +20,7 @@ package click
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -90,6 +91,9 @@ func (app *AppId) String() string {
 
 func (app *AppId) Versioned() string {
 	if app.Click {
+		if app.Version == "" {
+			panic(fmt.Errorf("Versioned() on AppId without version/not verified: %#v", app))
+		}
 		return app.Package + "_" + app.Application + "_" + app.Version
 	} else {
 		return app.Application
