@@ -117,7 +117,7 @@ func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, err
 }
 
 func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
-	appId, err := svc.grabDBusPackageAndAppId(path, args, 0)
+	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -128,8 +128,8 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 	if svc.mbox == nil {
 		return []interface{}{[]string(nil)}, nil
 	}
-	msgs := svc.mbox[appId.Original()]
-	delete(svc.mbox, appId.Original())
+	msgs := svc.mbox[app.Original()]
+	delete(svc.mbox, app.Original())
 
 	return []interface{}{msgs}, nil
 }
@@ -137,7 +137,7 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 var newNid = uuid.New
 
 func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interface{}, error) {
-	appId, err := svc.grabDBusPackageAndAppId(path, args, 1)
+	app, err := svc.grabDBusPackageAndAppId(path, args, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interfac
 	nid := newNid()
 
 	// XXX WIP pass appId directly
-	return nil, svc.Inject(appId.Package, appId.Original(), nid, notif)
+	return nil, svc.Inject(app.Package, app.Original(), nid, notif)
 }
 
 // Inject() signals to an application over dbus that a notification

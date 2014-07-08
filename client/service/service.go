@@ -159,18 +159,18 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 }
 
 func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
-	appId, err := svc.grabDBusPackageAndAppId(path, args, 0)
+	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	rawAppId := string(nih.Quote([]byte(appId.Original())))
+	rawAppId := string(nih.Quote([]byte(app.Original())))
 	rv := os.Getenv("PUSH_REG_" + rawAppId)
 	if rv != "" {
 		return []interface{}{rv}, nil
 	}
 
-	reply, err := svc.manageReg("/register", appId.Original())
+	reply, err := svc.manageReg("/register", app.Original())
 	if err != nil {
 		return nil, err
 	}
@@ -184,12 +184,12 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 }
 
 func (svc *PushService) unregister(path string, args, _ []interface{}) ([]interface{}, error) {
-	appId, err := svc.grabDBusPackageAndAppId(path, args, 0)
+	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, svc.Unregister(appId.Original())
+	return nil, svc.Unregister(app.Original())
 }
 
 func (svc *PushService) Unregister(appId string) error {

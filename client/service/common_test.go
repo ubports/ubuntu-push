@@ -29,10 +29,10 @@ func (cs *commonSuite) TestGrabDBusPackageAndAppIdWorks(c *C) {
 	aDBusPath := "/com/ubuntu/Postal/com_2eexample_2etest"
 	aPackage := "com.example.test"
 	anAppId := aPackage + "_test"
-	appId, err := svc.grabDBusPackageAndAppId(aDBusPath, []interface{}{anAppId}, 0)
+	app, err := svc.grabDBusPackageAndAppId(aDBusPath, []interface{}{anAppId}, 0)
 	c.Check(err, IsNil)
-	c.Check(appId.Package, Equals, aPackage)
-	c.Check(appId.Original(), Equals, anAppId)
+	c.Check(app.Package, Equals, aPackage)
+	c.Check(app.Original(), Equals, anAppId)
 }
 
 func (cs *commonSuite) TestGrabDBusPackageAndAppIdFails(c *C) {
@@ -56,8 +56,8 @@ func (cs *commonSuite) TestGrabDBusPackageAndAppIdFails(c *C) {
 		{aDBusPath2, []interface{}{anAppId}, 0, ErrBadAppId},
 	} {
 		comment := Commentf("iteration #%d", i)
-		appId, err := svc.grabDBusPackageAndAppId(s.path, s.args, s.numExtra)
+		app, err := svc.grabDBusPackageAndAppId(s.path, s.args, s.numExtra)
 		c.Check(err, Equals, s.errt, comment)
-		c.Check(appId, IsNil, comment)
+		c.Check(app, IsNil, comment)
 	}
 }

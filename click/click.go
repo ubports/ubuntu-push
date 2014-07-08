@@ -76,24 +76,24 @@ func ParseAppId(id string) (*AppId, error) {
 	}
 }
 
-func (id *AppId) InPackage(pkgname string) bool {
-	return id.Package == pkgname
+func (app *AppId) InPackage(pkgname string) bool {
+	return app.Package == pkgname
 }
 
-func (id *AppId) Original() string {
-	return id.original
+func (app *AppId) Original() string {
+	return app.original
 }
 
-func (id *AppId) Versioned() string {
-	if id.Click {
-		return id.Package + "_" + id.Application + "_" + id.Version
+func (app *AppId) Versioned() string {
+	if app.Click {
+		return app.Package + "_" + app.Application + "_" + app.Version
 	} else {
-		return id.Application
+		return app.Application
 	}
 }
 
-func (id *AppId) DesktopId() string {
-	return id.Versioned() + ".desktop"
+func (app *AppId) DesktopId() string {
+	return app.Versioned() + ".desktop"
 }
 
 // ClickUser exposes the click package registry for the user.
@@ -103,21 +103,21 @@ type ClickUser struct {
 }
 
 type InstalledChecker interface {
-	Installed(appId *AppId, setVersion bool) bool
+	Installed(app *AppId, setVersion bool) bool
 }
 
 // ParseAndVerifyAppId parses the given app id and checks if the
 // corresponding app is installed, returning the parsed id or
 // ErrInvalidAppId, ErrMissingAppId respectively.
 func ParseAndVerifyAppId(id string, installedChecker InstalledChecker) (*AppId, error) {
-	appId, err := ParseAppId(id)
+	app, err := ParseAppId(id)
 	if err != nil {
 		return nil, err
 	}
-	if installedChecker != nil && !installedChecker.Installed(appId, true) {
+	if installedChecker != nil && !installedChecker.Installed(app, true) {
 		return nil, ErrMissingAppId
 	}
-	return appId, nil
+	return app, nil
 }
 
 // User makes a new ClickUser object for the current user.
@@ -132,22 +132,22 @@ func User() (*ClickUser, error) {
 
 // Installed checks if the appId is installed for user, optionally setting
 // the version if it was absent.
-func (cu *ClickUser) Installed(appId *AppId, setVersion bool) bool {
+func (cu *ClickUser) Installed(app *AppId, setVersion bool) bool {
 	cu.lock.Lock()
 	defer cu.lock.Unlock()
-	if appId.Click {
-		ver := cu.ccu.CGetVersion(appId.Package)
+	if app.Click {
+		ver := cu.ccu.CGetVersion(app.Package)
 		if ver == "" {
 			return false
 		}
-		if appId.Version != "" {
-			return appId.Version == ver
+		if app.Version != "" {
+			return app.Version == ver
 		} else if setVersion {
-			appId.Version = ver
+			app.Version = ver
 		}
 		return true
 	} else {
-		_, err := xdg.Data.Find(filepath.Join("applications", appId.DesktopId()))
+		_, err := xdg.Data.Find(filepath.Join("applications", app.DesktopId()))
 		return err == nil
 	}
 }

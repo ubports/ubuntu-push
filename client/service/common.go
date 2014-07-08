@@ -106,7 +106,7 @@ func (svc *DBusService) Stop() {
 // grabDBusPackageAndAppId() extracts the appId from a dbus-provided
 // []interface{}, and checks it against the package in the last
 // element of the dbus path.
-func (svc *DBusService) grabDBusPackageAndAppId(path string, args []interface{}, numExtra int) (appId *click.AppId, err error) {
+func (svc *DBusService) grabDBusPackageAndAppId(path string, args []interface{}, numExtra int) (app *click.AppId, err error) {
 	if len(args) != 1+numExtra {
 		return nil, ErrBadArgCount
 	}
@@ -115,11 +115,11 @@ func (svc *DBusService) grabDBusPackageAndAppId(path string, args []interface{},
 		return nil, ErrBadArgType
 	}
 	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
-	appId, err = click.ParseAndVerifyAppId(id, svc.installedChecker)
+	app, err = click.ParseAndVerifyAppId(id, svc.installedChecker)
 	if err != nil {
 		return nil, ErrBadAppId
 	}
-	if !appId.InPackage(pkgname) {
+	if !app.InPackage(pkgname) {
 		return nil, ErrBadAppId
 	}
 	return

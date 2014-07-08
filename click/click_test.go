@@ -29,48 +29,48 @@ type clickSuite struct{}
 var _ = Suite(&clickSuite{})
 
 func (cs *clickSuite) TestParseAppId(c *C) {
-	id, err := ParseAppId("com.ubuntu.clock_clock")
+	app, err := ParseAppId("com.ubuntu.clock_clock")
 	c.Assert(err, IsNil)
-	c.Check(id.Package, Equals, "com.ubuntu.clock")
-	c.Check(id.InPackage("com.ubuntu.clock"), Equals, true)
-	c.Check(id.Application, Equals, "clock")
-	c.Check(id.Version, Equals, "")
-	c.Check(id.Click, Equals, true)
-	c.Check(id.Original(), Equals, "com.ubuntu.clock_clock")
+	c.Check(app.Package, Equals, "com.ubuntu.clock")
+	c.Check(app.InPackage("com.ubuntu.clock"), Equals, true)
+	c.Check(app.Application, Equals, "clock")
+	c.Check(app.Version, Equals, "")
+	c.Check(app.Click, Equals, true)
+	c.Check(app.Original(), Equals, "com.ubuntu.clock_clock")
 
-	id, err = ParseAppId("com.ubuntu.clock_clock_10")
+	app, err = ParseAppId("com.ubuntu.clock_clock_10")
 	c.Assert(err, IsNil)
-	c.Check(id.Package, Equals, "com.ubuntu.clock")
-	c.Check(id.InPackage("com.ubuntu.clock"), Equals, true)
-	c.Check(id.Application, Equals, "clock")
-	c.Check(id.Version, Equals, "10")
-	c.Check(id.Click, Equals, true)
-	c.Check(id.Original(), Equals, "com.ubuntu.clock_clock_10")
-	c.Check(id.Versioned(), Equals, "com.ubuntu.clock_clock_10")
-	c.Check(id.DesktopId(), Equals, "com.ubuntu.clock_clock_10.desktop")
+	c.Check(app.Package, Equals, "com.ubuntu.clock")
+	c.Check(app.InPackage("com.ubuntu.clock"), Equals, true)
+	c.Check(app.Application, Equals, "clock")
+	c.Check(app.Version, Equals, "10")
+	c.Check(app.Click, Equals, true)
+	c.Check(app.Original(), Equals, "com.ubuntu.clock_clock_10")
+	c.Check(app.Versioned(), Equals, "com.ubuntu.clock_clock_10")
+	c.Check(app.DesktopId(), Equals, "com.ubuntu.clock_clock_10.desktop")
 
 	for _, s := range []string{"com.ubuntu.clock_clock_10_4", "com.ubuntu.clock", ""} {
-		id, err = ParseAppId(s)
-		c.Check(id, IsNil)
+		app, err = ParseAppId(s)
+		c.Check(app, IsNil)
 		c.Check(err, Equals, ErrInvalidAppId)
 	}
 }
 
 func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
-	id, err := ParseAppId("_python3.4")
+	app, err := ParseAppId("_python3.4")
 	c.Assert(err, IsNil)
-	c.Check(id.Package, Equals, "")
-	c.Check(id.InPackage(""), Equals, true)
-	c.Check(id.Application, Equals, "python3.4")
-	c.Check(id.Version, Equals, "")
-	c.Check(id.Click, Equals, false)
-	c.Check(id.Original(), Equals, "_python3.4")
-	c.Check(id.Versioned(), Equals, "python3.4")
-	c.Check(id.DesktopId(), Equals, "python3.4.desktop")
+	c.Check(app.Package, Equals, "")
+	c.Check(app.InPackage(""), Equals, true)
+	c.Check(app.Application, Equals, "python3.4")
+	c.Check(app.Version, Equals, "")
+	c.Check(app.Click, Equals, false)
+	c.Check(app.Original(), Equals, "_python3.4")
+	c.Check(app.Versioned(), Equals, "python3.4")
+	c.Check(app.DesktopId(), Equals, "python3.4.desktop")
 
 	for _, s := range []string{"_.foo", "_foo/", "_/foo"} {
-		id, err = ParseAppId(s)
-		c.Check(id, IsNil)
+		app, err = ParseAppId(s)
+		c.Check(app, IsNil)
 		c.Check(err, Equals, ErrInvalidAppId)
 	}
 }
@@ -84,17 +84,17 @@ func (s *clickSuite) TestUser(c *C) {
 func (s *clickSuite) TestInstalledNegative(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
-	id, err := ParseAppId("com.foo.bar_baz")
+	app, err := ParseAppId("com.foo.bar_baz")
 	c.Assert(err, IsNil)
-	c.Check(u.Installed(id, false), Equals, false)
+	c.Check(u.Installed(app, false), Equals, false)
 }
 
 func (s *clickSuite) TestInstalledVersionNegative(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
-	id, err := ParseAppId("com.ubuntu.clock_clock_1000.0")
+	app, err := ParseAppId("com.ubuntu.clock_clock_1000.0")
 	c.Assert(err, IsNil)
-	c.Check(u.Installed(id, false), Equals, false)
+	c.Check(u.Installed(app, false), Equals, false)
 }
 
 func (s *clickSuite) TestInstalledClock(c *C) {
@@ -104,47 +104,47 @@ func (s *clickSuite) TestInstalledClock(c *C) {
 	if ver == "" {
 		c.Skip("no com.ubuntu.clock pkg installed")
 	}
-	id, err := ParseAppId("com.ubuntu.clock_clock")
+	app, err := ParseAppId("com.ubuntu.clock_clock")
 	c.Assert(err, IsNil)
-	c.Check(u.Installed(id, false), Equals, true)
-	id, err = ParseAppId("com.ubuntu.clock_clock_" + ver)
+	c.Check(u.Installed(app, false), Equals, true)
+	app, err = ParseAppId("com.ubuntu.clock_clock_" + ver)
 	c.Assert(err, IsNil)
-	c.Check(u.Installed(id, false), Equals, true)
+	c.Check(u.Installed(app, false), Equals, true)
 
-	id, err = ParseAppId("com.ubuntu.clock_clock_10" + ver)
+	app, err = ParseAppId("com.ubuntu.clock_clock_10" + ver)
 	c.Assert(err, IsNil)
-	c.Check(u.Installed(id, false), Equals, false)
+	c.Check(u.Installed(app, false), Equals, false)
 
 	// setVersion
-	id, err = ParseAppId("com.ubuntu.clock_clock")
+	app, err = ParseAppId("com.ubuntu.clock_clock")
 	c.Assert(err, IsNil)
-	c.Check(u.Installed(id, true), Equals, true)
-	c.Check(id.Version, Equals, ver)
+	c.Check(u.Installed(app, true), Equals, true)
+	c.Check(app.Version, Equals, ver)
 }
 
 func (s *clickSuite) TestInstalledLegacy(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
-	id, err := ParseAppId("_python3.4")
+	app, err := ParseAppId("_python3.4")
 	c.Assert(err, IsNil)
-	c.Check(u.Installed(id, false), Equals, true)
+	c.Check(u.Installed(app, false), Equals, true)
 }
 
 func (s *clickSuite) TestParseAndVerifyAppId(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
 
-	id, err := ParseAndVerifyAppId("_.foo", nil)
+	app, err := ParseAndVerifyAppId("_.foo", nil)
 	c.Assert(err, Equals, ErrInvalidAppId)
-	c.Check(id, IsNil)
+	c.Check(app, IsNil)
 
-	id, err = ParseAndVerifyAppId("com.foo.bar_baz", nil)
+	app, err = ParseAndVerifyAppId("com.foo.bar_baz", nil)
 	c.Assert(err, IsNil)
-	c.Check(id.Click, Equals, true)
-	c.Check(id.Application, Equals, "baz")
+	c.Check(app.Click, Equals, true)
+	c.Check(app.Application, Equals, "baz")
 
-	id, err = ParseAndVerifyAppId("_non-existent-app", u)
+	app, err = ParseAndVerifyAppId("_non-existent-app", u)
 	c.Assert(err, Equals, ErrMissingAppId)
-	c.Check(id, IsNil)
+	c.Check(app, IsNil)
 
 }
