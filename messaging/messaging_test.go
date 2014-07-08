@@ -20,6 +20,7 @@ import (
 	. "launchpad.net/gocheck"
 	"testing"
 
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/reply"
 	helpers "launchpad.net/ubuntu-push/testing"
@@ -30,6 +31,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type MessagingSuite struct {
 	log *helpers.TestLogger
+	app *click.AppId
 }
 
 var _ = Suite(&MessagingSuite{})
@@ -42,6 +44,7 @@ func (ms *MessagingSuite) SetUpSuite(c *C) {
 
 func (ms *MessagingSuite) SetUpTest(c *C) {
 	ms.log = helpers.NewTestLogger(c, "debug")
+	ms.app, _ = click.ParseAppId("com.example.test_test_0")
 }
 
 func (ms *MessagingSuite) TestPresentPresents(c *C) {
@@ -49,7 +52,7 @@ func (ms *MessagingSuite) TestPresentPresents(c *C) {
 	card := launch_helper.Card{Summary: "ehlo", Persist: true}
 	notif := launch_helper.Notification{Card: &card}
 
-	mmu.Present("app-id", "notif-id", &notif)
+	mmu.Present(ms.app, "notif-id", &notif)
 
 	c.Check(ms.log.Captured(), Matches, `(?s).* ADD:.*notif-id.*`)
 }
@@ -59,7 +62,7 @@ func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNoSummary(c *C) {
 	card := launch_helper.Card{Persist: true}
 	notif := launch_helper.Notification{Card: &card}
 
-	mmu.Present("app-id", "notif-id", &notif)
+	mmu.Present(ms.app, "notif-id", &notif)
 
 	c.Check(ms.log.Captured(), Matches, "(?sm).*has no persistable card.*")
 }
@@ -69,19 +72,19 @@ func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNotPersist(c *C) {
 	card := launch_helper.Card{Summary: "ehlo"}
 	notif := launch_helper.Notification{Card: &card}
 
-	mmu.Present("app-id", "notif-id", &notif)
+	mmu.Present(ms.app, "notif-id", &notif)
 
 	c.Check(ms.log.Captured(), Matches, "(?sm).*has no persistable card.*")
 }
 
 func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNil(c *C) {
 	mmu := New(ms.log)
-	mmu.Present("app-id", "notif-id", nil)
+	mmu.Present(ms.app, "notif-id", nil)
 	c.Check(ms.log.Captured(), Matches, "(?sm).*no notification.*")
 }
 
 func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNilCard(c *C) {
 	mmu := New(ms.log)
-	mmu.Present("app-id", "notif-id", &launch_helper.Notification{})
+	mmu.Present(ms.app, "notif-id", &launch_helper.Notification{})
 	c.Check(ms.log.Captured(), Matches, "(?sm).*no notification.*")
 }

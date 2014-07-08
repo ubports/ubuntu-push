@@ -22,6 +22,7 @@ package notifications
 import (
 	. "launchpad.net/gocheck"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
@@ -35,10 +36,12 @@ func TestRaw(t *testing.T) { TestingT(t) }
 
 type RawSuite struct {
 	log logger.Logger
+	app *click.AppId
 }
 
 func (s *RawSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
+	s.app, _ = click.ParseAppId("com.example.test_test-app_0")
 }
 
 var _ = Suite(&RawSuite{})
@@ -100,7 +103,7 @@ func (s *RawSuite) TestWatchActionsFails(c *C) {
 func (s *RawSuite) TestPresentNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present("firefox.desktop", "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true}})
+	nid, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true}})
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(1))
 }
@@ -108,7 +111,7 @@ func (s *RawSuite) TestPresentNotifies(c *C) {
 func (s *RawSuite) TestPresentNoNotificationDoesNotNotify(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present("firefox.desktop", "notifId", nil)
+	nid, err := raw.Present(s.app, "notifId", nil)
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(0))
 }
@@ -116,7 +119,7 @@ func (s *RawSuite) TestPresentNoNotificationDoesNotNotify(c *C) {
 func (s *RawSuite) TestPresentNoCardDoesNotNotify(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present("firefox.desktop", "notifId", &launch_helper.Notification{})
+	nid, err := raw.Present(s.app, "notifId", &launch_helper.Notification{})
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(0))
 }
@@ -124,7 +127,7 @@ func (s *RawSuite) TestPresentNoCardDoesNotNotify(c *C) {
 func (s *RawSuite) TestPresentNoSummaryDoesNotNotify(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present("firefox.desktop", "notifId", &launch_helper.Notification{Card: &launch_helper.Card{}})
+	nid, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{}})
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(0))
 }
@@ -132,7 +135,7 @@ func (s *RawSuite) TestPresentNoSummaryDoesNotNotify(c *C) {
 func (s *RawSuite) TestPresentNoPopupNoNotify(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present("firefox.desktop", "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary"}})
+	nid, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary"}})
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(0))
 }

@@ -39,7 +39,7 @@ func New(log logger.Logger) *Sound {
 	return &Sound{player: "paplay", log: log, dataDirs: xdg.Data.Dirs, dataFind: xdg.Data.Find}
 }
 
-func (snd *Sound) Present(appId string, nid string, notification *launch_helper.Notification) bool {
+func (snd *Sound) Present(appId *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil || notification.Sound == "" {
 		snd.log.Debugf("[%s] no notification or no Sound in the notification; doing nothing: %#v", nid, notification)
 		return false
@@ -65,15 +65,10 @@ func (snd *Sound) Present(appId string, nid string, notification *launch_helper.
 	return true
 }
 
-func (snd *Sound) findSoundFile(appId string, nid string, sound string) string {
-	parsed, err := click.ParseAppId(appId)
-	if err != nil {
-		snd.log.Debugf("[%s] no appId in %#v", nid, appId)
-		return ""
-	}
+func (snd *Sound) findSoundFile(appId *click.AppId, nid string, sound string) string {
 	// XXX also support legacy appIds?
 	// first, check package-specific
-	absPath, err := snd.dataFind(path.Join(parsed.Package, sound))
+	absPath, err := snd.dataFind(path.Join(appId.Package, sound))
 	if err == nil {
 		// ffffound
 		return absPath

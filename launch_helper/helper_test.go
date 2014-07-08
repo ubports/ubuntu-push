@@ -21,6 +21,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/click"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -28,12 +29,14 @@ func Test(t *testing.T) { TestingT(t) }
 
 type runnerSuite struct {
 	testlog *helpers.TestLogger
+	app     *click.AppId
 }
 
 var _ = Suite(&runnerSuite{})
 
 func (s *runnerSuite) SetUpTest(c *C) {
 	s.testlog = helpers.NewTestLogger(c, "error")
+	s.app, _ = click.ParseAppId("com.example.test_test-app_0")
 }
 
 func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
@@ -41,7 +44,7 @@ func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
 
 	triv := NewTrivialHelperLauncher(s.testlog)
 	// []byte is sent as a base64-encoded string
-	out := triv.Run("foo", []byte(`{"message": "aGVsbG8=", "notification": {"sound": "42"}}`))
+	out := triv.Run(s.app, []byte(`{"message": "aGVsbG8=", "notification": {"sound": "42"}}`))
 	c.Assert(out, NotNil)
 	c.Check(out.Message, DeepEquals, []byte("hello"))
 	c.Check(out.Notification, DeepEquals, notif)
@@ -50,7 +53,7 @@ func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
 func (s *runnerSuite) TestTrivialRunnerWorksOnBadInput(c *C) {
 	triv := NewTrivialHelperLauncher(s.testlog)
 	msg := []byte(`this is a not your grandmother's json message`)
-	out := triv.Run("foo", msg)
+	out := triv.Run(s.app, msg)
 	c.Assert(out, NotNil)
 	c.Check(out.Notification, IsNil)
 	c.Check(out.Message, DeepEquals, msg)

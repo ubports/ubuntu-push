@@ -421,7 +421,7 @@ func (client *PushClient) handleUnicastNotification(anotif session.AddressedNoti
 	app := anotif.To
 	msg := anotif.Notification
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.postalService.Inject(app.Package, msg.AppId, msg.MsgId, string(msg.Payload)) // XXX pass app directly
+	return client.postalService.Inject(app, msg.MsgId, string(msg.Payload)) // XXX pass app directly
 }
 
 // handleClick deals with the user clicking a notification

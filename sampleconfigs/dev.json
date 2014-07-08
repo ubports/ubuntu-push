@@ -3,10 +3,10 @@
     "ping_interval": "10s",
     "broker_queue_size": 10000,
     "session_queue_size": 10,
-    "addr": "127.0.0.1:9090",
+    "addr": ":9090",
     "key_pem_file": "../server/acceptance/ssl/testing.key",
     "cert_pem_file": "../server/acceptance/ssl/testing.cert",
-    "http_addr": "127.0.0.1:8080",
+    "http_addr": ":8080",
     "http_read_timeout": "5s",
     "http_write_timeout": "5s",
     "delivery_domain": "localhost"

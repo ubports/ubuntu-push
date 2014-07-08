@@ -22,9 +22,9 @@ package cmessaging
 
 #include <glib.h>
 
-void add_notification(const gchar* app_id, const gchar* notification_id,
+void add_notification(const gchar* desktop_file, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
-          guint64 timestamp, const gchar** actions, gpointer obj);
+          gint64 timestamp, const gchar** actions, gpointer obj);
 */
 import "C"
 
@@ -47,9 +47,9 @@ func handleActivate(action *C.char, notification *C.char, ch *chan *reply.MMActi
 	*ch <- mmar
 }
 
-func AddNotification(appId string, notificationId string, card *launch_helper.Card, ch chan *reply.MMActionReply) {
-	app_id := gchar(appId)
-	defer gfree(app_id)
+func AddNotification(desktopfile string, notificationId string, card *launch_helper.Card, ch chan *reply.MMActionReply) {
+	desktop_file := gchar(desktopfile)
+	defer gfree(desktop_file)
 
 	notification_id := gchar(notificationId)
 	defer gfree(notification_id)
@@ -63,7 +63,8 @@ func AddNotification(appId string, notificationId string, card *launch_helper.Ca
 	body := gchar(card.Body)
 	defer gfree(body)
 
-	C.add_notification(app_id, notification_id, icon_path, summary, body, (C.guint64)(card.Timestamp), nil, (C.gpointer)(&ch))
+	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
+	C.add_notification(desktop_file, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(&ch))
 }
 
 func init() {
