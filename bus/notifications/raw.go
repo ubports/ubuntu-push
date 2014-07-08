@@ -28,7 +28,6 @@ import (
 	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
-	c_helper "launchpad.net/ubuntu-push/bus/notifications/app_helper"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -109,7 +108,7 @@ func (raw *RawNotifications) WatchActions() (<-chan RawActionReply, error) {
 //
 // WatchActions will receive something like this in the ActionId field:
 // appId::notificationId::action.Id
-func (raw *RawNotifications) Present(appId *click.AppId, nid string, notification *launch_helper.Notification) (uint32, error) {
+func (raw *RawNotifications) Present(app *click.AppId, nid string, notification *launch_helper.Notification) (uint32, error) {
 	if notification == nil || notification.Card == nil || !notification.Card.Popup || notification.Card.Summary == "" {
 		raw.log.Debugf("skipping notification: nil, or nil card, or not popup, or no summary: %#v", notification)
 		return 0, nil
@@ -117,14 +116,12 @@ func (raw *RawNotifications) Present(appId *click.AppId, nid string, notificatio
 
 	card := notification.Card
 
-	orig := appId.Original()
-	app_icon := c_helper.AppIconFromId(orig)
 	hints := make(map[string]*dbus.Variant)
-	hints["x-canonical-secondary-icon"] = &dbus.Variant{app_icon}
+	hints["x-canonical-secondary-icon"] = &dbus.Variant{app.Icon()}
 
 	actions := make([]string, 2*len(card.Actions))
 	for i, action := range card.Actions {
-		actions[2*i] = fmt.Sprintf("%s::%s::%d", orig, nid, i)
+		actions[2*i] = fmt.Sprintf("%s::%s::%d", app, nid, i)
 		actions[2*i+1] = action
 	}
 	switch len(actions) {
@@ -135,5 +132,5 @@ func (raw *RawNotifications) Present(appId *click.AppId, nid string, notificatio
 		hints["x-canonical-private-button-tint"] = &dbus.Variant{"true"}
 		hints["x-canonical-non-shaped-icon"] = &dbus.Variant{"true"}
 	}
-	return raw.Notify(orig, 0, card.Icon, card.Summary, card.Body, actions, hints, 30*1000)
+	return raw.Notify(app.Original(), 0, card.Icon, card.Summary, card.Body, actions, hints, 30*1000)
 }

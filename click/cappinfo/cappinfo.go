@@ -14,17 +14,18 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package app_helper wraps C functions to access app information
-package app_helper
+// Package cappinfo wraps C functions to access app information
+
+package cappinfo
 
 /*
 #cgo pkg-config: gio-unix-2.0
 #include <glib.h>
 #include <gio/gdesktopappinfo.h>
 
-gchar* app_icon_filename_from_id (gchar* app_id) {
+gchar* app_icon_filename_from_desktop_id (gchar* desktop_id) {
     gchar* filename = NULL;
-    GAppInfo* app_info = (GAppInfo*)g_desktop_app_info_new (app_id);
+    GAppInfo* app_info = (GAppInfo*)g_desktop_app_info_new (desktop_id);
     if (app_info != NULL) {
         GIcon* icon = g_app_info_get_icon (app_info);
         if (icon != NULL) {
@@ -33,14 +34,14 @@ gchar* app_icon_filename_from_id (gchar* app_id) {
         }
         g_object_unref (app_info);
     }
-   g_free (app_id);
+   g_free (desktop_id);
    return filename;
 }
 */
 import "C"
 
-func AppIconFromId(appId string) string {
-	name := C.app_icon_filename_from_id((*C.gchar)(C.CString(appId)))
+func AppIconFromDesktopId(desktopId string) string {
+	name := C.app_icon_filename_from_desktop_id((*C.gchar)(C.CString(desktopId)))
 	defer C.g_free((C.gpointer)(name))
 	return C.GoString((*C.char)(name))
 }
