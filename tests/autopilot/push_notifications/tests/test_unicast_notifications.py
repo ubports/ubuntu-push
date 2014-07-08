@@ -19,6 +19,7 @@
 
 """Tests unicast push notifications sent to the client"""
 
+import os
 import time
 
 from push_notifications.tests import PushNotificationTestBase
@@ -31,29 +32,48 @@ class TestPushClientUnicast(PushNotificationTestBase):
 
     def setUp(self):
         super(TestPushClientUnicast, self).setUp()
-        self.appid = "com.ubuntu.calculator_current"
+        # get calculator appid with version (needed for push to use mmu)
+        # from the .desktop file list.
+        files = os.listdir(os.path.expanduser("~/.local/share/applications/"))
+        for fname in files:
+            if fname.startswith('com.ubuntu.calculator_calculator') and \
+                    fname.endswith(".desktop"):
+                # remove .desktop extension, only need the name.
+                self.appid = os.path.splitext(fname)[0]
+                break
+        else:
+            self.appid = "com.ubuntu.calculator_calculator"
         self.token = self.push_helper.register(appid=self.appid)
 
-    def test_unicast_push_notification_incoming_screen_off(self):
-        """Send a push message whilst the device's screen is turned off.
+    def test_unicast_push_notification_persistent(self):
+        """Send a persistent unicast push notification.
 
-        Notification should still be displayed in the incoming menu
-        when it is turned on.
+        Notification should be displayed in the incoming indicator.
 
         """
         # Assumes greeter starts in locked state
         # Turn display off
-        self.press_power_button()
+        #self.press_power_button()
         # send message
-        self.send_unicast_notification(persist=True, popup=True)
+        self.send_unicast_notification(persist=True)
         # wait before turning screen on
-        time.sleep(2)
+        #time.sleep(2)
         # Turn display on
-        self.press_power_button()
+        #self.press_power_button()
         self.unlock_greeter()
+        # swipe down and show the incomming page
         messaging = self.get_messaging_menu()
+        # check the Empty label isn't shown
         label = messaging.select_single('Label', objectName='emptyLabel')
-        self.assertNotEqual(label.text, "Empty!", "The incoming list is empty")
+        self.assertFalse(label.visible, "Empty label should *not* be visible.")
+        # get the notification and check the body and title.
+        menuItem0 = messaging.select_single('QQuickLoader',
+                                            objectName='menuItem0')
+        hmh = menuItem0.select_single('HeroMessageHeader')
+        body = hmh.select_single("Label", objectName='body')
+        self.assertEqual(body.text, 'A unicast message')
+        title = hmh.select_single("Label", objectName='title')
+        self.assertEqual(title.text, 'Look!')
 
     def test_unicast_push_notification_locked_greeter(self):
         """Send a push notification while in the greeter scrren.
