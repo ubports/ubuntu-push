@@ -32,9 +32,9 @@ import (
 type DBusService struct {
 	lock             sync.RWMutex
 	state            ServiceState
+	installedChecker click.InstalledChecker
 	Log              logger.Logger
 	Bus              bus.Endpoint
-	installedChecker click.InstalledChecker
 }
 
 // the service can be in a numnber of states
