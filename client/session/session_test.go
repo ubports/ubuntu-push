@@ -32,6 +32,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/protocol"
@@ -636,7 +637,7 @@ func (s *msgSuite) SetUpTest(c *C) {
 	s.sess.proto = &testProtocol{up: s.upCh, down: s.downCh}
 	// make the message channel buffered
 	s.sess.BroadcastCh = make(chan *BroadcastNotification, 5)
-	s.sess.NotificationsCh = make(chan *protocol.Notification, 5)
+	s.sess.NotificationsCh = make(chan AddressedNotification, 5)
 }
 
 func (s *msgSuite) TestHandlePingWorks(c *C) {
@@ -807,9 +808,17 @@ func (ac *testAddresseeChecking) StartAddresseeBatch() {
 	ac.ops <- "start"
 }
 
-func (ac *testAddresseeChecking) CheckForAddressee(notif *protocol.Notification) bool {
+func (ac *testAddresseeChecking) CheckForAddressee(notif *protocol.Notification) *click.AppId {
 	ac.ops <- notif.AppId
-	return notif.AppId != ac.missing
+	if notif.AppId != ac.missing {
+		id, err := click.ParseAppId(notif.AppId)
+		if err != nil {
+			panic(err)
+		}
+		return id
+	} else {
+		return nil
+	}
 }
 
 func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
@@ -817,12 +826,12 @@ func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
 	s.sess.AddresseeChecker = ac
 	s.sess.setShouldDelay()
 	n1 := protocol.Notification{
-		AppId:   "app1",
+		AppId:   "com.example.app1_app1",
 		MsgId:   "a",
 		Payload: json.RawMessage(`{"m": 1}`),
 	}
 	n2 := protocol.Notification{
-		AppId:   "app2",
+		AppId:   "com.example.app2_app2",
 		MsgId:   "b",
 		Payload: json.RawMessage(`{"m": 2}`),
 	}
@@ -837,28 +846,38 @@ func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
 	c.Check(<-s.errCh, Equals, nil)
 	c.Check(s.sess.ShouldDelay(), Equals, false)
 	c.Assert(s.sess.NotificationsCh, HasLen, 2)
-	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n1)
-	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+	app1, err := click.ParseAppId("com.example.app1_app1")
+	c.Assert(err, IsNil)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
+		To:           app1,
+		Notification: &n1,
+	})
+	app2, err := click.ParseAppId("com.example.app2_app2")
+	c.Assert(err, IsNil)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
+		To:           app2,
+		Notification: &n2,
+	})
 	c.Check(ac.ops, HasLen, 3)
 	c.Check(<-ac.ops, Equals, "start")
-	c.Check(<-ac.ops, Equals, "app1")
-	c.Check(<-ac.ops, Equals, "app2")
+	c.Check(<-ac.ops, Equals, "com.example.app1_app1")
+	c.Check(<-ac.ops, Equals, "com.example.app2_app2")
 }
 
 func (s *msgSuite) TestHandleNotificationsAddresseeCheck(c *C) {
 	ac := &testAddresseeChecking{
 		ops:     make(chan string, 10),
-		missing: "app1",
+		missing: "com.example.app1_app1",
 	}
 	s.sess.AddresseeChecker = ac
 	s.sess.setShouldDelay()
 	n1 := protocol.Notification{
-		AppId:   "app1",
+		AppId:   "com.example.app1_app1",
 		MsgId:   "a",
 		Payload: json.RawMessage(`{"m": 1}`),
 	}
 	n2 := protocol.Notification{
-		AppId:   "app2",
+		AppId:   "com.example.app2_app2",
 		MsgId:   "b",
 		Payload: json.RawMessage(`{"m": 2}`),
 	}
@@ -873,22 +892,27 @@ func (s *msgSuite) TestHandleNotificationsAddresseeCheck(c *C) {
 	c.Check(<-s.errCh, Equals, nil)
 	c.Check(s.sess.ShouldDelay(), Equals, false)
 	c.Assert(s.sess.NotificationsCh, HasLen, 1)
-	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+	app2, err := click.ParseAppId("com.example.app2_app2")
+	c.Assert(err, IsNil)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
+		To:           app2,
+		Notification: &n2,
+	})
 	c.Check(ac.ops, HasLen, 3)
 	c.Check(<-ac.ops, Equals, "start")
-	c.Check(<-ac.ops, Equals, "app1")
+	c.Check(<-ac.ops, Equals, "com.example.app1_app1")
 }
 
 func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
 	ac := &testAddresseeChecking{ops: make(chan string, 10)}
 	s.sess.AddresseeChecker = ac
 	n1 := protocol.Notification{
-		AppId:   "app1",
+		AppId:   "com.example.app1_app1",
 		MsgId:   "a",
 		Payload: json.RawMessage(`{"m": 1}`),
 	}
 	n2 := protocol.Notification{
-		AppId:   "app2",
+		AppId:   "com.example.app2_app2",
 		MsgId:   "b",
 		Payload: json.RawMessage(`{"m": 2}`),
 	}
@@ -902,8 +926,18 @@ func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
 	c.Assert(s.sess.NotificationsCh, HasLen, 2)
-	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n1)
-	c.Check(<-s.sess.NotificationsCh, DeepEquals, &n2)
+	app1, err := click.ParseAppId("com.example.app1_app1")
+	c.Assert(err, IsNil)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
+		To:           app1,
+		Notification: &n1,
+	})
+	app2, err := click.ParseAppId("com.example.app2_app2")
+	c.Assert(err, IsNil)
+	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
+		To:           app2,
+		Notification: &n2,
+	})
 	c.Check(ac.ops, HasLen, 3)
 
 	// second time they get ignored
@@ -918,7 +952,7 @@ func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
 func (s *msgSuite) TestHandleNotificationsBadAckWrite(c *C) {
 	s.sess.setShouldDelay()
 	n1 := protocol.Notification{
-		AppId:   "app1",
+		AppId:   "com.example.app1_app1",
 		MsgId:   "a",
 		Payload: json.RawMessage(`{"m": 1}`),
 	}
@@ -941,7 +975,7 @@ func (s *msgSuite) TestHandleNotificationsBrokenSeenState(c *C) {
 	s.sess.setShouldDelay()
 	s.sess.SeenState = &brokenSeenState{}
 	n1 := protocol.Notification{
-		AppId:   "app1",
+		AppId:   "com.example.app1_app1",
 		MsgId:   "a",
 		Payload: json.RawMessage(`{"m": 1}`),
 	}

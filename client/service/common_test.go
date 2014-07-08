@@ -25,17 +25,20 @@ type commonSuite struct{}
 var _ = Suite(&commonSuite{})
 
 func (cs *commonSuite) TestGrabDBusPackageAndAppIdWorks(c *C) {
+	svc := new(DBusService)
 	aDBusPath := "/com/ubuntu/Postal/com_2eexample_2etest"
 	aPackage := "com.example.test"
 	anAppId := aPackage + "_test"
-	pkg, app, err := grabDBusPackageAndAppId(aDBusPath, []interface{}{anAppId}, 0)
+	app, err := svc.grabDBusPackageAndAppId(aDBusPath, []interface{}{anAppId}, 0)
 	c.Check(err, IsNil)
-	c.Check(pkg, Equals, aPackage)
-	c.Check(app, Equals, anAppId)
+	c.Check(app.Package, Equals, aPackage)
+	c.Check(app.Original(), Equals, anAppId)
 }
 
 func (cs *commonSuite) TestGrabDBusPackageAndAppIdFails(c *C) {
+	svc := new(DBusService)
 	aDBusPath := "/com/ubuntu/Postal/com_2eexample_2etest"
+	aDBusPath2 := "/com/ubuntu/Postal/com_2efoo_2ebar"
 	aPackage := "com.example.test"
 	anAppId := aPackage + "_test"
 
@@ -50,11 +53,11 @@ func (cs *commonSuite) TestGrabDBusPackageAndAppIdFails(c *C) {
 		{aDBusPath, []interface{}{anAppId, anAppId}, 0, ErrBadArgCount},
 		{aDBusPath, []interface{}{1}, 0, ErrBadArgType},
 		{aDBusPath, []interface{}{aPackage}, 0, ErrBadAppId},
+		{aDBusPath2, []interface{}{anAppId}, 0, ErrBadAppId},
 	} {
 		comment := Commentf("iteration #%d", i)
-		pkg, app, err := grabDBusPackageAndAppId(s.path, s.args, s.numExtra)
+		app, err := svc.grabDBusPackageAndAppId(s.path, s.args, s.numExtra)
 		c.Check(err, Equals, s.errt, comment)
-		c.Check(pkg, Equals, "", comment)
-		c.Check(app, Equals, "", comment)
+		c.Check(app, IsNil, comment)
 	}
 }
