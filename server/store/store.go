@@ -135,8 +135,8 @@ type PendingStore interface {
 	// Scrub removes expired notifications and notifications with
 	// application id appId (if != "").
 	Scrub(chanId InternalChannelId, appId string) error
-	// DropByMsgId drops
-	// notifications from a unicast channel based on message ids.
+	// DropByMsgId drops notifications from a unicast channel
+	// based on message ids.
 	DropByMsgId(chanId InternalChannelId, targets []protocol.Notification) error
 	// Close is to be called when done with the store.
 	Close()
