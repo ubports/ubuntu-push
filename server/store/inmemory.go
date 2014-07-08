@@ -167,12 +167,18 @@ func (sto *InMemoryPendingStore) Scrub(chanId InternalChannelId, appId string) e
 	fresh := FilterNotifications(res, meta)
 	res = make([]protocol.Notification, 0, len(fresh))
 	exps := make([]time.Time, 0, len(fresh))
-	for i, notif := range fresh {
-		if meta[i].Obsolete || notif.AppId == appId {
+	i := 0
+	for j := range meta {
+		if meta[j].Obsolete {
+			continue
+		}
+		notif := fresh[i]
+		i++
+		if notif.AppId == appId {
 			continue
 		}
 		res = append(res, notif)
-		exps = append(exps, meta[i].Expiration)
+		exps = append(exps, meta[j].Expiration)
 	}
 	// store as well
 	channel.notifications = res
