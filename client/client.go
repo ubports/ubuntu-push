@@ -329,9 +329,9 @@ func (client *PushClient) handleUnregister(app *click.AppId) {
 		// small as possible
 		err := client.pushService.Unregister(app.Original()) // XXX WIP
 		if err != nil {
-			client.log.Errorf("unregistering %v: %s", app, err)
+			client.log.Errorf("unregistering %s: %s", app, err)
 		} else {
-			client.log.Debugf("unregistered token for %v", app)
+			client.log.Debugf("unregistered token for %s", app)
 		}
 	}
 }
