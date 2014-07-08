@@ -17,6 +17,7 @@
 package click
 
 import (
+	"fmt"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -37,6 +38,7 @@ func (cs *clickSuite) TestParseAppId(c *C) {
 	c.Check(app.Version, Equals, "")
 	c.Check(app.Click, Equals, true)
 	c.Check(app.Original(), Equals, "com.ubuntu.clock_clock")
+	c.Check(fmt.Sprintf("%s", app), Equals, "com.ubuntu.clock_clock")
 
 	app, err = ParseAppId("com.ubuntu.clock_clock_10")
 	c.Assert(err, IsNil)
@@ -46,6 +48,7 @@ func (cs *clickSuite) TestParseAppId(c *C) {
 	c.Check(app.Version, Equals, "10")
 	c.Check(app.Click, Equals, true)
 	c.Check(app.Original(), Equals, "com.ubuntu.clock_clock_10")
+	c.Check(fmt.Sprintf("%s", app), Equals, "com.ubuntu.clock_clock_10")
 	c.Check(app.Versioned(), Equals, "com.ubuntu.clock_clock_10")
 	c.Check(app.DesktopId(), Equals, "com.ubuntu.clock_clock_10.desktop")
 
@@ -145,6 +148,7 @@ func (s *clickSuite) TestParseAndVerifyAppId(c *C) {
 
 	app, err = ParseAndVerifyAppId("_non-existent-app", u)
 	c.Assert(err, Equals, ErrMissingAppId)
-	c.Check(app, IsNil)
+	c.Check(app, NotNil)
+	c.Check(app.Original(), Equals, "_non-existent-app")
 
 }

@@ -105,10 +105,9 @@ type PushClient struct {
 	pushService           PushService
 	postalServiceEndpoint bus.Endpoint
 	postalService         *service.PostalService
-	unregisterCh          chan string
-	trackAddressees       map[string]bool
-	clickUser             *click.ClickUser
-	hasPackage            func(string) bool
+	unregisterCh          chan *click.AppId
+	trackAddressees       map[string]*click.AppId
+	installedChecker      click.InstalledChecker
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
@@ -144,11 +143,10 @@ func (client *PushClient) configure() error {
 	if err != nil {
 		return fmt.Errorf("libclick: %v", err)
 	}
-	client.clickUser = clickUser
 	// overridden for testing
-	client.hasPackage = clickUser.HasPackage
+	client.installedChecker = clickUser
 
-	client.unregisterCh = make(chan string, 10)
+	client.unregisterCh = make(chan *click.AppId, 10)
 
 	// overridden for testing
 	client.idder = identifier.New()
@@ -204,6 +202,7 @@ func (client *PushClient) derivePushServiceSetup() (*service.PushServiceSetup, e
 	setup.RegURL = purl
 	setup.DeviceId = client.deviceId
 	setup.AuthGetter = client.getAuthorization
+	setup.InstalledChecker = client.installedChecker
 	return setup, nil
 }
 
@@ -295,38 +294,44 @@ func (client *PushClient) seenStateFactory() (seenstate.SeenState, error) {
 
 // StartAddresseeBatch starts a batch of checks for addressees.
 func (client *PushClient) StartAddresseeBatch() {
-	client.trackAddressees = make(map[string]bool, 10)
+	client.trackAddressees = make(map[string]*click.AppId, 10)
 }
 
 // CheckForAddressee check for the addressee presence.
-func (client *PushClient) CheckForAddressee(notif *protocol.Notification) bool {
+func (client *PushClient) CheckForAddressee(notif *protocol.Notification) *click.AppId {
 	appId := notif.AppId
-	present, ok := client.trackAddressees[appId]
+	parsed, ok := client.trackAddressees[appId]
 	if ok {
-		return present
+		return parsed
 	}
-	present = client.hasPackage(appId)
-	client.trackAddressees[appId] = present
-	if !present {
-		client.unregisterCh <- appId
+	parsed, err := click.ParseAndVerifyAppId(appId, client.installedChecker)
+	switch err {
+	default:
+		client.log.Debugf("notification %#v for invalid app id %#v.", notif.MsgId, notif.AppId)
+	case click.ErrMissingAppId:
+		client.log.Debugf("notification %#v for missing app id %#v.", notif.MsgId, notif.AppId)
+		client.unregisterCh <- parsed
+		parsed = nil
+	case nil:
 	}
-	return present
+	client.trackAddressees[appId] = parsed
+	return parsed
 }
 
 // handleUnregister deals with tokens of uninstalled apps
-func (client *PushClient) handleUnregister(appId string) {
-	if !client.hasPackage(appId) {
+func (client *PushClient) handleUnregister(app *click.AppId) {
+	if !client.installedChecker.Installed(app, false) {
 		// xxx small chance of race here, in case the app gets
 		// reinstalled and registers itself before we finish
 		// the unregister; we need click and app launching
 		// collaboration to do better. we redo the hasPackage
 		// check here just before to keep the race window as
 		// small as possible
-		err := client.pushService.Unregister(appId)
+		err := client.pushService.Unregister(app.Original()) // XXX WIP
 		if err != nil {
-			client.log.Errorf("unregistering %s: %s", appId, err)
+			client.log.Errorf("unregistering %v: %s", app, err)
 		} else {
-			client.log.Debugf("unregistered token for %s", appId)
+			client.log.Debugf("unregistered token for %v", app)
 		}
 	}
 }
@@ -412,14 +417,11 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 }
 
 // handleUnicastNotification deals with receiving a unicast notification
-func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
-	appId, err := click.ParseAppId(msg.AppId)
-	if err != nil {
-		client.log.Debugf("notification %#v for invalid app id %#v.", msg.MsgId, msg.AppId)
-		return errors.New("invalid app id in notification")
-	}
+func (client *PushClient) handleUnicastNotification(anotif session.AddressedNotification) error {
+	app := anotif.To
+	msg := anotif.Notification
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.postalService.Inject(appId.Package, msg.AppId, msg.MsgId, string(msg.Payload))
+	return client.postalService.Inject(app.Package, msg.AppId, msg.MsgId, string(msg.Payload)) // XXX pass app directly
 }
 
 // handleClick deals with the user clicking a notification
@@ -446,7 +448,7 @@ func (client *PushClient) handleClick(actionId string) error {
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(*protocol.Notification) error, errhandler func(error), unregisterhandler func(string)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId)) {
 	for {
 		select {
 		case state := <-client.connCh:
@@ -455,14 +457,14 @@ func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(strin
 			clickhandler(action.ActionId)
 		case bcast := <-client.session.BroadcastCh:
 			bcasthandler(bcast)
-		case ucast := <-client.session.NotificationsCh:
-			ucasthandler(ucast)
+		case aucast := <-client.session.NotificationsCh:
+			ucasthandler(aucast)
 		case err := <-client.session.ErrCh:
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
 			client.log.Debugf("Session connected after %d attempts", count)
-		case appId := <-client.unregisterCh:
-			unregisterhandler(appId)
+		case app := <-client.unregisterCh:
+			unregisterhandler(app)
 		}
 	}
 }
@@ -502,7 +504,7 @@ func (client *PushClient) startService() error {
 }
 
 func (client *PushClient) setupPostalService() error {
-	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.emblemcounterEndp, client.hapticEndp, client.log)
+	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.emblemcounterEndp, client.hapticEndp, client.installedChecker, client.log)
 	return nil
 }
 

@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 )
@@ -169,4 +170,12 @@ func ParseURL(s string) *url.URL {
 		panic(err)
 	}
 	return purl
+}
+
+func MustParseAppId(appId string) *click.AppId {
+	app, err := click.ParseAppId(appId)
+	if err != nil {
+		panic(err)
+	}
+	return app
 }

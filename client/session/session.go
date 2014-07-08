@@ -88,8 +88,8 @@ type AddresseeChecking interface {
 // AddressedNotification carries both a protocol.Notification and a parsed
 // AppId addressee.
 type AddressedNotification struct {
-	to           *click.AppId
-	notification *protocol.Notification
+	To           *click.AppId
+	Notification *protocol.Notification
 }
 
 // ClientSessionConfig groups the client session configuration.

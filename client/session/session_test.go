@@ -849,14 +849,14 @@ func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
 	app1, err := click.ParseAppId("com.example.app1_app1")
 	c.Assert(err, IsNil)
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
-		to:           app1,
-		notification: &n1,
+		To:           app1,
+		Notification: &n1,
 	})
 	app2, err := click.ParseAppId("com.example.app2_app2")
 	c.Assert(err, IsNil)
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
-		to:           app2,
-		notification: &n2,
+		To:           app2,
+		Notification: &n2,
 	})
 	c.Check(ac.ops, HasLen, 3)
 	c.Check(<-ac.ops, Equals, "start")
@@ -895,8 +895,8 @@ func (s *msgSuite) TestHandleNotificationsAddresseeCheck(c *C) {
 	app2, err := click.ParseAppId("com.example.app2_app2")
 	c.Assert(err, IsNil)
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
-		to:           app2,
-		notification: &n2,
+		To:           app2,
+		Notification: &n2,
 	})
 	c.Check(ac.ops, HasLen, 3)
 	c.Check(<-ac.ops, Equals, "start")
@@ -929,14 +929,14 @@ func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
 	app1, err := click.ParseAppId("com.example.app1_app1")
 	c.Assert(err, IsNil)
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
-		to:           app1,
-		notification: &n1,
+		To:           app1,
+		Notification: &n1,
 	})
 	app2, err := click.ParseAppId("com.example.app2_app2")
 	c.Assert(err, IsNil)
 	c.Check(<-s.sess.NotificationsCh, DeepEquals, AddressedNotification{
-		to:           app2,
-		notification: &n2,
+		To:           app2,
+		Notification: &n2,
 	})
 	c.Check(ac.ops, HasLen, 3)
 

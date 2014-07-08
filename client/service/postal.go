@@ -25,6 +25,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/emblemcounter"
 	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging"
@@ -59,12 +60,12 @@ var (
 	ACTION_ID_SUFFIX = "::0"
 )
 
-// XXX WIP set installedChecker
 // NewPostalService() builds a new service and returns it.
-func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, hapticEndp bus.Endpoint, log logger.Logger) *PostalService {
+func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, hapticEndp bus.Endpoint, installedChecker click.InstalledChecker, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
 	svc.Bus = busEndp
+	svc.installedChecker = installedChecker
 	svc.messagingMenu = messaging.New(log)
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(log)
 	svc.notificationsEndp = notificationsEndp

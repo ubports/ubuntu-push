@@ -84,6 +84,10 @@ func (app *AppId) Original() string {
 	return app.original
 }
 
+func (app *AppId) String() string {
+	return app.Original()
+}
+
 func (app *AppId) Versioned() string {
 	if app.Click {
 		return app.Package + "_" + app.Application + "_" + app.Version
@@ -108,14 +112,14 @@ type InstalledChecker interface {
 
 // ParseAndVerifyAppId parses the given app id and checks if the
 // corresponding app is installed, returning the parsed id or
-// ErrInvalidAppId, ErrMissingAppId respectively.
+// ErrInvalidAppId, or the parsed id and ErrMissingAppId respectively.
 func ParseAndVerifyAppId(id string, installedChecker InstalledChecker) (*AppId, error) {
 	app, err := ParseAppId(id)
 	if err != nil {
 		return nil, err
 	}
 	if installedChecker != nil && !installedChecker.Installed(app, true) {
-		return nil, ErrMissingAppId
+		return app, ErrMissingAppId
 	}
 	return app, nil
 }

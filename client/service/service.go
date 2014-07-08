@@ -26,17 +26,20 @@ import (
 	"net/url"
 	"os"
 
-	"launchpad.net/ubuntu-push/bus"
 	http13 "launchpad.net/ubuntu-push/http13client"
+
+	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
 )
 
 // PushServiceSetup encapsulates the params for setting up a PushService.
 type PushServiceSetup struct {
-	RegURL     *url.URL
-	DeviceId   string
-	AuthGetter func(string) string
+	RegURL           *url.URL
+	DeviceId         string
+	AuthGetter       func(string) string
+	InstalledChecker click.InstalledChecker
 }
 
 // PushService is the dbus api
@@ -56,12 +59,12 @@ var (
 	}
 )
 
-// XXX WIP set installedChecker
 // NewPushService() builds a new service and returns it.
 func NewPushService(bus bus.Endpoint, setup *PushServiceSetup, log logger.Logger) *PushService {
 	var svc = &PushService{}
 	svc.Log = log
 	svc.Bus = bus
+	svc.installedChecker = setup.InstalledChecker
 	svc.regURL = setup.RegURL
 	svc.deviceId = setup.DeviceId
 	svc.authGetter = setup.AuthGetter
