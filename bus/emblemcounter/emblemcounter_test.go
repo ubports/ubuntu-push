@@ -41,7 +41,7 @@ var _ = Suite(&ecSuite{})
 
 func (ecs *ecSuite) SetUpTest(c *C) {
 	ecs.log = helpers.NewTestLogger(c, "debug")
-	ecs.app, _ = click.ParseAppId("com.example.test_test-app_0")
+	ecs.app = helpers.MustParseAppId("com.example.test_test-app_0")
 }
 
 // checks that Present() actually calls SetProperty on the launcher

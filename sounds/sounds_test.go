@@ -40,7 +40,7 @@ var _ = Suite(&soundsSuite{})
 
 func (ss *soundsSuite) SetUpTest(c *C) {
 	ss.log = helpers.NewTestLogger(c, "debug")
-	ss.app, _ = click.ParseAppId("com.example.test_test_0")
+	ss.app = helpers.MustParseAppId("com.example.test_test_0")
 }
 
 func (ss *soundsSuite) TestNew(c *C) {

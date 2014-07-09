@@ -44,7 +44,7 @@ func (ms *MessagingSuite) SetUpSuite(c *C) {
 
 func (ms *MessagingSuite) SetUpTest(c *C) {
 	ms.log = helpers.NewTestLogger(c, "debug")
-	ms.app, _ = click.ParseAppId("com.example.test_test_0")
+	ms.app = helpers.MustParseAppId("com.example.test_test_0")
 }
 
 func (ms *MessagingSuite) TestPresentPresents(c *C) {

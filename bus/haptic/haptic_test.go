@@ -39,7 +39,7 @@ var _ = Suite(&hapticSuite{})
 
 func (hs *hapticSuite) SetUpTest(c *C) {
 	hs.log = helpers.NewTestLogger(c, "debug")
-	hs.app, _ = click.ParseAppId("com.example.test_test-app_0")
+	hs.app = helpers.MustParseAppId("com.example.test_test-app_0")
 }
 
 // checks that Present() actually calls VibratePattern

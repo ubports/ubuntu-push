@@ -36,7 +36,7 @@ var _ = Suite(&runnerSuite{})
 
 func (s *runnerSuite) SetUpTest(c *C) {
 	s.testlog = helpers.NewTestLogger(c, "error")
-	s.app, _ = click.ParseAppId("com.example.test_test-app_0")
+	s.app = helpers.MustParseAppId("com.example.test_test-app_0")
 }
 
 func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {

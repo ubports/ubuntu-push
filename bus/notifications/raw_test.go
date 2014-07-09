@@ -41,7 +41,7 @@ type RawSuite struct {
 
 func (s *RawSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	s.app, _ = click.ParseAppId("com.example.test_test-app_0")
+	s.app = helpers.MustParseAppId("com.example.test_test-app_0")
 }
 
 var _ = Suite(&RawSuite{})
