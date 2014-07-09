@@ -17,6 +17,7 @@
 package click
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -83,6 +84,19 @@ func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
 		app, err = ParseAppId(s)
 		c.Check(app, IsNil)
 		c.Check(err, Equals, ErrInvalidAppId)
+	}
+}
+
+func (cs *clickSuite) TestJSON(c *C) {
+	for _, appId := range []string{"com.ubuntu.clock_clock", "com.ubuntu.clock_clock_10", "_python3.4"} {
+		app, err := ParseAppId(appId)
+		c.Assert(err, IsNil, Commentf(appId))
+		b, err := json.Marshal(app)
+		c.Assert(err, IsNil, Commentf(appId))
+		var vapp *AppId
+		err = json.Unmarshal(b, &vapp)
+		c.Assert(err, IsNil, Commentf(appId))
+		c.Check(vapp, DeepEquals, app)
 	}
 }
 
