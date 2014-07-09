@@ -119,9 +119,10 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 	hints := make(map[string]*dbus.Variant)
 	hints["x-canonical-secondary-icon"] = &dbus.Variant{app.Icon()}
 
+	appId := app.Original()
 	actions := make([]string, 2*len(card.Actions))
 	for i, action := range card.Actions {
-		actions[2*i] = fmt.Sprintf("%s::%s::%d", app, nid, i)
+		actions[2*i] = fmt.Sprintf("%s::%s::%d", appId, nid, i)
 		actions[2*i+1] = action
 	}
 	switch len(actions) {
@@ -132,5 +133,5 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 		hints["x-canonical-private-button-tint"] = &dbus.Variant{"true"}
 		hints["x-canonical-non-shaped-icon"] = &dbus.Variant{"true"}
 	}
-	return raw.Notify(app.Original(), 0, card.Icon, card.Summary, card.Body, actions, hints, 30*1000)
+	return raw.Notify(appId, 0, card.Icon, card.Summary, card.Body, actions, hints, 30*1000)
 }

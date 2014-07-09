@@ -151,7 +151,6 @@ func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interfac
 
 	nid := newNid()
 
-	// XXX WIP pass appId directly
 	return nil, svc.Inject(app, nid, notif)
 }
 

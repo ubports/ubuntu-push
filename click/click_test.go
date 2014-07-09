@@ -86,6 +86,12 @@ func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
 	}
 }
 
+func (cs *clickSuite) TestIcon(c *C) {
+	app, err := ParseAppId("_python3.4")
+	c.Assert(err, IsNil)
+	c.Check(app.Icon(), Equals, "/usr/share/pixmaps/python3.4.xpm")
+}
+
 func (s *clickSuite) TestUser(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)

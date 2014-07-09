@@ -55,7 +55,7 @@ func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *la
 		return
 	}
 	ec := notification.EmblemCounter
-	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, app.Application, ec.Count, ec.Visible)
+	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, app.Base(), ec.Count, ec.Visible)
 
 	quoted := string(nih.Quote([]byte(app.Base())))
 
