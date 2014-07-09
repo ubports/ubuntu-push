@@ -22,8 +22,8 @@ package notifications
 // this is the lower-level api
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
 
 	"launchpad.net/go-dbus/v1"
 
@@ -45,9 +45,12 @@ var BusAddress bus.Address = bus.Address{
  */
 
 // convenience type for the (uint32, string) ActionInvoked signal data
-type RawActionReply struct {
-	NotificationId uint32
-	ActionId       string
+type RawAction struct {
+	App      *click.AppId `json:"app,omitempty"`
+	Action   string       `json:"act,omitempty"`
+	ActionId int          `json:"aid,omitempty"`
+	Nid      string       `json:"nid,omitempty"`
+	RawId    uint32       `json:"-"`
 }
 
 // a raw notification provides a low-level interface to the f.d.o. dbus
@@ -88,11 +91,32 @@ func (raw *RawNotifications) Notify(
 
 // WatchActions listens for ActionInvoked signals from the notification daemon
 // and sends them over the channel provided
-func (raw *RawNotifications) WatchActions() (<-chan RawActionReply, error) {
-	ch := make(chan RawActionReply)
+func (raw *RawNotifications) WatchActions() (<-chan *RawAction, error) {
+	ch := make(chan *RawAction)
 	err := raw.bus.WatchSignal("ActionInvoked",
 		func(ns ...interface{}) {
-			ch <- RawActionReply{ns[0].(uint32), ns[1].(string)}
+			if len(ns) != 2 {
+				raw.log.Debugf("ActionInvoked delivered %d things instead of 2", len(ns))
+				return
+			}
+			rawId, ok := ns[0].(uint32)
+			if !ok {
+				raw.log.Debugf("ActionInvoked's 1st param not a uint32")
+				return
+			}
+			encodedAction, ok := ns[1].(string)
+			if !ok {
+				raw.log.Debugf("ActionInvoked's 2nd param not a string")
+				return
+			}
+			var action *RawAction
+			err := json.Unmarshal([]byte(encodedAction), &action)
+			if err != nil {
+				raw.log.Debugf("ActionInvoked's 2nd param not a json-encoded RawAction")
+				return
+			}
+			action.RawId = rawId
+			ch <- action
 		}, func() { close(ch) })
 	if err != nil {
 		raw.log.Debugf("Failed to set up the watch: %s", err)
@@ -101,16 +125,15 @@ func (raw *RawNotifications) WatchActions() (<-chan RawActionReply, error) {
 	return ch, nil
 }
 
-// ShowCard displays a given card.
+// Present displays a given card.
 //
+// If card.Actions is empty it's a plain, noninteractive bubble notification.
 // If card.Actions has 1 action, it's an interactive notification.
-// If card.Actions has 2 or more actions, it will show as a snap decision.
-//
-// WatchActions will receive something like this in the ActionId field:
-// appId::notificationId::action.Id
+// If card.Actions has 2 actions, it will show as a snap decision.
+// If it has more actions, who knows (good luck).
 func (raw *RawNotifications) Present(app *click.AppId, nid string, notification *launch_helper.Notification) (uint32, error) {
 	if notification == nil || notification.Card == nil || !notification.Card.Popup || notification.Card.Summary == "" {
-		raw.log.Debugf("skipping notification: nil, or nil card, or not popup, or no summary: %#v", notification)
+		raw.log.Debugf("[%s] skipping notification: nil, or nil card, or not popup, or no summary: %#v", nid, notification)
 		return 0, nil
 	}
 
@@ -122,16 +145,29 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 	appId := app.Original()
 	actions := make([]string, 2*len(card.Actions))
 	for i, action := range card.Actions {
-		actions[2*i] = fmt.Sprintf("%s::%s::%d", appId, nid, i)
+		act, err := json.Marshal(&RawAction{
+			App:      app,
+			Nid:      nid,
+			ActionId: i,
+			Action:   action,
+		})
+		if err != nil {
+			return 0, err
+		}
+		actions[2*i] = string(act)
 		actions[2*i+1] = action
 	}
-	switch len(actions) {
-	case 2:
+	switch len(card.Actions) {
+	case 0:
+		// nothing
+	case 1:
 		hints["x-canonical-switch-to-application"] = &dbus.Variant{"true"}
-	case 4:
+	case 2:
 		hints["x-canonical-snap-decisions"] = &dbus.Variant{"true"}
 		hints["x-canonical-private-button-tint"] = &dbus.Variant{"true"}
-		hints["x-canonical-non-shaped-icon"] = &dbus.Variant{"true"}
+		hints["x-canonical-non-shaped-icon"] = &dbus.Variant{"true"} // XXX: what does this one do, exactly?
+	default:
+		raw.log.Debugf("[%s] don't know what to do with %d actions; no hints set", nid, len(card.Actions))
 	}
 	return raw.Notify(appId, 0, card.Icon, card.Summary, card.Body, actions, hints, 30*1000)
 }
