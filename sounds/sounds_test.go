@@ -24,6 +24,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
@@ -32,12 +33,14 @@ func TestSounds(t *testing.T) { TestingT(t) }
 
 type soundsSuite struct {
 	log *helpers.TestLogger
+	app *click.AppId
 }
 
 var _ = Suite(&soundsSuite{})
 
 func (ss *soundsSuite) SetUpTest(c *C) {
 	ss.log = helpers.NewTestLogger(c, "debug")
+	ss.app = helpers.MustParseAppId("com.example.test_test_0")
 }
 
 func (ss *soundsSuite) TestNew(c *C) {
@@ -52,27 +55,28 @@ func (ss *soundsSuite) TestPresent(c *C) {
 		dataFind: func(s string) (string, error) { return s, nil },
 	}
 
-	c.Check(s.Present("com.example.test_test", "",
+	c.Check(s.Present(ss.app, "",
 		&launch_helper.Notification{Sound: "hello"}), Equals, true)
 	c.Check(ss.log.Captured(), Matches, `(?sm).* playing sound com.example.test/hello using echo`)
 }
 
 func (ss *soundsSuite) TestPresentFails(c *C) {
-	s := &Sound{player: "/", log: ss.log}
+	s := &Sound{
+		player:   "/",
+		log:      ss.log,
+		dataFind: func(string) (string, error) { return "", errors.New("nope") },
+		dataDirs: func() []string { return []string{""} },
+	}
 
 	// nil notification
-	c.Check(s.Present("", "", nil), Equals, false)
+	c.Check(s.Present(ss.app, "", nil), Equals, false)
 	// no Sound
-	c.Check(s.Present("", "", &launch_helper.Notification{}), Equals, false)
+	c.Check(s.Present(ss.app, "", &launch_helper.Notification{}), Equals, false)
 	// bad player
-	c.Check(s.Present("", "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
+	c.Check(s.Present(ss.app, "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
 	s.player = "echo"
-	// bad app id
-	c.Check(s.Present("", "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
-	s.dataFind = func(string) (string, error) { return "", errors.New("nope") }
-	s.dataDirs = func() []string { return []string{""} }
 	// no file found
-	c.Check(s.Present("com.example.test_test", "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
+	c.Check(s.Present(ss.app, "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
 
 	// and now, just to prove it would've worked,
 
@@ -81,5 +85,5 @@ func (ss *soundsSuite) TestPresentFails(c *C) {
 	c.Assert(err, IsNil)
 	f.Close()
 	s.dataDirs = func() []string { return []string{"", d} }
-	c.Check(s.Present("com.example.test_test", "", &launch_helper.Notification{Sound: "hello"}), Equals, true)
+	c.Check(s.Present(ss.app, "", &launch_helper.Notification{Sound: "hello"}), Equals, true)
 }

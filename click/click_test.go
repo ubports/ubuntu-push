@@ -50,6 +50,7 @@ func (cs *clickSuite) TestParseAppId(c *C) {
 	c.Check(app.Original(), Equals, "com.ubuntu.clock_clock_10")
 	c.Check(fmt.Sprintf("%s", app), Equals, "com.ubuntu.clock_clock_10")
 	c.Check(app.Versioned(), Equals, "com.ubuntu.clock_clock_10")
+	c.Check(app.Base(), Equals, "com.ubuntu.clock_clock")
 	c.Check(app.DesktopId(), Equals, "com.ubuntu.clock_clock_10.desktop")
 
 	for _, s := range []string{"com.ubuntu.clock_clock_10_4", "com.ubuntu.clock", ""} {
@@ -75,6 +76,7 @@ func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
 	c.Check(app.Click, Equals, false)
 	c.Check(app.Original(), Equals, "_python3.4")
 	c.Check(app.Versioned(), Equals, "python3.4")
+	c.Check(app.Base(), Equals, "python3.4")
 	c.Check(app.DesktopId(), Equals, "python3.4.desktop")
 
 	for _, s := range []string{"_.foo", "_foo/", "_/foo"} {
@@ -82,6 +84,12 @@ func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
 		c.Check(app, IsNil)
 		c.Check(err, Equals, ErrInvalidAppId)
 	}
+}
+
+func (cs *clickSuite) TestIcon(c *C) {
+	app, err := ParseAppId("_python3.4")
+	c.Assert(err, IsNil)
+	c.Check(app.Icon(), Equals, "/usr/share/pixmaps/python3.4.xpm")
 }
 
 func (s *clickSuite) TestUser(c *C) {

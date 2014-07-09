@@ -28,6 +28,7 @@ import (
 
 	"launchpad.net/go-xdg/v0"
 
+	"launchpad.net/ubuntu-push/click/cappinfo"
 	"launchpad.net/ubuntu-push/click/cclick"
 )
 
@@ -89,6 +90,14 @@ func (app *AppId) String() string {
 	return app.Original()
 }
 
+func (app *AppId) Base() string {
+	if app.Click {
+		return app.Package + "_" + app.Application
+	} else {
+		return app.Application
+	}
+}
+
 func (app *AppId) Versioned() string {
 	if app.Click {
 		if app.Version == "" {
@@ -102,6 +111,10 @@ func (app *AppId) Versioned() string {
 
 func (app *AppId) DesktopId() string {
 	return app.Versioned() + ".desktop"
+}
+
+func (app *AppId) Icon() string {
+	return cappinfo.AppIconFromDesktopId(app.DesktopId())
 }
 
 // ClickUser exposes the click package registry for the user.
