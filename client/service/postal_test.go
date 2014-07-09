@@ -171,7 +171,6 @@ func (ss *postalSuite) TestInjectFailsIfBadArgs(c *C) {
 func (ss *postalSuite) TestInjectBroadcast(c *C) {
 	bus := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	svc := NewPostalService(ss.bus, bus, ss.counterBus, ss.hapticBus, nil, ss.log)
-	//svc.msgHandler = nil
 	rvs, err := svc.InjectBroadcast()
 	c.Assert(err, IsNil)
 	c.Check(rvs, Equals, uint32(0))
@@ -182,7 +181,7 @@ func (ss *postalSuite) TestInjectBroadcast(c *C) {
 	c.Check(callArgs[0].Member, Equals, "Notify")
 	c.Check(callArgs[0].Args[0:6], DeepEquals, []interface{}{"_ubuntu-push-client", uint32(0), "update_manager_icon",
 		"There's an updated system image.", "Tap to open the system updater.",
-		[]string{"_ubuntu-push-client::settings:///system/system-update::0", "Switch to app"}})
+		[]string{`{"p":"_ubuntu-push-client","i":0,"n":"settings:///system/system-update","a":"Switch to app","r":0}`, "Switch to app"}})
 	// TODO: check the map in callArgs?
 	// c.Check(callArgs[0].Args[7]["x-canonical-secondary-icon"], NotNil)
 	// c.Check(callArgs[0].Args[7]["x-canonical-snap-decisions"], NotNil)

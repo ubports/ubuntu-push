@@ -20,15 +20,18 @@
 package notifications
 
 import (
+	"encoding/json"
+	"testing"
+	"time"
+
 	. "launchpad.net/gocheck"
+
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
-	"testing"
-	"time"
 )
 
 // hook up gocheck
@@ -75,16 +78,25 @@ func (s *RawSuite) TestNotifiesFailsWeirdly(c *C) {
 }
 
 func (s *RawSuite) TestWatchActions(c *C) {
+	act := &RawAction{
+		App:      helpers.MustParseAppId("_foo"),
+		Nid:      "notif-id",
+		ActionId: 1,
+		Action:   "hello",
+		RawId:    0,
+	}
+	jAct, err := json.Marshal(act)
+	c.Assert(err, IsNil)
 	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true),
-		[]interface{}{uint32(1), "hello"})
+		[]interface{}{uint32(1), string(jAct)})
 	raw := Raw(endp, s.log)
 	ch, err := raw.WatchActions()
 	c.Assert(err, IsNil)
 	// check we get the right action reply
+	act.RawId = 1 // checking the RawId is overwritten with the one in the ActionInvoked
 	select {
 	case p := <-ch:
-		c.Check(p.NotificationId, Equals, uint32(1))
-		c.Check(p.ActionId, Equals, "hello")
+		c.Check(p, DeepEquals, act)
 	case <-time.NewTimer(time.Second / 10).C:
 		c.Error("timed out?")
 	}

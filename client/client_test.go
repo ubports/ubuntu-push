@@ -861,32 +861,23 @@ func (cs *clientSuite) TestHandleUcastNotification(c *C) {
     handleClick tests
 ******************************************************************/
 
-var ACTION_ID_BROADCAST = service.ACTION_ID_PREFIX + service.SystemUpdateUrl + service.ACTION_ID_SUFFIX
-
 func (cs *clientSuite) TestHandleClick(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 	cli.urlDispatcherEndp = endp
-	// check we don't fail on something random
-	c.Check(cli.handleClick("something random"), IsNil)
+	// check we don't fail on a nil *RawAction
+	c.Check(cli.handleClick(nil), IsNil)
 	// ... but we don't send anything either
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 0)
-	// check we worked with the right action id
-	c.Check(cli.handleClick(ACTION_ID_BROADCAST), IsNil)
+	// check we worked with a the right action
+	c.Check(cli.handleClick(&notifications.RawAction{Action: service.SystemUpdateUrl}), IsNil)
 	// check we sent the notification
 	args = testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Check(args[0].Args, DeepEquals, []interface{}{service.SystemUpdateUrl})
-	// check we worked with the right action id
-	c.Check(cli.handleClick(service.ACTION_ID_PREFIX+"foo"), IsNil)
-	// check we sent the notification
-	args = testibus.GetCallArgs(endp)
-	c.Assert(args, HasLen, 2)
-	c.Check(args[1].Member, Equals, "DispatchURL")
-	c.Check(args[1].Args, DeepEquals, []interface{}{"foo"})
 }
 
 /*****************************************************************
@@ -954,7 +945,7 @@ func (cs *clientSuite) TestHandleUnregisterError(c *C) {
 ******************************************************************/
 
 var nopConn = func(bool) {}
-var nopClick = func(string) error { return nil }
+var nopClick = func(*notifications.RawAction) error { return nil }
 var nopBcast = func(*session.BroadcastNotification) error { return nil }
 var nopUcast = func(session.AddressedNotification) error { return nil }
 var nopError = func(error) {}
@@ -978,12 +969,12 @@ func (cs *clientSuite) TestDoLoopClick(c *C) {
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSession(), IsNil)
-	aCh := make(chan notifications.RawActionReply, 1)
-	aCh <- notifications.RawActionReply{}
+	aCh := make(chan *notifications.RawAction, 1)
+	aCh <- &notifications.RawAction{}
 	cli.actionsCh = aCh
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, func(_ string) error { ch <- true; return nil }, nopBcast, nopUcast, nopError, nopUnregister)
+	go cli.doLoop(nopConn, func(_ *notifications.RawAction) error { ch <- true; return nil }, nopBcast, nopUcast, nopError, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1074,7 +1065,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.connCh = make(chan bool)
 	cli.sessionConnectedCh = make(chan uint32)
-	aCh := make(chan notifications.RawActionReply, 1)
+	aCh := make(chan *notifications.RawAction, 1)
 	cli.actionsCh = aCh
 	cli.log = cs.log
 	cli.notificationsEndp = testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
@@ -1104,7 +1095,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
 
 	//  * actionsCh to the click handler/url dispatcher
-	aCh <- notifications.RawActionReply{ActionId: ACTION_ID_BROADCAST}
+	aCh <- &notifications.RawAction{Action: "potato"}
 	tick()
 	uargs := testibus.GetCallArgs(cli.urlDispatcherEndp)
 	c.Assert(uargs, HasLen, 1)
