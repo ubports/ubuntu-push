@@ -20,7 +20,6 @@
 """Tests unicast push notifications sent to the client"""
 
 import os
-import time
 
 from push_notifications.tests import PushNotificationTestBase
 
@@ -30,20 +29,38 @@ class TestPushClientUnicast(PushNotificationTestBase):
 
     DEFAULT_DISPLAY_MESSAGE = 'Look!'
 
+    scenarios = [('click_app_with_version',
+                  dict(app_name="com.ubuntu.calculator_calculator",
+                       appid=None, path=None,
+                       desktop_dir="~/.local/share/applications/",
+                       launcher_idx=4)),
+                 ('click_app',
+                  dict(app_name="com.ubuntu.calculator_calculator",
+                       appid="com.ubuntu.calculator_calculator",
+                       path="com_2eubuntu_2ecalculator",
+                       desktop_dir="~/.local/share/applications/",
+                       launcher_idx=4)),
+                 ('legacy_app',
+                  dict(app_name="messaging-app",
+                       appid="_messaging-app",
+                       path="_",
+                       desktop_dir="/usr/share/applications/",
+                       launcher_idx=1))]
+
     def setUp(self):
         super(TestPushClientUnicast, self).setUp()
-        # get calculator appid with version (needed for push to use mmu)
-        # from the .desktop file list.
-        files = os.listdir(os.path.expanduser("~/.local/share/applications/"))
-        for fname in files:
-            if fname.startswith('com.ubuntu.calculator_calculator') and \
-                    fname.endswith(".desktop"):
-                # remove .desktop extension, only need the name.
-                self.appid = os.path.splitext(fname)[0]
-                break
-        else:
-            self.appid = "com.ubuntu.calculator_calculator"
-        self.token = self.push_helper.register(appid=self.appid)
+        # only for the click_app_with_version scenario
+        if self.path is None and self.appid is None:
+            # get calculator appid with version from the .desktop file list.
+            files = os.listdir(os.path.expanduser(self.desktop_dir))
+            for fname in files:
+                if fname.startswith(self.app_name) and \
+                        fname.endswith(".desktop"):
+                    # remove .desktop extension, only need the name.
+                    self.appid = os.path.splitext(fname)[0]
+                    self.path = self.appid.split("_")[0].replace(".", "_2e")
+                    break
+        self.token = self.push_helper.register(self.path, self.appid)
 
     def test_unicast_push_notification_persistent(self):
         """Send a persistent unicast push notification.
@@ -68,8 +85,9 @@ class TestPushClientUnicast(PushNotificationTestBase):
 
     def get_running_app_launcher_icon(self):
         launcher = self.main_window.get_launcher()
-        return launcher.select_single('LauncherDelegate',
-                                      objectName='launcherDelegate4')
+        return launcher.select_single(
+            'LauncherDelegate',
+            objectName='launcherDelegate%d' % self.launcher_idx)
 
     def test_unicast_push_notification_emblem_count(self):
         """Send a emblem-counter enabled unicast push notification.

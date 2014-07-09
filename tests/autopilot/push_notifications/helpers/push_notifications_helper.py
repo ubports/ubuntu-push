@@ -291,9 +291,8 @@ class PushNotificationHelper:
             body=body)
         return conn.getresponse()
 
-    def register(self, appid):
+    def register(self, path, appid):
         """Register the device/appid with the push server."""
-        path = appid.split("_")[0].replace(".", "_2e")
         cmd = ["gdbus", "call", "-e", "-d", "com.ubuntu.PushNotifications",
                "-o", "/com/ubuntu/PushNotifications/%s" % path,
                "-m", "com.ubuntu.PushNotifications.Register", appid]
