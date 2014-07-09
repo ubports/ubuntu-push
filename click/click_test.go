@@ -17,6 +17,8 @@
 package click
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -29,30 +31,79 @@ type clickSuite struct{}
 var _ = Suite(&clickSuite{})
 
 func (cs *clickSuite) TestParseAppId(c *C) {
-	id, err := ParseAppId("com.ubuntu.clock_clock")
+	app, err := ParseAppId("com.ubuntu.clock_clock")
 	c.Assert(err, IsNil)
-	c.Check(id.Package, Equals, "com.ubuntu.clock")
-	c.Check(id.Application, Equals, "clock")
-	c.Check(id.Version, Equals, "")
+	c.Check(app.Package, Equals, "com.ubuntu.clock")
+	c.Check(app.InPackage("com.ubuntu.clock"), Equals, true)
+	c.Check(app.Application, Equals, "clock")
+	c.Check(app.Version, Equals, "")
+	c.Check(app.Click, Equals, true)
+	c.Check(app.Original(), Equals, "com.ubuntu.clock_clock")
+	c.Check(fmt.Sprintf("%s", app), Equals, "com.ubuntu.clock_clock")
 
-	id, err = ParseAppId("com.ubuntu.clock_clock_10")
+	app, err = ParseAppId("com.ubuntu.clock_clock_10")
 	c.Assert(err, IsNil)
-	c.Check(id.Package, Equals, "com.ubuntu.clock")
-	c.Check(id.Application, Equals, "clock")
-	c.Check(id.Version, Equals, "10")
+	c.Check(app.Package, Equals, "com.ubuntu.clock")
+	c.Check(app.InPackage("com.ubuntu.clock"), Equals, true)
+	c.Check(app.Application, Equals, "clock")
+	c.Check(app.Version, Equals, "10")
+	c.Check(app.Click, Equals, true)
+	c.Check(app.Original(), Equals, "com.ubuntu.clock_clock_10")
+	c.Check(fmt.Sprintf("%s", app), Equals, "com.ubuntu.clock_clock_10")
+	c.Check(app.Versioned(), Equals, "com.ubuntu.clock_clock_10")
+	c.Check(app.Base(), Equals, "com.ubuntu.clock_clock")
+	c.Check(app.DesktopId(), Equals, "com.ubuntu.clock_clock_10.desktop")
 
 	for _, s := range []string{"com.ubuntu.clock_clock_10_4", "com.ubuntu.clock", ""} {
-		id, err = ParseAppId(s)
-		c.Check(id, IsNil)
+		app, err = ParseAppId(s)
+		c.Check(app, IsNil)
 		c.Check(err, Equals, ErrInvalidAppId)
 	}
 }
 
-func (cs *clickSuite) TestInPackage(c *C) {
-	c.Check(AppInPackage("com.ubuntu.clock_clock", "com.ubuntu.clock"), Equals, true)
-	c.Check(AppInPackage("com.ubuntu.clock_clock_10", "com.ubuntu.clock"), Equals, true)
-	c.Check(AppInPackage("com.ubuntu.clock", "com.ubuntu.clock"), Equals, false)
-	c.Check(AppInPackage("bananas", "fruit"), Equals, false)
+func (cs *clickSuite) TestVersionedPanic(c *C) {
+	app, err := ParseAppId("com.ubuntu.clock_clock")
+	c.Assert(err, IsNil)
+	c.Check(func() { app.Versioned() }, PanicMatches, `Versioned\(\) on AppId without version/not verified:.*`)
+}
+
+func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
+	app, err := ParseAppId("_python3.4")
+	c.Assert(err, IsNil)
+	c.Check(app.Package, Equals, "")
+	c.Check(app.InPackage(""), Equals, true)
+	c.Check(app.Application, Equals, "python3.4")
+	c.Check(app.Version, Equals, "")
+	c.Check(app.Click, Equals, false)
+	c.Check(app.Original(), Equals, "_python3.4")
+	c.Check(app.Versioned(), Equals, "python3.4")
+	c.Check(app.Base(), Equals, "python3.4")
+	c.Check(app.DesktopId(), Equals, "python3.4.desktop")
+
+	for _, s := range []string{"_.foo", "_foo/", "_/foo"} {
+		app, err = ParseAppId(s)
+		c.Check(app, IsNil)
+		c.Check(err, Equals, ErrInvalidAppId)
+	}
+}
+
+func (cs *clickSuite) TestJSON(c *C) {
+	for _, appId := range []string{"com.ubuntu.clock_clock", "com.ubuntu.clock_clock_10", "_python3.4"} {
+		app, err := ParseAppId(appId)
+		c.Assert(err, IsNil, Commentf(appId))
+		b, err := json.Marshal(app)
+		c.Assert(err, IsNil, Commentf(appId))
+		var vapp *AppId
+		err = json.Unmarshal(b, &vapp)
+		c.Assert(err, IsNil, Commentf(appId))
+		c.Check(vapp, DeepEquals, app)
+	}
+}
+
+func (cs *clickSuite) TestIcon(c *C) {
+	app, err := ParseAppId("_python3.4")
+	c.Assert(err, IsNil)
+	c.Check(app.Icon(), Equals, "/usr/share/pixmaps/python3.4.xpm")
 }
 
 func (s *clickSuite) TestUser(c *C) {
@@ -61,26 +112,71 @@ func (s *clickSuite) TestUser(c *C) {
 	c.Assert(u, NotNil)
 }
 
-func (s *clickSuite) TestHasPackageNegative(c *C) {
+func (s *clickSuite) TestInstalledNegative(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
-	c.Check(u.HasPackage("com.foo.bar"), Equals, false)
-	c.Check(u.HasPackage("com.foo.bar_baz"), Equals, false)
+	app, err := ParseAppId("com.foo.bar_baz")
+	c.Assert(err, IsNil)
+	c.Check(u.Installed(app, false), Equals, false)
 }
 
-func (s *clickSuite) TestHasPackageVersionNegative(c *C) {
+func (s *clickSuite) TestInstalledVersionNegative(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
-	c.Check(u.HasPackage("com.ubuntu.clock_clock_1000.0"), Equals, false)
+	app, err := ParseAppId("com.ubuntu.clock_clock_1000.0")
+	c.Assert(err, IsNil)
+	c.Check(u.Installed(app, false), Equals, false)
 }
 
-func (s *clickSuite) TestHasPackageClock(c *C) {
+func (s *clickSuite) TestInstalledClock(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
 	ver := u.ccu.CGetVersion("com.ubuntu.clock")
 	if ver == "" {
 		c.Skip("no com.ubuntu.clock pkg installed")
 	}
-	c.Check(u.HasPackage("com.ubuntu.clock_clock"), Equals, true)
-	c.Check(u.HasPackage("com.ubuntu.clock_clock_"+ver), Equals, true)
+	app, err := ParseAppId("com.ubuntu.clock_clock")
+	c.Assert(err, IsNil)
+	c.Check(u.Installed(app, false), Equals, true)
+	app, err = ParseAppId("com.ubuntu.clock_clock_" + ver)
+	c.Assert(err, IsNil)
+	c.Check(u.Installed(app, false), Equals, true)
+
+	app, err = ParseAppId("com.ubuntu.clock_clock_10" + ver)
+	c.Assert(err, IsNil)
+	c.Check(u.Installed(app, false), Equals, false)
+
+	// setVersion
+	app, err = ParseAppId("com.ubuntu.clock_clock")
+	c.Assert(err, IsNil)
+	c.Check(u.Installed(app, true), Equals, true)
+	c.Check(app.Version, Equals, ver)
+}
+
+func (s *clickSuite) TestInstalledLegacy(c *C) {
+	u, err := User()
+	c.Assert(err, IsNil)
+	app, err := ParseAppId("_python3.4")
+	c.Assert(err, IsNil)
+	c.Check(u.Installed(app, false), Equals, true)
+}
+
+func (s *clickSuite) TestParseAndVerifyAppId(c *C) {
+	u, err := User()
+	c.Assert(err, IsNil)
+
+	app, err := ParseAndVerifyAppId("_.foo", nil)
+	c.Assert(err, Equals, ErrInvalidAppId)
+	c.Check(app, IsNil)
+
+	app, err = ParseAndVerifyAppId("com.foo.bar_baz", nil)
+	c.Assert(err, IsNil)
+	c.Check(app.Click, Equals, true)
+	c.Check(app.Application, Equals, "baz")
+
+	app, err = ParseAndVerifyAppId("_non-existent-app", u)
+	c.Assert(err, Equals, ErrMissingAppId)
+	c.Check(app, NotNil)
+	c.Check(app.Original(), Equals, "_non-existent-app")
+
 }

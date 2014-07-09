@@ -21,11 +21,12 @@ package launch_helper
 import (
 	"encoding/json"
 
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/logger"
 )
 
 type HelperLauncher interface {
-	Run(appId string, message []byte) *HelperOutput
+	Run(app *click.AppId, message []byte) *HelperOutput
 }
 
 type trivialHelperLauncher struct {
@@ -37,7 +38,7 @@ func NewTrivialHelperLauncher(log logger.Logger) HelperLauncher {
 	return &trivialHelperLauncher{log}
 }
 
-func (triv *trivialHelperLauncher) Run(appId string, message []byte) *HelperOutput {
+func (triv *trivialHelperLauncher) Run(app *click.AppId, message []byte) *HelperOutput {
 	out := new(HelperOutput)
 	err := json.Unmarshal(message, out)
 	if err == nil {

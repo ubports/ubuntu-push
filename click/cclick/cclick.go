@@ -68,9 +68,3 @@ func (ccu *CClickUser) CGetVersion(pkgName string) string {
 	defer gfree(ver)
 	return C.GoString((*C.char)(ver))
 }
-
-func (ccu *CClickUser) CHasPackageName(pkgName string) bool {
-	pkgname := gchar(pkgName)
-	defer gfree(pkgname)
-	return C.click_user_has_package_name(ccu.cref, pkgname) == C.TRUE
-}

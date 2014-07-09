@@ -22,6 +22,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -31,12 +32,14 @@ func TestHaptic(t *testing.T) { TestingT(t) }
 
 type hapticSuite struct {
 	log *helpers.TestLogger
+	app *click.AppId
 }
 
 var _ = Suite(&hapticSuite{})
 
 func (hs *hapticSuite) SetUpTest(c *C) {
 	hs.log = helpers.NewTestLogger(c, "debug")
+	hs.app = helpers.MustParseAppId("com.example.test_test-app_0")
 }
 
 // checks that Present() actually calls VibratePattern
@@ -45,7 +48,7 @@ func (hs *hapticSuite) TestPresentPresents(c *C) {
 
 	ec := New(endp, hs.log)
 	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Pattern: []uint32{200, 100}, Repeat: 2}}
-	c.Check(ec.Present("com.example.test_test-app", "nid", &notif), Equals, true)
+	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 1)
 	c.Check(callArgs[0].Member, Equals, "VibratePattern")
@@ -59,7 +62,7 @@ func (hs *hapticSuite) TestPresentDefaultsRepeatTo1(c *C) {
 	ec := New(endp, hs.log)
 	// note: no Repeat:
 	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Pattern: []uint32{200, 100}}}
-	c.Check(ec.Present("com.example.test_test-app", "nid", &notif), Equals, true)
+	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 1)
 	c.Check(callArgs[0].Member, Equals, "VibratePattern")
@@ -74,7 +77,7 @@ func (hs *hapticSuite) TestPresentBuildsPatternWithDuration(c *C) {
 	ec := New(endp, hs.log)
 	// note: no Repeat, no Pattern, just Duration:
 	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Duration: 200}}
-	c.Check(ec.Present("com.example.test_test-app", "nid", &notif), Equals, true)
+	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 1)
 	c.Check(callArgs[0].Member, Equals, "VibratePattern")
@@ -89,7 +92,7 @@ func (hs *hapticSuite) TestPresentOverrides(c *C) {
 	ec := New(endp, hs.log)
 	// note: Duration given, as well as Pattern; Repeat given as 0:
 	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Duration: 200, Pattern: []uint32{500}, Repeat: 0}}
-	c.Check(ec.Present("com.example.test_test-app", "nid", &notif), Equals, true)
+	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 1)
 	c.Check(callArgs[0].Member, Equals, "VibratePattern")
@@ -103,9 +106,9 @@ func (hs *hapticSuite) TestSkipIfMissing(c *C) {
 
 	ec := New(endp, hs.log)
 	// no notification at all
-	c.Check(ec.Present("", "", nil), Equals, false)
+	c.Check(ec.Present(hs.app, "", nil), Equals, false)
 	// no Vibration in the notificaton
-	c.Check(ec.Present("", "", &launch_helper.Notification{}), Equals, false)
+	c.Check(ec.Present(hs.app, "", &launch_helper.Notification{}), Equals, false)
 	// empty Vibration
-	c.Check(ec.Present("", "", &launch_helper.Notification{Vibrate: &launch_helper.Vibration{}}), Equals, false)
+	c.Check(ec.Present(hs.app, "", &launch_helper.Notification{Vibrate: &launch_helper.Vibration{}}), Equals, false)
 }
