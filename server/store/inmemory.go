@@ -135,25 +135,12 @@ func (sto *InMemoryPendingStore) GetChannelUnfiltered(chanId InternalChannelId) 
 	return channel.topLevel, res, meta, nil
 }
 
-func FilterNotifications(notifications []protocol.Notification, meta []Metadata) []protocol.Notification {
-	res := make([]protocol.Notification, 0, len(notifications))
-	now := time.Now()
-	for i := range meta {
-		if meta[i].Before(now) {
-			meta[i].Obsolete = true
-			continue
-		}
-		res = append(res, notifications[i])
-	}
-	return res
-}
-
 func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (int64, []protocol.Notification, error) {
 	topLevel, res, meta, _ := sto.GetChannelUnfiltered(chanId)
 	if res == nil {
 		return 0, nil, nil
 	}
-	res = FilterNotifications(res, meta)
+	res = FilterOutObsolete(res, meta)
 	return topLevel, res, nil
 }
 
@@ -164,7 +151,7 @@ func (sto *InMemoryPendingStore) Scrub(chanId InternalChannelId, appId string) e
 	if channel == nil {
 		return nil
 	}
-	fresh := FilterNotifications(res, meta)
+	fresh := FilterOutObsolete(res, meta)
 	res = make([]protocol.Notification, 0, len(fresh))
 	exps := make([]time.Time, 0, len(fresh))
 	i := 0

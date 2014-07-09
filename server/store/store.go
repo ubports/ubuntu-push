@@ -173,3 +173,18 @@ func FilterOutByMsgId(orig, targets []protocol.Notification) []protocol.Notifica
 	}
 	return acc
 }
+
+// FilterOutObsolete filters out expired notifications based on
+// paired meta information.
+func FilterOutObsolete(notifications []protocol.Notification, meta []Metadata) []protocol.Notification {
+	res := make([]protocol.Notification, 0, len(notifications))
+	now := time.Now()
+	for i := range meta {
+		if meta[i].Before(now) {
+			meta[i].Obsolete = true
+			continue
+		}
+		res = append(res, notifications[i])
+	}
+	return res
+}
