@@ -38,8 +38,8 @@ func New(log logger.Logger) *MessagingMenu {
 
 var cAddNotification = cmessaging.AddNotification
 
-func (mmu *MessagingMenu) addNotification(desktopfile string, notificationId string, card *launch_helper.Card) {
-	cAddNotification(desktopfile, notificationId, card, mmu.Ch)
+func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card) {
+	cAddNotification(desktopId, notificationId, card, mmu.Ch)
 }
 
 func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {

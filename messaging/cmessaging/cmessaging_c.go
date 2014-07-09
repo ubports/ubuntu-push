@@ -25,7 +25,7 @@ static void activate_cb(MessagingMenuMessage* msg, gchar* action, GVariant* para
     handleActivate(action, messaging_menu_message_get_id(msg), obj);
 }
 
-void add_notification (const gchar* desktop_file, const gchar* notification_id,
+void add_notification (const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
           gint64 timestamp, const gchar** actions, gpointer obj) {
     static GHashTable* map = NULL;
@@ -33,13 +33,13 @@ void add_notification (const gchar* desktop_file, const gchar* notification_id,
         map = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
     }
 
-    MessagingMenuApp* app = g_hash_table_lookup (map, desktop_file);
+    MessagingMenuApp* app = g_hash_table_lookup (map, desktop_id);
     if (app == NULL) {
-        GIcon* app_icon = g_icon_new_for_string (desktop_file, NULL);
-        app = messaging_menu_app_new (desktop_file);
+        GIcon* app_icon = g_icon_new_for_string (desktop_id, NULL);
+        app = messaging_menu_app_new (desktop_id);
 	messaging_menu_app_register (app);
 	messaging_menu_app_append_source (app, "postal", app_icon, "Postal");
-        g_hash_table_insert (map, g_strdup (desktop_file), app);
+        g_hash_table_insert (map, g_strdup (desktop_id), app);
         g_object_unref (app_icon);
         // app only has a single refcount, and it's stored in the map. No need to g_object_unref it!
     }

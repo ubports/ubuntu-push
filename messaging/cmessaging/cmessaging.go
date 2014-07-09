@@ -22,7 +22,7 @@ package cmessaging
 
 #include <glib.h>
 
-void add_notification(const gchar* desktop_file, const gchar* notification_id,
+void add_notification(const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
           gint64 timestamp, const gchar** actions, gpointer obj);
 */
@@ -47,9 +47,9 @@ func handleActivate(action *C.char, notification *C.char, ch *chan *reply.MMActi
 	*ch <- mmar
 }
 
-func AddNotification(desktopfile string, notificationId string, card *launch_helper.Card, ch chan *reply.MMActionReply) {
-	desktop_file := gchar(desktopfile)
-	defer gfree(desktop_file)
+func AddNotification(desktopId string, notificationId string, card *launch_helper.Card, ch chan *reply.MMActionReply) {
+	desktop_id := gchar(desktopId)
+	defer gfree(desktop_id)
 
 	notification_id := gchar(notificationId)
 	defer gfree(notification_id)
@@ -64,7 +64,7 @@ func AddNotification(desktopfile string, notificationId string, card *launch_hel
 	defer gfree(body)
 
 	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
-	C.add_notification(desktop_file, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(&ch))
+	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(&ch))
 }
 
 func init() {
