@@ -180,7 +180,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastTooManyCleanPending(c *C) {
 		Data:     json.RawMessage(fmt.Sprintf(payloadFmt, MaxNotificationsPerApplication)),
 	})
 	c.Assert(err, IsNil)
-	c.Assert(got, Matches, `.*"error":"too-many".*`)
+	c.Assert(got, Matches, `.*"error":"too-many-pending".*`)
 
 	// clean all pending
 	got, err = s.PostRequest("/notify", &api.Unicast{

@@ -433,7 +433,7 @@ func (s *handlersSuite) TestDoUnicastTooManyNotifications(c *C) {
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 1}`),
 	})
-	c.Check(apiErr, Equals, ErrTooManyNotifications)
+	c.Check(apiErr, Equals, ErrTooManyPendingNotifications)
 	c.Check(s.testlog.Captured(), Equals, "")
 }
 

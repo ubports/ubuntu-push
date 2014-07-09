@@ -55,7 +55,7 @@ const (
 	unauthorized   = "unauthorized"
 	unavailable    = "unavailable"
 	internalError  = "internal"
-	tooMany        = "too-many"
+	tooManyPending = "too-many-pending"
 )
 
 func (apiErr *APIError) Error() string {
@@ -164,10 +164,10 @@ var (
 		unauthorized,
 		"Unauthorized",
 	}
-	ErrTooManyNotifications = &APIError{
+	ErrTooManyPendingNotifications = &APIError{
 		http.StatusRequestEntityTooLarge,
-		tooMany,
-		"too many pending notifications for this application",
+		tooManyPending,
+		"Too many pending notifications for this application",
 	}
 )
 
@@ -437,7 +437,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 	if ucast.CleanPending {
 		scrubAppId = ucast.AppId
 	} else if forApp >= ctx.storage.GetMaxNotificationsPerApplication() {
-		return nil, ErrTooManyNotifications
+		return nil, ErrTooManyPendingNotifications
 	}
 	if expired > 0 || scrubAppId != "" {
 		err := sto.Scrub(chanId, scrubAppId)
