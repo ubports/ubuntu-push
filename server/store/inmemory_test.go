@@ -156,13 +156,11 @@ func (s *inMemorySuite) TestAppendToChannelAndGetChannelUnfiltered(c *C) {
 	notification1 := json.RawMessage(`{"a":1}`)
 	notification2 := json.RawMessage(`{"a":2}`)
 
-	verySoon := time.Now().Add(100 * time.Millisecond)
+	gone := time.Now().Add(-1 * time.Minute)
 	muchLater := time.Now().Add(time.Minute)
 
 	sto.AppendToChannel(SystemInternalChannelId, notification1, muchLater)
-	sto.AppendToChannel(SystemInternalChannelId, notification2, verySoon)
-
-	time.Sleep(200 * time.Millisecond)
+	sto.AppendToChannel(SystemInternalChannelId, notification2, gone)
 
 	top, res, meta, err := sto.GetChannelUnfiltered(SystemInternalChannelId)
 	c.Assert(err, IsNil)
@@ -170,7 +168,7 @@ func (s *inMemorySuite) TestAppendToChannelAndGetChannelUnfiltered(c *C) {
 	c.Check(res, DeepEquals, help.Ns(notification1, notification2))
 	c.Check(meta, DeepEquals, []Metadata{
 		Metadata{Expiration: muchLater},
-		Metadata{Expiration: verySoon},
+		Metadata{Expiration: gone},
 	})
 }
 
@@ -180,13 +178,11 @@ func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshotWithExpiration(c
 	notification1 := json.RawMessage(`{"a":1}`)
 	notification2 := json.RawMessage(`{"a":2}`)
 
-	verySoon := time.Now().Add(100 * time.Millisecond)
+	gone := time.Now().Add(-1 * time.Minute)
 	muchLater := time.Now().Add(time.Minute)
 
 	sto.AppendToChannel(SystemInternalChannelId, notification1, muchLater)
-	sto.AppendToChannel(SystemInternalChannelId, notification2, verySoon)
-
-	time.Sleep(200 * time.Millisecond)
+	sto.AppendToChannel(SystemInternalChannelId, notification2, gone)
 
 	top, res, err := sto.GetChannelSnapshot(SystemInternalChannelId)
 	c.Assert(err, IsNil)
