@@ -46,11 +46,11 @@ var BusAddress bus.Address = bus.Address{
 
 // convenience type for the (uint32, string) ActionInvoked signal data
 type RawAction struct {
-	App      *click.AppId `json:"p"`
-	ActionId int          `json:"i"`
-	Nid      string       `json:"n"`
-	Action   string       `json:"a"`
-	RawId    uint32       `json:"r"`
+	App      *click.AppId `json:"app,omitempty"`
+	Action   string       `json:"act,omitempty"`
+	ActionId int          `json:"aid,omitempty"`
+	Nid      string       `json:"nid,omitempty"`
+	RawId    uint32       `json:"-"`
 }
 
 // a raw notification provides a low-level interface to the f.d.o. dbus

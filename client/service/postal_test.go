@@ -181,7 +181,7 @@ func (ss *postalSuite) TestInjectBroadcast(c *C) {
 	c.Check(callArgs[0].Member, Equals, "Notify")
 	c.Check(callArgs[0].Args[0:6], DeepEquals, []interface{}{"_ubuntu-push-client", uint32(0), "update_manager_icon",
 		"There's an updated system image.", "Tap to open the system updater.",
-		[]string{`{"p":"_ubuntu-push-client","i":0,"n":"settings:///system/system-update","a":"Switch to app","r":0}`, "Switch to app"}})
+		[]string{`{"app":"_ubuntu-push-client","act":"Switch to app","nid":"settings:///system/system-update"}`, "Switch to app"}})
 	// TODO: check the map in callArgs?
 	// c.Check(callArgs[0].Args[7]["x-canonical-secondary-icon"], NotNil)
 	// c.Check(callArgs[0].Args[7]["x-canonical-snap-decisions"], NotNil)
