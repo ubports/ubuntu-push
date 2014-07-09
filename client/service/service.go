@@ -26,17 +26,20 @@ import (
 	"net/url"
 	"os"
 
-	"launchpad.net/ubuntu-push/bus"
 	http13 "launchpad.net/ubuntu-push/http13client"
+
+	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
 )
 
 // PushServiceSetup encapsulates the params for setting up a PushService.
 type PushServiceSetup struct {
-	RegURL     *url.URL
-	DeviceId   string
-	AuthGetter func(string) string
+	RegURL           *url.URL
+	DeviceId         string
+	AuthGetter       func(string) string
+	InstalledChecker click.InstalledChecker
 }
 
 // PushService is the dbus api
@@ -61,6 +64,7 @@ func NewPushService(bus bus.Endpoint, setup *PushServiceSetup, log logger.Logger
 	var svc = &PushService{}
 	svc.Log = log
 	svc.Bus = bus
+	svc.installedChecker = setup.InstalledChecker
 	svc.regURL = setup.RegURL
 	svc.deviceId = setup.DeviceId
 	svc.authGetter = setup.AuthGetter
@@ -158,18 +162,18 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 }
 
 func (svc *PushService) register(path string, args, _ []interface{}) ([]interface{}, error) {
-	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	rawAppId := string(nih.Quote([]byte(appId)))
+	rawAppId := string(nih.Quote([]byte(app.Original())))
 	rv := os.Getenv("PUSH_REG_" + rawAppId)
 	if rv != "" {
 		return []interface{}{rv}, nil
 	}
 
-	reply, err := svc.manageReg("/register", appId)
+	reply, err := svc.manageReg("/register", app.Original())
 	if err != nil {
 		return nil, err
 	}
@@ -183,12 +187,12 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 }
 
 func (svc *PushService) unregister(path string, args, _ []interface{}) ([]interface{}, error) {
-	_, appId, err := grabDBusPackageAndAppId(path, args, 0)
+	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, svc.Unregister(appId)
+	return nil, svc.Unregister(app.Original())
 }
 
 func (svc *PushService) Unregister(appId string) error {
