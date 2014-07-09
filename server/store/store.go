@@ -101,6 +101,7 @@ func UnicastInternalChannelId(userId, deviceId string) InternalChannelId {
 // Metadata holds the metadata stored for a notification.
 type Metadata struct {
 	Expiration time.Time
+	ReplaceTag string
 	Obsolete   bool
 }
 
@@ -132,9 +133,14 @@ type PendingStore interface {
 	// GetChannelUnfiltered gets all the stored notifications with
 	// metadata and current top level in the channel.
 	GetChannelUnfiltered(chanId InternalChannelId) (topLevel int64, notifications []protocol.Notification, metadata []Metadata, err error)
-	// Scrub removes expired notifications and notifications with
-	// application id appId (if != "").
-	Scrub(chanId InternalChannelId, appId string) error
+	// Scrub removes notifications from the channel based on criteria.
+	// Usages:
+	// Scrub(chanId) removes all expired notifications.
+	// Scrub(chanId, appId) removes all expired notifications and
+	// all notifications for appId.
+	// Scrub(chanId, appId, replaceTag) removes all expired notifications
+	// and all notifications matching both appId and replaceTag.
+	Scrub(chanId InternalChannelId, criteria ...string) error
 	// DropByMsgId drops notifications from a unicast channel
 	// based on message ids.
 	DropByMsgId(chanId InternalChannelId, targets []protocol.Notification) error
@@ -174,17 +180,42 @@ func FilterOutByMsgId(orig, targets []protocol.Notification) []protocol.Notifica
 	return acc
 }
 
-// FilterOutObsolete filters out expired notifications based on
-// paired meta information.
+type tagKey struct {
+	appId, replaceTag string
+}
+
+// FilterOutObsolete filters out expired notifications and superseded
+// notifications sharing a replace tag based on paired meta
+// information.
 func FilterOutObsolete(notifications []protocol.Notification, meta []Metadata) []protocol.Notification {
-	res := make([]protocol.Notification, 0, len(notifications))
 	now := time.Now()
-	for i := range meta {
-		if meta[i].Before(now) {
-			meta[i].Obsolete = true
+	seenTags := make(map[tagKey]bool, 10)
+	n := 0
+	// walk backward to keep the latest ones with a given ReplaceTag
+	for j := len(meta) - 1; j >= 0; j-- {
+		if meta[j].Before(now) {
+			meta[j].Obsolete = true
 			continue
 		}
-		res = append(res, notifications[i])
+		if meta[j].ReplaceTag != "" {
+			key := tagKey{notifications[j].AppId, meta[j].ReplaceTag}
+			seen := seenTags[key]
+			if seen {
+				meta[j].Obsolete = true
+				continue
+			} else {
+				seenTags[key] = true
+			}
+		}
+		n++
+	}
+	res := make([]protocol.Notification, n)
+	j := 0
+	for i := range meta {
+		if !meta[i].Obsolete {
+			res[j] = notifications[i]
+			j++
+		}
 	}
 	return res
 }

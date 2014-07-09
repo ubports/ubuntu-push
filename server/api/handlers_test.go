@@ -237,8 +237,8 @@ func (isto *interceptInMemoryPendingStore) GetChannelUnfiltered(chanId store.Int
 	return top, notifs, meta, isto.intercept("GetChannelUnfiltered", err)
 }
 
-func (isto *interceptInMemoryPendingStore) Scrub(chanId store.InternalChannelId, appId string) error {
-	err := isto.InMemoryPendingStore.Scrub(chanId, appId)
+func (isto *interceptInMemoryPendingStore) Scrub(chanId store.InternalChannelId, criteria ...string) error {
+	err := isto.InMemoryPendingStore.Scrub(chanId, criteria...)
 	return isto.intercept("Scrub", err)
 }
 
