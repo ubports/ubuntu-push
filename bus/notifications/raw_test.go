@@ -176,6 +176,7 @@ func (s *RawSuite) TestPresentOneAction(c *C) {
 	actions, ok := callArgs[0].Args[5].([]string)
 	c.Assert(ok, Equals, true)
 	c.Assert(actions, HasLen, 2)
+	c.Check(actions[0], Equals, `{"app":"com.example.test_test-app_0","act":"Yes","nid":"notifId"}`)
 	c.Check(actions[1], Equals, "Yes")
 	hints, ok := callArgs[0].Args[6].(map[string]*dbus.Variant)
 	c.Assert(ok, Equals, true)
@@ -200,7 +201,9 @@ func (s *RawSuite) TestPresentTwoActions(c *C) {
 	actions, ok := callArgs[0].Args[5].([]string)
 	c.Assert(ok, Equals, true)
 	c.Assert(actions, HasLen, 4)
+	c.Check(actions[0], Equals, `{"app":"com.example.test_test-app_0","act":"Yes","nid":"notifId"}`)
 	c.Check(actions[1], Equals, "Yes")
+	c.Check(actions[2], Equals, `{"app":"com.example.test_test-app_0","act":"No","aid":1,"nid":"notifId"}`)
 	c.Check(actions[3], Equals, "No")
 	hints, ok := callArgs[0].Args[6].(map[string]*dbus.Variant)
 	c.Assert(ok, Equals, true)
@@ -211,6 +214,26 @@ func (s *RawSuite) TestPresentTwoActions(c *C) {
 	c.Check(hints["x-canonical-snap-decisions"], NotNil)
 	c.Check(hints["x-canonical-private-button-tint"], NotNil)
 	c.Check(hints["x-canonical-non-shaped-icon"], NotNil)
+}
+
+func (s *RawSuite) TestPresentThreeActions(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	_, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes", "No", "What"}}})
+	c.Check(err, IsNil)
+	callArgs := testibus.GetCallArgs(endp)
+	c.Assert(callArgs, HasLen, 1)
+	c.Assert(callArgs[0].Member, Equals, "Notify")
+	c.Assert(len(callArgs[0].Args), Equals, 8)
+	actions, ok := callArgs[0].Args[5].([]string)
+	c.Assert(ok, Equals, true)
+	c.Assert(actions, HasLen, 6)
+	hints, ok := callArgs[0].Args[6].(map[string]*dbus.Variant)
+	c.Assert(ok, Equals, true)
+	// with two actions, there should be 3 hints set:
+	c.Check(hints, HasLen, 1)
+	c.Check(hints["x-canonical-secondary-icon"], NotNil)
+	c.Check(s.log.Captured(), Matches, `(?ms).* no hints set$`)
 }
 
 func (s *RawSuite) TestPresentNoNotificationDoesNotNotify(c *C) {
@@ -244,5 +267,3 @@ func (s *RawSuite) TestPresentNoPopupNoNotify(c *C) {
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(0))
 }
-
-// XXX Missing test about ShowCard manipulating Actions and hints correctly.
