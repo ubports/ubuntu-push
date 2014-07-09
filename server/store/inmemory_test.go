@@ -252,7 +252,6 @@ func (s *inMemorySuite) TestAppendToUnicastChannelAndGetChannelSnapshotWithExpir
 		protocol.Notification{Payload: notification3, AppId: "app1", MsgId: "m3"},
 		protocol.Notification{Payload: notification4, AppId: "app1", MsgId: "m4"},
 	})
-
 }
 
 func (s *inMemorySuite) TestScrubNop(c *C) {
