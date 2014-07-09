@@ -26,7 +26,7 @@ import (
 )
 
 type HelperLauncher interface {
-	Run(appId *click.AppId, message []byte) *HelperOutput
+	Run(app *click.AppId, message []byte) *HelperOutput
 }
 
 type trivialHelperLauncher struct {
@@ -38,7 +38,7 @@ func NewTrivialHelperLauncher(log logger.Logger) HelperLauncher {
 	return &trivialHelperLauncher{log}
 }
 
-func (triv *trivialHelperLauncher) Run(appId *click.AppId, message []byte) *HelperOutput {
+func (triv *trivialHelperLauncher) Run(app *click.AppId, message []byte) *HelperOutput {
 	out := new(HelperOutput)
 	err := json.Unmarshal(message, out)
 	if err == nil {

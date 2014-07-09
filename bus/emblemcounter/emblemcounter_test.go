@@ -25,6 +25,7 @@ import (
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
+	"launchpad.net/ubuntu-push/nih"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 )
@@ -46,6 +47,7 @@ func (ecs *ecSuite) SetUpTest(c *C) {
 // checks that Present() actually calls SetProperty on the launcher
 func (ecs *ecSuite) TestPresentPresents(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
+	quoted := string(nih.Quote([]byte(ecs.app.Base())))
 
 	ec := New(endp, ecs.log)
 	notif := launch_helper.Notification{EmblemCounter: &launch_helper.EmblemCounter{Count: 42, Visible: true}}
@@ -54,12 +56,13 @@ func (ecs *ecSuite) TestPresentPresents(c *C) {
 	c.Assert(callArgs, HasLen, 2)
 	c.Check(callArgs[0].Member, Equals, "::SetProperty")
 	c.Check(callArgs[1].Member, Equals, "::SetProperty")
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", "/test_2dapp", dbus.Variant{Value: int32(42)}})
-	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", "/test_2dapp", dbus.Variant{Value: true}})
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", "/" + quoted, dbus.Variant{Value: int32(42)}})
+	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", "/" + quoted, dbus.Variant{Value: true}})
 }
 
 // check that Present() doesn't call SetProperty if no EmblemCounter in the Notification
 func (ecs *ecSuite) TestSkipIfMissing(c *C) {
+	quoted := string(nih.Quote([]byte(ecs.app.Base())))
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 	ec := New(endp, ecs.log)
 
@@ -77,6 +80,6 @@ func (ecs *ecSuite) TestSkipIfMissing(c *C) {
 	c.Assert(callArgs, HasLen, 2)
 	c.Check(callArgs[0].Member, Equals, "::SetProperty")
 	c.Check(callArgs[1].Member, Equals, "::SetProperty")
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", "/test_2dapp", dbus.Variant{Value: int32(0)}})
-	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", "/test_2dapp", dbus.Variant{Value: false}})
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", "/" + quoted, dbus.Variant{Value: int32(0)}})
+	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", "/" + quoted, dbus.Variant{Value: false}})
 }

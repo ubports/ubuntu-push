@@ -90,6 +90,14 @@ func (app *AppId) String() string {
 	return app.Original()
 }
 
+func (app *AppId) Base() string {
+	if app.Click {
+		return app.Package + "_" + app.Application
+	} else {
+		return app.Application
+	}
+}
+
 func (app *AppId) Versioned() string {
 	if app.Click {
 		if app.Version == "" {

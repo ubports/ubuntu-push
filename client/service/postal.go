@@ -157,18 +157,19 @@ func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interfac
 
 // Inject() signals to an application over dbus that a notification
 // has arrived.
-func (svc *PostalService) Inject(appId *click.AppId, nid string, notif string) error {
+func (svc *PostalService) Inject(app *click.AppId, nid string, notif string) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
 		svc.mbox = make(map[string][]string)
 	}
-	output := svc.HelperLauncher.Run(appId, []byte(notif))
+	output := svc.HelperLauncher.Run(app, []byte(notif))
+	appId := app.Original()
 	// XXX also track the nid in the mbox
-	svc.mbox[appId.Original()] = append(svc.mbox[appId.Original()], string(output.Message))
+	svc.mbox[appId] = append(svc.mbox[appId], string(output.Message))
 
 	if svc.msgHandler != nil {
-		err := svc.msgHandler(appId, nid, output)
+		err := svc.msgHandler(app, nid, output)
 		if err != nil {
 			svc.DBusService.Log.Errorf("msgHandler returned %v", err)
 			return err
@@ -176,16 +177,16 @@ func (svc *PostalService) Inject(appId *click.AppId, nid string, notif string) e
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 
-	return svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(appId.Package))), []interface{}{appId.Original()})
+	return svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
-func (svc *PostalService) messageHandler(appId *click.AppId, nid string, output *launch_helper.HelperOutput) error {
-	svc.messagingMenu.Present(appId, nid, output.Notification)
+func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
+	svc.messagingMenu.Present(app, nid, output.Notification)
 	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
-	_, err := nots.Present(appId, nid, output.Notification)
-	emblemcounter.New(svc.emblemcounterEndp, svc.Log).Present(appId, nid, output.Notification)
-	haptic.New(svc.hapticEndp, svc.Log).Present(appId, nid, output.Notification)
-	sounds.New(svc.Log).Present(appId, nid, output.Notification)
+	_, err := nots.Present(app, nid, output.Notification)
+	emblemcounter.New(svc.emblemcounterEndp, svc.Log).Present(app, nid, output.Notification)
+	haptic.New(svc.hapticEndp, svc.Log).Present(app, nid, output.Notification)
+	sounds.New(svc.Log).Present(app, nid, output.Notification)
 
 	return err
 }

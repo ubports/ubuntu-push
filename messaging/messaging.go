@@ -42,11 +42,11 @@ func (mmu *MessagingMenu) addNotification(desktopfile string, notificationId str
 	cAddNotification(desktopfile, notificationId, card, mmu.Ch)
 }
 
-func (mmu *MessagingMenu) Present(appId *click.AppId, notificationId string, notification *launch_helper.Notification) {
+func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {
 	if notification == nil || notification.Card == nil || !notification.Card.Persist || notification.Card.Summary == "" {
 		mmu.Log.Debugf("[%s] no notification or notification has no persistable card: %#v", notificationId, notification)
 		return
 	}
 
-	mmu.addNotification(appId.DesktopId(), notificationId, notification.Card)
+	mmu.addNotification(app.DesktopId(), notificationId, notification.Card)
 }

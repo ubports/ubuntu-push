@@ -49,15 +49,15 @@ func New(endp bus.Endpoint, log logger.Logger) *EmblemCounter {
 
 // Look for an EmblemCounter section in a Notification and, if
 // present, presents it to the user.
-func (ctr *EmblemCounter) Present(appId *click.AppId, nid string, notification *launch_helper.Notification) {
+func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *launch_helper.Notification) {
 	if notification == nil || notification.EmblemCounter == nil {
 		ctr.log.Debugf("[%s] no notification or no EmblemCounter in the notification; doing nothing: %#v", nid, notification)
 		return
 	}
 	ec := notification.EmblemCounter
-	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, appId.Application, ec.Count, ec.Visible)
+	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, app.Application, ec.Count, ec.Visible)
 
-	quoted := string(nih.Quote([]byte(appId.Application)))
+	quoted := string(nih.Quote([]byte(app.Base())))
 
 	ctr.bus.SetProperty("count", "/"+quoted, dbus.Variant{ec.Count})
 	ctr.bus.SetProperty("countVisible", "/"+quoted, dbus.Variant{ec.Visible})
