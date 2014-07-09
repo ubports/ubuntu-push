@@ -151,14 +151,16 @@ type checkBrokerSending struct {
 	err           error
 	top           int64
 	notifications []protocol.Notification
+	meta          []store.Metadata
 }
 
 func (cbsend *checkBrokerSending) Broadcast(chanId store.InternalChannelId) {
-	top, notifications, err := cbsend.store.GetChannelSnapshot(chanId)
+	top, notifications, meta, err := cbsend.store.GetChannelUnfiltered(chanId)
 	cbsend.err = err
 	cbsend.chanId = chanId
 	cbsend.top = top
 	cbsend.notifications = notifications
+	cbsend.meta = meta
 }
 
 func (cbsend *checkBrokerSending) Unicast(chanIds ...store.InternalChannelId) {
@@ -477,6 +479,79 @@ func (s *handlersSuite) TestDoUnicastWithScrub(c *C) {
 		AppId:   "app1",
 		MsgId:   "MSG-ID",
 		Payload: payload,
+	})
+}
+
+func (s *handlersSuite) TestDoUnicastWithReplaceTag(c *C) {
+	prevGenMsgId := generateMsgId
+	defer func() {
+		generateMsgId = prevGenMsgId
+	}()
+	m := 0
+	generateMsgId = func() string {
+		m++
+		return fmt.Sprintf("MSG-ID-%d", m)
+	}
+	sto := store.NewInMemoryPendingStore()
+	chanId := store.UnicastInternalChannelId("user1", "DEV1")
+	expire := store.Metadata{Expiration: time.Now().Add(-1 * time.Hour)}
+	n := json.RawMessage("{}")
+	sto.AppendToUnicastChannel(chanId, "app1", n, "m1", expire)
+
+	bsend := &checkBrokerSending{store: sto}
+	ctx := &context{testStoreAccess(nil), bsend, nil}
+	payload := json.RawMessage(`{"a": 1}`)
+	res, apiErr := doUnicast(ctx, sto, &Unicast{
+		UserId:     "user1",
+		DeviceId:   "DEV1",
+		AppId:      "app1",
+		ExpireOn:   future,
+		ReplaceTag: "u1",
+		Data:       payload,
+	})
+	c.Assert(apiErr, IsNil)
+	c.Check(res, IsNil)
+	c.Check(bsend.err, IsNil)
+	c.Check(bsend.chanId, Equals, store.UnicastInternalChannelId("user1", "DEV1"))
+	c.Check(bsend.top, Equals, int64(0))
+	c.Check(bsend.notifications, HasLen, 1)
+	c.Check(bsend.notifications[0], DeepEquals, protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "MSG-ID-1",
+		Payload: payload,
+	})
+	futureTime, err := time.Parse(time.RFC3339, future)
+	c.Assert(err, IsNil)
+	c.Check(bsend.meta[0], DeepEquals, store.Metadata{
+		Expiration: futureTime,
+		ReplaceTag: "u1",
+	})
+
+	// replace
+	payload2 := json.RawMessage(`{"a": 2}`)
+	res, apiErr = doUnicast(ctx, sto, &Unicast{
+		UserId:     "user1",
+		DeviceId:   "DEV1",
+		AppId:      "app1",
+		ExpireOn:   future,
+		ReplaceTag: "u1",
+		Data:       payload2,
+	})
+	c.Assert(apiErr, IsNil)
+	c.Check(res, IsNil)
+	c.Check(bsend.err, IsNil)
+	c.Check(bsend.chanId, Equals, store.UnicastInternalChannelId("user1", "DEV1"))
+	c.Check(bsend.top, Equals, int64(0))
+	c.Check(bsend.notifications, HasLen, 1)
+	c.Check(bsend.notifications[0], DeepEquals, protocol.Notification{
+		AppId:   "app1",
+		MsgId:   "MSG-ID-2",
+		Payload: payload2,
+	})
+	c.Assert(err, IsNil)
+	c.Check(bsend.meta[0], DeepEquals, store.Metadata{
+		Expiration: futureTime,
+		ReplaceTag: "u1",
 	})
 }
 

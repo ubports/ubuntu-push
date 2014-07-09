@@ -177,15 +177,16 @@ type Registration struct {
 }
 
 type Unicast struct {
-	Token    string `json:"token"`
-	UserId   string `json:"userid"`   // not part of the official API
-	DeviceId string `json:"deviceid"` // not part of the official API
-	AppId    string `json:"appid"`
-	//CoalesceTag  string          `json:"coalesce_tag"`
+	Token    string          `json:"token"`
+	UserId   string          `json:"userid"`   // not part of the official API
+	DeviceId string          `json:"deviceid"` // not part of the official API
+	AppId    string          `json:"appid"`
 	ExpireOn string          `json:"expire_on"`
 	Data     json.RawMessage `json:"data"`
 	// clean all pending messages for appid
 	CleanPending bool `json:"clean_pending,omitempty"`
+	// replace pending messages with the same replace_tag
+	ReplaceTag string `json:"replace_tag,omitempty"`
 }
 
 // Broadcast request JSON object.
@@ -422,8 +423,10 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 		return nil, ErrCouldNotStoreNotification
 	}
 	expired := 0
+	replaceable := 0
 	forApp := 0
-	scrubAppId := ""
+	replaceTag := ucast.ReplaceTag
+	scrubCriteria := []string(nil)
 	now := time.Now()
 	for i, notif := range notifs {
 		if meta[i].Before(now) {
@@ -431,16 +434,23 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 			continue
 		}
 		if notif.AppId == ucast.AppId {
+			if replaceTag != "" && replaceTag == meta[i].ReplaceTag {
+				// this we will scrub
+				replaceable++
+				continue
+			}
 			forApp++
 		}
 	}
 	if ucast.CleanPending {
-		scrubAppId = ucast.AppId
+		scrubCriteria = []string{ucast.AppId}
 	} else if forApp >= ctx.storage.GetMaxNotificationsPerApplication() {
 		return nil, ErrTooManyPendingNotifications
+	} else if replaceable > 0 {
+		scrubCriteria = []string{ucast.AppId, replaceTag}
 	}
-	if expired > 0 || scrubAppId != "" {
-		err := sto.Scrub(chanId, scrubAppId)
+	if expired > 0 || scrubCriteria != nil {
+		err := sto.Scrub(chanId, scrubCriteria...)
 		if err != nil {
 			ctx.logger.Errorf("could not scrub channel: %v", err)
 			return nil, ErrCouldNotStoreNotification
@@ -448,7 +458,10 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 	}
 
 	msgId := generateMsgId()
-	meta1 := store.Metadata{Expiration: expire}
+	meta1 := store.Metadata{
+		Expiration: expire,
+		ReplaceTag: ucast.ReplaceTag,
+	}
 	err = sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, meta1)
 	if err != nil {
 		ctx.logger.Errorf("could not store notification: %v", err)
