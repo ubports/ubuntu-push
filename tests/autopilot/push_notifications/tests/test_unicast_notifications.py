@@ -52,20 +52,11 @@ class TestPushClientUnicast(PushNotificationTestBase):
 
         """
         # Assumes greeter starts in locked state
-        # Turn display off
-        #self.press_power_button()
+        self.unlock_greeter()
         # send message
         self.send_unicast_notification(persist=True)
-        # wait before turning screen on
-        #time.sleep(2)
-        # Turn display on
-        #self.press_power_button()
-        self.unlock_greeter()
         # swipe down and show the incomming page
         messaging = self.get_messaging_menu()
-        # check the Empty label isn't shown
-        label = messaging.select_single('Label', objectName='emptyLabel')
-        self.assertFalse(label.visible, "Empty label should *not* be visible.")
         # get the notification and check the body and title.
         menuItem0 = messaging.select_single('QQuickLoader',
                                             objectName='menuItem0')
@@ -74,6 +65,49 @@ class TestPushClientUnicast(PushNotificationTestBase):
         self.assertEqual(body.text, 'A unicast message')
         title = hmh.select_single("Label", objectName='title')
         self.assertEqual(title.text, 'Look!')
+
+    def swipe_screen_from_left(self):
+        width = self.main_window.width
+        height = self.main_window.height
+        start_x = 50
+        start_y = int(height/2)
+        end_x = int(width/2)
+        end_y = width
+        self.touch.drag(start_x, start_y, end_x, end_y)
+
+    def get_running_app_launcher_icon(self):
+        launcher = self.main_window.get_launcher()
+        return launcher.select_single('LauncherDelegate',
+                                      objectName='launcherDelegate4')
+
+    def test_unicast_push_notification_emblem_count(self):
+        """Send a emblem-counter enabled unicast push notification.
+
+        Notification should be displayed at the dash/emblem.
+
+        """
+        # Assumes greeter starts in locked state
+        self.unlock_greeter()
+        # open self.appid app
+        try:
+            self.launch_upstart_application(self.appid)
+        except Exception:
+            # ignore dbus instrospection errors
+            pass
+        # move the app to the background
+        self.main_window.show_dash_swiping()
+        # check the icon has no emblems
+        app_icon = self.get_running_app_launcher_icon()
+        self.assertEqual(app_icon.count, 0)
+        # send message, only showing emblem counter
+        emblem_counter = {'count': 42, 'visible': True}
+        self.send_unicast_notification(persist=False, popup=False,
+                                       emblem_counter=emblem_counter)
+        # show the dash and check the emblem count.
+        self.main_window.show_dash_swiping()
+        # check there is a emblem count == 2
+        app_icon = self.get_running_app_launcher_icon()
+        self.assertEqual(app_icon.count, emblem_counter['count'])
 
     def test_unicast_push_notification_locked_greeter(self):
         """Send a push notification while in the greeter scrren.
