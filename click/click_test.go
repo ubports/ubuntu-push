@@ -50,6 +50,7 @@ func (cs *clickSuite) TestParseAppId(c *C) {
 	c.Check(app.Original(), Equals, "com.ubuntu.clock_clock_10")
 	c.Check(fmt.Sprintf("%s", app), Equals, "com.ubuntu.clock_clock_10")
 	c.Check(app.Versioned(), Equals, "com.ubuntu.clock_clock_10")
+	c.Check(app.Base(), Equals, "com.ubuntu.clock_clock")
 	c.Check(app.DesktopId(), Equals, "com.ubuntu.clock_clock_10.desktop")
 
 	for _, s := range []string{"com.ubuntu.clock_clock_10_4", "com.ubuntu.clock", ""} {
@@ -75,6 +76,7 @@ func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
 	c.Check(app.Click, Equals, false)
 	c.Check(app.Original(), Equals, "_python3.4")
 	c.Check(app.Versioned(), Equals, "python3.4")
+	c.Check(app.Base(), Equals, "python3.4")
 	c.Check(app.DesktopId(), Equals, "python3.4.desktop")
 
 	for _, s := range []string{"_.foo", "_foo/", "_/foo"} {

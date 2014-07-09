@@ -19,6 +19,7 @@
 package messaging
 
 import (
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging/cmessaging"
@@ -37,15 +38,15 @@ func New(log logger.Logger) *MessagingMenu {
 
 var cAddNotification = cmessaging.AddNotification
 
-func (mmu *MessagingMenu) addNotification(appId string, notificationId string, card *launch_helper.Card) {
-	cAddNotification(appId, notificationId, card, mmu.Ch)
+func (mmu *MessagingMenu) addNotification(desktopfile string, notificationId string, card *launch_helper.Card) {
+	cAddNotification(desktopfile, notificationId, card, mmu.Ch)
 }
 
-func (mmu *MessagingMenu) Present(appId string, notificationId string, notification *launch_helper.Notification) {
+func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {
 	if notification == nil || notification.Card == nil || !notification.Card.Persist || notification.Card.Summary == "" {
 		mmu.Log.Debugf("[%s] no notification or notification has no persistable card: %#v", notificationId, notification)
 		return
 	}
 
-	mmu.addNotification(appId, notificationId, notification.Card)
+	mmu.addNotification(app.DesktopId(), notificationId, notification.Card)
 }
