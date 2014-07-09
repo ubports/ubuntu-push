@@ -66,15 +66,6 @@ class TestPushClientUnicast(PushNotificationTestBase):
         title = hmh.select_single("Label", objectName='title')
         self.assertEqual(title.text, 'Look!')
 
-    def swipe_screen_from_left(self):
-        width = self.main_window.width
-        height = self.main_window.height
-        start_x = 50
-        start_y = int(height/2)
-        end_x = int(width/2)
-        end_y = width
-        self.touch.drag(start_x, start_y, end_x, end_y)
-
     def get_running_app_launcher_icon(self):
         launcher = self.main_window.get_launcher()
         return launcher.select_single('LauncherDelegate',
