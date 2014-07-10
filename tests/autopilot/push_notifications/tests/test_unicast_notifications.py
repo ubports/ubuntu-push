@@ -51,16 +51,21 @@ class TestPushClientUnicast(PushNotificationTestBase):
         super(TestPushClientUnicast, self).setUp()
         # only for the click_app_with_version scenario
         if self.path is None and self.appid is None:
-            # get calculator appid with version from the .desktop file list.
-            files = os.listdir(os.path.expanduser(self.desktop_dir))
-            for fname in files:
-                if fname.startswith(self.app_name) and \
-                        fname.endswith(".desktop"):
-                    # remove .desktop extension, only need the name.
-                    self.appid = os.path.splitext(fname)[0]
-                    self.path = self.appid.split("_")[0].replace(".", "_2e")
-                    break
+            self.appid, self.path = self._get_click_appid_and_path()
         self.token = self.push_helper.register(self.path, self.appid)
+
+    def _get_click_appid_and_path(self):
+        """Return the click appid including the version and dbus path."""
+        # get appid with version from the .desktop file list.
+        files = os.listdir(os.path.expanduser(self.desktop_dir))
+        for fname in files:
+            if fname.startswith(self.app_name) and \
+                    fname.endswith(".desktop"):
+                # remove .desktop extension, only need the name.
+                appid = os.path.splitext(fname)[0]
+                path = appid.split("_")[0].replace(".", "_2e")
+                return appid, path
+        return self.appid, self.path
 
     def test_unicast_push_notification_persistent(self):
         """Send a persistent unicast push notification.
@@ -97,12 +102,14 @@ class TestPushClientUnicast(PushNotificationTestBase):
         """
         # Assumes greeter starts in locked state
         self.unlock_greeter()
-        # open self.appid app
-        try:
-            self.launch_upstart_application(self.appid)
-        except Exception:
-            # ignore dbus instrospection errors
-            pass
+        # open the app, only if isn't by default in the launcher_id
+        if self.launcher_idx >= 4:
+            try:
+                self.launch_upstart_application(
+                    self._get_click_appid_and_path()[0])
+            except Exception:
+                # ignore dbus instrospection errors
+                pass
         # move the app to the background
         self.main_window.show_dash_swiping()
         # check the icon has no emblems
