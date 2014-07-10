@@ -1,27 +1,29 @@
 #!/usr/bin/env bash
 
-usage()
-{
-cat << EOF
+set -e 
+set -u
+
+usage() { 
+    cat << EOF
 usage: $0 -H <IP> [-b <branch url>]
 
 OPTIONS:
-   -H      host/IP where the push server is running.
-   -b      tests branch url 
-   -d      adb device id
+-H      host/IP where the push server is running.
+-b      tests branch url 
+-d      adb device id
 EOF
 }
 
 while getopts "H:b:c:" opt; do
-        case $opt in
-                H) PUSH_SERVER=$OPTARG;;
-                b) BRANCH_URL=$OPTARG;;
-                c) DEVICE_ID=$OPTARG;; 
-                *) usage
-                        exit 1
-                        ;;
-        esac
-    done
+    case $opt in
+        H) PUSH_SERVER=$OPTARG;;
+        b) BRANCH_URL=$OPTARG;;
+        c) DEVICE_ID=$OPTARG;; 
+        *) usage
+            exit 1
+            ;;
+    esac
+done
 
 if [[ -z ${PUSH_SERVER} ]]
 then
