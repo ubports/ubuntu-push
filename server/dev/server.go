@@ -40,6 +40,21 @@ type configuration struct {
 	server.HTTPServeParsedConfig
 	// delivery domain
 	DeliveryDomain string `json:"delivery_domain"`
+	// max notifications per application
+	MaxNotificationsPerApplication int `json:"max_notifications_per_app"`
+}
+
+type Storage struct {
+	sto                            store.PendingStore
+	maxNotificationsPerApplication int
+}
+
+func (storage *Storage) StoreForRequest(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
+	return storage.sto, nil
+}
+
+func (storage *Storage) GetMaxNotificationsPerApplication() int {
+	return storage.maxNotificationsPerApplication
 }
 
 func main() {
@@ -60,14 +75,15 @@ func main() {
 	broker.Start()
 	defer broker.Stop()
 	// serve the http api
-	storeForRequest := func(http.ResponseWriter, *http.Request) (store.PendingStore, error) {
-		return sto, nil
+	storage := &Storage{
+		sto: sto,
+		maxNotificationsPerApplication: cfg.MaxNotificationsPerApplication,
 	}
 	lst, err := net.Listen("tcp", cfg.Addr())
 	if err != nil {
 		server.BootLogFatalf("start device listening: %v", err)
 	}
-	mux := api.MakeHandlersMux(storeForRequest, broker, logger)
+	mux := api.MakeHandlersMux(storage, broker, logger)
 	// & /delivery-hosts
 	mux.HandleFunc("/delivery-hosts", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache")

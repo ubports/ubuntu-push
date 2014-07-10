@@ -55,6 +55,7 @@ const (
 	unauthorized   = "unauthorized"
 	unavailable    = "unavailable"
 	internalError  = "internal"
+	tooManyPending = "too-many-pending"
 )
 
 func (apiErr *APIError) Error() string {
@@ -163,6 +164,11 @@ var (
 		unauthorized,
 		"Unauthorized",
 	}
+	ErrTooManyPendingNotifications = &APIError{
+		http.StatusRequestEntityTooLarge,
+		tooManyPending,
+		"Too many pending notifications for this application",
+	}
 )
 
 type Registration struct {
@@ -172,12 +178,14 @@ type Registration struct {
 
 type Unicast struct {
 	Token    string `json:"token"`
-	UserId   string `json:"userid"`
-	DeviceId string `json:"deviceid"`
+	UserId   string `json:"userid"`   // not part of the official API
+	DeviceId string `json:"deviceid"` // not part of the official API
 	AppId    string `json:"appid"`
 	//CoalesceTag  string          `json:"coalesce_tag"`
 	ExpireOn string          `json:"expire_on"`
 	Data     json.RawMessage `json:"data"`
+	// clean all pending messages for appid
+	CleanPending bool `json:"clean_pending,omitempty"`
 }
 
 // Broadcast request JSON object.
@@ -260,17 +268,25 @@ func checkBroadcast(bcast *Broadcast) (time.Time, *APIError) {
 	return checkCastCommon(bcast.Data, bcast.ExpireOn)
 }
 
-type StoreForRequest func(w http.ResponseWriter, request *http.Request) (store.PendingStore, error)
+// StoreAccess lets get a notification pending store and parameters
+// for storage.
+type StoreAccess interface {
+	// StoreForRequest gets a pending store for the request.
+	StoreForRequest(w http.ResponseWriter, request *http.Request) (store.PendingStore, error)
+	// GetMaxNotificationsPerApplication gets the maximum number
+	// of pending notifications allowed for a signle application.
+	GetMaxNotificationsPerApplication() int
+}
 
 // context holds the interfaces to delegate to serving requests
 type context struct {
-	storeForRequest StoreForRequest
-	broker          broker.BrokerSending
-	logger          logger.Logger
+	storage StoreAccess
+	broker  broker.BrokerSending
+	logger  logger.Logger
 }
 
 func (ctx *context) getStore(w http.ResponseWriter, request *http.Request) (store.PendingStore, *APIError) {
-	sto, err := ctx.storeForRequest(w, request)
+	sto, err := ctx.storage.StoreForRequest(w, request)
 	if err != nil {
 		apiErr, ok := err.(*APIError)
 		if ok {
@@ -400,6 +416,37 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 		}
 	}
 
+	_, notifs, meta, err := sto.GetChannelUnfiltered(chanId)
+	if err != nil {
+		ctx.logger.Errorf("could not peek at notifications: %v", err)
+		return nil, ErrCouldNotStoreNotification
+	}
+	expired := 0
+	forApp := 0
+	scrubAppId := ""
+	now := time.Now()
+	for i, notif := range notifs {
+		if meta[i].Before(now) {
+			expired++
+			continue
+		}
+		if notif.AppId == ucast.AppId {
+			forApp++
+		}
+	}
+	if ucast.CleanPending {
+		scrubAppId = ucast.AppId
+	} else if forApp >= ctx.storage.GetMaxNotificationsPerApplication() {
+		return nil, ErrTooManyPendingNotifications
+	}
+	if expired > 0 || scrubAppId != "" {
+		err := sto.Scrub(chanId, scrubAppId)
+		if err != nil {
+			ctx.logger.Errorf("could not scrub channel: %v", err)
+			return nil, ErrCouldNotStoreNotification
+		}
+	}
+
 	msgId := generateMsgId()
 	err = sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, expire)
 	if err != nil {
@@ -447,11 +494,11 @@ func doUnregister(ctx *context, sto store.PendingStore, parsedBodyObj interface{
 }
 
 // MakeHandlersMux makes a handler that dispatches for the various API endpoints.
-func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
+func MakeHandlersMux(storage StoreAccess, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
 	ctx := &context{
-		storeForRequest: storeForRequest,
-		broker:          broker,
-		logger:          logger,
+		storage: storage,
+		broker:  broker,
+		logger:  logger,
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/broadcast", &JSONPostHandler{

@@ -102,6 +102,16 @@ func (s *inMemorySuite) TestGetChannelSnapshotEmpty(c *C) {
 	c.Check(res, DeepEquals, []protocol.Notification(nil))
 }
 
+func (s *inMemorySuite) TestGetChannelUnfilteredEmpty(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	top, res, meta, err := sto.GetChannelUnfiltered(SystemInternalChannelId)
+	c.Assert(err, IsNil)
+	c.Check(top, Equals, int64(0))
+	c.Check(res, DeepEquals, []protocol.Notification(nil))
+	c.Check(meta, DeepEquals, []Metadata(nil))
+}
+
 func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshot(c *C) {
 	sto := NewInMemoryPendingStore()
 
@@ -124,24 +134,42 @@ func (s *inMemorySuite) TestAppendToUnicastChannelAndGetChannelSnapshot(c *C) {
 	chanId := UnicastInternalChannelId("user", "dev1")
 	notification1 := json.RawMessage(`{"a":1}`)
 	notification2 := json.RawMessage(`{"b":2}`)
-	app1 := "app1"
-	app2 := "app2"
-	msg1 := "msg1"
-	msg2 := "msg2"
 
 	muchLater := time.Now().Add(time.Minute)
 
-	err := sto.AppendToUnicastChannel(chanId, app1, notification1, msg1, muchLater)
+	err := sto.AppendToUnicastChannel(chanId, "app1", notification1, "m1", muchLater)
 	c.Assert(err, IsNil)
-	err = sto.AppendToUnicastChannel(chanId, app2, notification2, msg2, muchLater)
+	err = sto.AppendToUnicastChannel(chanId, "app2", notification2, "m2", muchLater)
 	c.Assert(err, IsNil)
 	top, res, err := sto.GetChannelSnapshot(chanId)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, []protocol.Notification{
-		protocol.Notification{Payload: notification1, AppId: app1, MsgId: msg1},
-		protocol.Notification{Payload: notification2, AppId: app2, MsgId: msg2},
+		protocol.Notification{Payload: notification1, AppId: "app1", MsgId: "m1"},
+		protocol.Notification{Payload: notification2, AppId: "app2", MsgId: "m2"},
 	})
 	c.Check(top, Equals, int64(0))
+}
+
+func (s *inMemorySuite) TestAppendToChannelAndGetChannelUnfiltered(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	notification1 := json.RawMessage(`{"a":1}`)
+	notification2 := json.RawMessage(`{"a":2}`)
+
+	gone := time.Now().Add(-1 * time.Minute)
+	muchLater := time.Now().Add(time.Minute)
+
+	sto.AppendToChannel(SystemInternalChannelId, notification1, muchLater)
+	sto.AppendToChannel(SystemInternalChannelId, notification2, gone)
+
+	top, res, meta, err := sto.GetChannelUnfiltered(SystemInternalChannelId)
+	c.Assert(err, IsNil)
+	c.Check(top, Equals, int64(2))
+	c.Check(res, DeepEquals, help.Ns(notification1, notification2))
+	c.Check(meta, DeepEquals, []Metadata{
+		Metadata{Expiration: muchLater},
+		Metadata{Expiration: gone},
+	})
 }
 
 func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshotWithExpiration(c *C) {
@@ -150,18 +178,100 @@ func (s *inMemorySuite) TestAppendToChannelAndGetChannelSnapshotWithExpiration(c
 	notification1 := json.RawMessage(`{"a":1}`)
 	notification2 := json.RawMessage(`{"a":2}`)
 
-	verySoon := time.Now().Add(100 * time.Millisecond)
+	gone := time.Now().Add(-1 * time.Minute)
 	muchLater := time.Now().Add(time.Minute)
 
 	sto.AppendToChannel(SystemInternalChannelId, notification1, muchLater)
-	sto.AppendToChannel(SystemInternalChannelId, notification2, verySoon)
-
-	time.Sleep(200 * time.Millisecond)
+	sto.AppendToChannel(SystemInternalChannelId, notification2, gone)
 
 	top, res, err := sto.GetChannelSnapshot(SystemInternalChannelId)
 	c.Assert(err, IsNil)
 	c.Check(top, Equals, int64(2))
 	c.Check(res, DeepEquals, help.Ns(notification1))
+}
+
+func (s *inMemorySuite) TestScrubNop(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	chanId := UnicastInternalChannelId("user", "dev1")
+
+	err := sto.Scrub(chanId, "")
+	c.Assert(err, IsNil)
+}
+
+func (s *inMemorySuite) TestScrubOnlyExpired(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	chanId := UnicastInternalChannelId("user", "dev1")
+
+	notification1 := json.RawMessage(`{"a":1}`)
+	notification2 := json.RawMessage(`{"b":2}`)
+	notification3 := json.RawMessage(`{"c":3}`)
+	notification4 := json.RawMessage(`{"d":4}`)
+
+	gone := time.Now().Add(-1 * time.Minute)
+	muchLater1 := time.Now().Add(4 * time.Minute)
+	muchLater2 := time.Now().Add(5 * time.Minute)
+
+	err := sto.AppendToUnicastChannel(chanId, "app1", notification1, "m1", muchLater1)
+	c.Assert(err, IsNil)
+	err = sto.AppendToUnicastChannel(chanId, "app2", notification2, "m2", gone)
+	c.Assert(err, IsNil)
+	err = sto.AppendToUnicastChannel(chanId, "app1", notification3, "m3", gone)
+	c.Assert(err, IsNil)
+	err = sto.AppendToUnicastChannel(chanId, "app2", notification4, "m4", muchLater2)
+	c.Assert(err, IsNil)
+
+	err = sto.Scrub(chanId, "")
+	c.Assert(err, IsNil)
+
+	top, res, meta, err := sto.GetChannelUnfiltered(chanId)
+	c.Assert(err, IsNil)
+	c.Check(top, Equals, int64(0))
+	c.Check(res, DeepEquals, []protocol.Notification{
+		protocol.Notification{Payload: notification1, AppId: "app1", MsgId: "m1"},
+		protocol.Notification{Payload: notification4, AppId: "app2", MsgId: "m4"},
+	})
+	c.Check(meta, DeepEquals, []Metadata{
+		Metadata{Expiration: muchLater1},
+		Metadata{Expiration: muchLater2},
+	})
+}
+
+func (s *inMemorySuite) TestScrubApp(c *C) {
+	sto := NewInMemoryPendingStore()
+
+	chanId := UnicastInternalChannelId("user", "dev1")
+
+	notification1 := json.RawMessage(`{"a":1}`)
+	notification2 := json.RawMessage(`{"b":2}`)
+	notification3 := json.RawMessage(`{"c":3}`)
+	notification4 := json.RawMessage(`{"d":4}`)
+
+	gone := time.Now().Add(-1 * time.Minute)
+	muchLater := time.Now().Add(time.Minute)
+
+	err := sto.AppendToUnicastChannel(chanId, "app1", notification1, "m1", muchLater)
+	c.Assert(err, IsNil)
+	err = sto.AppendToUnicastChannel(chanId, "app2", notification2, "m2", gone)
+	c.Assert(err, IsNil)
+	err = sto.AppendToUnicastChannel(chanId, "app1", notification3, "m3", muchLater)
+	c.Assert(err, IsNil)
+	err = sto.AppendToUnicastChannel(chanId, "app2", notification4, "m4", muchLater)
+	c.Assert(err, IsNil)
+
+	err = sto.Scrub(chanId, "app1")
+	c.Assert(err, IsNil)
+
+	top, res, meta, err := sto.GetChannelUnfiltered(chanId)
+	c.Assert(err, IsNil)
+	c.Check(top, Equals, int64(0))
+	c.Check(res, DeepEquals, []protocol.Notification{
+		protocol.Notification{Payload: notification4, AppId: "app2", MsgId: "m4"},
+	})
+	c.Check(meta, DeepEquals, []Metadata{
+		Metadata{Expiration: muchLater},
+	})
 }
 
 func (s *inMemorySuite) TestDropByMsgId(c *C) {
@@ -176,19 +286,14 @@ func (s *inMemorySuite) TestDropByMsgId(c *C) {
 	notification1 := json.RawMessage(`{"a":1}`)
 	notification2 := json.RawMessage(`{"b":2}`)
 	notification3 := json.RawMessage(`{"a":2}`)
-	app1 := "app1"
-	app2 := "app2"
-	msg1 := "msg1"
-	msg2 := "msg2"
-	msg3 := "msg3"
 
 	muchLater := time.Now().Add(time.Minute)
 
-	err = sto.AppendToUnicastChannel(chanId, app1, notification1, msg1, muchLater)
+	err = sto.AppendToUnicastChannel(chanId, "app1", notification1, "m1", muchLater)
 	c.Assert(err, IsNil)
-	err = sto.AppendToUnicastChannel(chanId, app2, notification2, msg2, muchLater)
+	err = sto.AppendToUnicastChannel(chanId, "app2", notification2, "m2", muchLater)
 	c.Assert(err, IsNil)
-	err = sto.AppendToUnicastChannel(chanId, app1, notification3, msg3, muchLater)
+	err = sto.AppendToUnicastChannel(chanId, "app1", notification3, "m3", muchLater)
 	c.Assert(err, IsNil)
 	_, res, err := sto.GetChannelSnapshot(chanId)
 	c.Assert(err, IsNil)
@@ -200,6 +305,6 @@ func (s *inMemorySuite) TestDropByMsgId(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(res, HasLen, 1)
 	c.Check(res, DeepEquals, []protocol.Notification{
-		protocol.Notification{Payload: notification3, AppId: app1, MsgId: msg3},
+		protocol.Notification{Payload: notification3, AppId: "app1", MsgId: "m3"},
 	})
 }

@@ -110,29 +110,67 @@ func (sto *InMemoryPendingStore) AppendToUnicastChannel(chanId InternalChannelId
 	return sto.appendToChannel(chanId, newNotification, 0, expiration)
 }
 
-func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (int64, []protocol.Notification, error) {
-	sto.lock.Lock()
-	defer sto.lock.Unlock()
+func (sto *InMemoryPendingStore) getChannelUnfiltered(chanId InternalChannelId) (*channel, []protocol.Notification, []Metadata) {
 	channel, ok := sto.store[chanId]
 	if !ok {
+		return nil, nil, nil
+	}
+	n := len(channel.notifications)
+	res := make([]protocol.Notification, n)
+	meta := make([]Metadata, n)
+	for i, notif := range channel.notifications {
+		res[i] = notif
+		meta[i] = Metadata{Expiration: channel.expirations[i]}
+	}
+	return channel, res, meta
+}
+
+func (sto *InMemoryPendingStore) GetChannelUnfiltered(chanId InternalChannelId) (int64, []protocol.Notification, []Metadata, error) {
+	sto.lock.Lock()
+	defer sto.lock.Unlock()
+	channel, res, meta := sto.getChannelUnfiltered(chanId)
+	if channel == nil {
+		return 0, nil, nil, nil
+	}
+	return channel.topLevel, res, meta, nil
+}
+
+func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (int64, []protocol.Notification, error) {
+	topLevel, res, meta, _ := sto.GetChannelUnfiltered(chanId)
+	if res == nil {
 		return 0, nil, nil
 	}
-	topLevel := channel.topLevel
-	n := len(channel.notifications)
-	res := make([]protocol.Notification, 0, n)
-	exps := make([]time.Time, 0, n)
-	now := time.Now()
-	for i, expiration := range channel.expirations {
-		if expiration.Before(now) {
+	res = FilterOutObsolete(res, meta)
+	return topLevel, res, nil
+}
+
+func (sto *InMemoryPendingStore) Scrub(chanId InternalChannelId, appId string) error {
+	sto.lock.Lock()
+	defer sto.lock.Unlock()
+	channel, res, meta := sto.getChannelUnfiltered(chanId)
+	if channel == nil {
+		return nil
+	}
+	fresh := FilterOutObsolete(res, meta)
+	res = make([]protocol.Notification, 0, len(fresh))
+	exps := make([]time.Time, 0, len(fresh))
+	i := 0
+	for j := range meta {
+		if meta[j].Obsolete {
 			continue
 		}
-		res = append(res, channel.notifications[i])
-		exps = append(exps, expiration)
+		notif := fresh[i]
+		i++
+		if notif.AppId == appId {
+			continue
+		}
+		res = append(res, notif)
+		exps = append(exps, meta[j].Expiration)
 	}
 	// store as well
 	channel.notifications = res
 	channel.expirations = exps
-	return topLevel, res, nil
+	return nil
 }
 
 func (sto *InMemoryPendingStore) Close() {
