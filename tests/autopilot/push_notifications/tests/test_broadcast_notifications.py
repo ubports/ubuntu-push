@@ -45,7 +45,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         time.sleep(2)
         # Turn display on
         self.press_power_button()
-        self.validate_and_dismiss_notification_dialog(
+        self.validate_and_dismiss_broadcast_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
 
     def test_broadcast_push_notification_locked_greeter(self):
@@ -56,7 +56,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         """
         # Assumes greeter starts in locked state
         self.send_push_broadcast_message()
-        self.validate_and_dismiss_notification_dialog(
+        self.validate_and_dismiss_broadcast_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
 
     def test_broadcast_push_notification(self):
@@ -67,7 +67,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         self.send_push_broadcast_message()
-        self.validate_and_dismiss_notification_dialog(
+        self.validate_and_dismiss_broadcast_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
 
     def test_broadcast_push_notification_on_connect(self):
@@ -81,7 +81,7 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         self.push_client_controller.stop_push_client()
         self.send_push_broadcast_message()
         self.push_client_controller.start_push_client()
-        self.validate_and_dismiss_notification_dialog(
+        self.validate_and_dismiss_broadcast_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
 
     def test_expired_broadcast_push_notification(self):

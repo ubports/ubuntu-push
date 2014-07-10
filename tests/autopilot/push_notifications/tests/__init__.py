@@ -21,7 +21,7 @@
 
 import copy
 import datetime
-import json
+import time
 
 import evdev
 
@@ -114,13 +114,13 @@ class PushNotificationTestBase(UnityTestCase):
         """
         self.assertThat(response.status, Equals(expected_status_code))
 
-    def assert_notification_dialog(self, notification, summary=None,
-                                   body=None, icon=True, secondary_icon=False,
+    def assert_notification_dialog(self, props, summary=None, body=None,
+                                   icon=True, secondary_icon=True,
                                    opacity=None):
         """
         Assert that the properties of the notification are as
         expected
-        :param notification: notification object to validate
+        :param props: properties of the notification object
         :param summary: expected notification summary value
         :param body: expected notification body value
         :param icon: expected icon status
@@ -128,25 +128,21 @@ class PushNotificationTestBase(UnityTestCase):
         :param opacity: expected opacity value
         """
         if summary is not None:
-            self.assertThat(notification.summary, Eventually(Equals(summary)))
+            self.assertEqual(props['summary'], summary)
         if body is not None:
-            self.assertThat(notification.body, Eventually(Equals(body)))
+            self.assertEqual(props['body'], body)
         if opacity is not None:
-            self.assertThat(notification.opacity, Eventually(Equals(opacity)))
+            self.assertEqual(props['opacity'], opacity)
 
         if icon:
-            self.assertThat(
-                notification.iconSource, Eventually(NotEquals('')))
+            self.assertNotEqual(props['iconSource'], '')
         else:
-            self.assertThat(
-                notification.iconSource, Eventually(Equals('')))
+            self.assertEqual(props['iconSource'], '')
 
         if secondary_icon:
-            self.assertThat(
-                notification.secondaryIconSource, Eventually(NotEquals('')))
+            self.assertNotEqual(props['secondaryIconSource'], '')
         else:
-            self.assertThat(
-                notification.secondaryIconSource, Eventually(Equals('')))
+            self.assertEqual(props['secondaryIconSource'], '')
 
     def validate_notification_not_displayed(self, wait=True):
         """
@@ -184,36 +180,64 @@ class PushNotificationTestBase(UnityTestCase):
             push_msg.to_json(), self.test_config.server_listener_addr)
         self.validate_response(response)
 
+    def _get_notification_obj_and_props(self, kind, name):
+        """Return the dialog and it's properties.
+
+        This is an alternative to wait_select_single, with a faster loop and
+        properties retrieval as it seems that popup/dialogs, timing and
+        default wait_select_single aren't a good match.
+        """
+        max_retry = 10
+        for i in range(10):
+            try:
+                dialog = self.main_window.select_single(
+                    'Notification', objectName='notification1')
+                props = dialog.get_properties()
+            except Exception:
+                time.sleep(0.1)
+                if i+1 == max_retry:
+                    raise
+            else:
+                return (dialog, props)
+
     def get_notification_dialog(self, wait=True):
         """
-        Get the notification dialog being displaye on screen
+        Get the notification dialog and properties being displayed on screen
         If wait is True then wait for default timeout period
         If wait is False then do not wait at all
         :param wait: wait status
         :return: dialog introspection object
         """
         if wait is True:
-            dialog = self.main_window.wait_select_single(
-                'Notification', objectName='notification1')
+            return self._get_notification_obj_and_props('Notification',
+                                                        'notification1')
         else:
             dialog = self.main_window.select_single(
                 'Notification', objectName='notification1')
-        return dialog
+            return dialog, dialog.get_properties()
 
-    def validate_and_dismiss_notification_dialog(self, message):
+    def validate_and_dismiss_notification_dialog(self, message,
+                                                 secondary_icon=True):
         """
         Validate a notification dialog is displayed and dismiss it
         :param message: expected message displayed in summary
         """
         # get the dialog
-        dialog = self.get_notification_dialog()
+        dialog, props = self.get_notification_dialog()
         # validate dialog
         self.assert_notification_dialog(
-            dialog, summary=message)
+            props, summary=message, secondary_icon=secondary_icon)
         # wait for dialog to dismiss automatically
         self.wait_until_dialog_dismissed(dialog)
         # check the dialog is no longer displayed
         self.validate_notification_not_displayed(wait=False)
+
+    def validate_and_dismiss_broadcast_notification_dialog(self, message):
+        """
+        Validate a broadcast notification dialog is displayed and dismiss it
+        :param message: expected message displayed in summary
+        """
+        self.validate_and_dismiss_notification_dialog(message, secondary_icon=False)
 
     def wait_until_dialog_dismissed(self, dialog):
         """Wait for the dialog to dismiss automatically"""
@@ -249,7 +273,7 @@ class PushNotificationTestBase(UnityTestCase):
     # unicast messages
     def send_unicast_notification(self, icon="messages-app",
                                   body="A unicast message", summary="Look!",
-                                  persist=False, popup=True, actions=[]):
+                                  persist=False, popup=True, actions=[], emblem_counter={}):
         """Build and send a push unicast message.
 
         Which should trigger a notification
@@ -264,7 +288,8 @@ class PushNotificationTestBase(UnityTestCase):
                                    "popup": popup,
                                    "persist": persist,
                                    "actions": actions,
-                                   }
+                                   },
+                                  "emblem-counter": emblem_counter,
                                   }
                  }
         expire_on = datetime.datetime.utcnow() + datetime.timedelta(seconds=20)
