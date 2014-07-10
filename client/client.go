@@ -98,7 +98,7 @@ type PushClient struct {
 	systemImageInfo       *systemimage.InfoResult
 	connCh                chan bool
 	hasConnectivity       bool
-	actionsCh             <-chan notifications.RawActionReply
+	actionsCh             <-chan *notifications.RawAction
 	session               *session.ClientSession
 	sessionConnectedCh    chan uint32
 	pushServiceEndpoint   bus.Endpoint
@@ -425,36 +425,25 @@ func (client *PushClient) handleUnicastNotification(anotif session.AddressedNoti
 }
 
 // handleClick deals with the user clicking a notification
-func (client *PushClient) handleClick(actionId string) error {
-	// “The string is a stark data structure and everywhere it is passed
-	// there is much duplication of process. It is a perfect vehicle for
-	// hiding information.”
-	//
-	// From ACM's SIGPLAN publication, (September, 1982), Article
-	// "Epigrams in Programming", by Alan J. Perlis of Yale University.
-	url := actionId
+func (client *PushClient) handleClick(action *notifications.RawAction) error {
+	if action == nil {
+		return nil // XXX: do we still want to not fail?
+	}
+	url := action.Action
 	// XXX: branch for the broadcast notifications
-	if strings.HasPrefix(actionId, service.ACTION_ID_PREFIX) {
-		parts := strings.Split(actionId, "::")
-		url = parts[1]
-	}
-	if len(url) == len(actionId) || len(url) == 0 {
-		// it didn't start with the prefix
-		return nil
-	}
 	// it doesn't get much simpler...
 	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
 	return urld.DispatchURL(url)
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId)) {
+func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(*notifications.RawAction) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId)) {
 	for {
 		select {
 		case state := <-client.connCh:
 			connhandler(state)
 		case action := <-client.actionsCh:
-			clickhandler(action.ActionId)
+			clickhandler(action)
 		case bcast := <-client.session.BroadcastCh:
 			bcasthandler(bcast)
 		case aucast := <-client.session.NotificationsCh:
