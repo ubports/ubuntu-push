@@ -11,14 +11,16 @@ OPTIONS:
 -H      host/IP where the push server is running.
 -b      tests branch url 
 -d      adb device id
+-u      run apt-get update in the device before installing dependencies
 EOF
 }
 
-while getopts "H:b:c:" opt; do
+while getopts "H:b:c:u" opt; do
     case $opt in
         H) PUSH_SERVER=$OPTARG;;
         b) BRANCH_URL=$OPTARG;;
         c) DEVICE_ID=$OPTARG;; 
+        u) APT_UPDATE="1";;
         *) usage
             exit 1
             ;;
@@ -41,10 +43,13 @@ DEPS_OK=$(adb -s ${DEVICE_ID} shell "[ ! -f autopilot-deps.ok ] && echo 1 || ech
 if [[ "${DEPS_OK:0:1}" == "1" ]] 
 then
     echo "installing dependencies"
-    # in case apt fails to fetch some packages
-    adb -s ${DEVICE_ID} shell "DEBIAN_FRONTEND=noninteractive apt-get -y -qq update"
+    if [[ "${APT_UPDATE}" == "1" ]]
+    then
+        # in case apt fails to fetch some packages
+        adb -s ${DEVICE_ID} shell "DEBIAN_FRONTEND=noninteractive apt-get -y update"
+    fi
     # required for running the autopilot tests
-    adb -s ${DEVICE_ID} shell "DEBIAN_FRONTEND=noninteractive apt-get -y -qq install unity8-autopilot unity-scope-click bzr"
+    adb -s ${DEVICE_ID} shell "DEBIAN_FRONTEND=noninteractive apt-get -y install unity8-autopilot unity-scope-click bzr"
     adb -s ${DEVICE_ID} shell "touch autopilot-deps.ok"
 fi
 # fetch the code
