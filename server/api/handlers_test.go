@@ -530,7 +530,7 @@ func (s *handlersSuite) TestDoUnicastWithScrubError(c *C) {
 	c.Check(s.testlog.Captured(), Equals, "ERROR could not scrub channel: fail\n")
 }
 
-func (s *handlersSuite) TestDoUnicastCleanPending(c *C) {
+func (s *handlersSuite) TestDoUnicastClearPending(c *C) {
 	prevGenMsgId := generateMsgId
 	defer func() {
 		generateMsgId = prevGenMsgId
@@ -556,7 +556,7 @@ func (s *handlersSuite) TestDoUnicastCleanPending(c *C) {
 		AppId:        "app1",
 		ExpireOn:     future,
 		Data:         payload,
-		CleanPending: true,
+		ClearPending: true,
 	})
 	c.Assert(apiErr, IsNil)
 	c.Check(res, IsNil)

@@ -218,8 +218,8 @@ type Unicast struct {
 	//CoalesceTag  string          `json:"coalesce_tag"`
 	ExpireOn string          `json:"expire_on"`
 	Data     json.RawMessage `json:"data"`
-	// clean all pending messages for appid
-	CleanPending bool `json:"clean_pending,omitempty"`
+	// clear all pending messages for appid
+	ClearPending bool `json:"clear_pending,omitempty"`
 }
 
 // Broadcast request JSON object.
@@ -470,7 +470,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 		}
 		last = &notif
 	}
-	if ucast.CleanPending {
+	if ucast.ClearPending {
 		scrubAppId = ucast.AppId
 	} else if forApp >= ctx.storage.GetMaxNotificationsPerApplication() {
 		return nil, apiErrorWithExtra(ErrTooManyPendingNotifications,
