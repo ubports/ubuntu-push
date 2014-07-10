@@ -63,9 +63,12 @@ class PushClientConfig:
         listener_port = parser[KEY_CONFIG][KEY_LISTENER_PORT]
         auth_helper = parser[KEY_CONFIG][KEY_AUTH_HELPER]
         addr_fmt = '{0}:{1}'
+        http_addr_fmt = 'http://{0}:{1}/'
         config.server_listener_addr = addr_fmt.format(
             server_addr, listener_port)
         config.server_device_addr = addr_fmt.format(server_addr, device_port)
+        config.server_session_url = http_addr_fmt.format(server_addr, listener_port)
+        config.server_registration_url = http_addr_fmt.format(server_addr, listener_port)
         config.cert_pem_file = push_config.get_cert_file(
             parser[KEY_CONFIG][KEY_CERT_PEM_FILE])
         config.auth_helper = auth_helper
@@ -112,6 +115,10 @@ class PushClientController:
             config = json.load(config_file)
         # change server address
         config['addr'] = client_config.server_device_addr
+        # change session_url
+        config['session_url'] = client_config.server_session_url
+        # change registration url
+        config['registration_url'] = client_config.server_registration_url
         # add certificate file path
         config['cert_pem_file'] = client_config.cert_pem_file
         # change the auth_helper
