@@ -53,13 +53,16 @@ func FillServerConfig(cfg map[string]interface{}, addr string) {
 	})
 }
 
+const MaxNotificationsPerApplication = 45
+
 // FillHttpServerConfig fills cfg with default http server values and
 // "http_addr": httpAddr.
 func FillHTTPServerConfig(cfg map[string]interface{}, httpAddr string) {
 	FillConfig(cfg, map[string]interface{}{
-		"http_addr":          httpAddr,
-		"http_read_timeout":  "1s",
-		"http_write_timeout": "1s",
+		"http_addr":                 httpAddr,
+		"http_read_timeout":         "1s",
+		"http_write_timeout":        "1s",
+		"max_notifications_per_app": MaxNotificationsPerApplication,
 	})
 }
 
