@@ -20,6 +20,8 @@
 """push-notifications autopilot tests."""
 
 import copy
+import datetime
+import json
 
 import evdev
 
@@ -243,3 +245,43 @@ class PushNotificationTestBase(UnityTestCase):
             dialog = None
         if dialog:
             self.wait_until_dialog_dismissed(dialog)
+
+    # unicast messages
+    def send_unicast_notification(self, icon="messages-app",
+                                  body="A unicast message", summary="Look!",
+                                  persist=False, popup=True, actions=[]):
+        """Build and send a push unicast message.
+
+        Which should trigger a notification
+        to be displayed on the client
+
+        """
+        # XXX: build a unicast message
+        notif = {"notification": {"card":
+                                  {"icon": icon,
+                                   "summary": summary,
+                                   "body": body,
+                                   "popup": popup,
+                                   "persist": persist,
+                                   "actions": actions,
+                                   }
+                                  }
+                 }
+        expire_on = datetime.datetime.utcnow() + datetime.timedelta(seconds=20)
+        data = {'token': self.token,
+                'data': notif,
+                'appid': self.appid,
+                'expire_on': expire_on.replace(microsecond=0).isoformat()+"Z"}
+        # send the notification message to the server and check response
+        response = self.push_helper.send_unicast(
+            data, self.test_config.server_listener_addr)
+        self.validate_response(response)
+
+    def get_messaging_menu(self):
+        """Swiping open an indicator must show its correct title.
+
+        See https://bugs.launchpad.net/ubuntu-ux/+bug/1253804 .
+        """
+        indicator_page = self.main_window.open_indicator_page(
+            "indicator-messages")
+        return indicator_page
