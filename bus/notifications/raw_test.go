@@ -20,22 +20,26 @@
 package notifications
 
 import (
+	"encoding/json"
+	"testing"
+	"time"
+
+	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/bus"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
-	"testing"
-	"time"
 )
 
 // hook up gocheck
 func TestRaw(t *testing.T) { TestingT(t) }
 
 type RawSuite struct {
-	log logger.Logger
+	log *helpers.TestLogger
 	app *click.AppId
 }
 
@@ -75,22 +79,74 @@ func (s *RawSuite) TestNotifiesFailsWeirdly(c *C) {
 }
 
 func (s *RawSuite) TestWatchActions(c *C) {
+	act := &RawAction{
+		App:      helpers.MustParseAppId("_foo"),
+		Nid:      "notif-id",
+		ActionId: 1,
+		Action:   "hello",
+		RawId:    0,
+	}
+	jAct, err := json.Marshal(act)
+	c.Assert(err, IsNil)
 	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true),
-		[]interface{}{uint32(1), "hello"})
+		[]interface{}{uint32(1), string(jAct)})
 	raw := Raw(endp, s.log)
 	ch, err := raw.WatchActions()
 	c.Assert(err, IsNil)
 	// check we get the right action reply
+	act.RawId = 1 // checking the RawId is overwritten with the one in the ActionInvoked
 	select {
 	case p := <-ch:
-		c.Check(p.NotificationId, Equals, uint32(1))
-		c.Check(p.ActionId, Equals, "hello")
+		c.Check(p, DeepEquals, act)
 	case <-time.NewTimer(time.Second / 10).C:
 		c.Error("timed out?")
 	}
 	// and that the channel is closed if/when the watch fails
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
+}
+
+type tst struct {
+	errstr string
+	endp   bus.Endpoint
+	works  bool
+}
+
+func (s *RawSuite) TestWatchActionsToleratesDBusWeirdness(c *C) {
+	X := func(errstr string, args ...interface{}) tst {
+		endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), args)
+		// stop the endpoint from closing the channel:
+		testibus.SetWatchTicker(endp, make(chan bool))
+		return tst{errstr, endp, errstr == ""}
+	}
+
+	ts := []tst{
+		X("delivered 0 things instead of 2"),
+		X("delivered 1 things instead of 2", 2),
+		X("1st param not a uint32", 1, "foo"),
+		X("2nd param not a string", uint32(1), nil),
+		X("2nd param not a json-encoded RawAction", uint32(1), ``),
+		X("", uint32(1), `{}`),
+	}
+
+	for i, t := range ts {
+		raw := Raw(t.endp, s.log)
+		ch, err := raw.WatchActions()
+		c.Assert(err, IsNil)
+		select {
+		case p := <-ch:
+			if !t.works {
+				c.Errorf("got something on the channel! %#v (iter: %d)", p, i)
+			}
+		case <-time.After(time.Second / 10):
+			if t.works {
+				c.Errorf("failed to get something on the channel (iter: %d)", i)
+			}
+		}
+		c.Check(s.log.Captured(), Matches, `(?ms).*`+t.errstr+`.*`)
+		s.log.ResetCapture()
+	}
+
 }
 
 func (s *RawSuite) TestWatchActionsFails(c *C) {
@@ -106,6 +162,78 @@ func (s *RawSuite) TestPresentNotifies(c *C) {
 	nid, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true}})
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(1))
+}
+
+func (s *RawSuite) TestPresentOneAction(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	_, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes"}}})
+	c.Check(err, IsNil)
+	callArgs := testibus.GetCallArgs(endp)
+	c.Assert(callArgs, HasLen, 1)
+	c.Assert(callArgs[0].Member, Equals, "Notify")
+	c.Assert(len(callArgs[0].Args), Equals, 8)
+	actions, ok := callArgs[0].Args[5].([]string)
+	c.Assert(ok, Equals, true)
+	c.Assert(actions, HasLen, 2)
+	c.Check(actions[0], Equals, `{"app":"com.example.test_test-app_0","act":"Yes","nid":"notifId"}`)
+	c.Check(actions[1], Equals, "Yes")
+	hints, ok := callArgs[0].Args[6].(map[string]*dbus.Variant)
+	c.Assert(ok, Equals, true)
+	// with one action, there should be 2 hints set:
+	c.Assert(hints, HasLen, 2)
+	c.Check(hints["x-canonical-switch-to-application"], NotNil)
+	c.Check(hints["x-canonical-secondary-icon"], NotNil)
+	c.Check(hints["x-canonical-snap-decisions"], IsNil)
+	c.Check(hints["x-canonical-private-button-tint"], IsNil)
+	c.Check(hints["x-canonical-non-shaped-icon"], IsNil)
+}
+
+func (s *RawSuite) TestPresentTwoActions(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	_, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes", "No"}}})
+	c.Check(err, IsNil)
+	callArgs := testibus.GetCallArgs(endp)
+	c.Assert(callArgs, HasLen, 1)
+	c.Assert(callArgs[0].Member, Equals, "Notify")
+	c.Assert(len(callArgs[0].Args), Equals, 8)
+	actions, ok := callArgs[0].Args[5].([]string)
+	c.Assert(ok, Equals, true)
+	c.Assert(actions, HasLen, 4)
+	c.Check(actions[0], Equals, `{"app":"com.example.test_test-app_0","act":"Yes","nid":"notifId"}`)
+	c.Check(actions[1], Equals, "Yes")
+	c.Check(actions[2], Equals, `{"app":"com.example.test_test-app_0","act":"No","aid":1,"nid":"notifId"}`)
+	c.Check(actions[3], Equals, "No")
+	hints, ok := callArgs[0].Args[6].(map[string]*dbus.Variant)
+	c.Assert(ok, Equals, true)
+	// with two actions, there should be 3 hints set:
+	c.Assert(hints, HasLen, 4)
+	c.Check(hints["x-canonical-switch-to-application"], IsNil)
+	c.Check(hints["x-canonical-secondary-icon"], NotNil)
+	c.Check(hints["x-canonical-snap-decisions"], NotNil)
+	c.Check(hints["x-canonical-private-button-tint"], NotNil)
+	c.Check(hints["x-canonical-non-shaped-icon"], NotNil)
+}
+
+func (s *RawSuite) TestPresentThreeActions(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	_, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes", "No", "What"}}})
+	c.Check(err, IsNil)
+	callArgs := testibus.GetCallArgs(endp)
+	c.Assert(callArgs, HasLen, 1)
+	c.Assert(callArgs[0].Member, Equals, "Notify")
+	c.Assert(len(callArgs[0].Args), Equals, 8)
+	actions, ok := callArgs[0].Args[5].([]string)
+	c.Assert(ok, Equals, true)
+	c.Assert(actions, HasLen, 6)
+	hints, ok := callArgs[0].Args[6].(map[string]*dbus.Variant)
+	c.Assert(ok, Equals, true)
+	// with two actions, there should be 3 hints set:
+	c.Check(hints, HasLen, 1)
+	c.Check(hints["x-canonical-secondary-icon"], NotNil)
+	c.Check(s.log.Captured(), Matches, `(?ms).* no hints set$`)
 }
 
 func (s *RawSuite) TestPresentNoNotificationDoesNotNotify(c *C) {
@@ -139,5 +267,3 @@ func (s *RawSuite) TestPresentNoPopupNoNotify(c *C) {
 	c.Check(err, IsNil)
 	c.Check(nid, Equals, uint32(0))
 }
-
-// XXX Missing test about ShowCard manipulating Actions and hints correctly.

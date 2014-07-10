@@ -98,6 +98,17 @@ func UnicastInternalChannelId(userId, deviceId string) InternalChannelId {
 	return InternalChannelId(fmt.Sprintf("U%s:%s", userId, deviceId))
 }
 
+// Metadata holds the metadata stored for a notification.
+type Metadata struct {
+	Expiration time.Time
+	Obsolete   bool
+}
+
+// Before checks whether the expiration date in the metadata is before ref.
+func (m *Metadata) Before(ref time.Time) bool {
+	return m.Expiration.Before(ref)
+}
+
 // PendingStore let store notifications into channels.
 type PendingStore interface {
 	// Register returns a token for a device id, application id pair.
@@ -114,11 +125,18 @@ type PendingStore interface {
 	// directly a device id, user id pair.
 	GetInternalChannelIdFromToken(token, appId, userId, deviceId string) (InternalChannelId, error)
 	// AppendToUnicastChannel appends a notification to the unicast channel.
-	// GetChannelSnapshot gets all the current notifications and
 	AppendToUnicastChannel(chanId InternalChannelId, appId string, notification json.RawMessage, msgId string, expiration time.Time) error
+	// GetChannelSnapshot gets all the current notifications and
 	// current top level in the channel.
 	GetChannelSnapshot(chanId InternalChannelId) (topLevel int64, notifications []protocol.Notification, err error)
-	// DropByMsgId drops notifications from a unicast channel based on message ids.
+	// GetChannelUnfiltered gets all the stored notifications with
+	// metadata and current top level in the channel.
+	GetChannelUnfiltered(chanId InternalChannelId) (topLevel int64, notifications []protocol.Notification, metadata []Metadata, err error)
+	// Scrub removes expired notifications and notifications with
+	// application id appId (if != "").
+	Scrub(chanId InternalChannelId, appId string) error
+	// DropByMsgId drops notifications from a unicast channel
+	// based on message ids.
 	DropByMsgId(chanId InternalChannelId, targets []protocol.Notification) error
 	// Close is to be called when done with the store.
 	Close()
@@ -154,4 +172,19 @@ func FilterOutByMsgId(orig, targets []protocol.Notification) []protocol.Notifica
 		}
 	}
 	return acc
+}
+
+// FilterOutObsolete filters out expired notifications based on
+// paired meta information.
+func FilterOutObsolete(notifications []protocol.Notification, meta []Metadata) []protocol.Notification {
+	res := make([]protocol.Notification, 0, len(notifications))
+	now := time.Now()
+	for i := range meta {
+		if meta[i].Before(now) {
+			meta[i].Obsolete = true
+			continue
+		}
+		res = append(res, notifications[i])
+	}
+	return res
 }

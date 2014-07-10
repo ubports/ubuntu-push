@@ -9,5 +9,6 @@
     "http_addr": "127.0.0.1:8080",
     "http_read_timeout": "5s",
     "http_write_timeout": "5s",
+    "max_notifications_per_app": 25,
     "delivery_domain": "localhost"
 }
