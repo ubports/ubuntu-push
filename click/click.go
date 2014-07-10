@@ -28,6 +28,7 @@ import (
 
 	"launchpad.net/go-xdg/v0"
 
+	"encoding/json"
 	"launchpad.net/ubuntu-push/click/cappinfo"
 	"launchpad.net/ubuntu-push/click/cclick"
 )
@@ -54,27 +55,38 @@ var (
 )
 
 func ParseAppId(id string) (*AppId, error) {
+	app := new(AppId)
+	err := app.setFromString(id)
+	if err == nil {
+		return app, nil
+	} else {
+		return nil, err
+	}
+}
+
+func (app *AppId) setFromString(id string) error {
 	if strings.HasPrefix(id, "_") { // legacy
 		appname := id[1:]
 		if !rxLegacy.MatchString(appname) {
-			return nil, ErrInvalidAppId
+			return ErrInvalidAppId
 		}
-		return &AppId{
-			Application: appname,
-			original:    id,
-		}, nil
+		app.Package = ""
+		app.Application = appname
+		app.Version = ""
+		app.Click = false
+		app.original = id
+		return nil
 	} else {
 		m := rxClick.FindStringSubmatch(id)
 		if len(m) == 0 {
-			return nil, ErrInvalidAppId
+			return ErrInvalidAppId
 		}
-		return &AppId{
-			Package:     m[1],
-			Application: m[2],
-			Version:     m[3],
-			Click:       true,
-			original:    id,
-		}, nil
+		app.Package = m[1]
+		app.Application = m[2]
+		app.Version = m[3]
+		app.Click = true
+		app.original = id
+		return nil
 	}
 }
 
@@ -115,6 +127,19 @@ func (app *AppId) DesktopId() string {
 
 func (app *AppId) Icon() string {
 	return cappinfo.AppIconFromDesktopId(app.DesktopId())
+}
+
+func (app *AppId) MarshalJSON() ([]byte, error) {
+	return json.Marshal(app.Original())
+}
+
+func (app *AppId) UnmarshalJSON(s []byte) error {
+	var v string
+	err := json.Unmarshal(s, &v)
+	if err != nil {
+		return err
+	}
+	return app.setFromString(v)
 }
 
 // ClickUser exposes the click package registry for the user.

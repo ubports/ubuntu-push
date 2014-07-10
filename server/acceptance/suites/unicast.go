@@ -156,7 +156,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 	c.Check(len(errCh), Equals, 0)
 }
 
-func (s *UnicastAcceptanceSuite) TestUnicastTooManyCleanPending(c *C) {
+func (s *UnicastAcceptanceSuite) TestUnicastTooManyClearPending(c *C) {
 	userId, auth := s.associatedAuth("DEV2")
 	// send too many unicasts that will be pending
 	payloadFmt := `{"serial":%d}`
@@ -182,14 +182,14 @@ func (s *UnicastAcceptanceSuite) TestUnicastTooManyCleanPending(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, `.*"error":"too-many-pending".*`)
 
-	// clean all pending
+	// clear all pending
 	got, err = s.PostRequest("/notify", &api.Unicast{
 		UserId:       userId,
 		DeviceId:     "DEV2",
 		AppId:        "app1",
 		ExpireOn:     future,
 		Data:         json.RawMessage(fmt.Sprintf(payloadFmt, 1000)),
-		CleanPending: true,
+		ClearPending: true,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(got, Matches, OK)

@@ -54,11 +54,22 @@ func (s *handlersSuite) SetUpTest(c *C) {
 }
 
 func (s *handlersSuite) TestAPIError(c *C) {
-	var apiErr error = &APIError{400, invalidRequest, "Message"}
+	var apiErr error = &APIError{400, invalidRequest, "Message", nil}
 	c.Check(apiErr.Error(), Equals, "api invalid-request: Message")
 	wire, err := json.Marshal(apiErr)
 	c.Assert(err, IsNil)
 	c.Check(string(wire), Equals, `{"error":"invalid-request","message":"Message"}`)
+}
+
+func (s *handlersSuite) TestAPIErrorExtra(c *C) {
+	apiErr1 := &APIError{400, invalidRequest, "Message", nil}
+	payload := json.RawMessage(`{"x":1}`)
+	apiErr := apiErrorWithExtra(apiErr1, &payload)
+	c.Check(apiErr1.Extra, IsNil)
+	c.Check(apiErr.Error(), Equals, "api invalid-request: Message")
+	wire, err := json.Marshal(apiErr)
+	c.Assert(err, IsNil)
+	c.Check(string(wire), Equals, `{"error":"invalid-request","message":"Message","extra":{"x":1}}`)
 }
 
 func (s *handlersSuite) TestReadBodyReadError(c *C) {
@@ -421,11 +432,14 @@ func (s *handlersSuite) TestDoUnicastTooManyNotifications(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	chanId := store.UnicastInternalChannelId("user1", "DEV1")
 	expire := store.Metadata{Expiration: time.Now().Add(4 * time.Hour)}
-	n := json.RawMessage("{}")
-	sto.AppendToUnicastChannel(chanId, "app1", n, "m1", expire)
-	sto.AppendToUnicastChannel(chanId, "app1", n, "m2", expire)
-	sto.AppendToUnicastChannel(chanId, "app1", n, "m3", expire)
-	sto.AppendToUnicastChannel(chanId, "app1", n, "m4", expire)
+	n1 := json.RawMessage(`{"o":1}`)
+	n2 := json.RawMessage(`{"o":2}`)
+	n3 := json.RawMessage(`{"o":3}`)
+	n4 := json.RawMessage(`{"o":4}`)
+	sto.AppendToUnicastChannel(chanId, "app1", n1, "m1", expire)
+	sto.AppendToUnicastChannel(chanId, "app1", n2, "m2", expire)
+	sto.AppendToUnicastChannel(chanId, "app1", n3, "m3", expire)
+	sto.AppendToUnicastChannel(chanId, "app1", n4, "m4", expire)
 
 	ctx := &context{storage: testStoreAccess(nil), logger: s.testlog}
 	_, apiErr := doUnicast(ctx, sto, &Unicast{
@@ -435,7 +449,11 @@ func (s *handlersSuite) TestDoUnicastTooManyNotifications(c *C) {
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 1}`),
 	})
-	c.Check(apiErr, Equals, ErrTooManyPendingNotifications)
+	c.Assert(apiErr, NotNil)
+	extra := apiErr.Extra
+	apiErr.Extra = nil
+	c.Check(apiErr, DeepEquals, ErrTooManyPendingNotifications)
+	c.Check(extra, DeepEquals, n4)
 	c.Check(s.testlog.Captured(), Equals, "")
 }
 
@@ -587,7 +605,7 @@ func (s *handlersSuite) TestDoUnicastWithScrubError(c *C) {
 	c.Check(s.testlog.Captured(), Equals, "ERROR could not scrub channel: fail\n")
 }
 
-func (s *handlersSuite) TestDoUnicastCleanPending(c *C) {
+func (s *handlersSuite) TestDoUnicastClearPending(c *C) {
 	prevGenMsgId := generateMsgId
 	defer func() {
 		generateMsgId = prevGenMsgId
@@ -613,7 +631,7 @@ func (s *handlersSuite) TestDoUnicastCleanPending(c *C) {
 		AppId:        "app1",
 		ExpireOn:     future,
 		Data:         payload,
-		CleanPending: true,
+		ClearPending: true,
 	})
 	c.Assert(apiErr, IsNil)
 	c.Check(res, IsNil)

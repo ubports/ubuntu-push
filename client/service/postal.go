@@ -57,9 +57,7 @@ var (
 )
 
 var (
-	SystemUpdateUrl  = "settings:///system/system-update"
-	ACTION_ID_PREFIX = "ubuntu-push-client::"
-	ACTION_ID_SUFFIX = "::0"
+	SystemUpdateUrl = "settings:///system/system-update"
 )
 
 // NewPostalService() builds a new service and returns it.
@@ -99,7 +97,7 @@ func (svc *PostalService) Start() error {
 	}, PostalServiceBusAddress)
 }
 
-func (svc *PostalService) TakeTheBus() (<-chan notifications.RawActionReply, error) {
+func (svc *PostalService) TakeTheBus() (<-chan *notifications.RawAction, error) {
 	var wg sync.WaitGroup
 	endps := []bus.Endpoint{
 		svc.notificationsEndp,
