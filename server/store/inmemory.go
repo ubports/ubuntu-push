@@ -101,13 +101,13 @@ func (sto *InMemoryPendingStore) AppendToChannel(chanId InternalChannelId, notif
 	return sto.appendToChannel(chanId, newNotification, 1, expiration)
 }
 
-func (sto *InMemoryPendingStore) AppendToUnicastChannel(chanId InternalChannelId, appId string, notificationPayload json.RawMessage, msgId string, expiration time.Time) error {
+func (sto *InMemoryPendingStore) AppendToUnicastChannel(chanId InternalChannelId, appId string, notificationPayload json.RawMessage, msgId string, meta Metadata) error {
 	newNotification := protocol.Notification{
 		Payload: notificationPayload,
 		AppId:   appId,
 		MsgId:   msgId,
 	}
-	return sto.appendToChannel(chanId, newNotification, 0, expiration)
+	return sto.appendToChannel(chanId, newNotification, 0, meta.Expiration)
 }
 
 func (sto *InMemoryPendingStore) getChannelUnfiltered(chanId InternalChannelId) (*channel, []protocol.Notification, []Metadata) {

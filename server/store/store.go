@@ -125,7 +125,7 @@ type PendingStore interface {
 	// directly a device id, user id pair.
 	GetInternalChannelIdFromToken(token, appId, userId, deviceId string) (InternalChannelId, error)
 	// AppendToUnicastChannel appends a notification to the unicast channel.
-	AppendToUnicastChannel(chanId InternalChannelId, appId string, notification json.RawMessage, msgId string, expiration time.Time) error
+	AppendToUnicastChannel(chanId InternalChannelId, appId string, notification json.RawMessage, msgId string, meta Metadata) error
 	// GetChannelSnapshot gets all the current notifications and
 	// current top level in the channel.
 	GetChannelSnapshot(chanId InternalChannelId) (topLevel int64, notifications []protocol.Notification, err error)
