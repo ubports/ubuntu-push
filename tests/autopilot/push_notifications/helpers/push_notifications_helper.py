@@ -53,6 +53,7 @@ class PushClientConfig:
         KEY_DEVICE_PORT = 'device_port'
         KEY_CONFIG = 'config'
         KEY_CERT_PEM_FILE = 'cert_pem_file'
+        KEY_AUTH_HELPER = 'auth_helper'
 
         config = PushClientConfig()
         parser = configparser.ConfigParser()
@@ -60,12 +61,14 @@ class PushClientConfig:
         server_addr = parser[KEY_CONFIG][KEY_ADDR]
         device_port = parser[KEY_CONFIG][KEY_DEVICE_PORT]
         listener_port = parser[KEY_CONFIG][KEY_LISTENER_PORT]
+        auth_helper = parser[KEY_CONFIG][KEY_AUTH_HELPER]
         addr_fmt = '{0}:{1}'
         config.server_listener_addr = addr_fmt.format(
             server_addr, listener_port)
         config.server_device_addr = addr_fmt.format(server_addr, device_port)
         config.cert_pem_file = push_config.get_cert_file(
             parser[KEY_CONFIG][KEY_CERT_PEM_FILE])
+        config.auth_helper = auth_helper
         return config
 
 
@@ -111,6 +114,8 @@ class PushClientController:
         config['addr'] = client_config.server_device_addr
         # add certificate file path
         config['cert_pem_file'] = client_config.cert_pem_file
+        # change the auth_helper
+        config['auth_helper'] = client_config.auth_helper
         # write the config json out to the ~.local address
         # creating the directory if it doesn't already exist
         abs_config_file = self.get_abs_local_config_file_path()
