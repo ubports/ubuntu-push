@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
-usage()
-{
-cat << EOF
+set -e 
+set -u
+
+usage() {
+    cat << EOF
 usage: $0 options
 
 OPTIONS:
@@ -12,14 +14,14 @@ EOF
 }
 
 while getopts "d:v" opt; do
-        case $opt in
-                d) DEVICE_ID=$OPTARG;;
-                v) VERBOSITY="-v";;
-                *) usage
-                        exit 1
-                        ;;
-        esac
-    done
+    case $opt in
+        d) DEVICE_ID=$OPTARG;;
+        v) VERBOSITY="-v";;
+        *) usage
+            exit 1
+            ;;
+    esac
+done
 
 
 DEVICE_ID=${DEVICE_ID:-"emulator-5554"}
