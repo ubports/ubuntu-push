@@ -37,6 +37,7 @@ fi
 DEVICE_ID=${DEVICE_ID:-"emulator-5554"}
 BRANCH_URL=${BRANCH_URL:-"lp:ubuntu-push/automatic"}
 ROOT_DIR=`bzr root`
+APT_UPDATE=${APT_UPDATE:-"0"}
 
 DEPS_OK=$(adb -s ${DEVICE_ID} shell "[ ! -f autopilot-deps.ok ] && echo 1 || echo 0")
 # get substring [0] of the returned 1/0 value because we get a trailing ^M

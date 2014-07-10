@@ -26,10 +26,9 @@ import time
 import evdev
 
 from autopilot.introspection import dbus
-from autopilot.matchers import Eventually
 from push_notifications import config as push_config
 import push_notifications.helpers.push_notifications_helper as push_helper
-from testtools.matchers import Equals, NotEquals
+from testtools.matchers import Equals
 from unity8.shell.tests import UnityTestCase
 
 
