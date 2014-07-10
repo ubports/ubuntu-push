@@ -29,6 +29,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/store"
 )
@@ -44,6 +45,8 @@ type APIError struct {
 	ErrorLabel string `json:"error"`
 	// human message
 	Message string `json:"message"`
+	// extra information
+	Extra json.RawMessage `json:"extra,omitempty"`
 }
 
 // machine readable error labels
@@ -68,108 +71,139 @@ var (
 		http.StatusLengthRequired,
 		invalidRequest,
 		"A Content-Length must be provided",
+		nil,
 	}
 	ErrRequestBodyEmpty = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Request body empty",
+		nil,
 	}
 	ErrRequestBodyTooLarge = &APIError{
 		http.StatusRequestEntityTooLarge,
 		invalidRequest,
 		"Request body too large",
+		nil,
 	}
 	ErrWrongContentType = &APIError{
 		http.StatusUnsupportedMediaType,
 		invalidRequest,
 		"Wrong content type, should be application/json",
+		nil,
 	}
 	ErrWrongRequestMethod = &APIError{
 		http.StatusMethodNotAllowed,
 		invalidRequest,
 		"Wrong request method, should be POST",
+		nil,
 	}
 	ErrMalformedJSONObject = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Malformed JSON Object",
+		nil,
 	}
 	ErrCouldNotReadBody = &APIError{
 		http.StatusBadRequest,
 		ioError,
 		"Could not read request body",
+		nil,
 	}
 	ErrMissingIdField = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Missing id field",
+		nil,
 	}
 	ErrMissingData = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Missing data field",
+		nil,
 	}
 	ErrInvalidExpiration = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Invalid expiration date",
+		nil,
 	}
 	ErrPastExpiration = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Past expiration date",
+		nil,
 	}
 	ErrUnknownChannel = &APIError{
 		http.StatusBadRequest,
 		unknownChannel,
 		"Unknown channel",
+		nil,
 	}
 	ErrUnknownToken = &APIError{
 		http.StatusBadRequest,
 		unknownToken,
 		"Unknown token",
+		nil,
 	}
 	ErrUnknown = &APIError{
 		http.StatusInternalServerError,
 		internalError,
 		"Unknown error",
+		nil,
 	}
 	ErrStoreUnavailable = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Message store unavailable",
+		nil,
 	}
 	ErrCouldNotStoreNotification = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Could not store notification",
+		nil,
 	}
 	ErrCouldNotMakeToken = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Could not make token",
+		nil,
 	}
 	ErrCouldNotRemoveToken = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Could not remove token",
+		nil,
 	}
 	ErrCouldNotResolveToken = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Could not resolve token",
+		nil,
 	}
 	ErrUnauthorized = &APIError{
 		http.StatusUnauthorized,
 		unauthorized,
 		"Unauthorized",
+		nil,
 	}
 	ErrTooManyPendingNotifications = &APIError{
 		http.StatusRequestEntityTooLarge,
 		tooManyPending,
 		"Too many pending notifications for this application",
+		nil,
 	}
 )
+
+func apiErrorWithExtra(apiErr *APIError, extra interface{}) *APIError {
+	var clone APIError = *apiErr
+	b, err := json.Marshal(extra)
+	if err != nil {
+		panic(fmt.Errorf("couldn't marshal our own errors: %v", err))
+	}
+	clone.Extra = json.RawMessage(b)
+	return &clone
+}
 
 type Registration struct {
 	DeviceId string `json:"deviceid"`
@@ -184,8 +218,8 @@ type Unicast struct {
 	//CoalesceTag  string          `json:"coalesce_tag"`
 	ExpireOn string          `json:"expire_on"`
 	Data     json.RawMessage `json:"data"`
-	// clean all pending messages for appid
-	CleanPending bool `json:"clean_pending,omitempty"`
+	// clear all pending messages for appid
+	ClearPending bool `json:"clear_pending,omitempty"`
 }
 
 // Broadcast request JSON object.
@@ -425,6 +459,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 	forApp := 0
 	scrubAppId := ""
 	now := time.Now()
+	var last *protocol.Notification
 	for i, notif := range notifs {
 		if meta[i].Before(now) {
 			expired++
@@ -433,11 +468,13 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 		if notif.AppId == ucast.AppId {
 			forApp++
 		}
+		last = &notif
 	}
-	if ucast.CleanPending {
+	if ucast.ClearPending {
 		scrubAppId = ucast.AppId
 	} else if forApp >= ctx.storage.GetMaxNotificationsPerApplication() {
-		return nil, ErrTooManyPendingNotifications
+		return nil, apiErrorWithExtra(ErrTooManyPendingNotifications,
+			&last.Payload)
 	}
 	if expired > 0 || scrubAppId != "" {
 		err := sto.Scrub(chanId, scrubAppId)
