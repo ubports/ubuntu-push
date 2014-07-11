@@ -495,10 +495,12 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 	}
 
 	msgId := generateMsgId()
+
 	meta1 := store.Metadata{
 		Expiration: expire,
 		ReplaceTag: ucast.ReplaceTag,
 	}
+
 	err = sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, meta1)
 	if err != nil {
 		ctx.logger.Errorf("could not store notification: %v", err)

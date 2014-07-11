@@ -431,6 +431,7 @@ func (s *handlersSuite) TestDoUnicastCouldNotPeekAtNotifications(c *C) {
 func (s *handlersSuite) TestDoUnicastTooManyNotifications(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	chanId := store.UnicastInternalChannelId("user1", "DEV1")
+
 	expire := store.Metadata{Expiration: time.Now().Add(4 * time.Hour)}
 	n1 := json.RawMessage(`{"o":1}`)
 	n2 := json.RawMessage(`{"o":2}`)

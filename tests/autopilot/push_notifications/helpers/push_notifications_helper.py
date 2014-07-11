@@ -53,6 +53,7 @@ class PushClientConfig:
         KEY_DEVICE_PORT = 'device_port'
         KEY_CONFIG = 'config'
         KEY_CERT_PEM_FILE = 'cert_pem_file'
+        KEY_AUTH_HELPER = 'auth_helper'
 
         config = PushClientConfig()
         parser = configparser.ConfigParser()
@@ -60,12 +61,17 @@ class PushClientConfig:
         server_addr = parser[KEY_CONFIG][KEY_ADDR]
         device_port = parser[KEY_CONFIG][KEY_DEVICE_PORT]
         listener_port = parser[KEY_CONFIG][KEY_LISTENER_PORT]
+        auth_helper = parser[KEY_CONFIG][KEY_AUTH_HELPER]
         addr_fmt = '{0}:{1}'
+        http_addr_fmt = 'http://{0}:{1}/'
         config.server_listener_addr = addr_fmt.format(
             server_addr, listener_port)
         config.server_device_addr = addr_fmt.format(server_addr, device_port)
+        config.server_session_url = http_addr_fmt.format(server_addr, listener_port)
+        config.server_registration_url = http_addr_fmt.format(server_addr, listener_port)
         config.cert_pem_file = push_config.get_cert_file(
             parser[KEY_CONFIG][KEY_CERT_PEM_FILE])
+        config.auth_helper = auth_helper
         return config
 
 
@@ -109,8 +115,14 @@ class PushClientController:
             config = json.load(config_file)
         # change server address
         config['addr'] = client_config.server_device_addr
+        # change session_url
+        config['session_url'] = client_config.server_session_url
+        # change registration url
+        config['registration_url'] = client_config.server_registration_url
         # add certificate file path
         config['cert_pem_file'] = client_config.cert_pem_file
+        # change the auth_helper
+        config['auth_helper'] = client_config.auth_helper
         # write the config json out to the ~.local address
         # creating the directory if it doesn't already exist
         abs_config_file = self.get_abs_local_config_file_path()
@@ -161,6 +173,7 @@ class PushNotificationHelper:
     """
 
     DEFAULT_BROADCAST_URL = '/broadcast'
+    UNICAST_URL = '/notify'
 
     def get_device_info(self):
         """
@@ -278,3 +291,27 @@ class PushNotificationHelper:
         # combine target time and time zone offset
         iso_time = '{0}-{1}'.format(target_time_fmt, tz_fmt)
         return iso_time
+
+    def _http_request(self, server_addr, url, method='GET',
+                      body=None):
+        headers = {'Content-type': 'application/json'}
+        conn = http.HTTPConnection(server_addr)
+        conn.request(
+            method,
+            url,
+            headers=headers,
+            body=body)
+        return conn.getresponse()
+
+    def register(self, path, appid):
+        """Register the device/appid with the push server."""
+        cmd = ["gdbus", "call", "-e", "-d", "com.ubuntu.PushNotifications",
+               "-o", "/com/ubuntu/PushNotifications/%s" % path,
+               "-m", "com.ubuntu.PushNotifications.Register", appid]
+        output = subprocess.check_output(cmd)
+        return output[2:-4].decode("utf-8")
+
+    def send_unicast(self, msg, server_addr, url=UNICAST_URL):
+        """Send a unicast notification"""
+        return self._http_request(server_addr, url, method='POST',
+                                  body=json.dumps(msg))

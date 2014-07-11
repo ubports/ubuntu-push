@@ -30,6 +30,7 @@ import (
 	"launchpad.net/ubuntu-push/bus"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -45,7 +46,7 @@ type RawSuite struct {
 
 func (s *RawSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	s.app = helpers.MustParseAppId("com.example.test_test-app_0")
+	s.app = clickhelp.MustParseAppId("com.example.test_test-app_0")
 }
 
 var _ = Suite(&RawSuite{})
@@ -80,7 +81,7 @@ func (s *RawSuite) TestNotifiesFailsWeirdly(c *C) {
 
 func (s *RawSuite) TestWatchActions(c *C) {
 	act := &RawAction{
-		App:      helpers.MustParseAppId("_foo"),
+		App:      clickhelp.MustParseAppId("_foo"),
 		Nid:      "notif-id",
 		ActionId: 1,
 		Action:   "hello",
