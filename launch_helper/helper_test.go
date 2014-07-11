@@ -22,6 +22,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -36,7 +37,7 @@ var _ = Suite(&runnerSuite{})
 
 func (s *runnerSuite) SetUpTest(c *C) {
 	s.testlog = helpers.NewTestLogger(c, "error")
-	s.app = helpers.MustParseAppId("com.example.test_test-app_0")
+	s.app = clickhelp.MustParseAppId("com.example.test_test-app_0")
 }
 
 func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {

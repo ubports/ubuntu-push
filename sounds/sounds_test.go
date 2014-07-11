@@ -25,6 +25,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
@@ -40,7 +41,7 @@ var _ = Suite(&soundsSuite{})
 
 func (ss *soundsSuite) SetUpTest(c *C) {
 	ss.log = helpers.NewTestLogger(c, "debug")
-	ss.app = helpers.MustParseAppId("com.example.test_test_0")
+	ss.app = clickhelp.MustParseAppId("com.example.test_test_0")
 }
 
 func (ss *soundsSuite) TestNew(c *C) {
