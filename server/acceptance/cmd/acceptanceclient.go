@@ -42,8 +42,8 @@ type configuration struct {
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// server connection config
 	Addr        config.ConfigHostPort
-	CertPEMFile string   `json:"cert_pem_file"`
-	AuthHelper  []string `json:"auth_helper"`
+	CertPEMFile string `json:"cert_pem_file"`
+	AuthHelper  string `json:"auth_helper"`
 }
 
 func main() {
@@ -60,7 +60,7 @@ func main() {
 	err := config.ReadFilesDefaults(cfg, map[string]interface{}{
 		"exchange_timeout": "5s",
 		"cert_pem_file":    "",
-		"auth_helper":      []string{},
+		"auth_helper":      "",
 	}, "<flags>")
 	if err != nil {
 		log.Fatalf("reading config: %v", err)
@@ -90,9 +90,7 @@ func main() {
 		}
 	}
 	if len(cfg.AuthHelper) != 0 {
-		helperArgs := cfg.AuthHelper[1:]
-		helperArgs = append(helperArgs, "https://push.ubuntu.com/")
-		auth, err := exec.Command(cfg.AuthHelper[0], helperArgs...).Output()
+		auth, err := exec.Command(cfg.AuthHelper, "https://push.ubuntu.com/").Output()
 		if err != nil {
 			log.Fatalf("auth helper: %v", err)
 		}
