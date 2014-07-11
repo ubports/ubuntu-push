@@ -238,8 +238,8 @@ func (isto *interceptInMemoryPendingStore) AppendToChannel(chanId store.Internal
 	return isto.intercept("AppendToChannel", err)
 }
 
-func (isto *interceptInMemoryPendingStore) AppendToUnicastChannel(chanId store.InternalChannelId, appId string, payload json.RawMessage, msgId string, expiration time.Time) error {
-	err := isto.InMemoryPendingStore.AppendToUnicastChannel(chanId, appId, payload, msgId, expiration)
+func (isto *interceptInMemoryPendingStore) AppendToUnicastChannel(chanId store.InternalChannelId, appId string, payload json.RawMessage, msgId string, meta store.Metadata) error {
+	err := isto.InMemoryPendingStore.AppendToUnicastChannel(chanId, appId, payload, msgId, meta)
 	return isto.intercept("AppendToUnicastChannel", err)
 }
 
@@ -429,7 +429,8 @@ func (s *handlersSuite) TestDoUnicastCouldNotPeekAtNotifications(c *C) {
 func (s *handlersSuite) TestDoUnicastTooManyNotifications(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	chanId := store.UnicastInternalChannelId("user1", "DEV1")
-	expire := time.Now().Add(4 * time.Hour)
+
+	expire := store.Metadata{Expiration: time.Now().Add(4 * time.Hour)}
 	n1 := json.RawMessage(`{"o":1}`)
 	n2 := json.RawMessage(`{"o":2}`)
 	n3 := json.RawMessage(`{"o":3}`)
@@ -465,8 +466,8 @@ func (s *handlersSuite) TestDoUnicastWithScrub(c *C) {
 	}
 	sto := store.NewInMemoryPendingStore()
 	chanId := store.UnicastInternalChannelId("user1", "DEV1")
-	expire := time.Now().Add(4 * time.Hour)
-	old := time.Now().Add(-1 * time.Hour)
+	expire := store.Metadata{Expiration: time.Now().Add(4 * time.Hour)}
+	old := store.Metadata{Expiration: time.Now().Add(-1 * time.Hour)}
 	n := json.RawMessage("{}")
 	sto.AppendToUnicastChannel(chanId, "app1", n, "m1", expire)
 	sto.AppendToUnicastChannel(chanId, "app1", n, "m2", old)
@@ -509,8 +510,8 @@ func (s *handlersSuite) TestDoUnicastWithScrubError(c *C) {
 		},
 	}
 	chanId := store.UnicastInternalChannelId("user1", "DEV1")
-	expire := time.Now().Add(4 * time.Hour)
-	old := time.Now().Add(-1 * time.Hour)
+	expire := store.Metadata{Expiration: time.Now().Add(4 * time.Hour)}
+	old := store.Metadata{Expiration: time.Now().Add(-1 * time.Hour)}
 	n := json.RawMessage("{}")
 	sto.AppendToUnicastChannel(chanId, "app1", n, "m1", expire)
 	sto.AppendToUnicastChannel(chanId, "app1", n, "m2", old)
@@ -540,7 +541,7 @@ func (s *handlersSuite) TestDoUnicastClearPending(c *C) {
 	}
 	sto := store.NewInMemoryPendingStore()
 	chanId := store.UnicastInternalChannelId("user1", "DEV1")
-	expire := time.Now().Add(4 * time.Hour)
+	expire := store.Metadata{Expiration: time.Now().Add(4 * time.Hour)}
 	n := json.RawMessage("{}")
 	sto.AppendToUnicastChannel(chanId, "app1", n, "m1", expire)
 	sto.AppendToUnicastChannel(chanId, "app1", n, "m2", expire)

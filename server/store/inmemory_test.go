@@ -135,7 +135,7 @@ func (s *inMemorySuite) TestAppendToUnicastChannelAndGetChannelSnapshot(c *C) {
 	notification1 := json.RawMessage(`{"a":1}`)
 	notification2 := json.RawMessage(`{"b":2}`)
 
-	muchLater := time.Now().Add(time.Minute)
+	muchLater := Metadata{Expiration: time.Now().Add(time.Minute)}
 
 	err := sto.AppendToUnicastChannel(chanId, "app1", notification1, "m1", muchLater)
 	c.Assert(err, IsNil)
@@ -209,9 +209,9 @@ func (s *inMemorySuite) TestScrubOnlyExpired(c *C) {
 	notification3 := json.RawMessage(`{"c":3}`)
 	notification4 := json.RawMessage(`{"d":4}`)
 
-	gone := time.Now().Add(-1 * time.Minute)
-	muchLater1 := time.Now().Add(4 * time.Minute)
-	muchLater2 := time.Now().Add(5 * time.Minute)
+	gone := Metadata{Expiration: time.Now().Add(-1 * time.Minute)}
+	muchLater1 := Metadata{Expiration: time.Now().Add(4 * time.Minute)}
+	muchLater2 := Metadata{Expiration: time.Now().Add(5 * time.Minute)}
 
 	err := sto.AppendToUnicastChannel(chanId, "app1", notification1, "m1", muchLater1)
 	c.Assert(err, IsNil)
@@ -232,10 +232,7 @@ func (s *inMemorySuite) TestScrubOnlyExpired(c *C) {
 		protocol.Notification{Payload: notification1, AppId: "app1", MsgId: "m1"},
 		protocol.Notification{Payload: notification4, AppId: "app2", MsgId: "m4"},
 	})
-	c.Check(meta, DeepEquals, []Metadata{
-		Metadata{Expiration: muchLater1},
-		Metadata{Expiration: muchLater2},
-	})
+	c.Check(meta, DeepEquals, []Metadata{muchLater1, muchLater2})
 }
 
 func (s *inMemorySuite) TestScrubApp(c *C) {
@@ -248,8 +245,8 @@ func (s *inMemorySuite) TestScrubApp(c *C) {
 	notification3 := json.RawMessage(`{"c":3}`)
 	notification4 := json.RawMessage(`{"d":4}`)
 
-	gone := time.Now().Add(-1 * time.Minute)
-	muchLater := time.Now().Add(time.Minute)
+	gone := Metadata{Expiration: time.Now().Add(-1 * time.Minute)}
+	muchLater := Metadata{Expiration: time.Now().Add(time.Minute)}
 
 	err := sto.AppendToUnicastChannel(chanId, "app1", notification1, "m1", muchLater)
 	c.Assert(err, IsNil)
@@ -269,9 +266,7 @@ func (s *inMemorySuite) TestScrubApp(c *C) {
 	c.Check(res, DeepEquals, []protocol.Notification{
 		protocol.Notification{Payload: notification4, AppId: "app2", MsgId: "m4"},
 	})
-	c.Check(meta, DeepEquals, []Metadata{
-		Metadata{Expiration: muchLater},
-	})
+	c.Check(meta, DeepEquals, []Metadata{muchLater})
 }
 
 func (s *inMemorySuite) TestDropByMsgId(c *C) {
@@ -287,7 +282,7 @@ func (s *inMemorySuite) TestDropByMsgId(c *C) {
 	notification2 := json.RawMessage(`{"b":2}`)
 	notification3 := json.RawMessage(`{"a":2}`)
 
-	muchLater := time.Now().Add(time.Minute)
+	muchLater := Metadata{Expiration: time.Now().Add(time.Minute)}
 
 	err = sto.AppendToUnicastChannel(chanId, "app1", notification1, "m1", muchLater)
 	c.Assert(err, IsNil)
