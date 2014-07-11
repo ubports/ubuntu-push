@@ -17,6 +17,7 @@
 package service
 
 import (
+	"encoding/json"
 	"sync"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -184,19 +185,22 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 	emblemcounter.New(svc.emblemcounterEndp, svc.Log).Present(app, nid, output.Notification)
 	haptic.New(svc.hapticEndp, svc.Log).Present(app, nid, output.Notification)
 	sounds.New(svc.Log).Present(app, nid, output.Notification)
-
 	return err
 }
 
 func (svc *PostalService) InjectBroadcast() (uint32, error) {
-	// XXX: call a helper?
-	// XXX: Present force us to send the url as the notificationId
 	icon := "update_manager_icon"
 	summary := "There's an updated system image."
 	body := "Tap to open the system updater."
 	actions := []string{"Switch to app"} // action value not visible on the phone
 	card := &launch_helper.Card{Icon: icon, Summary: summary, Body: body, Actions: actions, Popup: true}
-	output := &launch_helper.HelperOutput{[]byte(""), &launch_helper.Notification{Card: card}}
+	helperOutput := &launch_helper.HelperOutput{[]byte(""), &launch_helper.Notification{Card: card}}
+	jsonNotif, err := json.Marshal(helperOutput)
+	if err != nil {
+		// XXX: how can we test this branch?
+		svc.Log.Errorf("Failed to marshal notification: %v - %v", helperOutput, err)
+		return 0, err
+	}
 	appId, _ := click.ParseAppId("_ubuntu-push-client")
-	return 0, svc.msgHandler(appId, SystemUpdateUrl, output)
+	return 0, svc.Inject(appId, SystemUpdateUrl, string(jsonNotif))
 }
