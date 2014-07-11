@@ -201,3 +201,38 @@ func (s *UnicastAcceptanceSuite) TestUnicastTooManyClearPending(c *C) {
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)
 }
+
+func (s *UnicastAcceptanceSuite) TestUnicastReplaceTag(c *C) {
+	userId, auth := s.associatedAuth("DEV2")
+
+	// send with replace_tag
+	got, err := s.PostRequest("/notify", &api.Unicast{
+		UserId:     userId,
+		DeviceId:   "DEV2",
+		AppId:      "app1",
+		ExpireOn:   future,
+		Data:       json.RawMessage(`{"m": 1}`),
+		ReplaceTag: "tagFoo",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, OK)
+
+	// replace
+	got, err = s.PostRequest("/notify", &api.Unicast{
+		UserId:     userId,
+		DeviceId:   "DEV2",
+		AppId:      "app1",
+		ExpireOn:   future,
+		Data:       json.RawMessage(`{"m": 2}`),
+		ReplaceTag: "tagFoo",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, OK)
+
+	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
+	// getting the 1 pending on connect
+	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"m":2};`)
+	stop()
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}
