@@ -24,7 +24,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/server/acceptance"
@@ -42,8 +44,10 @@ type configuration struct {
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// server connection config
 	Addr        config.ConfigHostPort
-	CertPEMFile string `json:"cert_pem_file"`
-	AuthHelper  string `json:"auth_helper"`
+	CertPEMFile string                    `json:"cert_pem_file"`
+	AuthHelper  string                    `json:"auth_helper"`
+	RunTimeout  config.ConfigTimeDuration `json:"run_timeout"`
+	WaitFor     string                    `json:"wait_for"`
 }
 
 func main() {
@@ -61,6 +65,8 @@ func main() {
 		"exchange_timeout": "5s",
 		"cert_pem_file":    "",
 		"auth_helper":      "",
+		"run_timeout":      "0s",
+		"wait_for":         "",
 	}, "<flags>")
 	if err != nil {
 		log.Fatalf("reading config: %v", err)
@@ -96,6 +102,14 @@ func main() {
 		}
 		session.Auth = strings.TrimSpace(string(auth))
 	}
+	var waitForRegexp *regexp.Regexp
+	if cfg.WaitFor != "" {
+		var err error
+		waitForRegexp, err = regexp.Compile(cfg.WaitFor)
+		if err != nil {
+			log.Fatalf("wait_for regexp: %v", err)
+		}
+	}
 	err = session.Dial()
 	if err != nil {
 		log.Fatalln(err)
@@ -103,9 +117,19 @@ func main() {
 	events := make(chan string, 5)
 	go func() {
 		for {
-			log.Println(<-events)
+			ev := <-events
+			if waitForRegexp != nil && waitForRegexp.MatchString(ev) {
+				log.Println("<matching-event>:", ev)
+				os.Exit(0)
+			}
+			log.Println(ev)
 		}
 	}()
+	if cfg.RunTimeout.TimeDuration() != 0 {
+		time.AfterFunc(cfg.RunTimeout.TimeDuration(), func() {
+			log.Fatalln("<run timed out>")
+		})
+	}
 	err = session.Run(events)
 	if err != nil {
 		log.Fatalln(err)
