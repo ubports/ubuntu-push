@@ -23,6 +23,7 @@ import (
 
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -39,7 +40,7 @@ var _ = Suite(&hapticSuite{})
 
 func (hs *hapticSuite) SetUpTest(c *C) {
 	hs.log = helpers.NewTestLogger(c, "debug")
-	hs.app = helpers.MustParseAppId("com.example.test_test-app_0")
+	hs.app = clickhelp.MustParseAppId("com.example.test_test-app_0")
 }
 
 // checks that Present() actually calls VibratePattern

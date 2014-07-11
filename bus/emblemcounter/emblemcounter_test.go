@@ -24,6 +24,7 @@ import (
 
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/nih"
 	helpers "launchpad.net/ubuntu-push/testing"
@@ -41,7 +42,7 @@ var _ = Suite(&ecSuite{})
 
 func (ecs *ecSuite) SetUpTest(c *C) {
 	ecs.log = helpers.NewTestLogger(c, "debug")
-	ecs.app = helpers.MustParseAppId("com.example.test_test-app_0")
+	ecs.app = clickhelp.MustParseAppId("com.example.test_test-app_0")
 }
 
 // checks that Present() actually calls SetProperty on the launcher

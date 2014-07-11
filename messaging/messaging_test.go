@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/reply"
 	helpers "launchpad.net/ubuntu-push/testing"
@@ -44,7 +45,7 @@ func (ms *MessagingSuite) SetUpSuite(c *C) {
 
 func (ms *MessagingSuite) SetUpTest(c *C) {
 	ms.log = helpers.NewTestLogger(c, "debug")
-	ms.app = helpers.MustParseAppId("com.example.test_test_0")
+	ms.app = clickhelp.MustParseAppId("com.example.test_test_0")
 }
 
 func (ms *MessagingSuite) TestPresentPresents(c *C) {

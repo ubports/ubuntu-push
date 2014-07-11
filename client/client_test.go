@@ -38,6 +38,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/systemimage"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/client/service"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
@@ -292,9 +293,9 @@ var (
 	appId1     = "com.example.app1_app1"
 	appId2     = "com.example.app2_app2"
 	appIdHello = "com.example.test_hello"
-	app1       = helpers.MustParseAppId(appId1)
-	app2       = helpers.MustParseAppId(appId2)
-	appHello   = helpers.MustParseAppId(appIdHello)
+	app1       = clickhelp.MustParseAppId(appId1)
+	app2       = clickhelp.MustParseAppId(appId2)
+	appHello   = clickhelp.MustParseAppId(appIdHello)
 )
 
 func (cs *clientSuite) TestCheckForAddressee(c *C) {
