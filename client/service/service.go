@@ -60,10 +60,10 @@ var (
 )
 
 // NewPushService() builds a new service and returns it.
-func NewPushService(bus bus.Endpoint, setup *PushServiceSetup, log logger.Logger) *PushService {
+func NewPushService(setup *PushServiceSetup, log logger.Logger) *PushService {
 	var svc = &PushService{}
 	svc.Log = log
-	svc.Bus = bus
+	svc.Bus = bus.SessionBus.Endpoint(PushServiceBusAddress, log)
 	svc.installedChecker = setup.InstalledChecker
 	svc.regURL = setup.RegURL
 	svc.deviceId = setup.DeviceId

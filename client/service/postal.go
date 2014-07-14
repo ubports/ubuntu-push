@@ -26,6 +26,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/emblemcounter"
 	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -40,13 +41,23 @@ type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) erro
 // PostalService is the dbus api
 type PostalService struct {
 	DBusService
-	mbox              map[string][]string
-	msgHandler        messageHandler
-	HelperLauncher    launch_helper.HelperLauncher
-	messagingMenu     *messaging.MessagingMenu
-	emblemcounterEndp bus.Endpoint
-	hapticEndp        bus.Endpoint
-	notificationsEndp bus.Endpoint
+	mbox           map[string][]string
+	msgHandler     messageHandler
+	HelperLauncher launch_helper.HelperLauncher
+	messagingMenu  *messaging.MessagingMenu
+	// the endpoints are only exposed for testing from client
+	// XXX: uncouple some more so this isn't necessary
+	EmblemCounterEndp bus.Endpoint
+	HapticEndp        bus.Endpoint
+	NotificationsEndp bus.Endpoint
+	URLDispatcherEndp bus.Endpoint
+	// presenters:
+	emblemCounter *emblemcounter.EmblemCounter
+	haptic        *haptic.Haptic
+	notifications *notifications.RawNotifications
+	sound         *sounds.Sound
+	// the url dispatcher, used for stuff.
+	urlDispatcher urldispatcher.URLDispatcher
 }
 
 var (
@@ -62,16 +73,15 @@ var (
 )
 
 // NewPostalService() builds a new service and returns it.
-func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, hapticEndp bus.Endpoint, installedChecker click.InstalledChecker, log logger.Logger) *PostalService {
+func NewPostalService(installedChecker click.InstalledChecker, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
-	svc.Bus = busEndp
+	svc.Bus = bus.SessionBus.Endpoint(PostalServiceBusAddress, log)
 	svc.installedChecker = installedChecker
-	svc.messagingMenu = messaging.New(log)
-	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(log)
-	svc.notificationsEndp = notificationsEndp
-	svc.emblemcounterEndp = emblemcounterEndp
-	svc.hapticEndp = hapticEndp
+	svc.NotificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, log)
+	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
+	svc.HapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, log)
+	svc.URLDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, log)
 	svc.msgHandler = svc.messageHandler
 	return svc
 }
@@ -92,33 +102,74 @@ func (svc *PostalService) GetMessageHandler() messageHandler {
 
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *PostalService) Start() error {
-	return svc.DBusService.Start(bus.DispatchMap{
-		"PopAll": svc.notifications,
-		"Post":   svc.inject,
+	err := svc.DBusService.Start(bus.DispatchMap{
+		"PopAll": svc.popAll,
+		"Post":   svc.post,
 	}, PostalServiceBusAddress)
+	if err != nil {
+		return err
+	}
+	actionsCh, err := svc.takeTheBus()
+	if err != nil {
+		return err
+	}
+	svc.urlDispatcher = urldispatcher.New(svc.URLDispatcherEndp, svc.Log)
+	svc.notifications = notifications.Raw(svc.NotificationsEndp, svc.Log)
+	svc.emblemCounter = emblemcounter.New(svc.EmblemCounterEndp, svc.Log)
+	svc.haptic = haptic.New(svc.HapticEndp, svc.Log)
+	svc.sound = sounds.New(svc.Log)
+	svc.messagingMenu = messaging.New(svc.Log)
+	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(svc.Log)
+
+	go svc.handleActions(actionsCh)
+	return nil
 }
 
-func (svc *PostalService) TakeTheBus() (<-chan *notifications.RawAction, error) {
-	var wg sync.WaitGroup
-	endps := []bus.Endpoint{
-		svc.notificationsEndp,
-		svc.emblemcounterEndp,
-		svc.hapticEndp,
+// handleClicks loops on the actions channel waiting for actions and handling them
+func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction) {
+	for action := range actionsCh {
+		if action == nil {
+			svc.Log.Debugf("handleActions got nil action; ignoring")
+			continue
+		}
+		url := action.Action
+		// this ignores the error (it's been logged already)
+		svc.urlDispatcher.DispatchURL(url)
 	}
+}
+
+func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) {
+	endps := []struct {
+		name string
+		endp bus.Endpoint
+	}{
+		{"notifications", svc.NotificationsEndp},
+		{"emblemcounter", svc.EmblemCounterEndp},
+		{"haptic", svc.HapticEndp},
+		{"urldispatcher", svc.URLDispatcherEndp},
+	}
+	for _, endp := range endps {
+		if endp.endp == nil {
+			svc.Log.Errorf("endpoint for %s is nil", endp.name)
+			return nil, ErrNotConfigured
+		}
+	}
+
+	var wg sync.WaitGroup
 	wg.Add(len(endps))
 	for _, endp := range endps {
-		go func(endp bus.Endpoint) {
+		go func(name string, endp bus.Endpoint) {
 			util.NewAutoRedialer(endp).Redial()
+			svc.Log.Debugf("%s dialed in", name)
 			wg.Done()
-		}(endp)
+		}(endp.name, endp.endp)
 	}
 	wg.Wait()
-	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()
 
-	return actionsCh, err
+	return notifications.Raw(svc.NotificationsEndp, svc.Log).WatchActions()
 }
 
-func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
+func (svc *PostalService) popAll(path string, args, _ []interface{}) ([]interface{}, error) {
 	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
@@ -138,7 +189,7 @@ func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]i
 
 var newNid = uuid.New
 
-func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interface{}, error) {
+func (svc *PostalService) post(path string, args, _ []interface{}) ([]interface{}, error) {
 	app, err := svc.grabDBusPackageAndAppId(path, args, 1)
 	if err != nil {
 		return nil, err
@@ -150,12 +201,12 @@ func (svc *PostalService) inject(path string, args, _ []interface{}) ([]interfac
 
 	nid := newNid()
 
-	return nil, svc.Inject(app, nid, notif)
+	return nil, svc.Post(app, nid, notif)
 }
 
-// Inject() signals to an application over dbus that a notification
+// Post() signals to an application over dbus that a notification
 // has arrived.
-func (svc *PostalService) Inject(app *click.AppId, nid string, notif string) error {
+func (svc *PostalService) Post(app *click.AppId, nid string, notif string) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
@@ -180,15 +231,14 @@ func (svc *PostalService) Inject(app *click.AppId, nid string, notif string) err
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
 	svc.messagingMenu.Present(app, nid, output.Notification)
-	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
-	_, err := nots.Present(app, nid, output.Notification)
-	emblemcounter.New(svc.emblemcounterEndp, svc.Log).Present(app, nid, output.Notification)
-	haptic.New(svc.hapticEndp, svc.Log).Present(app, nid, output.Notification)
-	sounds.New(svc.Log).Present(app, nid, output.Notification)
+	_, err := svc.notifications.Present(app, nid, output.Notification)
+	svc.emblemCounter.Present(app, nid, output.Notification)
+	svc.haptic.Present(app, nid, output.Notification)
+	svc.sound.Present(app, nid, output.Notification)
 	return err
 }
 
-func (svc *PostalService) InjectBroadcast() (uint32, error) {
+func (svc *PostalService) PostBroadcast() (uint32, error) {
 	icon := "update_manager_icon"
 	summary := "There's an updated system image."
 	body := "Tap to open the system updater."
@@ -202,5 +252,5 @@ func (svc *PostalService) InjectBroadcast() (uint32, error) {
 		return 0, err
 	}
 	appId, _ := click.ParseAppId("_ubuntu-push-client")
-	return 0, svc.Inject(appId, SystemUpdateUrl, string(jsonNotif))
+	return 0, svc.Post(appId, SystemUpdateUrl, string(jsonNotif))
 }

@@ -34,7 +34,6 @@ import (
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
-	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/systemimage"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
@@ -50,6 +49,15 @@ import (
 	"launchpad.net/ubuntu-push/whoopsie/identifier"
 	idtesting "launchpad.net/ubuntu-push/whoopsie/identifier/testing"
 )
+
+func postalBusStomp(pst *service.PostalService, endp bus.Endpoint) {
+	// stomp, stomp, stomp
+	pst.Bus = endp
+	pst.NotificationsEndp = endp
+	pst.URLDispatcherEndp = endp
+	pst.EmblemCounterEndp = endp
+	pst.HapticEndp = endp
+}
 
 func TestClient(t *testing.T) { TestingT(t) }
 
@@ -190,25 +198,12 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 
-	// keep these in the same order as in the client struct, for sanity
-	c.Check(cli.notificationsEndp, IsNil)
-	c.Check(cli.urlDispatcherEndp, IsNil)
 	c.Check(cli.connectivityEndp, IsNil)
-	c.Check(cli.emblemcounterEndp, IsNil)
-	c.Check(cli.hapticEndp, IsNil)
 	c.Check(cli.systemImageEndp, IsNil)
-	c.Check(cli.pushServiceEndpoint, IsNil)
-	c.Check(cli.postalServiceEndpoint, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	c.Check(cli.notificationsEndp, NotNil)
-	c.Check(cli.urlDispatcherEndp, NotNil)
 	c.Check(cli.connectivityEndp, NotNil)
-	c.Check(cli.emblemcounterEndp, NotNil)
-	c.Check(cli.hapticEndp, NotNil)
 	c.Check(cli.systemImageEndp, NotNil)
-	c.Check(cli.pushServiceEndpoint, NotNil)
-	c.Check(cli.postalServiceEndpoint, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureSetsUpConnCh(c *C) {
@@ -432,7 +427,7 @@ func (cs *clientSuite) TestDerivePushServiceSetupError(c *C) {
     startService tests
 ******************************************************************/
 
-func (cs *clientSuite) TestStartServiceWorks(c *C) {
+func (cs *clientSuite) TestStartPushServiceWorks(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
 		"auth_helper": helpers.ScriptAbsPath("dummyauth.sh"),
 	})
@@ -441,56 +436,84 @@ func (cs *clientSuite) TestStartServiceWorks(c *C) {
 	c.Assert(err, IsNil)
 	cli.log = cs.log
 	cli.deviceId = "fake-id"
-	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
-	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
+
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	cli.connectivityEndp = endp
+	cli.systemImageEndp = endp
+
 	c.Check(cli.pushService, IsNil)
-	c.Check(cli.startService(), IsNil)
+	c.Check(cli.setupPushService(), IsNil)
 	c.Assert(cli.pushService, NotNil)
 	pushService := cli.pushService.(*service.PushService)
+	pushService.Bus = endp
+	c.Check(pushService.IsRunning(), Equals, false)
+	c.Check(cli.startPushService(), IsNil)
 	c.Check(pushService.IsRunning(), Equals, true)
 	c.Assert(cli.setupPostalService(), IsNil)
+	c.Assert(cli.postalService, NotNil)
+	postalBusStomp(cli.postalService, endp)
 	c.Assert(cli.startPostalService(), IsNil)
 	c.Check(cli.postalService.IsRunning(), Equals, true)
 	pushService.Stop()
 	cli.postalService.Stop()
 }
 
-func (cs *clientSuite) TestStartServiceSetupError(c *C) {
+func (cs *clientSuite) TestSetupPushServiceSetupError(c *C) {
 	cs.writeTestConfig(map[string]interface{}{
 		"registration_url": "%gh",
 	})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	err = cli.startService()
+	err = cli.setupPushService()
 	c.Check(err, ErrorMatches, "cannot parse registration url:.*")
 }
 
 func (cs *clientSuite) TestStartServiceErrorsOnNilLog(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	c.Check(cli.log, IsNil)
-	c.Check(cli.startService(), NotNil)
+	cli.configure()
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	cli.connectivityEndp = endp
+	cli.systemImageEndp = endp
+	cli.log = nil
+	c.Assert(cli.setupPushService(), IsNil)
+	cli.pushService.(*service.PushService).DBusService.Bus = endp
+	c.Check(cli.startPushService(), NotNil)
 	c.Assert(cli.setupPostalService(), IsNil)
+	postalBusStomp(cli.postalService, endp)
+
 	c.Assert(cli.startPostalService(), NotNil)
 }
 
 func (cs *clientSuite) TestStartServiceErrorsOnBusDialPushFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.configure()
 	cli.log = cs.log
-	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
-	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
-	c.Check(cli.startService(), NotNil)
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	cli.connectivityEndp = endp
+	cli.systemImageEndp = endp
+	c.Assert(cli.setupPushService(), IsNil)
+	cli.pushService.(*service.PushService).DBusService.Bus = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	c.Check(cli.startPushService(), NotNil)
 	c.Assert(cli.setupPostalService(), IsNil)
-	c.Assert(cli.startPostalService(), NotNil)
+	postalBusStomp(cli.postalService, endp)
+	cli.postalService.Bus = testibus.NewTestingEndpoint(condition.Work(false), nil)
+	c.Check(cli.startPostalService(), NotNil)
 }
 
 func (cs *clientSuite) TestStartServiceErrorsOnBusDialPostalFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.configure()
 	cli.log = cs.log
-	cli.pushServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), nil)
-	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(false), nil)
-	c.Check(cli.startService(), IsNil)
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	cli.connectivityEndp = endp
+	cli.systemImageEndp = endp
+	c.Check(cli.setupPushService(), IsNil)
+	cli.pushService.(*service.PushService).DBusService.Bus = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	c.Check(cli.startPushService(), IsNil)
 	c.Assert(cli.setupPostalService(), IsNil)
+	postalBusStomp(cli.postalService, endp)
+	cli.postalService.Bus = testibus.NewTestingEndpoint(condition.Work(false), nil)
 	c.Assert(cli.startPostalService(), NotNil)
 }
 
@@ -556,27 +579,28 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	cli.log = cs.log
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	// the user actions channel has not been set up
-	c.Check(cli.actionsCh, IsNil)
 
 	// and stomp on things for testing
 	cli.config.ConnectivityConfig.ConnectivityCheckURL = ts.URL
 	cli.config.ConnectivityConfig.ConnectivityCheckMD5 = staticHash
-	cli.notificationsEndp = nEndp
-	cli.urlDispatcherEndp = uEndp
 	cli.connectivityEndp = cEndp
-	cli.emblemcounterEndp = ecEndp
-	cli.hapticEndp = haEndp
 	cli.systemImageEndp = siEndp
 
 	c.Assert(cli.takeTheBus(), IsNil)
 	c.Assert(cli.setupPostalService(), IsNil)
-	c.Assert(cli.takePostalServiceBus(), IsNil)
+	c.Assert(cli.setupPushService(), IsNil)
+
+	cli.postalService.NotificationsEndp = nEndp
+	cli.postalService.URLDispatcherEndp = uEndp
+	cli.postalService.EmblemCounterEndp = ecEndp
+	cli.postalService.HapticEndp = haEndp
+	cli.postalService.Bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	cli.pushService.(*service.PushService).DBusService.Bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+
+	c.Assert(cli.startPostalService(), IsNil)
 	// the notifications and urldispatcher endpoints retried until connected
 	c.Check(nCond.OK(), Equals, true)
 	c.Check(uCond.OK(), Equals, true)
-	// the user actions channel has now been set up
-	c.Check(cli.actionsCh, NotNil)
 	c.Check(takeNextBool(cli.connCh), Equals, false)
 	c.Check(takeNextBool(cli.connCh), Equals, true)
 	// the connectivity endpoint retried until connected
@@ -595,21 +619,13 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 	err := cli.configure()
 	cli.log = cs.log
 	c.Assert(err, IsNil)
-	// the user actions channel has not been set up
-	c.Check(cli.actionsCh, IsNil)
 
 	// and stomp on things for testing
-	cli.notificationsEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
-	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
-	cli.emblemcounterEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
-	cli.hapticEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.systemImageEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 
 	c.Check(cli.takeTheBus(), NotNil)
 	c.Assert(cli.setupPostalService(), IsNil)
-	c.Assert(cli.takePostalServiceBus(), NotNil)
-	c.Check(cli.actionsCh, IsNil)
 }
 
 /*****************************************************************
@@ -799,16 +815,20 @@ var (
 func (cs *clientSuite) TestHandleBroadcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
-	cli.notificationsEndp = endp
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	cli.log = cs.log
-	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
-	cli.setupPostalService()
+	c.Assert(cli.setupPostalService(), IsNil)
+	postalBusStomp(cli.postalService, endp)
+	c.Assert(cli.startPostalService(), IsNil)
 	c.Check(cli.handleBroadcastNotification(positiveBroadcastNotification), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
-	c.Assert(args, HasLen, 1)
-	c.Check(args[0].Member, Equals, "Notify")
+	l := len(args)
+	if l < 2 {
+		c.Fatal("not enough elements in resposne from GetCallArgs")
+	}
+	c.Check(args[l-2].Member, Equals, "Notify")
+	c.Check(args[l-1].Member, Equals, "::Signal")
 	c.Check(cs.log.Captured(), Matches, `(?s).* got notification id \d+\s*`)
 }
 
@@ -816,23 +836,25 @@ func (cs *clientSuite) TestHandleBroadcastNotificationNothingToDo(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
-	cli.notificationsEndp = endp
 	cli.log = cs.log
+	c.Assert(cli.setupPostalService(), IsNil)
+	postalBusStomp(cli.postalService, endp)
 	c.Check(cli.handleBroadcastNotification(negativeBroadcastNotification), IsNil)
-	// check we sent the notification
+	// check we did not send the notification
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 0)
-	c.Check(cs.log.Captured(), Matches, "")
+	c.Check(cs.log.Captured(), Equals, "")
 }
 
 func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), 42)
 	cli.log = cs.log
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
-	cli.notificationsEndp = endp
-	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
-	cli.setupPostalService()
+	c.Assert(cli.setupPostalService(), IsNil)
+	postalBusStomp(cli.postalService, endp)
+	c.Assert(cli.startPostalService(), IsNil)
+	cli.postalService.NotificationsEndp = testibus.NewTestingEndpoint(nil, condition.Work(false))
 	c.Check(cli.handleBroadcastNotification(positiveBroadcastNotification), NotNil)
 }
 
@@ -845,40 +867,27 @@ var notif = &protocol.Notification{AppId: appIdHello, Payload: []byte(payload), 
 
 func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	postEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+	cli.configure()
+
 	cli.log = cs.log
-	cli.postalServiceEndpoint = postEndp
+
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	postEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+
+	cli.connectivityEndp = endp
+	cli.systemImageEndp = endp
+
 	c.Assert(cli.setupPostalService(), IsNil)
+	postalBusStomp(cli.postalService, endp)
+	cli.postalService.Bus = postEndp
+
 	c.Assert(cli.startPostalService(), IsNil)
 	c.Check(cli.handleUnicastNotification(session.AddressedNotification{appHello, notif}), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(postEndp)
 	c.Assert(len(args), Not(Equals), 0)
 	c.Check(args[len(args)-1].Member, Equals, "::Signal")
-	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "com.example.test_hello".*`)
-}
-
-/*****************************************************************
-    handleClick tests
-******************************************************************/
-
-func (cs *clientSuite) TestHandleClick(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
-	cli.urlDispatcherEndp = endp
-	// check we don't fail on a nil *RawAction
-	c.Check(cli.handleClick(nil), IsNil)
-	// ... but we don't send anything either
-	args := testibus.GetCallArgs(endp)
-	c.Assert(args, HasLen, 0)
-	// check we worked with a the right action
-	c.Check(cli.handleClick(&notifications.RawAction{Action: service.SystemUpdateUrl}), IsNil)
-	// check we sent the notification
-	args = testibus.GetCallArgs(endp)
-	c.Assert(args, HasLen, 1)
-	c.Check(args[0].Member, Equals, "DispatchURL")
-	c.Check(args[0].Args, DeepEquals, []interface{}{service.SystemUpdateUrl})
+	c.Check(cs.log.Captured(), Matches, `(?sm).*sending notification "42" for "com.example.test_hello".*`)
 }
 
 /*****************************************************************
@@ -946,7 +955,6 @@ func (cs *clientSuite) TestHandleUnregisterError(c *C) {
 ******************************************************************/
 
 var nopConn = func(bool) {}
-var nopClick = func(*notifications.RawAction) error { return nil }
 var nopBcast = func(*session.BroadcastNotification) error { return nil }
 var nopUcast = func(session.AddressedNotification) error { return nil }
 var nopError = func(error) {}
@@ -961,21 +969,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	c.Assert(cli.initSession(), IsNil)
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) { ch <- true }, nopClick, nopBcast, nopUcast, nopError, nopUnregister)
-	c.Check(takeNextBool(ch), Equals, true)
-}
-
-func (cs *clientSuite) TestDoLoopClick(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
-	aCh := make(chan *notifications.RawAction, 1)
-	aCh <- &notifications.RawAction{}
-	cli.actionsCh = aCh
-
-	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, func(_ *notifications.RawAction) error { ch <- true; return nil }, nopBcast, nopUcast, nopError, nopUnregister)
+	go cli.doLoop(func(bool) { ch <- true }, nopBcast, nopUcast, nopError, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -988,7 +982,7 @@ func (cs *clientSuite) TestDoLoopBroadcast(c *C) {
 	cli.session.BroadcastCh <- &session.BroadcastNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopClick, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopError, nopUnregister)
+	go cli.doLoop(nopConn, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopError, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1001,7 +995,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.session.NotificationsCh <- session.AddressedNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopClick, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopError, nopUnregister)
+	go cli.doLoop(nopConn, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopError, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1014,7 +1008,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli.session.ErrCh <- nil
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopClick, nopBcast, nopUcast, func(error) { ch <- true }, nopUnregister)
+	go cli.doLoop(nopConn, nopBcast, nopUcast, func(error) { ch <- true }, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1027,7 +1021,7 @@ func (cs *clientSuite) TestDoLoopUnregister(c *C) {
 	cli.unregisterCh <- app1
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopClick, nopBcast, nopUcast, nopError, func(app *click.AppId) { c.Check(app.Original(), Equals, appId1); ch <- true })
+	go cli.doLoop(nopConn, nopBcast, nopUcast, nopError, func(app *click.AppId) { c.Check(app.Original(), Equals, appId1); ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1066,17 +1060,21 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.connCh = make(chan bool)
 	cli.sessionConnectedCh = make(chan uint32)
-	aCh := make(chan *notifications.RawAction, 1)
-	cli.actionsCh = aCh
 	cli.log = cs.log
-	cli.notificationsEndp = testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
-		condition.Work(true), []interface{}{uint32(1), "hello"})
-	cli.urlDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal))
 	cli.systemImageInfo = siInfoRes
-	cli.postalServiceEndpoint = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
-	cli.setupPostalService()
+	c.Assert(cli.setupPostalService(), IsNil)
+	cli.postalService.Bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
+		condition.Work(true), []interface{}{uint32(1), "hello"})
+	cli.postalService.NotificationsEndp = nEndp
+	cli.postalService.URLDispatcherEndp = endp
+	cli.postalService.EmblemCounterEndp = endp
+	cli.postalService.HapticEndp = endp
+	c.Assert(cli.startPostalService(), IsNil)
+
 	c.Assert(cli.initSession(), IsNil)
 
 	cli.session.BroadcastCh = make(chan *session.BroadcastNotification)
@@ -1095,13 +1093,6 @@ func (cs *clientSuite) TestLoop(c *C) {
 	tick()
 	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
 
-	//  * actionsCh to the click handler/url dispatcher
-	aCh <- &notifications.RawAction{Action: "potato"}
-	tick()
-	uargs := testibus.GetCallArgs(cli.urlDispatcherEndp)
-	c.Assert(uargs, HasLen, 1)
-	c.Check(uargs[0].Member, Equals, "DispatchURL")
-
 	// loop() should have connected:
 	//  * connCh to the connectivity checker
 	c.Check(cli.hasConnectivity, Equals, false)
@@ -1115,7 +1106,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	//  * session.BroadcastCh to the notifications handler
 	cli.session.BroadcastCh <- positiveBroadcastNotification
 	tick()
-	nargs := testibus.GetCallArgs(cli.notificationsEndp)
+	nargs := testibus.GetCallArgs(nEndp)
 	c.Check(nargs, HasLen, 1)
 
 	//  * session.ErrCh to the error handler
@@ -1139,6 +1130,7 @@ func (cs *clientSuite) hasDbus() bool {
 }
 
 func (cs *clientSuite) TestStart(c *C) {
+	c.Skip("no dbus")
 	if !cs.hasDbus() {
 		c.Skip("no dbus")
 	}
@@ -1154,7 +1146,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// no session,
 	c.Check(cli.session, IsNil)
 	// no bus,
-	c.Check(cli.notificationsEndp, IsNil)
+	c.Check(cli.systemImageEndp, IsNil)
 	// no nuthin'.
 
 	// so we start,
@@ -1169,7 +1161,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and a session,
 	c.Check(cli.session, NotNil)
 	// and a bus,
-	c.Check(cli.notificationsEndp, NotNil)
+	c.Check(cli.systemImageEndp, NotNil)
 	// and a service,
 	c.Check(cli.pushService, NotNil)
 	// and everthying us just peachy!

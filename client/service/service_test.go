@@ -64,15 +64,15 @@ func (ss *serviceSuite) TestBuild(c *C) {
 			return ""
 		},
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
-	c.Check(svc.Bus, Equals, ss.bus)
+	svc := NewPushService(setup, ss.log)
 	c.Check(svc.regURL, DeepEquals, helpers.ParseURL("http://reg"))
 	c.Check(fmt.Sprintf("%#v", svc.authGetter), Equals, fmt.Sprintf("%#v", setup.AuthGetter))
 	// ...
 }
 
 func (ss *serviceSuite) TestStart(c *C) {
-	svc := NewPushService(ss.bus, testSetup, ss.log)
+	svc := NewPushService(testSetup, ss.log)
+	svc.Bus = ss.bus
 	c.Check(svc.IsRunning(), Equals, false)
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.IsRunning(), Equals, true)
@@ -80,31 +80,36 @@ func (ss *serviceSuite) TestStart(c *C) {
 }
 
 func (ss *serviceSuite) TestStartTwice(c *C) {
-	svc := NewPushService(ss.bus, testSetup, ss.log)
+	svc := NewPushService(testSetup, ss.log)
+	svc.Bus = ss.bus
 	c.Check(svc.Start(), IsNil)
 	c.Check(svc.Start(), Equals, ErrAlreadyStarted)
 	svc.Stop()
 }
 
 func (ss *serviceSuite) TestStartNoLog(c *C) {
-	svc := NewPushService(ss.bus, testSetup, nil)
+	svc := NewPushService(testSetup, nil)
+	svc.Bus = ss.bus
 	c.Check(svc.Start(), Equals, ErrNotConfigured)
 }
 
 func (ss *serviceSuite) TestStartNoBus(c *C) {
-	svc := NewPushService(nil, testSetup, ss.log)
+	svc := NewPushService(testSetup, ss.log)
+	svc.Bus = nil
 	c.Check(svc.Start(), Equals, ErrNotConfigured)
 }
 
 func (ss *serviceSuite) TestStartFailsOnBusDialFailure(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(false), nil)
-	svc := NewPushService(bus, testSetup, ss.log)
+	svc := NewPushService(testSetup, ss.log)
+	svc.Bus = bus
 	c.Check(svc.Start(), ErrorMatches, `.*(?i)cond said no.*`)
 	svc.Stop()
 }
 
 func (ss *serviceSuite) TestStartGrabsName(c *C) {
-	svc := NewPushService(ss.bus, testSetup, ss.log)
+	svc := NewPushService(testSetup, ss.log)
+	svc.Bus = ss.bus
 	c.Assert(svc.Start(), IsNil)
 	callArgs := testibus.GetCallArgs(ss.bus)
 	defer svc.Stop()
@@ -113,7 +118,8 @@ func (ss *serviceSuite) TestStartGrabsName(c *C) {
 }
 
 func (ss *serviceSuite) TestStopClosesBus(c *C) {
-	svc := NewPushService(ss.bus, testSetup, ss.log)
+	svc := NewPushService(testSetup, ss.log)
+	svc.Bus = ss.bus
 	c.Assert(svc.Start(), IsNil)
 	svc.Stop()
 	callArgs := testibus.GetCallArgs(ss.bus)
@@ -132,7 +138,8 @@ func (ss *serviceSuite) TestGetRegAuthWorks(c *C) {
 			return "Auth " + s
 		},
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
 	url, auth := svc.getAuthorization("/op")
 	c.Check(auth, Equals, "Auth http://foo/op")
 	c.Assert(len(ch), Equals, 1)
@@ -141,7 +148,8 @@ func (ss *serviceSuite) TestGetRegAuthWorks(c *C) {
 }
 
 func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
-	svc := NewPushService(ss.bus, testSetup, ss.log)
+	svc := NewPushService(testSetup, ss.log)
+	svc.Bus = ss.bus
 	_, auth := svc.getAuthorization("/op")
 	c.Check(auth, Equals, "")
 }
@@ -185,7 +193,8 @@ func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 		RegURL:     helpers.ParseURL(ts.URL),
 		AuthGetter: func(string) string { return "tok" },
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
 	// this'll check (un)quoting, too
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Assert(err, IsNil)
@@ -210,7 +219,8 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 
 func (ss *serviceSuite) TestManageRegFailsOnBadAuth(c *C) {
 	// ... no auth added
-	svc := NewPushService(ss.bus, testSetup, ss.log)
+	svc := NewPushService(testSetup, ss.log)
+	svc.Bus = ss.bus
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, Equals, ErrBadAuth)
@@ -222,7 +232,8 @@ func (ss *serviceSuite) TestManageRegFailsOnNoServer(c *C) {
 		RegURL:     helpers.ParseURL("xyzzy://"),
 		AuthGetter: func(string) string { return "tok" },
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Check(reg, IsNil)
 	c.Check(err, ErrorMatches, "unable to request registration: .*")
@@ -238,7 +249,8 @@ func (ss *serviceSuite) TestManageRegFailsOn40x(c *C) {
 		RegURL:     helpers.ParseURL(ts.URL),
 		AuthGetter: func(string) string { return "tok" },
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Check(err, Equals, ErrBadRequest)
 	c.Check(reg, IsNil)
@@ -254,7 +266,8 @@ func (ss *serviceSuite) TestManageRegFailsOn50x(c *C) {
 		RegURL:     helpers.ParseURL(ts.URL),
 		AuthGetter: func(string) string { return "tok" },
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Check(err, Equals, ErrBadServer)
 	c.Check(reg, IsNil)
@@ -278,7 +291,8 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSON(c *C) {
 		RegURL:     helpers.ParseURL(ts.URL),
 		AuthGetter: func(string) string { return "tok" },
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
 	// this'll check (un)quoting, too
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Check(reg, IsNil)
@@ -303,7 +317,8 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSONDocument(c *C) {
 		RegURL:     helpers.ParseURL(ts.URL),
 		AuthGetter: func(string) string { return "tok" },
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
 	// this'll check (un)quoting, too
 	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Check(reg, IsNil)
@@ -328,7 +343,8 @@ func (ss *serviceSuite) TestDBusUnregisterWorks(c *C) {
 		RegURL:     helpers.ParseURL(ts.URL),
 		AuthGetter: func(string) string { return "tok" },
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
 	// this'll check (un)quoting, too
 	reg, err := svc.unregister(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Assert(err, IsNil)
@@ -355,7 +371,8 @@ func (ss *serviceSuite) TestUnregistrationWorks(c *C) {
 		RegURL:     helpers.ParseURL(ts.URL),
 		AuthGetter: func(string) string { return "tok" },
 	}
-	svc := NewPushService(ss.bus, setup, ss.log)
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
 	err := svc.Unregister(anAppId)
 	c.Assert(err, IsNil)
 	c.Check(invoked, HasLen, 1)
