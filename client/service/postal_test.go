@@ -105,7 +105,7 @@ func (ss *postalSuite) TestTakeTheBusFail(c *C) {
 	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), condition.Work(false))
 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
 	svc.NotificationsEndp = nEndp
-	err := svc.takeTheBus()
+	_, err := svc.takeTheBus()
 	c.Check(err, NotNil)
 }
 
@@ -113,7 +113,7 @@ func (ss *postalSuite) TestTakeTheBusOk(c *C) {
 	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), condition.Work(true), []interface{}{uint32(1), "hello"})
 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
 	svc.NotificationsEndp = nEndp
-	err := svc.takeTheBus()
+	_, err := svc.takeTheBus()
 	c.Check(err, IsNil)
 }
 
@@ -362,8 +362,7 @@ func (ss *postalSuite) TestHandleActionsDispatches(c *C) {
 		close(aCh)
 		bCh <- true
 	}()
-	svc.actionsCh = aCh
-	svc.handleActions()
+	svc.handleActions(aCh)
 	takeNextBool(bCh)
 	args := testibus.GetCallArgs(ss.urlDispBus)
 	c.Assert(args, HasLen, 1)

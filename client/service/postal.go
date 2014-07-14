@@ -49,7 +49,6 @@ type PostalService struct {
 	HapticEndp        bus.Endpoint
 	NotificationsEndp bus.Endpoint
 	URLDispatcherEndp bus.Endpoint
-	actionsCh         <-chan *notifications.RawAction
 }
 
 var (
@@ -103,20 +102,17 @@ func (svc *PostalService) Start() error {
 	if err != nil {
 		return err
 	}
-	err = svc.takeTheBus()
+	actionsCh, err := svc.takeTheBus()
 	if err != nil {
 		return err
 	}
-	go svc.handleActions()
-	return err
+	go svc.handleActions(actionsCh)
+	return nil
 }
 
 // handleClicks loops on the actions channel waiting for actions and handling them
-func (svc *PostalService) handleActions() {
-	svc.lock.RLock()
-	ch := svc.actionsCh
-	svc.lock.RUnlock()
-	for action := range ch {
+func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction) {
+	for action := range actionsCh {
 		if action == nil {
 			svc.Log.Debugf("handleActions got nil action; ignoring")
 			continue
@@ -129,11 +125,7 @@ func (svc *PostalService) handleActions() {
 	}
 }
 
-func (svc *PostalService) takeTheBus() error {
-	if svc.Log == nil {
-		return ErrNotConfigured
-	}
-
+func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) {
 	endps := []struct {
 		name string
 		endp bus.Endpoint
@@ -146,7 +138,7 @@ func (svc *PostalService) takeTheBus() error {
 	for _, endp := range endps {
 		if endp.endp == nil {
 			svc.Log.Errorf("endpoint for %s is nil", endp.name)
-			return ErrNotConfigured
+			return nil, ErrNotConfigured
 		}
 	}
 
@@ -160,14 +152,8 @@ func (svc *PostalService) takeTheBus() error {
 		}(endp.name, endp.endp)
 	}
 	wg.Wait()
-	actionsCh, err := notifications.Raw(svc.NotificationsEndp, svc.Log).WatchActions()
-	if err == nil {
-		svc.lock.Lock()
-		svc.actionsCh = actionsCh
-		svc.lock.Unlock()
-	}
 
-	return err
+	return notifications.Raw(svc.NotificationsEndp, svc.Log).WatchActions()
 }
 
 func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {
