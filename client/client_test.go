@@ -819,11 +819,16 @@ func (cs *clientSuite) TestHandleBroadcastNotification(c *C) {
 	cli.log = cs.log
 	c.Assert(cli.setupPostalService(), IsNil)
 	postalBusStomp(cli.postalService, endp)
+	c.Assert(cli.startPostalService(), IsNil)
 	c.Check(cli.handleBroadcastNotification(positiveBroadcastNotification), IsNil)
 	// check we sent the notification
 	args := testibus.GetCallArgs(endp)
-	c.Assert(args, HasLen, 2) // the notification, and the signal
-	c.Check(args[0].Member, Equals, "Notify")
+	l := len(args)
+	if l < 2 {
+		c.Fatal("not enough elements in resposne from GetCallArgs")
+	}
+	c.Check(args[l-2].Member, Equals, "Notify")
+	c.Check(args[l-1].Member, Equals, "::Signal")
 	c.Check(cs.log.Captured(), Matches, `(?s).* got notification id \d+\s*`)
 }
 
@@ -844,11 +849,12 @@ func (cs *clientSuite) TestHandleBroadcastNotificationNothingToDo(c *C) {
 func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.systemImageInfo = siInfoRes
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), 42)
 	cli.log = cs.log
 	c.Assert(cli.setupPostalService(), IsNil)
 	postalBusStomp(cli.postalService, endp)
-	cli.postalService.Bus = testibus.NewTestingEndpoint(nil, condition.Work(true))
+	c.Assert(cli.startPostalService(), IsNil)
+	cli.postalService.NotificationsEndp = testibus.NewTestingEndpoint(nil, condition.Work(false))
 	c.Check(cli.handleBroadcastNotification(positiveBroadcastNotification), NotNil)
 }
 
@@ -1058,12 +1064,16 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal))
 	cli.systemImageInfo = siInfoRes
-	cli.setupPostalService()
+	c.Assert(cli.setupPostalService(), IsNil)
 	cli.postalService.Bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true),
 		condition.Work(true), []interface{}{uint32(1), "hello"})
 	cli.postalService.NotificationsEndp = nEndp
-	cli.postalService.URLDispatcherEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
+	cli.postalService.URLDispatcherEndp = endp
+	cli.postalService.EmblemCounterEndp = endp
+	cli.postalService.HapticEndp = endp
+	c.Assert(cli.startPostalService(), IsNil)
 
 	c.Assert(cli.initSession(), IsNil)
 

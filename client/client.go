@@ -379,7 +379,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 	if !client.filterBroadcastNotification(msg) {
 		return nil
 	}
-	not_id, err := client.postalService.InjectBroadcast()
+	not_id, err := client.postalService.PostBroadcast()
 	if err != nil {
 		client.log.Errorf("showing notification: %s", err)
 		return err
@@ -393,7 +393,7 @@ func (client *PushClient) handleUnicastNotification(anotif session.AddressedNoti
 	app := anotif.To
 	msg := anotif.Notification
 	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.postalService.Inject(app, msg.MsgId, string(msg.Payload))
+	return client.postalService.Post(app, msg.MsgId, string(msg.Payload))
 }
 
 // doLoop connects events with their handlers
