@@ -885,6 +885,7 @@ func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	cli.hapticEndp = endp
 	cli.systemImageEndp = endp
 	cli.pushServiceEndpoint = endp
+	cli.urlDispatcherEndp = endp
 
 	postEndp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	cli.postalServiceEndpoint = postEndp
@@ -895,7 +896,7 @@ func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	args := testibus.GetCallArgs(postEndp)
 	c.Assert(len(args), Not(Equals), 0)
 	c.Check(args[len(args)-1].Member, Equals, "::Signal")
-	c.Check(cs.log.Captured(), Matches, `(?m).*sending notification "42" for "com.example.test_hello".*`)
+	c.Check(cs.log.Captured(), Matches, `(?sm).*sending notification "42" for "com.example.test_hello".*`)
 }
 
 /*****************************************************************

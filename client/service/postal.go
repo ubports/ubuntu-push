@@ -26,6 +26,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/emblemcounter"
 	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -47,6 +48,7 @@ type PostalService struct {
 	emblemcounterEndp bus.Endpoint
 	hapticEndp        bus.Endpoint
 	notificationsEndp bus.Endpoint
+	urlDispatcherEndp bus.Endpoint
 	actionsCh         <-chan *notifications.RawAction
 }
 
@@ -63,7 +65,7 @@ var (
 )
 
 // NewPostalService() builds a new service and returns it.
-func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, hapticEndp bus.Endpoint, installedChecker click.InstalledChecker, log logger.Logger) *PostalService {
+func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, hapticEndp bus.Endpoint, urlDispatcherEndp bus.Endpoint, installedChecker click.InstalledChecker, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
 	svc.Bus = busEndp
@@ -73,6 +75,7 @@ func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, embl
 	svc.notificationsEndp = notificationsEndp
 	svc.emblemcounterEndp = emblemcounterEndp
 	svc.hapticEndp = hapticEndp
+	svc.urlDispatcherEndp = urlDispatcherEndp
 	svc.msgHandler = svc.messageHandler
 	return svc
 }
@@ -96,25 +99,57 @@ func (svc *PostalService) Start() error {
 	if err := svc.takeTheBus(); err != nil {
 		return err
 	}
+	go svc.handleActions()
 	return svc.DBusService.Start(bus.DispatchMap{
 		"PopAll": svc.notifications,
 		"Post":   svc.inject,
 	}, PostalServiceBusAddress)
 }
 
-func (svc *PostalService) takeTheBus() error {
-	var wg sync.WaitGroup
-	endps := []bus.Endpoint{
-		svc.notificationsEndp,
-		svc.emblemcounterEndp,
-		svc.hapticEndp,
+// handleClicks loops on the actions channel waiting for actions and handling them
+func (svc *PostalService) handleActions() {
+	for action := range svc.actionsCh {
+		if action == nil {
+			svc.Log.Debugf("handleActions got nil action; ignoring")
+			continue
+		}
+		url := action.Action
+		// it doesn't get much simpler...
+		urld := urldispatcher.New(svc.urlDispatcherEndp, svc.Log)
+		// this ignores the error (it's been logged already)
+		urld.DispatchURL(url)
 	}
+}
+
+func (svc *PostalService) takeTheBus() error {
+	if svc.Log == nil {
+		return ErrNotConfigured
+	}
+
+	endps := []struct {
+		name string
+		endp bus.Endpoint
+	}{
+		{"notifications", svc.notificationsEndp},
+		{"emblemcounter", svc.emblemcounterEndp},
+		{"haptic", svc.hapticEndp},
+		{"urldispatcher", svc.urlDispatcherEndp},
+	}
+	for _, endp := range endps {
+		if endp.endp == nil {
+			svc.Log.Errorf("endpoint for %s is nil", endp.name)
+			return ErrNotConfigured
+		}
+	}
+
+	var wg sync.WaitGroup
 	wg.Add(len(endps))
 	for _, endp := range endps {
-		go func(endp bus.Endpoint) {
+		go func(name string, endp bus.Endpoint) {
 			util.NewAutoRedialer(endp).Redial()
+			svc.Log.Debugf("%s dialed in", name)
 			wg.Done()
-		}(endp)
+		}(endp.name, endp.endp)
 	}
 	wg.Wait()
 	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()

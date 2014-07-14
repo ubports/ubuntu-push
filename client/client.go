@@ -244,12 +244,7 @@ func (client *PushClient) getDeviceId() error {
 func (client *PushClient) takeTheBus() error {
 	go connectivity.ConnectedState(client.connectivityEndp,
 		client.config.ConnectivityConfig, client.log, client.connCh)
-	iniCh := make(chan uint32)
-	go func() { iniCh <- util.NewAutoRedialer(client.urlDispatcherEndp).Redial() }()
-	go func() { iniCh <- util.NewAutoRedialer(client.systemImageEndp).Redial() }()
-	<-iniCh
-	<-iniCh
-
+	util.NewAutoRedialer(client.systemImageEndp).Redial()
 	sysimg := systemimage.New(client.systemImageEndp, client.log)
 	info, err := sysimg.Info()
 	if err != nil {
@@ -471,7 +466,7 @@ func (client *PushClient) startService() error {
 }
 
 func (client *PushClient) setupPostalService() error {
-	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.emblemcounterEndp, client.hapticEndp, client.installedChecker, client.log)
+	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.emblemcounterEndp, client.hapticEndp, client.urlDispatcherEndp, client.installedChecker, client.log)
 	return nil
 }
 
