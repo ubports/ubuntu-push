@@ -33,12 +33,8 @@ import (
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
-	"launchpad.net/ubuntu-push/bus/emblemcounter"
-	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
-	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/systemimage"
-	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/client/service"
 	"launchpad.net/ubuntu-push/client/session"
@@ -82,31 +78,25 @@ type PushService interface {
 
 // PushClient is the Ubuntu Push Notifications client-side daemon.
 type PushClient struct {
-	leveldbPath           string
-	configPath            string
-	config                ClientConfig
-	log                   logger.Logger
-	pem                   []byte
-	idder                 identifier.Id
-	deviceId              string
-	notificationsEndp     bus.Endpoint
-	urlDispatcherEndp     bus.Endpoint
-	connectivityEndp      bus.Endpoint
-	emblemcounterEndp     bus.Endpoint
-	hapticEndp            bus.Endpoint
-	systemImageEndp       bus.Endpoint
-	systemImageInfo       *systemimage.InfoResult
-	connCh                chan bool
-	hasConnectivity       bool
-	session               *session.ClientSession
-	sessionConnectedCh    chan uint32
-	pushServiceEndpoint   bus.Endpoint
-	pushService           PushService
-	postalServiceEndpoint bus.Endpoint
-	postalService         *service.PostalService
-	unregisterCh          chan *click.AppId
-	trackAddressees       map[string]*click.AppId
-	installedChecker      click.InstalledChecker
+	leveldbPath        string
+	configPath         string
+	config             ClientConfig
+	log                logger.Logger
+	pem                []byte
+	idder              identifier.Id
+	deviceId           string
+	connectivityEndp   bus.Endpoint
+	systemImageEndp    bus.Endpoint
+	systemImageInfo    *systemimage.InfoResult
+	connCh             chan bool
+	hasConnectivity    bool
+	session            *session.ClientSession
+	sessionConnectedCh chan uint32
+	pushService        PushService
+	postalService      *service.PostalService
+	unregisterCh       chan *click.AppId
+	trackAddressees    map[string]*click.AppId
+	installedChecker   click.InstalledChecker
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
@@ -149,14 +139,8 @@ func (client *PushClient) configure() error {
 
 	// overridden for testing
 	client.idder = identifier.New()
-	client.urlDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, client.log)
 	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
 	client.systemImageEndp = bus.SystemBus.Endpoint(systemimage.BusAddress, client.log)
-	client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
-	client.emblemcounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, client.log)
-	client.hapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, client.log)
-	client.postalServiceEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
-	client.pushServiceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
 
 	client.connCh = make(chan bool, 1)
 	client.sessionConnectedCh = make(chan uint32, 1)
@@ -452,13 +436,17 @@ func (client *PushClient) Loop() {
 		client.handleUnregister)
 }
 
-func (client *PushClient) startService() error {
+func (client *PushClient) setupPushService() error {
 	setup, err := client.derivePushServiceSetup()
 	if err != nil {
 		return err
 	}
 
-	client.pushService = service.NewPushService(client.pushServiceEndpoint, setup, client.log)
+	client.pushService = service.NewPushService(setup, client.log)
+	return nil
+}
+
+func (client *PushClient) startPushService() error {
 	if err := client.pushService.Start(); err != nil {
 		return err
 	}
@@ -466,7 +454,7 @@ func (client *PushClient) startService() error {
 }
 
 func (client *PushClient) setupPostalService() error {
-	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.emblemcounterEndp, client.hapticEndp, client.urlDispatcherEndp, client.installedChecker, client.log)
+	client.postalService = service.NewPostalService(client.installedChecker, client.log)
 	return nil
 }
 
@@ -482,8 +470,9 @@ func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
 		client.getDeviceId,
-		client.startService,
+		client.setupPushService,
 		client.setupPostalService,
+		client.startPushService,
 		client.startPostalService,
 		client.takeTheBus,
 		client.initSession,

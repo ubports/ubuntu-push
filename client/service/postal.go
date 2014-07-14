@@ -45,10 +45,10 @@ type PostalService struct {
 	msgHandler        messageHandler
 	HelperLauncher    launch_helper.HelperLauncher
 	messagingMenu     *messaging.MessagingMenu
-	emblemcounterEndp bus.Endpoint
-	hapticEndp        bus.Endpoint
-	notificationsEndp bus.Endpoint
-	urlDispatcherEndp bus.Endpoint
+	EmblemCounterEndp bus.Endpoint
+	HapticEndp        bus.Endpoint
+	NotificationsEndp bus.Endpoint
+	URLDispatcherEndp bus.Endpoint
 	actionsCh         <-chan *notifications.RawAction
 }
 
@@ -65,17 +65,17 @@ var (
 )
 
 // NewPostalService() builds a new service and returns it.
-func NewPostalService(busEndp bus.Endpoint, notificationsEndp bus.Endpoint, emblemcounterEndp bus.Endpoint, hapticEndp bus.Endpoint, urlDispatcherEndp bus.Endpoint, installedChecker click.InstalledChecker, log logger.Logger) *PostalService {
+func NewPostalService(installedChecker click.InstalledChecker, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
-	svc.Bus = busEndp
+	svc.Bus = bus.SessionBus.Endpoint(PostalServiceBusAddress, log)
 	svc.installedChecker = installedChecker
 	svc.messagingMenu = messaging.New(log)
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(log)
-	svc.notificationsEndp = notificationsEndp
-	svc.emblemcounterEndp = emblemcounterEndp
-	svc.hapticEndp = hapticEndp
-	svc.urlDispatcherEndp = urlDispatcherEndp
+	svc.NotificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, log)
+	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
+	svc.HapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, log)
+	svc.URLDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, log)
 	svc.msgHandler = svc.messageHandler
 	return svc
 }
@@ -96,26 +96,34 @@ func (svc *PostalService) GetMessageHandler() messageHandler {
 
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *PostalService) Start() error {
-	if err := svc.takeTheBus(); err != nil {
-		return err
-	}
-	go svc.handleActions()
-	return svc.DBusService.Start(bus.DispatchMap{
+	err := svc.DBusService.Start(bus.DispatchMap{
 		"PopAll": svc.notifications,
 		"Post":   svc.inject,
 	}, PostalServiceBusAddress)
+	if err != nil {
+		return err
+	}
+	err = svc.takeTheBus()
+	if err != nil {
+		return err
+	}
+	go svc.handleActions()
+	return err
 }
 
 // handleClicks loops on the actions channel waiting for actions and handling them
 func (svc *PostalService) handleActions() {
-	for action := range svc.actionsCh {
+	svc.lock.RLock()
+	ch := svc.actionsCh
+	svc.lock.RUnlock()
+	for action := range ch {
 		if action == nil {
 			svc.Log.Debugf("handleActions got nil action; ignoring")
 			continue
 		}
 		url := action.Action
 		// it doesn't get much simpler...
-		urld := urldispatcher.New(svc.urlDispatcherEndp, svc.Log)
+		urld := urldispatcher.New(svc.URLDispatcherEndp, svc.Log)
 		// this ignores the error (it's been logged already)
 		urld.DispatchURL(url)
 	}
@@ -130,10 +138,10 @@ func (svc *PostalService) takeTheBus() error {
 		name string
 		endp bus.Endpoint
 	}{
-		{"notifications", svc.notificationsEndp},
-		{"emblemcounter", svc.emblemcounterEndp},
-		{"haptic", svc.hapticEndp},
-		{"urldispatcher", svc.urlDispatcherEndp},
+		{"notifications", svc.NotificationsEndp},
+		{"emblemcounter", svc.EmblemCounterEndp},
+		{"haptic", svc.HapticEndp},
+		{"urldispatcher", svc.URLDispatcherEndp},
 	}
 	for _, endp := range endps {
 		if endp.endp == nil {
@@ -152,9 +160,11 @@ func (svc *PostalService) takeTheBus() error {
 		}(endp.name, endp.endp)
 	}
 	wg.Wait()
-	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()
+	actionsCh, err := notifications.Raw(svc.NotificationsEndp, svc.Log).WatchActions()
 	if err == nil {
+		svc.lock.Lock()
 		svc.actionsCh = actionsCh
+		svc.lock.Unlock()
 	}
 
 	return err
@@ -222,10 +232,10 @@ func (svc *PostalService) Inject(app *click.AppId, nid string, notif string) err
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
 	svc.messagingMenu.Present(app, nid, output.Notification)
-	nots := notifications.Raw(svc.notificationsEndp, svc.Log)
+	nots := notifications.Raw(svc.NotificationsEndp, svc.Log)
 	_, err := nots.Present(app, nid, output.Notification)
-	emblemcounter.New(svc.emblemcounterEndp, svc.Log).Present(app, nid, output.Notification)
-	haptic.New(svc.hapticEndp, svc.Log).Present(app, nid, output.Notification)
+	emblemcounter.New(svc.EmblemCounterEndp, svc.Log).Present(app, nid, output.Notification)
+	haptic.New(svc.HapticEndp, svc.Log).Present(app, nid, output.Notification)
 	sounds.New(svc.Log).Present(app, nid, output.Notification)
 	return err
 }
