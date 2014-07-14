@@ -19,16 +19,28 @@ package service
 import (
 	"errors"
 	"sort"
+	"time"
 
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/notifications"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 )
+
+// takeNext takes a value from given channel with a 5s timeout
+func takeNextBool(ch <-chan bool) bool {
+	select {
+	case <-time.After(5 * time.Second):
+		panic("channel stuck: too long waiting")
+	case v := <-ch:
+		return v
+	}
+}
 
 type postalSuite struct {
 	log        *helpers.TestLogger
@@ -311,4 +323,23 @@ func (ss *postalSuite) TestMessageHandlerReportsButIgnoresNilNotifies(c *C) {
 	err := svc.messageHandler(nil, "", output)
 	c.Assert(err, IsNil)
 	c.Check(ss.log.Captured(), Matches, "(?msi).*skipping notification: nil.*")
+}
+
+func (ss *postalSuite) TestHandleActionsDispatches(c *C) {
+	svc := NewPostalService(ss.bus, ss.notifBus, ss.counterBus, ss.hapticBus, ss.urlDispBus, nil, ss.log)
+	aCh := make(chan *notifications.RawAction)
+	bCh := make(chan bool)
+	go func() {
+		aCh <- &notifications.RawAction{Action: "potato://"}
+		close(aCh)
+		bCh <- true
+	}()
+	svc.actionsCh = aCh
+	svc.handleActions()
+	takeNextBool(bCh)
+	args := testibus.GetCallArgs(ss.urlDispBus)
+	c.Assert(args, HasLen, 1)
+	c.Check(args[0].Member, Equals, "DispatchURL")
+	c.Assert(args[0].Args, HasLen, 1)
+	c.Assert(args[0].Args[0], Equals, "potato://")
 }
