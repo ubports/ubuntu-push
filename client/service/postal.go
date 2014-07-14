@@ -47,6 +47,7 @@ type PostalService struct {
 	emblemcounterEndp bus.Endpoint
 	hapticEndp        bus.Endpoint
 	notificationsEndp bus.Endpoint
+	actionsCh         <-chan *notifications.RawAction
 }
 
 var (
@@ -92,13 +93,16 @@ func (svc *PostalService) GetMessageHandler() messageHandler {
 
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *PostalService) Start() error {
+	if err := svc.takeTheBus(); err != nil {
+		return err
+	}
 	return svc.DBusService.Start(bus.DispatchMap{
 		"PopAll": svc.notifications,
 		"Post":   svc.inject,
 	}, PostalServiceBusAddress)
 }
 
-func (svc *PostalService) TakeTheBus() (<-chan *notifications.RawAction, error) {
+func (svc *PostalService) takeTheBus() error {
 	var wg sync.WaitGroup
 	endps := []bus.Endpoint{
 		svc.notificationsEndp,
@@ -114,8 +118,11 @@ func (svc *PostalService) TakeTheBus() (<-chan *notifications.RawAction, error) 
 	}
 	wg.Wait()
 	actionsCh, err := notifications.Raw(svc.notificationsEndp, svc.Log).WatchActions()
+	if err == nil {
+		svc.actionsCh = actionsCh
+	}
 
-	return actionsCh, err
+	return err
 }
 
 func (svc *PostalService) notifications(path string, args, _ []interface{}) ([]interface{}, error) {

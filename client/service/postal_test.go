@@ -42,10 +42,10 @@ var _ = Suite(&postalSuite{})
 
 func (ss *postalSuite) SetUpTest(c *C) {
 	ss.log = helpers.NewTestLogger(c, "debug")
-	ss.bus = testibus.NewTestingEndpoint(condition.Work(true), nil)
-	ss.notifBus = testibus.NewTestingEndpoint(condition.Work(true), nil)
-	ss.counterBus = testibus.NewTestingEndpoint(condition.Work(true), nil)
-	ss.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), nil)
+	ss.bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	ss.notifBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	ss.counterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	ss.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 }
 
 func (ss *postalSuite) TestStart(c *C) {
@@ -76,18 +76,19 @@ func (ss *postalSuite) TestStartNoBus(c *C) {
 func (ss *postalSuite) TestTakeTheBustFail(c *C) {
 	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), condition.Work(false), []interface{}{uint32(1), "hello"})
 	svc := NewPostalService(ss.bus, nEndp, ss.counterBus, ss.hapticBus, nil, ss.log)
-	_, err := svc.TakeTheBus()
+	err := svc.takeTheBus()
 	c.Check(err, NotNil)
 }
 
 func (ss *postalSuite) TestTakeTheBustOk(c *C) {
 	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), condition.Work(true), []interface{}{uint32(1), "hello"})
 	svc := NewPostalService(ss.bus, nEndp, ss.counterBus, ss.hapticBus, nil, ss.log)
-	_, err := svc.TakeTheBus()
+	err := svc.takeTheBus()
 	c.Check(err, IsNil)
 }
 
 func (ss *postalSuite) TestStartFailsOnBusDialFailure(c *C) {
+	// XXX actually, we probably want to autoredial this
 	bus := testibus.NewTestingEndpoint(condition.Work(false), nil)
 	svc := NewPostalService(bus, ss.notifBus, ss.counterBus, ss.hapticBus, nil, ss.log)
 	c.Check(svc.Start(), ErrorMatches, `.*(?i)cond said no.*`)

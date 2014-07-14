@@ -98,7 +98,6 @@ type PushClient struct {
 	systemImageInfo       *systemimage.InfoResult
 	connCh                chan bool
 	hasConnectivity       bool
-	actionsCh             <-chan *notifications.RawAction
 	session               *session.ClientSession
 	sessionConnectedCh    chan uint32
 	pushServiceEndpoint   bus.Endpoint
@@ -260,12 +259,6 @@ func (client *PushClient) takeTheBus() error {
 	return err
 }
 
-func (client *PushClient) takePostalServiceBus() error {
-	actionsCh, err := client.postalService.TakeTheBus()
-	client.actionsCh = actionsCh
-	return err
-}
-
 // initSession creates the session object
 func (client *PushClient) initSession() error {
 	info := map[string]interface{}{
@@ -424,26 +417,12 @@ func (client *PushClient) handleUnicastNotification(anotif session.AddressedNoti
 	return client.postalService.Inject(app, msg.MsgId, string(msg.Payload))
 }
 
-// handleClick deals with the user clicking a notification
-func (client *PushClient) handleClick(action *notifications.RawAction) error {
-	if action == nil {
-		return nil // XXX: do we still want to not fail?
-	}
-	url := action.Action
-	// XXX: branch for the broadcast notifications
-	// it doesn't get much simpler...
-	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
-	return urld.DispatchURL(url)
-}
-
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(*notifications.RawAction) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId)) {
+func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId)) {
 	for {
 		select {
 		case state := <-client.connCh:
 			connhandler(state)
-		case action := <-client.actionsCh:
-			clickhandler(action)
 		case bcast := <-client.session.BroadcastCh:
 			bcasthandler(bcast)
 		case aucast := <-client.session.NotificationsCh:
@@ -472,7 +451,6 @@ func (client *PushClient) doStart(fs ...func() error) error {
 // Loop calls doLoop with the "real" handlers
 func (client *PushClient) Loop() {
 	client.doLoop(client.handleConnState,
-		client.handleClick,
 		client.handleBroadcastNotification,
 		client.handleUnicastNotification,
 		client.handleErr,
@@ -513,7 +491,6 @@ func (client *PushClient) Start() error {
 		client.setupPostalService,
 		client.startPostalService,
 		client.takeTheBus,
-		client.takePostalServiceBus,
 		client.initSession,
 	)
 }
