@@ -85,16 +85,19 @@ func (ss *postalSuite) TestStartNoLog(c *C) {
 func (ss *postalSuite) TestStartNoBus(c *C) {
 	svc := NewPostalService(nil, ss.notifBus, ss.counterBus, ss.hapticBus, ss.urlDispBus, nil, ss.log)
 	c.Check(svc.Start(), Equals, ErrNotConfigured)
+
+	svc = NewPostalService(ss.bus, nil, ss.counterBus, ss.hapticBus, ss.urlDispBus, nil, ss.log)
+	c.Check(svc.Start(), Equals, ErrNotConfigured)
 }
 
-func (ss *postalSuite) TestTakeTheBustFail(c *C) {
-	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), condition.Work(false), []interface{}{uint32(1), "hello"})
+func (ss *postalSuite) TestTakeTheBusFail(c *C) {
+	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), condition.Work(false))
 	svc := NewPostalService(ss.bus, nEndp, ss.counterBus, ss.hapticBus, ss.urlDispBus, nil, ss.log)
 	err := svc.takeTheBus()
 	c.Check(err, NotNil)
 }
 
-func (ss *postalSuite) TestTakeTheBustOk(c *C) {
+func (ss *postalSuite) TestTakeTheBusOk(c *C) {
 	nEndp := testibus.NewMultiValuedTestingEndpoint(condition.Work(true), condition.Work(true), []interface{}{uint32(1), "hello"})
 	svc := NewPostalService(ss.bus, nEndp, ss.counterBus, ss.hapticBus, ss.urlDispBus, nil, ss.log)
 	err := svc.takeTheBus()
@@ -330,6 +333,7 @@ func (ss *postalSuite) TestHandleActionsDispatches(c *C) {
 	aCh := make(chan *notifications.RawAction)
 	bCh := make(chan bool)
 	go func() {
+		aCh <- nil // just in case?
 		aCh <- &notifications.RawAction{Action: "potato://"}
 		close(aCh)
 		bCh <- true
