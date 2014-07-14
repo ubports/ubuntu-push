@@ -21,11 +21,16 @@ def main():
     parser.add_argument('--insecure', action='store_true', default=False,
                          help="don't check host/certs with https")
     parser.add_argument('--auth_helper',  default="")
+    parser.add_argument('--unregister', action='store_true', default=False)
     args = parser.parse_args()
     scheme = 'https'
     if args.no_https:
         scheme = 'http'
-    url = "%s://%s/register" % (scheme, args.host)
+    if args.unregister:
+        op = 'unregister'
+    else:
+        op = 'register'
+    url = "%s://%s/%s" % (scheme, args.host, op)
     body = {
         'deviceid': args.deviceid[0],
         'appid': args.appid[0],
@@ -36,8 +41,13 @@ def main():
         headers['Authorization'] = auth
     r = requests.post(url, data=json.dumps(body), headers=headers,
                       verify=not args.insecure)
-    print(r.status_code)
-    print(r.text)
+    if r.status_code == 200 and not args.unregister:
+        print(r.json()['token'])
+    else:
+        print(r.status_code)
+        print(r.text)
+    if r.status_code != 200:
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
