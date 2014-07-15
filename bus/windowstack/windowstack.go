@@ -24,8 +24,6 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 )
 
-// import "fmt"
-
 // Well known address for the WindowStack API
 var BusAddress bus.Address = bus.Address{
 	Interface: "com.canonical.Unity.WindowStack",
@@ -56,7 +54,7 @@ func (stack *WindowStack) GetWindowStack() []WindowsInfo {
 	var wstack []WindowsInfo
 	err := stack.bus.Call("GetWindowStack", bus.Args(), &wstack)
 	if err != nil {
-		stack.log.Debugf("GetWindowStack call returned %v", err)
+		stack.log.Errorf("GetWindowStack call returned %v", err)
 	}
 	return wstack
 }
