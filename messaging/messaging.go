@@ -30,8 +30,9 @@ import (
 )
 
 type MessagingMenu struct {
-	Log logger.Logger
-	Ch  chan *reply.MMActionReply
+	Log           logger.Logger
+	Ch            chan *reply.MMActionReply
+	notifications map[string][]*cmessaging.Payload
 }
 
 // New returns a new MessagingMenu
@@ -42,7 +43,9 @@ func New(log logger.Logger) *MessagingMenu {
 var cAddNotification = cmessaging.AddNotification
 
 func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
-	cAddNotification(desktopId, notificationId, card, actions, mmu.Ch)
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions}
+	mmu.notifications[notificationId] = append(mmu.notifications[notificationId], payload)
+	cAddNotification(desktopId, notificationId, card, payload)
 }
 
 func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {

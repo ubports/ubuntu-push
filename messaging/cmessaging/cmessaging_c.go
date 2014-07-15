@@ -21,13 +21,18 @@ package cmessaging
 
 // this is a .go file instead of a .c file because of dh-golang limitations
 
+typedef struct {
+    gpointer chan;
+    const gchar** action;
+} Payload;
+
 static void activate_cb(MessagingMenuMessage* msg, gchar* action, GVariant* parameter, gpointer obj) {
     handleActivate(action, messaging_menu_message_get_id(msg), obj);
 }
 
 void add_notification (const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
-          gint64 timestamp, const gchar** actions, const size_t actions_len, gpointer obj) {
+          gint64 timestamp, gpointer obj) {
     static GHashTable* map = NULL;
     if (map == NULL) {
         map = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
@@ -48,13 +53,6 @@ void add_notification (const gchar* desktop_id, const gchar* notification_id,
     MessagingMenuMessage* msg = messaging_menu_message_new(notification_id, icon, summary,
                                                            "", body,
                                                            timestamp);
-    // add the aqctions, at most 2
-    if (actions_len >= 2) {
-        messaging_menu_message_add_action(msg, actions[0], actions[1], NULL, NULL);
-    }
-    if (actions_len >= 4) {
-        messaging_menu_message_add_action(msg, actions[2], actions[3], NULL, NULL);
-    }
     messaging_menu_app_append_message(app, msg, "postal", TRUE);
 
     g_signal_connect(msg, "activate", G_CALLBACK(activate_cb), obj);
