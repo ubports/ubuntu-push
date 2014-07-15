@@ -37,7 +37,7 @@ type MessagingMenu struct {
 
 // New returns a new MessagingMenu
 func New(log logger.Logger) *MessagingMenu {
-	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply)}
+	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string][]*cmessaging.Payload)}
 }
 
 var cAddNotification = cmessaging.AddNotification
