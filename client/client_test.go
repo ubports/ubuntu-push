@@ -95,9 +95,9 @@ func (d *dumbPush) Unregister(appId string) error {
 }
 
 type postArgs struct {
-	app *click.AppId
-	nid string
-	msg string
+	app     *click.AppId
+	nid     string
+	payload json.RawMessage
 }
 
 type dumbPostal struct {
@@ -107,9 +107,9 @@ type dumbPostal struct {
 	postArgs   []postArgs
 }
 
-func (d *dumbPostal) Post(app *click.AppId, nid string, msg string) error {
+func (d *dumbPostal) Post(app *click.AppId, nid string, payload json.RawMessage) error {
 	d.postCount++
-	d.postArgs = append(d.postArgs, postArgs{app, nid, msg})
+	d.postArgs = append(d.postArgs, postArgs{app, nid, payload})
 	return d.err
 }
 func (d *dumbPostal) PostBroadcast() error {
@@ -853,7 +853,20 @@ func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	c.Assert(d.postArgs, HasLen, 1)
 	c.Check(d.postArgs[0].app, Equals, appHello)
 	c.Check(d.postArgs[0].nid, Equals, notif.MsgId)
-	c.Check(d.postArgs[0].msg, Equals, string(notif.Payload))
+	c.Check(d.postArgs[0].payload, DeepEquals, notif.Payload)
+}
+
+func (cs *clientSuite) TestHandleUcastNotificationError(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	d := new(dumbPostal)
+	cli.postalService = d
+	fail := errors.New("fail")
+	d.err = fail
+
+	c.Check(cli.handleUnicastNotification(session.AddressedNotification{appHello, notif}), Equals, fail)
+	// check we sent the notification
+	c.Check(d.postCount, Equals, 1)
 }
 
 /*****************************************************************

@@ -44,10 +44,10 @@ func (triv *trivialHelperLauncher) Start() chan *HelperResult {
 	go func() {
 		for i := range triv.chIn {
 			res := &HelperResult{Input: i}
-			err := json.Unmarshal(i.Message, &res.HelperOutput)
+			err := json.Unmarshal(i.Payload, &res.HelperOutput)
 			if err != nil {
 				triv.log.Debugf("failed to parse HelperOutput from message, leaving it alone: %v", err)
-				res.Message = i.Message
+				res.Message = i.Payload
 				res.Notification = nil
 			}
 			triv.chOut <- res

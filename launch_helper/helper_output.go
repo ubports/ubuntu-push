@@ -17,6 +17,8 @@
 package launch_helper
 
 import (
+	"encoding/json"
+
 	"launchpad.net/ubuntu-push/click"
 )
 
@@ -56,8 +58,8 @@ type Notification struct {
 
 // HelperOutput is the expected output of a helper
 type HelperOutput struct {
-	Message      []byte        `json:"message"`      // what to put in the post office's queue
-	Notification *Notification `json:"notification"` // what to present to the user
+	Message      json.RawMessage `json:"message,omitempty"`      // what to put in the post office's queue
+	Notification *Notification   `json:"notification,omitempty"` // what to present to the user
 }
 
 // HelperResult is the result of a helper run for a particular app id
@@ -70,5 +72,5 @@ type HelperResult struct {
 type HelperInput struct {
 	App            *click.AppId
 	NotificationId string
-	Message        []byte
+	Payload        json.RawMessage
 }
