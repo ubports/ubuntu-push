@@ -53,6 +53,7 @@ func (box *mBox) Append(message json.RawMessage, nid string) {
 	evicted := box.evicted
 	if evicted > 0 {
 		if evicted == n {
+			// all evicted, just start from scratch
 			box.messages = box.messages[0:0]
 			box.nids = box.nids[0:0]
 			box.evicted = 0
