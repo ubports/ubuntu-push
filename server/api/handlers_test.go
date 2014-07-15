@@ -335,11 +335,6 @@ func (s *handlersSuite) TestCheckUnicast(c *C) {
 	c.Check(apiErr, Equals, ErrMissingData)
 
 	u = unicast()
-	u.Data = json.RawMessage(nil)
-	expire, apiErr = checkUnicast(u)
-	c.Check(apiErr, Equals, ErrMissingData)
-
-	u = unicast()
 	u.Data = json.RawMessage(`{"a":"` + strings.Repeat("x", 2040) + `"}`)
 	expire, apiErr = checkUnicast(u)
 	c.Check(apiErr, IsNil)
