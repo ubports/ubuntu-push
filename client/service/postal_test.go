@@ -27,6 +27,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/notifications"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
 	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -196,16 +197,27 @@ func (ss *postalSuite) TestPostWorks(c *C) {
 	c.Assert(svc.mbox[anAppId], HasLen, 2)
 	c.Check(svc.mbox[anAppId][0], Equals, "world")
 	c.Check(svc.mbox[anAppId][1], Equals, "there")
+}
 
-	// and check it fired the right signal (twice)
+func (ss *postalSuite) TestPostSignal(c *C) {
+	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
+	svc.msgHandler = nil
+
+	hInp := &launch_helper.HelperInput{
+		App: clickhelp.MustParseAppId(anAppId),
+	}
+	res := &launch_helper.HelperResult{Input: hInp}
+
+	svc.handleHelperResult(res)
+
+	// and check it fired the right signal
 	callArgs := testibus.GetCallArgs(ss.bus)
 	l := len(callArgs)
-	if l < 2 {
+	if l < 1 {
 		c.Fatal("not enough elements in resposne from GetCallArgs")
 	}
-	c.Check(callArgs[l-2].Member, Equals, "::Signal")
-	c.Check(callArgs[l-2].Args, DeepEquals, []interface{}{"Post", aPackageOnBus, []interface{}{anAppId}})
-	c.Check(callArgs[l-1], DeepEquals, callArgs[l-2])
+	c.Check(callArgs[l-1].Member, Equals, "::Signal")
+	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", aPackageOnBus, []interface{}{anAppId}})
 }
 
 func (ss *postalSuite) TestPostFailsIfPostFails(c *C) {

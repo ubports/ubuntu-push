@@ -243,8 +243,6 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	// XXX also track the nid in the mbox
 	svc.mbox[appId] = append(svc.mbox[appId], string(output.Message))
 
-	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
-
 	if svc.msgHandler != nil {
 		err := svc.msgHandler(app, nid, &output)
 		if err != nil {
@@ -253,6 +251,8 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 		}
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
+
+	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
@@ -273,7 +273,6 @@ func (svc *PostalService) PostBroadcast() error {
 	helperOutput := &launch_helper.HelperOutput{[]byte(""), &launch_helper.Notification{Card: card}}
 	jsonNotif, err := json.Marshal(helperOutput)
 	if err != nil {
-		// XXX: how can we test this branch?
 		svc.Log.Errorf("Failed to marshal notification: %v - %v", helperOutput, err)
 		return err
 	}
