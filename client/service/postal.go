@@ -131,6 +131,8 @@ func (svc *PostalService) Start() error {
 	return nil
 }
 
+// xxx Stop() closing channels and helper launcher
+
 // handleClicks loops on the actions channel waiting for actions and handling them
 func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction) {
 	for action := range actionsCh {
