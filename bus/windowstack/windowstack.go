@@ -63,7 +63,7 @@ func (stack *WindowStack) GetWindowStack() []WindowsInfo {
 
 func (stack *WindowStack) IsAppFocused(AppId *click.AppId) bool {
 	for _, winfo := range stack.GetWindowStack() {
-		if winfo.Focused && winfo.AppId == AppId.Package+"_"+AppId.Application {
+		if winfo.Focused && winfo.AppId == AppId.Base() {
 			return true
 		}
 	}
