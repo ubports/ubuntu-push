@@ -206,19 +206,25 @@ func (svc *PostalService) post(path string, args, _ []interface{}) ([]interface{
 	if !ok {
 		return nil, ErrBadArgType
 	}
+	var dummy interface{}
+	rawJSON := json.RawMessage(notif)
+	err = json.Unmarshal(rawJSON, &dummy)
+	if err != nil {
+		return nil, ErrBadJSON
+	}
 
 	nid := newNid()
 
-	return nil, svc.Post(app, nid, notif)
+	return nil, svc.Post(app, nid, rawJSON)
 }
 
 // Post() signals to an application over dbus that a notification
 // has arrived.
-func (svc *PostalService) Post(app *click.AppId, nid string, notif string) error {
+func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMessage) error {
 	arg := launch_helper.HelperInput{
 		App:            app,
 		NotificationId: nid,
-		Message:        []byte(notif),
+		Payload:        payload,
 	}
 	svc.HelperLauncher.Run(&arg)
 	return nil
@@ -272,12 +278,12 @@ func (svc *PostalService) PostBroadcast() error {
 	body := "Tap to open the system updater."
 	actions := []string{"Switch to app"} // action value not visible on the phone
 	card := &launch_helper.Card{Icon: icon, Summary: summary, Body: body, Actions: actions, Popup: true}
-	helperOutput := &launch_helper.HelperOutput{[]byte(""), &launch_helper.Notification{Card: card}}
+	helperOutput := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
 	jsonNotif, err := json.Marshal(helperOutput)
 	if err != nil {
 		svc.Log.Errorf("Failed to marshal notification: %v - %v", helperOutput, err)
 		return err
 	}
 	appId, _ := click.ParseAppId("_ubuntu-push-client")
-	return svc.Post(appId, SystemUpdateUrl, string(jsonNotif))
+	return svc.Post(appId, SystemUpdateUrl, jsonNotif)
 }

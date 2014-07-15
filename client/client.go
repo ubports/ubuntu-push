@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -82,7 +83,7 @@ type PostalService interface {
 	// Post converts a push message into a presentable notification
 	// and a postal message, presents the former and stores the
 	// latter in the application's mailbox.
-	Post(app *click.AppId, nid string, notif string) error
+	Post(app *click.AppId, nid string, payload json.RawMessage) error
 	// PostBroadcast is like Post, but for system updates
 	PostBroadcast() error
 	// IsRunning() returns whether the service is running
@@ -408,7 +409,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 func (client *PushClient) handleUnicastNotification(anotif session.AddressedNotification) error {
 	app := anotif.To
 	msg := anotif.Notification
-	err := client.postalService.Post(app, msg.MsgId, string(msg.Payload))
+	err := client.postalService.Post(app, msg.MsgId, msg.Payload)
 	if err != nil {
 		client.log.Errorf("while posting unicast notification %s for %s: %v", msg.MsgId, msg.AppId, err)
 	} else {

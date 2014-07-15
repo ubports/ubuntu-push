@@ -17,6 +17,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"sort"
 	"time"
@@ -185,18 +186,18 @@ func (ss *postalSuite) TestPostWorks(c *C) {
 	svc.msgHandler = nil
 	ch := installTickMessageHandler(svc)
 	c.Assert(svc.Start(), IsNil)
-	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, "world"}, nil)
+	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, `{"message":{"world":1}}`}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
-	rvs, err = svc.post(aPackageOnBus, []interface{}{anAppId, "there"}, nil)
+	rvs, err = svc.post(aPackageOnBus, []interface{}{anAppId, `{"message":{"moon":1}}`}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
 	c.Check(takeNextError(ch), IsNil) // one,
 	c.Check(takeNextError(ch), IsNil) // two posts
 	c.Assert(svc.mbox, HasLen, 1)
 	c.Assert(svc.mbox[anAppId], HasLen, 2)
-	c.Check(svc.mbox[anAppId][0], Equals, "world")
-	c.Check(svc.mbox[anAppId][1], Equals, "there")
+	c.Check(svc.mbox[anAppId][0], Equals, `{"world":1}`)
+	c.Check(svc.mbox[anAppId][1], Equals, `{"moon":1}`)
 }
 
 func (ss *postalSuite) TestPostSignal(c *C) {
@@ -239,6 +240,7 @@ func (ss *postalSuite) TestPostFailsIfBadArgs(c *C) {
 		{[]interface{}{}, ErrBadArgCount},
 		{[]interface{}{1}, ErrBadArgCount},
 		{[]interface{}{anAppId, 1}, ErrBadArgType},
+		{[]interface{}{anAppId, "zoom"}, ErrBadJSON},
 		{[]interface{}{1, "hello"}, ErrBadArgType},
 		{[]interface{}{1, 2, 3}, ErrBadArgCount},
 		{[]interface{}{"bar", "hello"}, ErrBadAppId},
@@ -347,12 +349,12 @@ func (ss *postalSuite) TestPostCallsMessageHandler(c *C) {
 	// check the message handler gets called
 	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ch <- s; return nil }
 	svc.SetMessageHandler(f)
-	c.Check(svc.Post(&click.AppId{}, "thing", "{}"), IsNil)
+	c.Check(svc.Post(&click.AppId{}, "thing", json.RawMessage("{}")), IsNil)
 	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
 	err := errors.New("ouch")
 	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return err })
 	// but the error doesn't bubble out
-	c.Check(svc.Post(&click.AppId{}, "", "{}"), IsNil)
+	c.Check(svc.Post(&click.AppId{}, "", json.RawMessage("{}")), IsNil)
 }
 
 func (ss *postalSuite) TestMessageHandlerPresents(c *C) {

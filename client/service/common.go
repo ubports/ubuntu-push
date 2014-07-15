@@ -51,6 +51,7 @@ var (
 	ErrAlreadyStarted = errors.New("already started")
 	ErrBadArgCount    = errors.New("wrong number of arguments")
 	ErrBadArgType     = errors.New("bad argument type")
+	ErrBadJSON        = errors.New("bad json data")
 	ErrBadAppId       = errors.New("package must be prefix of app id")
 )
 

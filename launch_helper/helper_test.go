@@ -17,6 +17,7 @@
 package launch_helper
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -46,12 +47,11 @@ func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
 
 	triv := NewTrivialHelperLauncher(s.testlog)
 	ch := triv.Start()
-	// []byte is sent as a base64-encoded string
-	in := &HelperInput{App: s.app, Message: []byte(`{"message": "aGVsbG8=", "notification": {"sound": "42"}}`)}
+	in := &HelperInput{App: s.app, Payload: []byte(`{"message": {"m":42}, "notification": {"sound": "42"}}`)}
 	triv.Run(in)
 	out := <-ch
 	c.Assert(out, NotNil)
-	c.Check(out.Message, DeepEquals, []byte("hello"))
+	c.Check(out.Message, DeepEquals, json.RawMessage(`{"m":42}`))
 	c.Check(out.Notification, DeepEquals, notif)
 	c.Check(out.Input, DeepEquals, in)
 }
@@ -59,13 +59,13 @@ func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
 func (s *runnerSuite) TestTrivialRunnerWorksOnBadInput(c *C) {
 	triv := NewTrivialHelperLauncher(s.testlog)
 	ch := triv.Start()
-	msg := []byte(`this is a not your grandmother's json message`)
-	in := &HelperInput{App: s.app, Message: msg}
+	msg := []byte(`{card: 3}`)
+	in := &HelperInput{App: s.app, Payload: msg}
 	triv.Run(in)
 	out := <-ch
 	c.Assert(out, NotNil)
 	c.Check(out.Notification, IsNil)
-	c.Check(out.Message, DeepEquals, msg)
+	c.Check(out.Message, DeepEquals, json.RawMessage(msg))
 	c.Check(out.Input, DeepEquals, in)
 }
 
@@ -73,7 +73,7 @@ func (s *runnerSuite) TestTrivialRunnerDoesNotBlockEasily(c *C) {
 	triv := NewTrivialHelperLauncher(s.testlog)
 	triv.Start()
 	msg := []byte(`this is a not your grandmother's json message`)
-	in := &HelperInput{App: s.app, Message: msg}
+	in := &HelperInput{App: s.app, Payload: msg}
 	flagCh := make(chan bool)
 	go func() {
 		// stuff several in there
