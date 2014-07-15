@@ -392,14 +392,14 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 // handleBroadcastNotification deals with receiving a broadcast notification
 func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
 	if !client.filterBroadcastNotification(msg) {
-		client.log.Debugf("not showing broadcast; filtered.")
+		client.log.Debugf("not posting broadcast notification %d; filtered.", msg.TopLevel)
 		return nil
 	}
 	err := client.postalService.PostBroadcast()
 	if err != nil {
-		client.log.Errorf("while posting broadcast notification: %s", err)
+		client.log.Errorf("while posting broadcast notification %d: %v", msg.TopLevel, err)
 	} else {
-		client.log.Debugf("posted broadcast notification.")
+		client.log.Debugf("posted broadcast notification %d.", msg.TopLevel)
 	}
 	return err
 }
@@ -408,8 +408,13 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 func (client *PushClient) handleUnicastNotification(anotif session.AddressedNotification) error {
 	app := anotif.To
 	msg := anotif.Notification
-	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.postalService.Post(app, msg.MsgId, string(msg.Payload))
+	err := client.postalService.Post(app, msg.MsgId, string(msg.Payload))
+	if err != nil {
+		client.log.Errorf("while posting unicast notification %s for %s: %v", msg.MsgId, msg.AppId, err)
+	} else {
+		client.log.Debugf("posted unicast notification %s for %s.", msg.MsgId, msg.AppId)
+	}
+	return err
 }
 
 // doLoop connects events with their handlers
