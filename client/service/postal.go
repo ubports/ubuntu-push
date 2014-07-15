@@ -31,6 +31,7 @@ import (
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging"
+	"launchpad.net/ubuntu-push/messaging/reply"
 	"launchpad.net/ubuntu-push/nih"
 	"launchpad.net/ubuntu-push/sounds"
 	"launchpad.net/ubuntu-push/util"
@@ -121,20 +122,33 @@ func (svc *PostalService) Start() error {
 	svc.messagingMenu = messaging.New(svc.Log)
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(svc.Log)
 
-	go svc.handleActions(actionsCh)
+	go svc.handleActions(actionsCh, svc.messagingMenu.Ch)
 	return nil
 }
 
 // handleClicks loops on the actions channel waiting for actions and handling them
-func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction) {
-	for action := range actionsCh {
-		if action == nil {
-			svc.Log.Debugf("handleActions got nil action; ignoring")
-			continue
+func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction, mmuActionsCh <-chan *reply.MMActionReply) {
+	for {
+		select {
+		case action := <-actionsCh:
+			if action == nil {
+				svc.Log.Debugf("handleActions got nil action; ignoring")
+			} else {
+				url := action.Action
+				// this ignores the error (it's been logged already)
+				svc.urlDispatcher.DispatchURL(url)
+			}
+		case mmuAction := <-mmuActionsCh:
+			if mmuAction == nil {
+				svc.Log.Debugf("handleActions got nil action; ignoring")
+			} else {
+				svc.Log.Debugf("handleActions-mmu got: %v", mmuAction)
+				url := mmuAction.Action
+				// this ignores the error (it's been logged already)
+				svc.urlDispatcher.DispatchURL(url)
+			}
+
 		}
-		url := action.Action
-		// this ignores the error (it's been logged already)
-		svc.urlDispatcher.DispatchURL(url)
 	}
 }
 

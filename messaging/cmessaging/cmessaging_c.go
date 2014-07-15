@@ -48,7 +48,16 @@ void add_notification (const gchar* desktop_id, const gchar* notification_id,
     MessagingMenuMessage* msg = messaging_menu_message_new(notification_id, icon, summary,
                                                            "", body,
                                                            timestamp);
-    // unity8 support for actions in the messaging menu is strange. Not doing that for now.
+    // add the aqctions, at most 2
+    if (actions != NULL) {
+        int actions_sz = sizeof(actions);
+        if (actions_sz >= 2) {
+            messaging_menu_message_add_action(msg, actions[0], actions[1], NULL, NULL);
+        }
+        if (actions_sz >= 4) {
+            messaging_menu_message_add_action(msg, actions[2], actions[3], NULL, NULL);
+        }
+    }
     messaging_menu_app_append_message(app, msg, "postal", TRUE);
 
     g_signal_connect(msg, "activate", G_CALLBACK(activate_cb), obj);

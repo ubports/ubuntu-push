@@ -27,6 +27,7 @@ void add_notification(const gchar* desktop_id, const gchar* notification_id,
           gint64 timestamp, const gchar** actions, gpointer obj);
 */
 import "C"
+import "unsafe"
 
 import (
 	"launchpad.net/ubuntu-push/launch_helper"
@@ -47,7 +48,7 @@ func handleActivate(action *C.char, notification *C.char, ch *chan *reply.MMActi
 	*ch <- mmar
 }
 
-func AddNotification(desktopId string, notificationId string, card *launch_helper.Card, ch chan *reply.MMActionReply) {
+func AddNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string, ch chan *reply.MMActionReply) {
 	desktop_id := gchar(desktopId)
 	defer gfree(desktop_id)
 
@@ -63,8 +64,17 @@ func AddNotification(desktopId string, notificationId string, card *launch_helpe
 	body := gchar(card.Body)
 	defer gfree(body)
 
+	// TODO: build the action_list
+	action_list := make([]*C.gchar, len(actions)+1)
+	for i, action := range actions {
+		c_action := gchar(action)
+		defer gfree(c_action)
+		action_list[i] = c_action
+	}
+
 	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
-	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(&ch))
+
+	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, (**C.gchar)(unsafe.Pointer(&action_list[0])), (C.gpointer)(&ch))
 }
 
 func init() {

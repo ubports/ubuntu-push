@@ -19,6 +19,9 @@
 package messaging
 
 import (
+	"encoding/json"
+
+	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -38,8 +41,8 @@ func New(log logger.Logger) *MessagingMenu {
 
 var cAddNotification = cmessaging.AddNotification
 
-func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card) {
-	cAddNotification(desktopId, notificationId, card, mmu.Ch)
+func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
+	cAddNotification(desktopId, notificationId, card, actions, mmu.Ch)
 }
 
 func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {
@@ -47,6 +50,21 @@ func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notif
 		mmu.Log.Debugf("[%s] no notification or notification has no persistable card: %#v", notificationId, notification)
 		return
 	}
+	actions := make([]string, 2*len(notification.Card.Actions))
+	for i, action := range notification.Card.Actions {
+		act, err := json.Marshal(&notifications.RawAction{
+			App:      app,
+			Nid:      notificationId,
+			ActionId: i,
+			Action:   action,
+		})
+		if err != nil {
+			mmu.Log.Errorf("Failed to build action: %s", action)
+			continue
+		}
+		actions[2*i] = string(act)
+		actions[2*i+1] = action
+	}
 
-	mmu.addNotification(app.DesktopId(), notificationId, notification.Card)
+	mmu.addNotification(app.DesktopId(), notificationId, notification.Card, actions)
 }

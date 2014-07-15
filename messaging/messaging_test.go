@@ -38,8 +38,8 @@ type MessagingSuite struct {
 var _ = Suite(&MessagingSuite{})
 
 func (ms *MessagingSuite) SetUpSuite(c *C) {
-	cAddNotification = func(a string, n string, c *launch_helper.Card, ch chan *reply.MMActionReply) {
-		ms.log.Debugf("ADD: app: %s, not: %s, card: %v, chan: %d", a, n, c, len(ch))
+	cAddNotification = func(a string, n string, c *launch_helper.Card, as []string, ch chan *reply.MMActionReply) {
+		ms.log.Debugf("ADD: app: %s, not: %s, card: %v, actions: %v, chan: %d", a, n, c, as, len(ch))
 	}
 }
 
