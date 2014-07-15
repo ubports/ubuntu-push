@@ -52,6 +52,29 @@ func takeNextHelperOutput(ch <-chan *launch_helper.HelperOutput) *launch_helper.
 	}
 }
 
+func takeNextError(ch <-chan error) error {
+	select {
+	case <-time.After(5 * time.Second):
+		panic("channel stuck: too long waiting")
+	case v := <-ch:
+		return v
+	}
+}
+
+func installTickMessageHandler(svc *PostalService) chan error {
+	ch := make(chan error)
+	msgHandler := svc.GetMessageHandler()
+	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
+		var err error
+		if msgHandler != nil {
+			err = msgHandler(app, nid, output)
+		}
+		ch <- err
+		return err
+	})
+	return ch
+}
+
 type postalSuite struct {
 	log        *helpers.TestLogger
 	bus        bus.Endpoint
@@ -59,25 +82,17 @@ type postalSuite struct {
 	counterBus bus.Endpoint
 	hapticBus  bus.Endpoint
 	urlDispBus bus.Endpoint
-	oldBufSz   int
 }
 
 var _ = Suite(&postalSuite{})
 
 func (ss *postalSuite) SetUpTest(c *C) {
-	ss.oldBufSz = launch_helper.InputBufferSize
-	launch_helper.InputBufferSize = 0
 	ss.log = helpers.NewTestLogger(c, "debug")
 	ss.bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.notifBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.counterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.urlDispBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
-}
-
-func (ss *postalSuite) TearDownTest(c *C) {
-	ss.oldBufSz = launch_helper.InputBufferSize
-	launch_helper.InputBufferSize = 0
 }
 
 func (ss *postalSuite) replaceBuses(pst *PostalService) *PostalService {
@@ -167,6 +182,7 @@ func (ss *postalSuite) TestStopClosesBus(c *C) {
 func (ss *postalSuite) TestPostWorks(c *C) {
 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
 	svc.msgHandler = nil
+	ch := installTickMessageHandler(svc)
 	c.Assert(svc.Start(), IsNil)
 	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, "world"}, nil)
 	c.Assert(err, IsNil)
@@ -174,17 +190,8 @@ func (ss *postalSuite) TestPostWorks(c *C) {
 	rvs, err = svc.post(aPackageOnBus, []interface{}{anAppId, "there"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
-	// spinlocks ftw (!)
-	// the helper is async, so we need to wait for it to finish
-	for i := 0; i < 100; i++ {
-		svc.lock.RLock()
-		if len(svc.mbox[anAppId]) == 2 {
-			break
-		}
-		svc.lock.RUnlock()
-		time.Sleep(time.Millisecond)
-	}
-	svc.lock.RUnlock()
+	c.Check(takeNextError(ch), IsNil) // one,
+	c.Check(takeNextError(ch), IsNil) // two posts
 	c.Assert(svc.mbox, HasLen, 1)
 	c.Assert(svc.mbox[anAppId], HasLen, 2)
 	c.Check(svc.mbox[anAppId][0], Equals, "world")
@@ -236,10 +243,12 @@ func (ss *postalSuite) TestPostFailsIfBadArgs(c *C) {
 func (ss *postalSuite) TestPostBroadcast(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
+	ch := installTickMessageHandler(svc)
 	svc.NotificationsEndp = bus
 	c.Assert(svc.Start(), IsNil)
 	err := svc.PostBroadcast()
 	c.Assert(err, IsNil)
+	c.Check(takeNextError(ch), IsNil)
 	// and check it fired the right signal (twice)
 	callArgs := testibus.GetCallArgs(bus)
 	c.Assert(callArgs, HasLen, 1)
@@ -262,8 +271,10 @@ func (ss *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 		ss.log.Debugf("about to fail")
 		return errors.New("fail")
 	})
+	ch := installTickMessageHandler(svc)
 	err := svc.PostBroadcast()
-	c.Check(err, IsNil)
+	c.Check(takeNextError(ch), NotNil) // the messagehandler failed
+	c.Check(err, IsNil)                // but broadcast was oblivious
 	c.Check(ss.log.Captured(), Matches, `(?sm).*about to fail$`)
 }
 
