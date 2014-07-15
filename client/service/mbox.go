@@ -57,7 +57,7 @@ func (box *mBox) Append(message json.RawMessage, nid string) {
 			box.messages = box.messages[0:0]
 			box.nids = box.nids[0:0]
 			box.evicted = 0
-		} else if n == cap(box.messages)-1 {
+		} else if n == cap(box.messages) {
 			// here we would get a resize and copy anyway
 			copy(box.messages, box.messages[box.evicted:])
 			kept := n - box.evicted
