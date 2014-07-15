@@ -47,7 +47,6 @@ func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
 
 	triv := NewTrivialHelperLauncher(s.testlog)
 	ch := triv.Start()
-	// []byte is sent as a base64-encoded string
 	in := &HelperInput{App: s.app, Payload: []byte(`{"message": {"m":42}, "notification": {"sound": "42"}}`)}
 	triv.Run(in)
 	out := <-ch
