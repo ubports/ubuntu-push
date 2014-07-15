@@ -195,9 +195,12 @@ func (ss *postalSuite) TestPostWorks(c *C) {
 	c.Check(takeNextError(ch), IsNil) // one,
 	c.Check(takeNextError(ch), IsNil) // two posts
 	c.Assert(svc.mbox, HasLen, 1)
-	c.Assert(svc.mbox[anAppId], HasLen, 2)
-	c.Check(svc.mbox[anAppId][0], Equals, `{"world":1}`)
-	c.Check(svc.mbox[anAppId][1], Equals, `{"moon":1}`)
+	box, ok := svc.mbox[anAppId]
+	c.Check(ok, Equals, true)
+	msgs := box.AllMessages()
+	c.Assert(msgs, HasLen, 2)
+	c.Check(msgs[0], Equals, `{"world":1}`)
+	c.Check(msgs[1], Equals, `{"moon":1}`)
 }
 
 func (ss *postalSuite) TestPostSignal(c *C) {
@@ -301,15 +304,24 @@ func (ss *postalSuite) TestNotificationsWorks(c *C) {
 	c.Assert(nots, NotNil)
 	c.Assert(nots, HasLen, 1)
 	c.Check(nots[0], HasLen, 0)
-	if svc.mbox == nil {
-		svc.mbox = make(map[string][]string)
-	}
-	svc.mbox[anAppId] = append(svc.mbox[anAppId], "this", "thing")
+	c.Assert(svc.mbox, IsNil)
+	svc.mbox = make(map[string]*mBox)
 	nots, err = svc.popAll(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(nots, NotNil)
 	c.Assert(nots, HasLen, 1)
-	c.Check(nots[0], DeepEquals, []string{"this", "thing"})
+	c.Check(nots[0], HasLen, 0)
+	box := new(mBox)
+	svc.mbox[anAppId] = box
+	m1 := json.RawMessage(`"m1"`)
+	m2 := json.RawMessage(`"m2"`)
+	box.Append(m1, "n1")
+	box.Append(m2, "n2")
+	nots, err = svc.popAll(aPackageOnBus, []interface{}{anAppId}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(nots, NotNil)
+	c.Assert(nots, HasLen, 1)
+	c.Check(nots[0], DeepEquals, []string{string(m1), string(m2)})
 }
 
 func (ss *postalSuite) TestNotificationsFailsIfBadArgs(c *C) {

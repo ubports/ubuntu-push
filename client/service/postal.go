@@ -42,7 +42,7 @@ type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) erro
 // PostalService is the dbus api
 type PostalService struct {
 	DBusService
-	mbox           map[string][]string
+	mbox           map[string]*mBox
 	msgHandler     messageHandler
 	HelperLauncher launch_helper.HelperLauncher
 	messagingMenu  *messaging.MessagingMenu
@@ -189,8 +189,13 @@ func (svc *PostalService) popAll(path string, args, _ []interface{}) ([]interfac
 	if svc.mbox == nil {
 		return []interface{}{[]string(nil)}, nil
 	}
-	msgs := svc.mbox[app.Original()]
-	delete(svc.mbox, app.Original())
+	appId := app.Original()
+	box, ok := svc.mbox[appId]
+	if !ok {
+		return []interface{}{[]string(nil)}, nil
+	}
+	msgs := box.AllMessages()
+	delete(svc.mbox, appId)
 
 	return []interface{}{msgs}, nil
 }
@@ -240,7 +245,7 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
-		svc.mbox = make(map[string][]string)
+		svc.mbox = make(map[string]*mBox)
 	}
 
 	app := res.Input.App
@@ -248,8 +253,12 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	output := res.HelperOutput
 
 	appId := app.Original()
-	// XXX also track the nid in the mbox
-	svc.mbox[appId] = append(svc.mbox[appId], string(output.Message))
+	box, ok := svc.mbox[appId]
+	if !ok {
+		box = new(mBox)
+		svc.mbox[appId] = box
+	}
+	box.Append(output.Message, nid)
 
 	if svc.msgHandler != nil {
 		err := svc.msgHandler(app, nid, &output)
