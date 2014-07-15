@@ -392,14 +392,16 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 // handleBroadcastNotification deals with receiving a broadcast notification
 func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
 	if !client.filterBroadcastNotification(msg) {
+		client.log.Debugf("not showing broadcast; filtered.")
 		return nil
 	}
 	err := client.postalService.PostBroadcast()
 	if err != nil {
-		client.log.Errorf("posting broadcast notification: %s", err)
-		return err
+		client.log.Errorf("while posting broadcast notification: %s", err)
+	} else {
+		client.log.Debugf("posted broadcast notification.")
 	}
-	return nil
+	return err
 }
 
 // handleUnicastNotification deals with receiving a unicast notification

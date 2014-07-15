@@ -503,6 +503,14 @@ func (cs *clientSuite) TestSetupPushServiceSetupError(c *C) {
 	c.Check(err, ErrorMatches, "cannot parse registration url:.*")
 }
 
+func (cs *clientSuite) TestSetupPushService(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	c.Assert(cli.configure(), IsNil)
+	c.Check(cli.pushService, IsNil)
+	c.Check(cli.setupPushService(), IsNil)
+	c.Check(cli.pushService, NotNil)
+}
+
 func (cs *clientSuite) TestStartPushErrorsOnPushStartError(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	d := new(dumbPush)
