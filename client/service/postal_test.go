@@ -42,6 +42,16 @@ func takeNextBool(ch <-chan bool) bool {
 	}
 }
 
+// takeNextHelperOutput takes a value from given channel with a 5s timeout
+func takeNextHelperOutput(ch <-chan *launch_helper.HelperOutput) *launch_helper.HelperOutput {
+	select {
+	case <-time.After(5 * time.Second):
+		panic("channel stuck: too long waiting")
+	case v := <-ch:
+		return v
+	}
+}
+
 type postalSuite struct {
 	log        *helpers.TestLogger
 	bus        bus.Endpoint
@@ -151,14 +161,6 @@ func (ss *postalSuite) TestStopClosesBus(c *C) {
 	c.Check(callArgs[len(callArgs)-1].Member, Equals, "::Close")
 }
 
-// func (ss *postalSuite) TestStartSetsUpHelperRunner(c *C) {
-// 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
-// 	c.Check(svc.pn2postal, IsNil)
-// 	c.Assert(svc.Start(), IsNil)
-// 	c.Assert(svc.pn2postal, NotNil)
-// 	svc.pn2postal(
-// }
-
 //
 // Post() tests
 
@@ -172,6 +174,17 @@ func (ss *postalSuite) TestPostWorks(c *C) {
 	rvs, err = svc.post(aPackageOnBus, []interface{}{anAppId, "there"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
+	// spinlocks ftw (!)
+	// the helper is async, so we need to wait for it to finish
+	for i := 0; i < 100; i++ {
+		svc.lock.RLock()
+		if len(svc.mbox[anAppId]) == 2 {
+			break
+		}
+		svc.lock.RUnlock()
+		time.Sleep(time.Millisecond)
+	}
+	svc.lock.RUnlock()
 	c.Assert(svc.mbox, HasLen, 1)
 	c.Assert(svc.mbox[anAppId], HasLen, 2)
 	c.Check(svc.mbox[anAppId][0], Equals, "world")
@@ -305,14 +318,14 @@ func (ss *postalSuite) TestMessageHandlerPublicAPI(c *C) {
 }
 
 func (ss *postalSuite) TestPostCallsMessageHandler(c *C) {
-	var ext = &launch_helper.HelperOutput{}
+	ch := make(chan *launch_helper.HelperOutput)
 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
 	c.Assert(svc.Start(), IsNil)
 	// check the message handler gets called
-	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ext = s; return nil }
+	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ch <- s; return nil }
 	svc.SetMessageHandler(f)
 	c.Check(svc.Post(&click.AppId{}, "thing", "{}"), IsNil)
-	c.Check(ext, DeepEquals, &launch_helper.HelperOutput{})
+	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
 	err := errors.New("ouch")
 	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return err })
 	// but the error doesn't bubble out
