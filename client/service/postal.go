@@ -126,9 +126,12 @@ func (svc *PostalService) Start() error {
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(svc.Log)
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
+	go svc.consumeHelperResults(svc.HelperLauncher.Start())
 	go svc.handleActions(actionsCh)
 	return nil
 }
+
+// xxx Stop() closing channels and helper launcher
 
 // handleClicks loops on the actions channel waiting for actions and handling them
 func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction) {
@@ -212,26 +215,46 @@ func (svc *PostalService) post(path string, args, _ []interface{}) ([]interface{
 // Post() signals to an application over dbus that a notification
 // has arrived.
 func (svc *PostalService) Post(app *click.AppId, nid string, notif string) error {
+	arg := launch_helper.HelperInput{
+		App:            app,
+		NotificationId: nid,
+		Message:        []byte(notif),
+	}
+	svc.HelperLauncher.Run(&arg)
+	return nil
+}
+
+func (svc *PostalService) consumeHelperResults(ch chan *launch_helper.HelperResult) {
+	for res := range ch {
+		svc.handleHelperResult(res)
+	}
+}
+
+func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
 		svc.mbox = make(map[string][]string)
 	}
-	output := svc.HelperLauncher.Run(app, []byte(notif))
+
+	app := res.Input.App
+	nid := res.Input.NotificationId
+	output := res.HelperOutput
+
 	appId := app.Original()
 	// XXX also track the nid in the mbox
 	svc.mbox[appId] = append(svc.mbox[appId], string(output.Message))
 
 	if svc.msgHandler != nil {
-		err := svc.msgHandler(app, nid, output)
+		err := svc.msgHandler(app, nid, &output)
 		if err != nil {
 			svc.DBusService.Log.Errorf("msgHandler returned %v", err)
-			return err
+			return
 		}
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 
-	return svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
+	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
@@ -252,7 +275,6 @@ func (svc *PostalService) PostBroadcast() error {
 	helperOutput := &launch_helper.HelperOutput{[]byte(""), &launch_helper.Notification{Card: card}}
 	jsonNotif, err := json.Marshal(helperOutput)
 	if err != nil {
-		// XXX: how can we test this branch?
 		svc.Log.Errorf("Failed to marshal notification: %v - %v", helperOutput, err)
 		return err
 	}

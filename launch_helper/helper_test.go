@@ -18,6 +18,7 @@ package launch_helper
 
 import (
 	"testing"
+	"time"
 
 	. "launchpad.net/gocheck"
 
@@ -44,18 +45,47 @@ func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
 	notif := &Notification{Sound: "42"}
 
 	triv := NewTrivialHelperLauncher(s.testlog)
+	ch := triv.Start()
 	// []byte is sent as a base64-encoded string
-	out := triv.Run(s.app, []byte(`{"message": "aGVsbG8=", "notification": {"sound": "42"}}`))
+	in := &HelperInput{App: s.app, Message: []byte(`{"message": "aGVsbG8=", "notification": {"sound": "42"}}`)}
+	triv.Run(in)
+	out := <-ch
 	c.Assert(out, NotNil)
 	c.Check(out.Message, DeepEquals, []byte("hello"))
 	c.Check(out.Notification, DeepEquals, notif)
+	c.Check(out.Input, DeepEquals, in)
 }
 
 func (s *runnerSuite) TestTrivialRunnerWorksOnBadInput(c *C) {
 	triv := NewTrivialHelperLauncher(s.testlog)
+	ch := triv.Start()
 	msg := []byte(`this is a not your grandmother's json message`)
-	out := triv.Run(s.app, msg)
+	in := &HelperInput{App: s.app, Message: msg}
+	triv.Run(in)
+	out := <-ch
 	c.Assert(out, NotNil)
 	c.Check(out.Notification, IsNil)
 	c.Check(out.Message, DeepEquals, msg)
+	c.Check(out.Input, DeepEquals, in)
+}
+
+func (s *runnerSuite) TestTrivialRunnerDoesNotBlockEasily(c *C) {
+	triv := NewTrivialHelperLauncher(s.testlog)
+	triv.Start()
+	msg := []byte(`this is a not your grandmother's json message`)
+	in := &HelperInput{App: s.app, Message: msg}
+	flagCh := make(chan bool)
+	go func() {
+		// stuff several in there
+		triv.Run(in)
+		triv.Run(in)
+		triv.Run(in)
+		flagCh <- true
+	}()
+	select {
+	case <-flagCh:
+		// whee
+	case <-time.After(10 * time.Millisecond):
+		c.Fatal("runner blocked too easily")
+	}
 }
