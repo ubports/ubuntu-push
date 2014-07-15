@@ -27,6 +27,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
+	"launchpad.net/ubuntu-push/bus/windowstack"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -51,6 +52,7 @@ type PostalService struct {
 	HapticEndp        bus.Endpoint
 	NotificationsEndp bus.Endpoint
 	URLDispatcherEndp bus.Endpoint
+	WindowStackEndp   bus.Endpoint
 	// presenters:
 	emblemCounter *emblemcounter.EmblemCounter
 	haptic        *haptic.Haptic
@@ -58,6 +60,7 @@ type PostalService struct {
 	sound         *sounds.Sound
 	// the url dispatcher, used for stuff.
 	urlDispatcher urldispatcher.URLDispatcher
+	windowStack   *windowstack.WindowStack
 }
 
 var (
@@ -82,6 +85,7 @@ func NewPostalService(installedChecker click.InstalledChecker, log logger.Logger
 	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
 	svc.HapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, log)
 	svc.URLDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, log)
+	svc.WindowStackEndp = bus.SessionBus.Endpoint(windowstack.BusAddress, log)
 	svc.msgHandler = svc.messageHandler
 	return svc
 }
@@ -120,6 +124,7 @@ func (svc *PostalService) Start() error {
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(svc.Log)
+	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
 	go svc.handleActions(actionsCh)
 	return nil

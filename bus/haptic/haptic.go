@@ -64,7 +64,7 @@ func (haptic *Haptic) Present(_ *click.AppId, _ string, notification *launch_hel
 	haptic.log.Debugf("vibrating %d times to the tune of %v", repeat, pattern)
 	err := haptic.bus.Call("VibratePattern", bus.Args(pattern, repeat))
 	if err != nil {
-		haptic.log.Debugf("VibratePattern call returned %v", err)
+		haptic.log.Errorf("VibratePattern call returned %v", err)
 		return false
 	}
 	return true
