@@ -76,6 +76,21 @@ type PushService interface {
 	Unregister(appId string) error
 }
 
+type PostalService interface {
+	// Starts the service
+	Start() error
+	// Post converts a push message into a presentable notification
+	// and a postal message, presents the former and stores the
+	// latter in the application's mailbox.
+	Post(app *click.AppId, nid string, notif string) error
+	// PostBroadcast is like Post, but for system updates
+	PostBroadcast() error
+	// IsRunning() returns whether the service is running
+	IsRunning() bool
+	// Stop() stops the service
+	Stop()
+}
+
 // PushClient is the Ubuntu Push Notifications client-side daemon.
 type PushClient struct {
 	leveldbPath        string
@@ -93,7 +108,7 @@ type PushClient struct {
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
 	pushService        PushService
-	postalService      *service.PostalService
+	postalService      PostalService
 	unregisterCh       chan *click.AppId
 	trackAddressees    map[string]*click.AppId
 	installedChecker   click.InstalledChecker
@@ -379,12 +394,11 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 	if !client.filterBroadcastNotification(msg) {
 		return nil
 	}
-	not_id, err := client.postalService.PostBroadcast()
+	err := client.postalService.PostBroadcast()
 	if err != nil {
-		client.log.Errorf("showing notification: %s", err)
+		client.log.Errorf("posting broadcast notification: %s", err)
 		return err
 	}
-	client.log.Debugf("got notification id %d", not_id)
 	return nil
 }
 

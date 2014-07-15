@@ -238,7 +238,7 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 	return err
 }
 
-func (svc *PostalService) PostBroadcast() (uint32, error) {
+func (svc *PostalService) PostBroadcast() error {
 	icon := "update_manager_icon"
 	summary := "There's an updated system image."
 	body := "Tap to open the system updater."
@@ -249,8 +249,8 @@ func (svc *PostalService) PostBroadcast() (uint32, error) {
 	if err != nil {
 		// XXX: how can we test this branch?
 		svc.Log.Errorf("Failed to marshal notification: %v - %v", helperOutput, err)
-		return 0, err
+		return err
 	}
 	appId, _ := click.ParseAppId("_ubuntu-push-client")
-	return 0, svc.Post(appId, SystemUpdateUrl, string(jsonNotif))
+	return svc.Post(appId, SystemUpdateUrl, string(jsonNotif))
 }
