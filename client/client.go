@@ -76,6 +76,21 @@ type PushService interface {
 	Unregister(appId string) error
 }
 
+type PostalService interface {
+	// Starts the service
+	Start() error
+	// Post converts a push message into a presentable notification
+	// and a postal message, presents the former and stores the
+	// latter in the application's mailbox.
+	Post(app *click.AppId, nid string, notif string) error
+	// PostBroadcast is like Post, but for system updates
+	PostBroadcast() error
+	// IsRunning() returns whether the service is running
+	IsRunning() bool
+	// Stop() stops the service
+	Stop()
+}
+
 // PushClient is the Ubuntu Push Notifications client-side daemon.
 type PushClient struct {
 	leveldbPath        string
@@ -93,7 +108,7 @@ type PushClient struct {
 	session            *session.ClientSession
 	sessionConnectedCh chan uint32
 	pushService        PushService
-	postalService      *service.PostalService
+	postalService      PostalService
 	unregisterCh       chan *click.AppId
 	trackAddressees    map[string]*click.AppId
 	installedChecker   click.InstalledChecker
@@ -377,23 +392,29 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 // handleBroadcastNotification deals with receiving a broadcast notification
 func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
 	if !client.filterBroadcastNotification(msg) {
+		client.log.Debugf("not posting broadcast notification %d; filtered.", msg.TopLevel)
 		return nil
 	}
-	not_id, err := client.postalService.PostBroadcast()
+	err := client.postalService.PostBroadcast()
 	if err != nil {
-		client.log.Errorf("showing notification: %s", err)
-		return err
+		client.log.Errorf("while posting broadcast notification %d: %v", msg.TopLevel, err)
+	} else {
+		client.log.Debugf("posted broadcast notification %d.", msg.TopLevel)
 	}
-	client.log.Debugf("got notification id %d", not_id)
-	return nil
+	return err
 }
 
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(anotif session.AddressedNotification) error {
 	app := anotif.To
 	msg := anotif.Notification
-	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.postalService.Post(app, msg.MsgId, string(msg.Payload))
+	err := client.postalService.Post(app, msg.MsgId, string(msg.Payload))
+	if err != nil {
+		client.log.Errorf("while posting unicast notification %s for %s: %v", msg.MsgId, msg.AppId, err)
+	} else {
+		client.log.Debugf("posted unicast notification %s for %s.", msg.MsgId, msg.AppId)
+	}
+	return err
 }
 
 // doLoop connects events with their handlers

@@ -209,9 +209,7 @@ func (ss *postalSuite) TestPostBroadcast(c *C) {
 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
 	svc.NotificationsEndp = bus
 	c.Assert(svc.Start(), IsNil)
-	rvs, err := svc.PostBroadcast()
-	c.Assert(err, IsNil)
-	c.Check(rvs, Equals, uint32(0))
+	err := svc.PostBroadcast()
 	c.Assert(err, IsNil)
 	// and check it fired the right signal (twice)
 	callArgs := testibus.GetCallArgs(bus)
@@ -232,7 +230,7 @@ func (ss *postalSuite) TestPostBroadcastFails(c *C) {
 	c.Assert(svc.Start(), IsNil)
 	svc.NotificationsEndp = bus
 	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return errors.New("fail") })
-	_, err := svc.PostBroadcast()
+	err := svc.PostBroadcast()
 	c.Check(err, NotNil)
 }
 
