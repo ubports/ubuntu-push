@@ -16,6 +16,10 @@
 
 package launch_helper
 
+import (
+	"launchpad.net/ubuntu-push/click"
+)
+
 // a Card is the usual “visual” presentation of a notification, used
 // for bubbles and the notification centre (neé messaging menu)
 type Card struct {
@@ -54,4 +58,17 @@ type Notification struct {
 type HelperOutput struct {
 	Message      []byte        `json:"message"`      // what to put in the post office's queue
 	Notification *Notification `json:"notification"` // what to present to the user
+}
+
+// HelperResult is the result of a helper run for a particular app id
+type HelperResult struct {
+	HelperOutput
+	Input *HelperInput
+}
+
+// HelperInput is what's passed in to a helper for it to work
+type HelperInput struct {
+	App            *click.AppId
+	NotificationId string
+	Message        []byte
 }

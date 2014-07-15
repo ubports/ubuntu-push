@@ -49,17 +49,25 @@ type postalSuite struct {
 	counterBus bus.Endpoint
 	hapticBus  bus.Endpoint
 	urlDispBus bus.Endpoint
+	oldBufSz   int
 }
 
 var _ = Suite(&postalSuite{})
 
 func (ss *postalSuite) SetUpTest(c *C) {
+	ss.oldBufSz = launch_helper.InputBufferSize
+	launch_helper.InputBufferSize = 0
 	ss.log = helpers.NewTestLogger(c, "debug")
 	ss.bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.notifBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.counterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.urlDispBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+}
+
+func (ss *postalSuite) TearDownTest(c *C) {
+	ss.oldBufSz = launch_helper.InputBufferSize
+	launch_helper.InputBufferSize = 0
 }
 
 func (ss *postalSuite) replaceBuses(pst *PostalService) *PostalService {
@@ -143,6 +151,14 @@ func (ss *postalSuite) TestStopClosesBus(c *C) {
 	c.Check(callArgs[len(callArgs)-1].Member, Equals, "::Close")
 }
 
+// func (ss *postalSuite) TestStartSetsUpHelperRunner(c *C) {
+// 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
+// 	c.Check(svc.pn2postal, IsNil)
+// 	c.Assert(svc.Start(), IsNil)
+// 	c.Assert(svc.pn2postal, NotNil)
+// 	svc.pn2postal(
+// }
+
 //
 // Post() tests
 
@@ -223,15 +239,19 @@ func (ss *postalSuite) TestPostBroadcast(c *C) {
 	// c.Check(callArgs[0].Args[7]["x-canonical-snap-decisions"], NotNil)
 }
 
-func (ss *postalSuite) TestPostBroadcastFails(c *C) {
+func (ss *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true),
 		condition.Work(false))
 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
 	c.Assert(svc.Start(), IsNil)
 	svc.NotificationsEndp = bus
-	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return errors.New("fail") })
+	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error {
+		ss.log.Debugf("about to fail")
+		return errors.New("fail")
+	})
 	err := svc.PostBroadcast()
-	c.Check(err, NotNil)
+	c.Check(err, IsNil)
+	c.Check(ss.log.Captured(), Matches, `(?sm).*about to fail$`)
 }
 
 //
@@ -288,13 +308,15 @@ func (ss *postalSuite) TestPostCallsMessageHandler(c *C) {
 	var ext = &launch_helper.HelperOutput{}
 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
 	c.Assert(svc.Start(), IsNil)
+	// check the message handler gets called
 	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ext = s; return nil }
 	svc.SetMessageHandler(f)
 	c.Check(svc.Post(&click.AppId{}, "thing", "{}"), IsNil)
 	c.Check(ext, DeepEquals, &launch_helper.HelperOutput{})
 	err := errors.New("ouch")
 	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return err })
-	c.Check(svc.Post(&click.AppId{}, "", "{}"), Equals, err)
+	// but the error doesn't bubble out
+	c.Check(svc.Post(&click.AppId{}, "", "{}"), IsNil)
 }
 
 func (ss *postalSuite) TestMessageHandlerPresents(c *C) {
