@@ -27,7 +27,7 @@ static void activate_cb(MessagingMenuMessage* msg, gchar* action, GVariant* para
 
 void add_notification (const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
-          gint64 timestamp, const gchar** actions, gpointer obj) {
+          gint64 timestamp, const gchar** actions, const size_t actions_len, gpointer obj) {
     static GHashTable* map = NULL;
     if (map == NULL) {
         map = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_object_unref);
@@ -49,14 +49,11 @@ void add_notification (const gchar* desktop_id, const gchar* notification_id,
                                                            "", body,
                                                            timestamp);
     // add the aqctions, at most 2
-    if (actions != NULL) {
-        int actions_sz = sizeof(actions);
-        if (actions_sz >= 2) {
-            messaging_menu_message_add_action(msg, actions[0], actions[1], NULL, NULL);
-        }
-        if (actions_sz >= 4) {
-            messaging_menu_message_add_action(msg, actions[2], actions[3], NULL, NULL);
-        }
+    if (actions_len >= 2) {
+        messaging_menu_message_add_action(msg, actions[0], actions[1], NULL, NULL);
+    }
+    if (actions_len >= 4) {
+        messaging_menu_message_add_action(msg, actions[2], actions[3], NULL, NULL);
     }
     messaging_menu_app_append_message(app, msg, "postal", TRUE);
 

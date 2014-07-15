@@ -24,7 +24,7 @@ package cmessaging
 
 void add_notification(const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
-          gint64 timestamp, const gchar** actions, gpointer obj);
+          gint64 timestamp, const gchar** actions, const size_t actions_len, gpointer obj);
 */
 import "C"
 import "unsafe"
@@ -66,6 +66,7 @@ func AddNotification(desktopId string, notificationId string, card *launch_helpe
 
 	// TODO: build the action_list
 	var action_list_arg **C.gchar = nil
+	var action_list_size int = 0
 	if len(actions) > 0 {
 		action_list := make([]*C.gchar, len(actions)+1)
 		for i, action := range actions {
@@ -74,11 +75,12 @@ func AddNotification(desktopId string, notificationId string, card *launch_helpe
 			action_list[i] = c_action
 		}
 		action_list_arg = (**C.gchar)(unsafe.Pointer(&action_list[0]))
+		action_list_size = len(action_list)
 	}
 
 	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
 
-	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, action_list_arg, (C.gpointer)(&ch))
+	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, action_list_arg, C.size_t(action_list_size), (C.gpointer)(&ch))
 }
 
 func init() {
