@@ -67,6 +67,24 @@ func blobMessage(n int, sz int) json.RawMessage {
 	return json.RawMessage(fmt.Sprintf(`{"n":%d,"b":"%s"}`, n, strings.Repeat("x", sz-14)))
 }
 
+func (s *mBoxSuite) TestAppendEvictSome(c *C) {
+	mbox := &mBox{}
+	m1 := blobMessage(1, 25)
+	m2 := blobMessage(2, 25)
+	m3 := blobMessage(3, 50)
+	mbox.Append(m1, "n1")
+	mbox.Append(m2, "n2")
+	mbox.Append(m3, "n3")
+	c.Check(mbox.curSize, Equals, 100)
+	c.Check(mbox.evicted, Equals, 0)
+	m4 := blobMessage(4, 23)
+	mbox.Append(m4, "n4")
+	c.Assert(mbox.evicted, Equals, 1)
+	c.Check(mbox.curSize, Equals, 25+50+23)
+	c.Check(mbox.AllMessages(), DeepEquals, []string{string(m2), string(m3), string(m4)})
+	c.Check(mbox.nids[1:], DeepEquals, []string{"n2", "n3", "n4"})
+}
+
 func (s *mBoxSuite) TestAppendEvictSomeCopyOver(c *C) {
 	mbox := &mBox{}
 	m1 := blobMessage(1, 25)
@@ -88,28 +106,10 @@ func (s *mBoxSuite) TestAppendEvictSomeCopyOver(c *C) {
 	// do it again
 	m6 := blobMessage(6, 40)
 	mbox.Append(m6, "n6")
-	c.Assert(mbox.evicted, Equals, 2)
+	c.Assert(mbox.evicted, Equals, 0)
 	c.Check(mbox.curSize, Equals, 80)
 	c.Check(mbox.AllMessages(), DeepEquals, []string{string(m5), string(m6)})
-	c.Check(mbox.nids[2:], DeepEquals, []string{"n5", "n6"})
-}
-
-func (s *mBoxSuite) TestAppendEvictSome(c *C) {
-	mbox := &mBox{}
-	m1 := blobMessage(1, 25)
-	m2 := blobMessage(2, 25)
-	m3 := blobMessage(3, 50)
-	mbox.Append(m1, "n1")
-	mbox.Append(m2, "n2")
-	mbox.Append(m3, "n3")
-	c.Check(mbox.curSize, Equals, 100)
-	c.Check(mbox.evicted, Equals, 0)
-	m4 := blobMessage(4, 40)
-	mbox.Append(m4, "n4")
-	c.Assert(mbox.evicted, Equals, 2)
-	c.Check(mbox.curSize, Equals, 90)
-	c.Check(mbox.AllMessages(), DeepEquals, []string{string(m3), string(m4)})
-	c.Check(mbox.nids[2:], DeepEquals, []string{"n3", "n4"})
+	c.Check(mbox.nids, DeepEquals, []string{"n5", "n6"})
 }
 
 func (s *mBoxSuite) TestAppendEvictEverything(c *C) {
