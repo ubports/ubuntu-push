@@ -264,16 +264,17 @@ func (ss *postalSuite) TestPostBroadcast(c *C) {
 	err := svc.PostBroadcast()
 	c.Assert(err, IsNil)
 	c.Check(takeNextError(ch), IsNil)
-	// and check it fired the right signal (twice)
+	// check we don't call Notify
 	callArgs := testibus.GetCallArgs(bus)
-	c.Assert(callArgs, HasLen, 1)
-	c.Check(callArgs[0].Member, Equals, "Notify")
-	c.Check(callArgs[0].Args[0:6], DeepEquals, []interface{}{"_ubuntu-push-client", uint32(0), "update_manager_icon",
-		"There's an updated system image.", "Tap to open the system updater.",
-		[]string{`{"app":"_ubuntu-push-client","act":"Switch to app","nid":"settings:///system/system-update"}`, "Switch to app"}})
-	// TODO: check the map in callArgs?
-	// c.Check(callArgs[0].Args[7]["x-canonical-secondary-icon"], NotNil)
-	// c.Check(callArgs[0].Args[7]["x-canonical-snap-decisions"], NotNil)
+	c.Assert(callArgs, HasLen, 0)
+	// and check it fired the right signal
+	callArgs = testibus.GetCallArgs(ss.bus)
+	l := len(callArgs)
+	if l < 1 {
+		c.Fatal("not enough elements in resposne from GetCallArgs")
+	}
+	c.Check(callArgs[l-1].Member, Equals, "::Signal")
+	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", "/_", []interface{}{"_ubuntu-push-client"}})
 }
 
 func (ss *postalSuite) TestPostBroadcastDoesNotFail(c *C) {

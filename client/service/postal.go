@@ -289,11 +289,13 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 }
 
 func (svc *PostalService) PostBroadcast() error {
+	// build the notification and marshal it to json
 	icon := "update_manager_icon"
 	summary := "There's an updated system image."
 	body := "Tap to open the system updater."
-	actions := []string{"Switch to app"} // action value not visible on the phone
-	card := &launch_helper.Card{Icon: icon, Summary: summary, Body: body, Actions: actions, Popup: true}
+	// action value not visible on the phone, used for the messaging menu default action.
+	actions := []string{SystemUpdateUrl}
+	card := &launch_helper.Card{Icon: icon, Summary: summary, Body: body, Actions: actions, Persist: true}
 	helperOutput := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
 	jsonNotif, err := json.Marshal(helperOutput)
 	if err != nil {
@@ -301,6 +303,5 @@ func (svc *PostalService) PostBroadcast() error {
 		return err
 	}
 	appId, _ := click.ParseAppId("_ubuntu-push-client")
-	// XXX: Systemupdateurl as the notificationId because it's what's used ATM for the tap action in the bubbles.
-	return svc.Post(appId, SystemUpdateUrl, jsonNotif)
+	return svc.Post(appId, newNid(), jsonNotif)
 }
