@@ -82,7 +82,8 @@ func (s *mBoxSuite) TestAppendEvictSome(c *C) {
 	c.Assert(mbox.evicted, Equals, 1)
 	c.Check(mbox.curSize, Equals, 25+50+23)
 	c.Check(mbox.AllMessages(), DeepEquals, []string{string(m2), string(m3), string(m4)})
-	c.Check(mbox.nids[1:], DeepEquals, []string{"n2", "n3", "n4"})
+	c.Check(mbox.messages[:1], DeepEquals, []string{""})
+	c.Check(mbox.nids, DeepEquals, []string{"", "n2", "n3", "n4"})
 }
 
 func (s *mBoxSuite) TestAppendEvictSomeCopyOver(c *C) {

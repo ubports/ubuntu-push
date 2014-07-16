@@ -36,6 +36,8 @@ func (box *mBox) evictFor(sz int) {
 	n := len(box.messages)
 	for evictedSize < sz && i < n {
 		evictedSize += len(box.messages[i])
+		box.messages[i] = ""
+		box.nids[i] = ""
 		box.evicted++
 		i++
 	}
