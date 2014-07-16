@@ -45,10 +45,10 @@ func New(log logger.Logger) *MessagingMenu {
 var cAddNotification = cmessaging.AddNotification
 
 func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
-	mmu.lock.Lock()
-	defer mmu.lock.Unlock()
 	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions}
+	mmu.lock.Lock()
 	mmu.notifications[notificationId] = payload
+	mmu.lock.Unlock()
 	cAddNotification(desktopId, notificationId, card, payload)
 }
 
