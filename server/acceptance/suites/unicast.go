@@ -125,7 +125,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastPending(c *C) {
 func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 	userId, auth := s.associatedAuth("DEV2")
 	// send bunch of unicasts that will be pending
-	payloadFmt := fmt.Sprintf(`{"serial":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
+	payloadFmt := fmt.Sprintf(`{"serial":%%d,"bloat":"%s"}`, strings.Repeat("x", 2024))
 	for i := 0; i < 32; i++ {
 		got, err := s.PostRequest("/notify", &api.Unicast{
 			UserId:   userId,

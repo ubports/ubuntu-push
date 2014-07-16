@@ -27,6 +27,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
+	"launchpad.net/ubuntu-push/bus/windowstack"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -52,6 +53,7 @@ type PostalService struct {
 	HapticEndp        bus.Endpoint
 	NotificationsEndp bus.Endpoint
 	URLDispatcherEndp bus.Endpoint
+	WindowStackEndp   bus.Endpoint
 	// presenters:
 	emblemCounter *emblemcounter.EmblemCounter
 	haptic        *haptic.Haptic
@@ -59,6 +61,7 @@ type PostalService struct {
 	sound         *sounds.Sound
 	// the url dispatcher, used for stuff.
 	urlDispatcher urldispatcher.URLDispatcher
+	windowStack   *windowstack.WindowStack
 }
 
 var (
@@ -83,6 +86,7 @@ func NewPostalService(installedChecker click.InstalledChecker, log logger.Logger
 	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
 	svc.HapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, log)
 	svc.URLDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, log)
+	svc.WindowStackEndp = bus.SessionBus.Endpoint(windowstack.BusAddress, log)
 	svc.msgHandler = svc.messageHandler
 	return svc
 }
@@ -121,10 +125,14 @@ func (svc *PostalService) Start() error {
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
 	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(svc.Log)
+	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
+	go svc.consumeHelperResults(svc.HelperLauncher.Start())
 	go svc.handleActions(actionsCh, svc.messagingMenu.Ch)
 	return nil
 }
+
+// xxx Stop() closing channels and helper launcher
 
 // handleClicks loops on the actions channel waiting for actions and handling them
 func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction, mmuActionsCh <-chan *reply.MMActionReply) {
@@ -212,35 +220,61 @@ func (svc *PostalService) post(path string, args, _ []interface{}) ([]interface{
 	if !ok {
 		return nil, ErrBadArgType
 	}
+	var dummy interface{}
+	rawJSON := json.RawMessage(notif)
+	err = json.Unmarshal(rawJSON, &dummy)
+	if err != nil {
+		return nil, ErrBadJSON
+	}
 
 	nid := newNid()
 
-	return nil, svc.Post(app, nid, notif)
+	return nil, svc.Post(app, nid, rawJSON)
 }
 
 // Post() signals to an application over dbus that a notification
 // has arrived.
-func (svc *PostalService) Post(app *click.AppId, nid string, notif string) error {
+func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMessage) error {
+	arg := launch_helper.HelperInput{
+		App:            app,
+		NotificationId: nid,
+		Payload:        payload,
+	}
+	svc.HelperLauncher.Run(&arg)
+	return nil
+}
+
+func (svc *PostalService) consumeHelperResults(ch chan *launch_helper.HelperResult) {
+	for res := range ch {
+		svc.handleHelperResult(res)
+	}
+}
+
+func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
 		svc.mbox = make(map[string][]string)
 	}
-	output := svc.HelperLauncher.Run(app, []byte(notif))
+
+	app := res.Input.App
+	nid := res.Input.NotificationId
+	output := res.HelperOutput
+
 	appId := app.Original()
 	// XXX also track the nid in the mbox
 	svc.mbox[appId] = append(svc.mbox[appId], string(output.Message))
 
 	if svc.msgHandler != nil {
-		err := svc.msgHandler(app, nid, output)
+		err := svc.msgHandler(app, nid, &output)
 		if err != nil {
 			svc.DBusService.Log.Errorf("msgHandler returned %v", err)
-			return err
+			return
 		}
 		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 
-	return svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
+	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
@@ -252,19 +286,18 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 	return err
 }
 
-func (svc *PostalService) PostBroadcast() (uint32, error) {
+func (svc *PostalService) PostBroadcast() error {
 	icon := "update_manager_icon"
 	summary := "There's an updated system image."
 	body := "Tap to open the system updater."
 	actions := []string{"Switch to app"} // action value not visible on the phone
 	card := &launch_helper.Card{Icon: icon, Summary: summary, Body: body, Actions: actions, Popup: true}
-	helperOutput := &launch_helper.HelperOutput{[]byte(""), &launch_helper.Notification{Card: card}}
+	helperOutput := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
 	jsonNotif, err := json.Marshal(helperOutput)
 	if err != nil {
-		// XXX: how can we test this branch?
 		svc.Log.Errorf("Failed to marshal notification: %v - %v", helperOutput, err)
-		return 0, err
+		return err
 	}
 	appId, _ := click.ParseAppId("_ubuntu-push-client")
-	return 0, svc.Post(appId, SystemUpdateUrl, string(jsonNotif))
+	return svc.Post(appId, SystemUpdateUrl, jsonNotif)
 }

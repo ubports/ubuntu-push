@@ -36,6 +36,7 @@ import (
 
 const MaxRequestBodyBytes = 4 * 1024
 const JSONMediaType = "application/json"
+const MaxUnicastPayload = 2 * 1024
 
 // APIError represents a API error (both internally and as JSON in a response).
 type APIError struct {
@@ -119,6 +120,12 @@ var (
 		http.StatusBadRequest,
 		invalidRequest,
 		"Missing data field",
+		nil,
+	}
+	ErrDataTooLarge = &APIError{
+		http.StatusBadRequest,
+		invalidRequest,
+		"Data too large",
 		nil,
 	}
 	ErrInvalidExpiration = &APIError{
@@ -423,6 +430,9 @@ func checkUnicast(ucast *Unicast) (time.Time, *APIError) {
 	}
 	if ucast.Token == "" && (ucast.UserId == "" || ucast.DeviceId == "") {
 		return zeroTime, ErrMissingIdField
+	}
+	if len(ucast.Data) > MaxUnicastPayload {
+		return zeroTime, ErrDataTooLarge
 	}
 	return checkCastCommon(ucast.Data, ucast.ExpireOn)
 }
