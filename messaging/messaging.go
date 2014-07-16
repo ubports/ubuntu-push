@@ -48,6 +48,11 @@ func (mmu *MessagingMenu) addNotification(desktopId string, notificationId strin
 	cAddNotification(desktopId, notificationId, card, payload)
 }
 
+// RemoveNotification deletes the notification from internal map
+func (mmu *MessagingMenu) RemoveNotification(notificationId string) {
+	delete(mmu.notifications, notificationId)
+}
+
 func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {
 	if notification == nil || notification.Card == nil || !notification.Card.Persist || notification.Card.Summary == "" {
 		mmu.Log.Debugf("[%s] no notification or notification has no persistable card: %#v", notificationId, notification)

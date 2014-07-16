@@ -155,6 +155,8 @@ func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawActio
 				if url == "" && len(mmuAction.Actions) >= 2 {
 					url = mmuAction.Actions[1]
 				}
+				// remove the notification from the messagingmenu map
+				svc.messagingMenu.RemoveNotification(mmuAction.Notification)
 				// this ignores the error (it's been logged already)
 				svc.urlDispatcher.DispatchURL(url)
 			}
@@ -302,5 +304,6 @@ func (svc *PostalService) PostBroadcast() error {
 		return err
 	}
 	appId, _ := click.ParseAppId("_ubuntu-push-client")
+	// XXX: Systemupdateurl as the notificationId because it's what's used ATM for the tap action in the bubbles.
 	return svc.Post(appId, SystemUpdateUrl, jsonNotif)
 }
