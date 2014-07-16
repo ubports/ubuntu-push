@@ -30,8 +30,6 @@ type trivialHelperLauncher struct {
 	chIn  chan *HelperInput
 }
 
-var InputBufferSize = 10
-
 // a trivial HelperLauncher that doesn't launch anything at all
 func NewTrivialHelperLauncher(log logger.Logger) HelperLauncher {
 	return &trivialHelperLauncher{log: log}

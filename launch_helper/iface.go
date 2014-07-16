@@ -23,3 +23,5 @@ type HelperLauncher interface {
 	Start() chan *HelperResult
 	Stop()
 }
+
+var InputBufferSize = 10
