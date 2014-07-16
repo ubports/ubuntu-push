@@ -50,7 +50,7 @@ func gfree(s *C.gchar) {
 //export handleActivate
 func handleActivate(action *C.char, notification *C.char, obj unsafe.Pointer) {
 	payload := (*Payload)(obj)
-	mmar := &reply.MMActionReply{Notification: C.GoString(notification), Action: C.GoString(action)}
+	mmar := &reply.MMActionReply{Notification: C.GoString(notification), Action: C.GoString(action), Actions: payload.Actions}
 	payload.Ch <- mmar
 }
 
@@ -72,7 +72,7 @@ func AddNotification(desktopId string, notificationId string, card *launch_helpe
 
 	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
 
-	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(&payload))
+	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(payload))
 }
 
 func init() {
