@@ -20,6 +20,7 @@ package messaging
 
 import (
 	"encoding/json"
+	"sync"
 
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/click"
@@ -32,24 +33,29 @@ import (
 type MessagingMenu struct {
 	Log           logger.Logger
 	Ch            chan *reply.MMActionReply
-	notifications map[string][]*cmessaging.Payload
+	notifications map[string]*cmessaging.Payload
+	lock          sync.RWMutex
 }
 
 // New returns a new MessagingMenu
 func New(log logger.Logger) *MessagingMenu {
-	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string][]*cmessaging.Payload)}
+	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload)}
 }
 
 var cAddNotification = cmessaging.AddNotification
 
 func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
+	mmu.lock.Lock()
+	defer mmu.lock.Unlock()
 	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions}
-	mmu.notifications[notificationId] = append(mmu.notifications[notificationId], payload)
+	mmu.notifications[notificationId] = payload
 	cAddNotification(desktopId, notificationId, card, payload)
 }
 
 // RemoveNotification deletes the notification from internal map
 func (mmu *MessagingMenu) RemoveNotification(notificationId string) {
+	mmu.lock.Lock()
+	defer mmu.lock.Unlock()
 	delete(mmu.notifications, notificationId)
 }
 
