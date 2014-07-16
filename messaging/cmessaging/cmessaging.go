@@ -24,7 +24,7 @@ package cmessaging
 
 void add_notification(const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
-          gint64 timestamp, gpointer obj);
+          gint64 timestamp, const gchar** actions, gpointer obj);
 */
 import "C"
 import "unsafe"
@@ -72,7 +72,7 @@ func AddNotification(desktopId string, notificationId string, card *launch_helpe
 
 	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
 
-	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, (C.gpointer)(&payload))
+	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(&payload))
 }
 
 func init() {

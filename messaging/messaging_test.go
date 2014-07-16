@@ -23,7 +23,7 @@ import (
 	"launchpad.net/ubuntu-push/click"
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/messaging/reply"
+	"launchpad.net/ubuntu-push/messaging/cmessaging"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -38,8 +38,8 @@ type MessagingSuite struct {
 var _ = Suite(&MessagingSuite{})
 
 func (ms *MessagingSuite) SetUpSuite(c *C) {
-	cAddNotification = func(a string, n string, c *launch_helper.Card, as []string, ch chan *reply.MMActionReply) {
-		ms.log.Debugf("ADD: app: %s, not: %s, card: %v, actions: %v, chan: %d", a, n, c, as, len(ch))
+	cAddNotification = func(a string, n string, c *launch_helper.Card, payload *cmessaging.Payload) {
+		ms.log.Debugf("ADD: app: %s, not: %s, card: %v, chan: %v", a, n, c, payload)
 	}
 }
 
