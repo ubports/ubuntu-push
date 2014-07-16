@@ -114,13 +114,13 @@ func (ms *MessagingSuite) TestRemoveNotification(c *C) {
 	mmu.addNotification(ms.app.DesktopId(), "notif-id", &card, actions)
 
 	// check it's there
-	payload, err := mmu.notifications["notif-id"]
-	c.Check(err, Equals, true)
+	payload, ok := mmu.notifications["notif-id"]
+	c.Check(ok, Equals, true)
 	c.Check(payload.Actions, DeepEquals, actions)
 	c.Check(payload.Ch, Equals, mmu.Ch)
 	// remove the notification
 	mmu.RemoveNotification("notif-id")
 	// check it's gone
-	_, err = mmu.notifications["notif-id"]
-	c.Check(err, Equals, false)
+	_, ok = mmu.notifications["notif-id"]
+	c.Check(ok, Equals, false)
 }
