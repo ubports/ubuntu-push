@@ -152,9 +152,6 @@ func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawActio
 			} else {
 				svc.Log.Debugf("handleActions (MMU) got: %v", mmuAction)
 				url := mmuAction.Action
-				if url == "" && len(mmuAction.Actions) >= 2 {
-					url = mmuAction.Actions[1]
-				}
 				// remove the notification from the messagingmenu map
 				svc.messagingMenu.RemoveNotification(mmuAction.Notification)
 				// this ignores the error (it's been logged already)

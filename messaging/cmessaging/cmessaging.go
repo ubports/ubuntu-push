@@ -48,9 +48,15 @@ func gfree(s *C.gchar) {
 }
 
 //export handleActivate
-func handleActivate(action *C.char, notification *C.char, obj unsafe.Pointer) {
+func handleActivate(c_action *C.char, c_notification *C.char, obj unsafe.Pointer) {
 	payload := (*Payload)(obj)
-	mmar := &reply.MMActionReply{Notification: C.GoString(notification), Action: C.GoString(action), Actions: payload.Actions}
+	action := C.GoString(c_action)
+	// Default action, only support ATM, is always "".
+	// Use the first action as the default if it's available.
+	if action == "" && len(payload.Actions) >= 2 {
+		action = payload.Actions[1]
+	}
+	mmar := &reply.MMActionReply{Notification: C.GoString(c_notification), Action: action}
 	payload.Ch <- mmar
 }
 

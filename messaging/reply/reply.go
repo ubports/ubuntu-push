@@ -22,5 +22,4 @@ package reply
 type MMActionReply struct {
 	Notification string
 	Action       string
-	Actions      []string
 }
