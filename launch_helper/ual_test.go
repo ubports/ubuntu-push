@@ -35,6 +35,7 @@ import (
 type ualSuite struct {
 	oldNew func(logger.Logger, cual.UAL) cual.HelperState
 	log    *helpers.TestLogger
+	removes chan string
 }
 
 var _ = Suite(&ualSuite{})
@@ -179,13 +180,7 @@ func (us *ualSuite) TestRunCantLaunch(c *C) {
 
 func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
 	helperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-	removes := make(chan string)
-	osRemove = func(name string) error {
-		removes <- name
-		return os.Remove(name)
-	}
 	defer func() {
-		osRemove = os.Remove
 		helperInfo = _helperInfo
 	}()
 	ual := NewHelperLauncher(us.log)
@@ -200,12 +195,9 @@ func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 	ual.Run(&input)
-	var f1, f2 string
 	select {
 	case arg := <-fakeInstance.argCh:
 		c.Check(arg[0], Equals, "Launch")
-		f1 = arg[3]
-		f2 = arg[4]
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
 	}
@@ -225,24 +217,6 @@ func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
 		c.Fatal("timeout")
 	}
 	c.Check(res.Message, DeepEquals, input.Payload)
-
-	// files should be removed
-	select {
-	case <-removes:
-	case <-time.After(200 * time.Millisecond):
-		c.Fatal("timeout")
-	}
-	select {
-	case <-removes:
-	case <-time.After(200 * time.Millisecond):
-		c.Fatal("timeout")
-	}
-	_, err := os.Stat(f1)
-	c.Assert(err, NotNil)
-	c.Check(os.IsNotExist(err), Equals, true)
-	_, err = os.Stat(f2)
-	c.Assert(err, NotNil)
-	c.Check(os.IsNotExist(err), Equals, true)
 }
 
 func (us *ualSuite) TestOneDoneNop(c *C) {
