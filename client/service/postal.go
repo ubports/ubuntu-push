@@ -18,6 +18,7 @@ package service
 
 import (
 	"encoding/json"
+	"os"
 	"sync"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -73,7 +74,8 @@ var (
 )
 
 var (
-	SystemUpdateUrl = "settings:///system/system-update"
+	SystemUpdateUrl  = "settings:///system/system-update"
+	useTrivialHelper = os.Getenv("UBUNTU_PUSH_USE_TRIVIAL_HELPER") != ""
 )
 
 // NewPostalService() builds a new service and returns it.
@@ -124,7 +126,11 @@ func (svc *PostalService) Start() error {
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log)
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
-	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(svc.Log)
+	if useTrivialHelper {
+		svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(svc.Log)
+	} else {
+		svc.HelperLauncher = launch_helper.NewHelperLauncher(svc.Log)
+	}
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
 	go svc.consumeHelperResults(svc.HelperLauncher.Start())

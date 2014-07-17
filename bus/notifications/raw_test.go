@@ -187,7 +187,6 @@ func (s *RawSuite) TestPresentOneAction(c *C) {
 	c.Check(hints["x-canonical-secondary-icon"], NotNil)
 	c.Check(hints["x-canonical-snap-decisions"], IsNil)
 	c.Check(hints["x-canonical-private-button-tint"], IsNil)
-	c.Check(hints["x-canonical-non-shaped-icon"], IsNil)
 }
 
 func (s *RawSuite) TestPresentTwoActions(c *C) {
@@ -209,12 +208,12 @@ func (s *RawSuite) TestPresentTwoActions(c *C) {
 	hints, ok := callArgs[0].Args[6].(map[string]*dbus.Variant)
 	c.Assert(ok, Equals, true)
 	// with two actions, there should be 3 hints set:
-	c.Assert(hints, HasLen, 4)
+	c.Assert(hints, HasLen, 3)
 	c.Check(hints["x-canonical-switch-to-application"], IsNil)
 	c.Check(hints["x-canonical-secondary-icon"], NotNil)
 	c.Check(hints["x-canonical-snap-decisions"], NotNil)
 	c.Check(hints["x-canonical-private-button-tint"], NotNil)
-	c.Check(hints["x-canonical-non-shaped-icon"], NotNil)
+	c.Check(hints["x-canonical-non-shaped-icon"], IsNil) // checking just in case
 }
 
 func (s *RawSuite) TestPresentThreeActions(c *C) {

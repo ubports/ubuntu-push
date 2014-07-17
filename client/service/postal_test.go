@@ -91,6 +91,10 @@ type postalSuite struct {
 
 var _ = Suite(&postalSuite{})
 
+func (ss *postalSuite) SetUpSuite(c *C) {
+	useTrivialHelper = true
+}
+
 func (ss *postalSuite) SetUpTest(c *C) {
 	ss.log = helpers.NewTestLogger(c, "debug")
 	ss.bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
