@@ -17,7 +17,6 @@
 package launch_helper
 
 import (
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -43,25 +42,27 @@ var _ = Suite(&ualSuite{})
 type fakeHelperState struct {
 	obs   int
 	err   error
-	argCh chan [4]string
+	argCh chan [5]string
 }
 
 func (fhs *fakeHelperState) InstallObserver() error {
 	fhs.obs++
-	return fhs.err
+	return nil
 }
 
 func (fhs *fakeHelperState) RemoveObserver() error {
 	fhs.obs--
-	return fhs.err
+	return nil
 }
 
-func (fhs *fakeHelperState) Launch(appId string, exec string, f1 string, f2 string) string {
-	fhs.argCh <- [4]string{appId, exec, f1, f2}
-	return ""
+func (fhs *fakeHelperState) Launch(appId string, exec string, f1 string, f2 string) (string, error) {
+	fhs.argCh <- [5]string{"Launch", appId, exec, f1, f2}
+	return "0", fhs.err
 }
 
-func (fhs *fakeHelperState) Stop(appId string, iid string) {
+func (fhs *fakeHelperState) Stop(appId string, iid string) error {
+	fhs.argCh <- [5]string{"Stop", appId, iid, "", ""}
+	return nil
 }
 
 var fakeInstance *fakeHelperState
@@ -74,7 +75,7 @@ func (us *ualSuite) SetUpTest(c *C) {
 	us.oldNew = newHelperState
 	us.log = helpers.NewTestLogger(c, "debug")
 	newHelperState = newFake
-	fakeInstance = &fakeHelperState{argCh: make(chan [4]string, 10)}
+	fakeInstance = &fakeHelperState{argCh: make(chan [5]string, 10)}
 	xdgCacheHome = c.MkDir
 }
 
@@ -94,11 +95,13 @@ func (us *ualSuite) TestStartStopWork(c *C) {
 }
 
 func (us *ualSuite) TestRunLaunches(c *C) {
-	helperInfo = func(*click.AppId) (string, string) { return "foo", "bar" }
+	helperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
 	defer func() { helperInfo = _helperInfo }()
 	ual := NewHelperLauncher(us.log)
 	ual.Start()
-	app := clickhelp.MustParseAppId("com.example.test_test-app")
+	defer ual.Stop()
+	appId := "com.example.test_test-app"
+	app := clickhelp.MustParseAppId(appId)
 	input := HelperInput{
 		App:            app,
 		NotificationId: "foo",
@@ -107,16 +110,24 @@ func (us *ualSuite) TestRunLaunches(c *C) {
 	ual.Run(&input)
 	select {
 	case arg := <-fakeInstance.argCh:
-		c.Check(arg[:2], DeepEquals, []string{"foo", "bar"})
+		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
 	}
+	args := ual.(*ualHelperLauncher).peekId("0", func(*HelperArgs) {})
+	c.Assert(args, NotNil)
+	args.Timer.Stop()
+	c.Check(args.AppId, Equals, "helpId")
+	c.Check(args.Input, Equals, &input)
+	c.Check(args.FileIn, NotNil)
+	c.Check(args.FileOut, NotNil)
 }
 
 func (us *ualSuite) TestGetOutputIfHelperLaunchFail(c *C) {
-	fakeInstance.err = errors.New("potato")
+	// invokes actual _helperInfo which fails with "", ""
 	ual := NewHelperLauncher(us.log)
 	ch := ual.Start()
+	defer ual.Stop()
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
 	input := HelperInput{
 		App:            app,
@@ -135,9 +146,96 @@ func (us *ualSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 	c.Check(*res.Input, DeepEquals, input)
 }
 
+func (us *ualSuite) TestRunCantLaunch(c *C) {
+	helperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
+	defer func() { helperInfo = _helperInfo }()
+	fakeInstance.err = cual.ErrCantLaunch
+	ual := NewHelperLauncher(us.log)
+	ch := ual.Start()
+	defer ual.Stop()
+	appId := "com.example.test_test-app"
+	app := clickhelp.MustParseAppId(appId)
+	input := HelperInput{
+		App:            app,
+		NotificationId: "foo",
+		Payload:        []byte(`"hello"`),
+	}
+	ual.Run(&input)
+	select {
+	case arg := <-fakeInstance.argCh:
+		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
+	case <-time.After(100 * time.Millisecond):
+		c.Fatal("didn't call Launch")
+	}
+	var res *HelperResult
+	select {
+	case res = <-ch:
+	case <-time.After(100 * time.Millisecond):
+		c.Fatal("timeout")
+	}
+	c.Check(res.Message, DeepEquals, input.Payload)
+	c.Check(us.log.Captured(), Equals, "DEBUG using helper helpId (exec: bar) for app com.example.test_test-app\n"+"ERROR unable to launch helper helpId: can't launch helper\n"+"ERROR unable to get helper output; putting payload into message\n")
+}
+
+func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
+	helperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
+	defer func() { helperInfo = _helperInfo }()
+	ual := NewHelperLauncher(us.log)
+	ual.(*ualHelperLauncher).maxRuntime = 500 * time.Millisecond
+	ch := ual.Start()
+	defer ual.Stop()
+	appId := "com.example.test_test-app"
+	app := clickhelp.MustParseAppId(appId)
+	input := HelperInput{
+		App:            app,
+		NotificationId: "foo",
+		Payload:        []byte(`"hello"`),
+	}
+	ual.Run(&input)
+	var f1, f2 string
+	select {
+	case arg := <-fakeInstance.argCh:
+		c.Check(arg[0], Equals, "Launch")
+		f1 = arg[3]
+		f2 = arg[4]
+	case <-time.After(100 * time.Millisecond):
+		c.Fatal("didn't call Launch")
+	}
+	select {
+	case arg := <-fakeInstance.argCh:
+		c.Check(arg[:3], DeepEquals, []string{"Stop", "helpId", "0"})
+	case <-time.After(2 * time.Second):
+		c.Fatal("didn't call Stop")
+	}
+	// this will be invoked
+	go ual.(*ualHelperLauncher).OneDone("0")
+
+	var res *HelperResult
+	select {
+	case res = <-ch:
+	case <-time.After(100 * time.Millisecond):
+		c.Fatal("timeout")
+	}
+	c.Check(res.Message, DeepEquals, input.Payload)
+
+	// files should be gone
+	_, err := os.Stat(f1)
+	c.Assert(err, NotNil)
+	c.Check(os.IsNotExist(err), Equals, true)
+	_, err = os.Stat(f2)
+	c.Assert(err, NotNil)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (us *ualSuite) TestOneDoneNop(c *C) {
+	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
+	ual.OneDone("")
+}
+
 func (us *ualSuite) TestOneDoneOnValid(c *C) {
 	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
 	ch := ual.Start()
+	defer ual.Stop()
 
 	d := c.MkDir()
 
@@ -150,7 +248,7 @@ func (us *ualSuite) TestOneDoneOnValid(c *C) {
 		FileOut: filepath.Join(d, "file_out.json"),
 		Timer:   &time.Timer{},
 	}
-	ual.hmap[""] = &args
+	ual.hmap["1"] = &args
 
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
@@ -158,7 +256,7 @@ func (us *ualSuite) TestOneDoneOnValid(c *C) {
 	_, err = f.Write([]byte(`{"notification": {"sound": "hello"}}`))
 	c.Assert(err, IsNil)
 
-	go ual.OneDone("")
+	go ual.OneDone("1")
 
 	var res *HelperResult
 	select {
@@ -169,11 +267,13 @@ func (us *ualSuite) TestOneDoneOnValid(c *C) {
 
 	expected := HelperOutput{Notification: &Notification{Sound: "hello"}}
 	c.Check(res.HelperOutput, DeepEquals, expected)
+	c.Check(ual.hmap, HasLen, 0)
 }
 
 func (us *ualSuite) TestOneDoneOnBadFileOut(c *C) {
 	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
 	ch := ual.Start()
+	defer ual.Stop()
 
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
 	args := HelperArgs{
@@ -185,9 +285,9 @@ func (us *ualSuite) TestOneDoneOnBadFileOut(c *C) {
 		FileOut: "/does-not-exist",
 		Timer:   &time.Timer{},
 	}
-	ual.hmap[""] = &args
+	ual.hmap["1"] = &args
 
-	go ual.OneDone("")
+	go ual.OneDone("1")
 
 	var res *HelperResult
 	select {
@@ -203,6 +303,7 @@ func (us *ualSuite) TestOneDoneOnBadFileOut(c *C) {
 func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
 	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
 	ch := ual.Start()
+	defer ual.Stop()
 
 	d := c.MkDir()
 
@@ -216,7 +317,7 @@ func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
 		},
 		Timer: &time.Timer{},
 	}
-	ual.hmap[""] = &args
+	ual.hmap["1"] = &args
 
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
@@ -224,7 +325,7 @@ func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
 	_, err = f.Write([]byte(`potato`))
 	c.Assert(err, IsNil)
 
-	go ual.OneDone("")
+	go ual.OneDone("1")
 
 	var res *HelperResult
 	select {
@@ -237,7 +338,7 @@ func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
 	c.Check(res.HelperOutput, DeepEquals, expected)
 }
 
-func (us *ualSuite) TestCreateTempFiles(c *C) {
+func (us *ualSuite) TestCreateInputTempFile(c *C) {
 	tmpDir := c.MkDir()
 	getTempDir = func(pkgName string) (string, error) {
 		return tmpDir, nil
@@ -255,9 +356,11 @@ func (us *ualSuite) TestCreateTempFiles(c *C) {
 	}
 
 	ual := NewHelperLauncher(us.log)
-	f1, f2, err := ual.(*ualHelperLauncher).createTempFiles(input)
-	c.Check(err, IsNil)
+	f1, err := ual.(*ualHelperLauncher).createInputTempFile(input)
+	c.Assert(err, IsNil)
 	c.Check(f1, Not(Equals), "")
+	f2, err := ual.(*ualHelperLauncher).createOutputTempFile(input)
+	c.Assert(err, IsNil)
 	c.Check(f2, Not(Equals), "")
 	files, err := ioutil.ReadDir(filepath.Dir(f1))
 	c.Check(err, IsNil)

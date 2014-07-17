@@ -46,10 +46,12 @@ gboolean remove_observer(gpointer p) {
     return ubuntu_app_launch_observer_delete_helper_stop(observer_of_stop, "push-helper", p);
 }
 
-void stop(gchar* app_id, gchar* iid) {
-    ubuntu_app_launch_stop_multiple_helper ("push-helper", app_id, iid);
+gboolean stop(gchar* app_id, gchar* iid) {
+    gboolean res;
+    res = ubuntu_app_launch_stop_multiple_helper ("push-helper", app_id, iid);
     g_free (app_id);
     g_free (iid);
+    return res;
 }
 */
 import "C"

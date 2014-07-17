@@ -23,7 +23,7 @@ package cual
 gboolean add_observer (gpointer);
 gboolean remove_observer (gpointer);
 char* launch(gchar* app_id, gchar* exec, gchar* f1, gchar* f2, gpointer p);
-void stop(gchar* app_id, gchar* iid);
+gboolean stop(gchar* app_id, gchar* iid);
 */
 import "C"
 import (
@@ -40,8 +40,8 @@ func gstring(s string) *C.gchar {
 type HelperState interface {
 	InstallObserver() error
 	RemoveObserver() error
-	Launch(appId string, exec string, f1 string, f2 string) string
-	Stop(appId string, instanceId string)
+	Launch(appId string, exec string, f1 string, f2 string) (string, error)
+	Stop(appId string, instanceId string) error
 }
 
 type UAL interface {
@@ -63,6 +63,8 @@ func helperDone(gp unsafe.Pointer, ciid *C.char) {
 var (
 	ErrCantObserve   = errors.New("can't add observer")
 	ErrCantUnobserve = errors.New("can't remove observer")
+	ErrCantLaunch    = errors.New("can't launch helper")
+	ErrCantStop      = errors.New("can't stop helper")
 )
 
 func New(log logger.Logger, ual UAL) HelperState {
@@ -83,11 +85,18 @@ func (hs *helperState) RemoveObserver() error {
 	return nil
 }
 
-func (hs *helperState) Launch(appId, exec, f1, f2 string) string {
+func (hs *helperState) Launch(appId, exec, f1, f2 string) (string, error) {
 	// launch(...) takes over ownership of things passed in
-	return C.GoString(C.launch(gstring(appId), gstring(exec), gstring(f1), gstring(f2), C.gpointer(hs)))
+	iid := C.GoString(C.launch(gstring(appId), gstring(exec), gstring(f1), gstring(f2), C.gpointer(hs)))
+	if iid == "" {
+		return "", ErrCantLaunch
+	}
+	return iid, nil
 }
 
-func (hs *helperState) Stop(appId, instanceId string) {
-	C.stop(gstring(appId), gstring(instanceId))
+func (hs *helperState) Stop(appId, instanceId string) error {
+	if C.stop(gstring(appId), gstring(instanceId)) != C.TRUE {
+		return ErrCantStop
+	}
+	return nil
 }

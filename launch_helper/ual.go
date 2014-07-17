@@ -19,6 +19,7 @@ package launch_helper
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -37,28 +38,34 @@ var (
 )
 
 type HelperArgs struct {
-	Input   *HelperInput
-	AppId   string
-	FileIn  string
-	FileOut string
-	Id      string
-	Timer   *time.Timer
+	Input      *HelperInput
+	AppId      string
+	FileIn     string
+	FileOut    string
+	Id         string
+	Timer      *time.Timer
+	ForcedStop bool
 }
 
 type ualHelperLauncher struct {
-	log   logger.Logger
-	chOut chan *HelperResult
-	chIn  chan *HelperInput
-	cual  cual.HelperState
-	lock  sync.Mutex
-	hmap  map[string]*HelperArgs
+	log        logger.Logger
+	chOut      chan *HelperResult
+	chIn       chan *HelperInput
+	cual       cual.HelperState
+	lock       sync.Mutex
+	hmap       map[string]*HelperArgs
+	maxRuntime time.Duration
 }
 
 var newHelperState = cual.New
 
 // a HelperLauncher that calls out to ubuntu-app-launch
 func NewHelperLauncher(log logger.Logger) HelperLauncher {
-	return &ualHelperLauncher{log: log, hmap: make(map[string]*HelperArgs)}
+	return &ualHelperLauncher{
+		log:        log,
+		hmap:       make(map[string]*HelperArgs),
+		maxRuntime: 5 * time.Second,
+	}
 }
 
 func (ual *ualHelperLauncher) Start() chan *HelperResult {
@@ -66,8 +73,10 @@ func (ual *ualHelperLauncher) Start() chan *HelperResult {
 	ual.chIn = make(chan *HelperInput, InputBufferSize)
 	ual.cual = newHelperState(ual.log, ual)
 
-	// xxx handle error
-	ual.cual.InstallObserver()
+	err := ual.cual.InstallObserver()
+	if err != nil {
+		panic(fmt.Errorf("failed to install helper observer: %v", err))
+	}
 
 	go func() {
 		for i := range ual.chIn {
@@ -82,8 +91,10 @@ func (ual *ualHelperLauncher) Start() chan *HelperResult {
 
 func (ual *ualHelperLauncher) Stop() {
 	close(ual.chIn)
-	// xxx handle error
-	ual.cual.RemoveObserver()
+	err := ual.cual.RemoveObserver()
+	if err != nil {
+		panic(fmt.Errorf("failed to remove helper observer: %v", err))
+	}
 }
 
 func (ual *ualHelperLauncher) Run(input *HelperInput) {
@@ -96,8 +107,12 @@ func (ual *ualHelperLauncher) failOne(input *HelperInput) {
 }
 
 func (ual *ualHelperLauncher) cleanupTempFiles(f1, f2 string) {
-	os.Remove(f1)
-	os.Remove(f2)
+	if f1 != "" {
+		os.Remove(f1)
+	}
+	if f2 != "" {
+		os.Remove(f2)
+	}
 }
 
 func _helperInfo(app *click.AppId) (string, string) {
@@ -113,11 +128,23 @@ func (ual *ualHelperLauncher) handleOne(input *HelperInput) error {
 		return ErrCantFindHelper
 	}
 	ual.log.Debugf("using helper %s (exec: %s) for app %s", helperAppId, helperExec, input.App)
-	f1, f2, err := ual.createTempFiles(input)
+	var f1, f2 string
+	f1, err := ual.createInputTempFile(input)
+	defer func() {
+		if err != nil {
+			ual.cleanupTempFiles(f1, f2)
+		}
+	}()
 	if err != nil {
-		ual.log.Errorf("unable to create tempfiles: %v", err)
+		ual.log.Errorf("unable to create input tempfile: %v", err)
 		return err
 	}
+	f2, err = ual.createOutputTempFile(input)
+	if err != nil {
+		ual.log.Errorf("unable to create output tempfile: %v", err)
+		return err
+	}
+
 	args := HelperArgs{
 		AppId:   helperAppId,
 		Input:   input,
@@ -127,11 +154,19 @@ func (ual *ualHelperLauncher) handleOne(input *HelperInput) error {
 
 	ual.lock.Lock()
 	defer ual.lock.Unlock()
-	iid := ual.cual.Launch(helperAppId, helperExec, f1, f2)
+	iid, err := ual.cual.Launch(helperAppId, helperExec, f1, f2)
+	if err != nil {
+		ual.log.Errorf("unable to launch helper %s: %v", helperAppId, err)
+		return err
+	}
 	args.Id = iid
-	args.Timer = time.AfterFunc(5*time.Second, func() {
-		ual.popId(iid, func(*HelperArgs) {
-			ual.cual.Stop(helperAppId, iid)
+	args.Timer = time.AfterFunc(ual.maxRuntime, func() {
+		ual.peekId(iid, func(a *HelperArgs) {
+			a.ForcedStop = true
+			err := ual.cual.Stop(helperAppId, iid)
+			if err != nil {
+				ual.log.Errorf("unable to forcefully stop helper %s: %v", helperAppId, err)
+			}
 		})
 	})
 	ual.hmap[iid] = &args
@@ -139,7 +174,7 @@ func (ual *ualHelperLauncher) handleOne(input *HelperInput) error {
 	return nil
 }
 
-func (ual *ualHelperLauncher) popId(iid string, cb func(*HelperArgs)) *HelperArgs {
+func (ual *ualHelperLauncher) peekId(iid string, cb func(*HelperArgs)) *HelperArgs {
 	ual.lock.Lock()
 	defer ual.lock.Unlock()
 	args, ok := ual.hmap[iid]
@@ -151,11 +186,20 @@ func (ual *ualHelperLauncher) popId(iid string, cb func(*HelperArgs)) *HelperArg
 }
 
 func (ual *ualHelperLauncher) OneDone(iid string) {
-	args := ual.popId(iid, func(a *HelperArgs) {
+	args := ual.peekId(iid, func(a *HelperArgs) {
 		a.Timer.Stop()
+		// dealt with, remove it
+		delete(ual.hmap, iid)
 	})
 	if args == nil {
-		// nothign to do
+		// nothing to do
+		return
+	}
+	defer func() {
+		ual.cleanupTempFiles(args.FileIn, args.FileOut)
+	}()
+	if args.ForcedStop {
+		ual.failOne(args.Input)
 		return
 	}
 	payload, err := ioutil.ReadFile(args.FileOut)
@@ -173,30 +217,18 @@ func (ual *ualHelperLauncher) OneDone(iid string) {
 	if err != nil {
 		ual.failOne(args.Input)
 	}
-	ual.cleanupTempFiles(args.FileIn, args.FileOut)
 }
 
-func (ual *ualHelperLauncher) createTempFiles(input *HelperInput) (f1 string, f2 string, err error) {
-	f1, err = getTempFilename(input.App.Package)
+func (ual *ualHelperLauncher) createInputTempFile(input *HelperInput) (string, error) {
+	f1, err := getTempFilename(input.App.Package)
 	if err != nil {
-		ual.log.Errorf("failed to create input file: %v", err)
-		return
+		return "", err
 	}
-	f2, err = getTempFilename(input.App.Package)
-	if err == nil {
-		err = ioutil.WriteFile(f1, input.Payload, os.ModeTemporary)
-		if err == nil {
-			return
-		}
-		ual.log.Errorf("failed to write to input file: %v", err)
-		os.Remove(f2)
-		f2 = ""
-	} else {
-		ual.log.Errorf("failed to create output file: %v", err)
-	}
-	os.Remove(f1)
-	f1 = ""
-	return
+	return f1, ioutil.WriteFile(f1, input.Payload, os.ModeTemporary)
+}
+
+func (ual *ualHelperLauncher) createOutputTempFile(input *HelperInput) (string, error) {
+	return getTempFilename(input.App.Package)
 }
 
 // helper helpers:
