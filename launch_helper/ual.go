@@ -78,6 +78,7 @@ func (ual *ualHelperLauncher) Start() chan *HelperResult {
 		panic(fmt.Errorf("failed to install helper observer: %v", err))
 	}
 
+	// xxx make sure at most X helpers are running
 	go func() {
 		for i := range ual.chIn {
 			if ual.handleOne(i) != nil {
