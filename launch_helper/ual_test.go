@@ -179,7 +179,15 @@ func (us *ualSuite) TestRunCantLaunch(c *C) {
 
 func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
 	helperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-	defer func() { helperInfo = _helperInfo }()
+	removes := make(chan string)
+	osRemove = func(name string) error {
+		removes <- name
+		return os.Remove(name)
+	}
+	defer func() {
+		osRemove = os.Remove
+		helperInfo = _helperInfo
+	}()
 	ual := NewHelperLauncher(us.log)
 	ual.(*ualHelperLauncher).maxRuntime = 500 * time.Millisecond
 	ch := ual.Start()
@@ -218,7 +226,17 @@ func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
 	}
 	c.Check(res.Message, DeepEquals, input.Payload)
 
-	// files should be gone
+	// files should be removed
+	select {
+	case <-removes:
+	case <-time.After(200 * time.Millisecond):
+		c.Fatal("timeout")
+	}
+	select {
+	case <-removes:
+	case <-time.After(200 * time.Millisecond):
+		c.Fatal("timeout")
+	}
 	_, err := os.Stat(f1)
 	c.Assert(err, NotNil)
 	c.Check(os.IsNotExist(err), Equals, true)

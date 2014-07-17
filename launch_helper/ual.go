@@ -106,12 +106,14 @@ func (ual *ualHelperLauncher) failOne(input *HelperInput) {
 	ual.chOut <- &HelperResult{HelperOutput: HelperOutput{Message: input.Payload, Notification: nil}, Input: input}
 }
 
+var osRemove = os.Remove
+
 func (ual *ualHelperLauncher) cleanupTempFiles(f1, f2 string) {
 	if f1 != "" {
-		os.Remove(f1)
+		osRemove(f1)
 	}
 	if f2 != "" {
-		os.Remove(f2)
+		osRemove(f2)
 	}
 }
 
