@@ -23,17 +23,18 @@ import (
 	"path/filepath"
 	"time"
 
+	"launchpad.net/go-xdg/v0"
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper/cual"
 	"launchpad.net/ubuntu-push/logger"
-	// "launchpad.net/ubuntu-push/click"
-	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 type ualSuite struct {
-	oldNew func(logger.Logger) cual.HelperState
+	oldNew func(logger.Logger, cual.UAL) cual.HelperState
 	log    *helpers.TestLogger
 }
 
@@ -42,7 +43,7 @@ var _ = Suite(&ualSuite{})
 type fakeHelperState struct {
 	obs   int
 	err   error
-	argCh chan *cual.HelperArgs
+	argCh chan [4]string
 }
 
 func (fhs *fakeHelperState) InstallObserver() error {
@@ -55,14 +56,17 @@ func (fhs *fakeHelperState) RemoveObserver() error {
 	return fhs.err
 }
 
-func (fhs *fakeHelperState) Launch(args *cual.HelperArgs) error {
-	fhs.argCh <- args
-	return fhs.err
+func (fhs *fakeHelperState) Launch(appId string, exec string, f1 string, f2 string) string {
+	fhs.argCh <- [4]string{appId, exec, f1, f2}
+	return ""
+}
+
+func (fhs *fakeHelperState) Stop(appId string, iid string) {
 }
 
 var fakeInstance *fakeHelperState
 
-func newFake(log logger.Logger) cual.HelperState {
+func newFake(logger.Logger, cual.UAL) cual.HelperState {
 	return fakeInstance
 }
 
@@ -70,11 +74,13 @@ func (us *ualSuite) SetUpTest(c *C) {
 	us.oldNew = newHelperState
 	us.log = helpers.NewTestLogger(c, "debug")
 	newHelperState = newFake
-	fakeInstance = &fakeHelperState{argCh: make(chan *cual.HelperArgs, 10)}
+	fakeInstance = &fakeHelperState{argCh: make(chan [4]string, 10)}
+	xdgCacheHome = c.MkDir
 }
 
 func (us *ualSuite) TearDownTest(c *C) {
 	newHelperState = us.oldNew
+	xdgCacheHome = xdg.Cache.Home
 }
 
 // check that Stop (tries to) remove the observer
@@ -88,6 +94,8 @@ func (us *ualSuite) TestStartStopWork(c *C) {
 }
 
 func (us *ualSuite) TestRunLaunches(c *C) {
+	helperInfo = func(*click.AppId) (string, string) { return "foo", "bar" }
+	defer func() { helperInfo = _helperInfo }()
 	ual := NewHelperLauncher(us.log)
 	ual.Start()
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
@@ -99,12 +107,7 @@ func (us *ualSuite) TestRunLaunches(c *C) {
 	ual.Run(&input)
 	select {
 	case arg := <-fakeInstance.argCh:
-		c.Check(arg.App, Equals, input.App)
-		c.Check(arg.NotificationId, Equals, input.NotificationId)
-		c.Check(arg.Payload, DeepEquals, input.Payload)
-		c.Check(arg.FileIn, Not(Equals), "")
-		c.Check(arg.FileOut, Not(Equals), "")
-		c.Check(arg.OneDone, NotNil)
+		c.Check(arg[:2], DeepEquals, []string{"foo", "bar"})
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
 	}
@@ -132,18 +135,22 @@ func (us *ualSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 	c.Check(*res.Input, DeepEquals, input)
 }
 
-func (us *ualSuite) TestOneDonwOnValid(c *C) {
-	ual := NewHelperLauncher(us.log)
+func (us *ualSuite) TestOneDoneOnValid(c *C) {
+	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
 	ch := ual.Start()
 
 	d := c.MkDir()
 
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
-	args := cual.HelperArgs{
-		App:            app,
-		NotificationId: "foo",
-		FileOut:        filepath.Join(d, "file_out.json"),
+	input := &HelperInput{
+		App: app,
 	}
+	args := HelperArgs{
+		Input:   input,
+		FileOut: filepath.Join(d, "file_out.json"),
+		Timer:   &time.Timer{},
+	}
+	ual.hmap[""] = &args
 
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
@@ -151,7 +158,7 @@ func (us *ualSuite) TestOneDonwOnValid(c *C) {
 	_, err = f.Write([]byte(`{"notification": {"sound": "hello"}}`))
 	c.Assert(err, IsNil)
 
-	go ual.(*ualHelperLauncher).OneDone(&args)
+	go ual.OneDone("")
 
 	var res *HelperResult
 	select {
@@ -164,19 +171,23 @@ func (us *ualSuite) TestOneDonwOnValid(c *C) {
 	c.Check(res.HelperOutput, DeepEquals, expected)
 }
 
-func (us *ualSuite) TestOneDonwOnBadFileOut(c *C) {
-	ual := NewHelperLauncher(us.log)
+func (us *ualSuite) TestOneDoneOnBadFileOut(c *C) {
+	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
 	ch := ual.Start()
 
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
-	args := cual.HelperArgs{
-		App:            app,
-		NotificationId: "foo",
-		Payload:        []byte(`"hello"`),
-		FileOut:        "/does-not-exist",
+	args := HelperArgs{
+		Input: &HelperInput{
+			App:            app,
+			NotificationId: "foo",
+			Payload:        []byte(`"hello"`),
+		},
+		FileOut: "/does-not-exist",
+		Timer:   &time.Timer{},
 	}
+	ual.hmap[""] = &args
 
-	go ual.(*ualHelperLauncher).OneDone(&args)
+	go ual.OneDone("")
 
 	var res *HelperResult
 	select {
@@ -185,22 +196,27 @@ func (us *ualSuite) TestOneDonwOnBadFileOut(c *C) {
 		c.Fatal("timeout")
 	}
 
-	expected := HelperOutput{Message: args.Payload}
+	expected := HelperOutput{Message: args.Input.Payload}
 	c.Check(res.HelperOutput, DeepEquals, expected)
 }
 
 func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
-	ual := NewHelperLauncher(us.log)
+	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
 	ch := ual.Start()
 
 	d := c.MkDir()
 
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
-	args := cual.HelperArgs{
-		App:            app,
-		NotificationId: "foo",
-		FileOut:        filepath.Join(d, "file_out.json"),
+	args := HelperArgs{
+		FileOut: filepath.Join(d, "file_out.json"),
+		Input: &HelperInput{
+			App:            app,
+			NotificationId: "foo",
+			Payload:        []byte(`"hello"`),
+		},
+		Timer: &time.Timer{},
 	}
+	ual.hmap[""] = &args
 
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
@@ -208,7 +224,7 @@ func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
 	_, err = f.Write([]byte(`potato`))
 	c.Assert(err, IsNil)
 
-	go ual.(*ualHelperLauncher).OneDone(&args)
+	go ual.OneDone("")
 
 	var res *HelperResult
 	select {
@@ -217,7 +233,7 @@ func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
 		c.Fatal("timeout")
 	}
 
-	expected := HelperOutput{Message: args.Payload}
+	expected := HelperOutput{Message: args.Input.Payload}
 	c.Check(res.HelperOutput, DeepEquals, expected)
 }
 

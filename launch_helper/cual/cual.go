@@ -27,13 +27,9 @@ void stop(gchar* app_id, gchar* iid);
 */
 import "C"
 import (
-	"encoding/json"
 	"errors"
-	"sync"
-	"time"
 	"unsafe"
 
-	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -44,49 +40,33 @@ func gstring(s string) *C.gchar {
 type HelperState interface {
 	InstallObserver() error
 	RemoveObserver() error
-	Launch(*HelperArgs) error
+	Launch(appId string, exec string, f1 string, f2 string) string
+	Stop(appId string, instanceId string)
+}
+
+type UAL interface {
+	OneDone(string)
 }
 
 type helperState struct {
-	log  logger.Logger
-	iids map[string]*HelperArgs
-	lock sync.Mutex
-}
-
-type HelperArgs struct {
-	App            *click.AppId
-	NotificationId string
-	Payload        json.RawMessage
-	FileIn         string
-	FileOut        string
-	OneDone        func(*HelperArgs)
-	timer          *time.Timer
+	log logger.Logger
+	ual UAL
 }
 
 //export helperDone
 func helperDone(gp unsafe.Pointer, ciid *C.char) {
 	hs := (*helperState)(gp)
-	hs.lock.Lock()
 	iid := C.GoString(ciid)
-	hs.log.Debugf("helper %s stopped", iid)
-	args, ok := hs.iids[iid]
-	if !ok {
-		return
-	}
-	delete(hs.iids, iid)
-	args.timer.Stop()
-	hs.lock.Unlock()
-	args.OneDone(args)
+	hs.ual.OneDone(iid)
 }
 
 var (
-	ErrCantObserve    = errors.New("can't add observer")
-	ErrCantUnobserve  = errors.New("can't remove observer")
-	ErrCantFindHelper = errors.New("can't find helper")
+	ErrCantObserve   = errors.New("can't add observer")
+	ErrCantUnobserve = errors.New("can't remove observer")
 )
 
-func New(log logger.Logger) HelperState {
-	return &helperState{log: log, iids: make(map[string]*HelperArgs)}
+func New(log logger.Logger, ual UAL) HelperState {
+	return &helperState{log: log, ual: ual}
 }
 
 func (hs *helperState) InstallObserver() error {
@@ -103,29 +83,11 @@ func (hs *helperState) RemoveObserver() error {
 	return nil
 }
 
-func (hs *helperState) Launch(args *HelperArgs) error {
-	hs.lock.Lock()
-	defer hs.lock.Unlock()
-	helperAppId, helperExec := args.App.Helper()
-	if helperAppId == "" || helperExec == "" {
-		hs.log.Errorf("can't locate helper for app")
-		return ErrCantFindHelper
-	}
-	hs.log.Debugf("using helper %s (exec: %s) for app %s", helperAppId, helperExec, args.App)
+func (hs *helperState) Launch(appId, exec, f1, f2 string) string {
 	// launch(...) takes over ownership of things passed in
-	iid := C.GoString(C.launch(gstring(helperAppId), gstring(helperExec), gstring(args.FileIn), gstring(args.FileOut), C.gpointer(hs)))
-	hs.iids[iid] = args
-	args.timer = time.AfterFunc(5*time.Second, func() {
-		hs.log.Debugf("timeout waiting for %s", iid)
-		hs.lock.Lock()
-		defer hs.lock.Unlock()
-		_, ok := hs.iids[iid]
-		if ok {
-			// stop(...) takes over ownership of things passed in
-			C.stop(gstring(helperAppId), gstring(iid))
-			delete(hs.iids, iid)
-		}
-	})
+	return C.GoString(C.launch(gstring(appId), gstring(exec), gstring(f1), gstring(f2), C.gpointer(hs)))
+}
 
-	return nil
+func (hs *helperState) Stop(appId, instanceId string) {
+	C.stop(gstring(appId), gstring(instanceId))
 }
