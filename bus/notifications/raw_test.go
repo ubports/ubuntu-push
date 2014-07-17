@@ -187,7 +187,6 @@ func (s *RawSuite) TestPresentOneAction(c *C) {
 	c.Check(hints["x-canonical-secondary-icon"], NotNil)
 	c.Check(hints["x-canonical-snap-decisions"], IsNil)
 	c.Check(hints["x-canonical-private-button-tint"], IsNil)
-	c.Check(hints["x-canonical-non-shaped-icon"], IsNil)
 }
 
 func (s *RawSuite) TestPresentTwoActions(c *C) {
@@ -214,7 +213,7 @@ func (s *RawSuite) TestPresentTwoActions(c *C) {
 	c.Check(hints["x-canonical-secondary-icon"], NotNil)
 	c.Check(hints["x-canonical-snap-decisions"], NotNil)
 	c.Check(hints["x-canonical-private-button-tint"], NotNil)
-	c.Check(hints["x-canonical-non-shaped-icon"], NotNil)
+	c.Check(hints["x-canonical-non-shaped-icon"], IsNil) // checking just in case
 }
 
 func (s *RawSuite) TestPresentThreeActions(c *C) {
