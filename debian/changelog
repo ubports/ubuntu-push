@@ -34,6 +34,8 @@ ubuntu-push (0.49-0ubuntu1) UNRELEASED; urgency=medium
   * Async invocation of helpers.
   * Give click.Click knowledge of helpers.
   * Write ual-based helper launcher.
+  * Switch to the ual-based helper launcher unless the environment
+    variable UBUNTU_PUSH_USE_TRIVIAL_HELPER is set.
 
   [Roberto Alsina]
   * Wrap the (dbus) WindowStack API and add endpoint to the Postal service
