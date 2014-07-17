@@ -136,9 +136,13 @@ func (svc *PostalService) Start() error {
 
 // handleactions loops on the actions channels waiting for actions and handling them
 func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction, mmuActionsCh <-chan *reply.MMActionReply) {
+Handle:
 	for {
 		select {
-		case action := <-actionsCh:
+		case action, ok := <-actionsCh:
+			if !ok {
+				break Handle
+			}
 			if action == nil {
 				svc.Log.Debugf("handleActions got nil action; ignoring")
 			} else {
@@ -146,7 +150,10 @@ func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawActio
 				// this ignores the error (it's been logged already)
 				svc.urlDispatcher.DispatchURL(url)
 			}
-		case mmuAction := <-mmuActionsCh:
+		case mmuAction, ok := <-mmuActionsCh:
+			if !ok {
+				break Handle
+			}
 			if mmuAction == nil {
 				svc.Log.Debugf("handleActions (MMU) got nil action; ignoring")
 			} else {
