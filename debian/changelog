@@ -13,6 +13,7 @@ ubuntu-push (0.43+14.10.20140707-0ubuntu1) utopic; urgency=medium
 
   [ Roberto Alsina ]
   * Wrap WindowStack API
+  * Inhibit notifications for focused apps
 
  -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 07 Jul 2014 14:26:27 +0000
 

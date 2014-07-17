@@ -155,6 +155,7 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 		{"emblemcounter", svc.EmblemCounterEndp},
 		{"haptic", svc.HapticEndp},
 		{"urldispatcher", svc.URLDispatcherEndp},
+		{"windowstack", svc.WindowStackEndp},
 	}
 	for _, endp := range endps {
 		if endp.endp == nil {
@@ -273,12 +274,17 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 }
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
-	svc.messagingMenu.Present(app, nid, output.Notification)
-	_, err := svc.notifications.Present(app, nid, output.Notification)
-	svc.emblemCounter.Present(app, nid, output.Notification)
-	svc.haptic.Present(app, nid, output.Notification)
-	svc.sound.Present(app, nid, output.Notification)
-	return err
+	if !svc.windowStack.IsAppFocused(app) {
+		svc.messagingMenu.Present(app, nid, output.Notification)
+		_, err := svc.notifications.Present(app, nid, output.Notification)
+		svc.emblemCounter.Present(app, nid, output.Notification)
+		svc.haptic.Present(app, nid, output.Notification)
+		svc.sound.Present(app, nid, output.Notification)
+		return err
+	} else {
+		svc.Log.Debugf("Notification skipped because app is focused.")
+		return nil
+	}
 }
 
 func (svc *PostalService) PostBroadcast() error {

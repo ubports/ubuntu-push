@@ -27,6 +27,7 @@ import (
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/notifications"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	"launchpad.net/ubuntu-push/bus/windowstack"
 	"launchpad.net/ubuntu-push/click"
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
@@ -78,12 +79,13 @@ func installTickMessageHandler(svc *PostalService) chan error {
 }
 
 type postalSuite struct {
-	log        *helpers.TestLogger
-	bus        bus.Endpoint
-	notifBus   bus.Endpoint
-	counterBus bus.Endpoint
-	hapticBus  bus.Endpoint
-	urlDispBus bus.Endpoint
+	log         *helpers.TestLogger
+	bus         bus.Endpoint
+	notifBus    bus.Endpoint
+	counterBus  bus.Endpoint
+	hapticBus   bus.Endpoint
+	urlDispBus  bus.Endpoint
+	winStackBus bus.Endpoint
 }
 
 var _ = Suite(&postalSuite{})
@@ -95,6 +97,7 @@ func (ss *postalSuite) SetUpTest(c *C) {
 	ss.counterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ss.urlDispBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	ss.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
 }
 
 func (ss *postalSuite) replaceBuses(pst *PostalService) *PostalService {
@@ -103,6 +106,7 @@ func (ss *postalSuite) replaceBuses(pst *PostalService) *PostalService {
 	pst.EmblemCounterEndp = ss.counterBus
 	pst.HapticEndp = ss.hapticBus
 	pst.URLDispatcherEndp = ss.urlDispBus
+	pst.WindowStackEndp = ss.winStackBus
 	return pst
 }
 
@@ -377,6 +381,7 @@ func (ss *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc.HapticEndp = endp
 	svc.NotificationsEndp = endp
 	svc.URLDispatcherEndp = ss.urlDispBus
+	svc.WindowStackEndp = ss.winStackBus
 	c.Assert(svc.Start(), IsNil)
 
 	// Persist is false so we just check the log
@@ -414,6 +419,17 @@ func (ss *postalSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 	output := &launch_helper.HelperOutput{Notification: notif}
 	err := svc.messageHandler(&click.AppId{}, "", output)
 	c.Assert(err, NotNil)
+}
+
+func (ss *postalSuite) TestMessageHandlerInhibition(c *C) {
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{{0, "com.example.test_test-app", true, 0}})
+	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
+	svc.WindowStackEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	output := &launch_helper.HelperOutput{} // Doesn't matter
+	err := svc.messageHandler(clickhelp.MustParseAppId("com.example.test_test-app_0"), "", output)
+	c.Check(err, IsNil)
+	c.Check(ss.log.Captured(), Matches, `(?sm).* Notification skipped because app is focused.*`)
 }
 
 func (ss *postalSuite) TestMessageHandlerReportsButIgnoresUnmarshalErrors(c *C) {
