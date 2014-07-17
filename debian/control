@@ -22,6 +22,7 @@ Build-Depends: debhelper (>= 9),
                libnih-dbus-dev,
                libclick-0.4-dev,
                cmake,
+               python3.4,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push
 Vcs-Bzr: lp:ubuntu-push
@@ -49,3 +50,23 @@ Description: Ubuntu Push Notifications client-side daemon development package
  The Ubuntu Push Notifications client-side daemon library.
  .
  This package contains the source.
+
+Package: ubuntu-push-dev-server
+Architecture: any
+Multi-Arch: foreign
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Built-Using: ${misc:Built-Using}
+Description: Ubuntu Push Notifications development & testing server
+ The Ubuntu Push Notifications dev & testing server.
+
+Package: ubuntu-push-autopilot
+Architecture: any
+Multi-Arch: foreign
+Depends: unity8-autopilot,
+         unity-scope-click,
+         ubuntu-push-client,
+Recommends: ubuntu-push-dev-server,
+Built-Using: ${misc:Built-Using}
+Description: Ubuntu Push Notifications autopilot tests
+ The Ubuntu Push Notifications autopilot tests.

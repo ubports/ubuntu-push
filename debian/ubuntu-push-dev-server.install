@@ -1,0 +1,2 @@
+#!/usr/bin/dh-exec
+usr/bin/dev => /usr/bin/ubuntu-push-dev-server
