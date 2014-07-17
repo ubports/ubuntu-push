@@ -23,7 +23,7 @@ import (
 	"launchpad.net/ubuntu-push/click"
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/messaging/reply"
+	"launchpad.net/ubuntu-push/messaging/cmessaging"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -38,8 +38,8 @@ type MessagingSuite struct {
 var _ = Suite(&MessagingSuite{})
 
 func (ms *MessagingSuite) SetUpSuite(c *C) {
-	cAddNotification = func(a string, n string, c *launch_helper.Card, ch chan *reply.MMActionReply) {
-		ms.log.Debugf("ADD: app: %s, not: %s, card: %v, chan: %d", a, n, c, len(ch))
+	cAddNotification = func(a string, n string, c *launch_helper.Card, payload *cmessaging.Payload) {
+		ms.log.Debugf("ADD: app: %s, not: %s, card: %v, chan: %v", a, n, c, payload)
 	}
 }
 
@@ -88,4 +88,39 @@ func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNilCard(c *C) {
 	mmu := New(ms.log)
 	mmu.Present(ms.app, "notif-id", &launch_helper.Notification{})
 	c.Check(ms.log.Captured(), Matches, "(?sm).*no notification.*")
+}
+
+func (ms *MessagingSuite) TestPresentWithActions(c *C) {
+	mmu := New(ms.log)
+	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
+	notif := launch_helper.Notification{Card: &card}
+
+	mmu.Present(ms.app, "notif-id", &notif)
+
+	c.Check(ms.log.Captured(), Matches, `(?s).* ADD:.*notif-id.*`)
+
+	payload, _ := mmu.notifications["notif-id"]
+	c.Check(payload.Ch, Equals, mmu.Ch)
+	c.Check(len(payload.Actions), Equals, 2)
+	rawAction := "{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}"
+	c.Check(payload.Actions[0], Equals, rawAction)
+	c.Check(payload.Actions[1], Equals, "action-1")
+}
+
+func (ms *MessagingSuite) TestRemoveNotification(c *C) {
+	mmu := New(ms.log)
+	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
+	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
+	mmu.addNotification(ms.app.DesktopId(), "notif-id", &card, actions)
+
+	// check it's there
+	payload, ok := mmu.notifications["notif-id"]
+	c.Check(ok, Equals, true)
+	c.Check(payload.Actions, DeepEquals, actions)
+	c.Check(payload.Ch, Equals, mmu.Ch)
+	// remove the notification
+	mmu.RemoveNotification("notif-id")
+	// check it's gone
+	_, ok = mmu.notifications["notif-id"]
+	c.Check(ok, Equals, false)
 }

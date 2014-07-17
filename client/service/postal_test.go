@@ -31,6 +31,7 @@ import (
 	"launchpad.net/ubuntu-push/click"
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
+	"launchpad.net/ubuntu-push/messaging/reply"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 )
@@ -456,6 +457,7 @@ func (ss *postalSuite) TestHandleActionsDispatches(c *C) {
 	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
 	c.Assert(svc.Start(), IsNil)
 	aCh := make(chan *notifications.RawAction)
+	rCh := make(chan *reply.MMActionReply)
 	bCh := make(chan bool)
 	go func() {
 		aCh <- nil // just in case?
@@ -463,7 +465,28 @@ func (ss *postalSuite) TestHandleActionsDispatches(c *C) {
 		close(aCh)
 		bCh <- true
 	}()
-	svc.handleActions(aCh)
+	go svc.handleActions(aCh, rCh)
+	takeNextBool(bCh)
+	args := testibus.GetCallArgs(ss.urlDispBus)
+	c.Assert(args, HasLen, 1)
+	c.Check(args[0].Member, Equals, "DispatchURL")
+	c.Assert(args[0].Args, HasLen, 1)
+	c.Assert(args[0].Args[0], Equals, "potato://")
+}
+
+func (ss *postalSuite) TestHandleMMUActionsDispatches(c *C) {
+	svc := ss.replaceBuses(NewPostalService(nil, ss.log))
+	c.Assert(svc.Start(), IsNil)
+	aCh := make(chan *notifications.RawAction)
+	rCh := make(chan *reply.MMActionReply)
+	bCh := make(chan bool)
+	go func() {
+		rCh <- nil // just in case?
+		rCh <- &reply.MMActionReply{Action: "potato://", Notification: "foo.bar"}
+		close(rCh)
+		bCh <- true
+	}()
+	go svc.handleActions(aCh, rCh)
 	takeNextBool(bCh)
 	args := testibus.GetCallArgs(ss.urlDispBus)
 	c.Assert(args, HasLen, 1)

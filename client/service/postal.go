@@ -32,6 +32,7 @@ import (
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging"
+	"launchpad.net/ubuntu-push/messaging/reply"
 	"launchpad.net/ubuntu-push/nih"
 	"launchpad.net/ubuntu-push/sounds"
 	"launchpad.net/ubuntu-push/util"
@@ -127,22 +128,44 @@ func (svc *PostalService) Start() error {
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
 	go svc.consumeHelperResults(svc.HelperLauncher.Start())
-	go svc.handleActions(actionsCh)
+	go svc.handleActions(actionsCh, svc.messagingMenu.Ch)
 	return nil
 }
 
 // xxx Stop() closing channels and helper launcher
 
-// handleClicks loops on the actions channel waiting for actions and handling them
-func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction) {
-	for action := range actionsCh {
-		if action == nil {
-			svc.Log.Debugf("handleActions got nil action; ignoring")
-			continue
+// handleactions loops on the actions channels waiting for actions and handling them
+func (svc *PostalService) handleActions(actionsCh <-chan *notifications.RawAction, mmuActionsCh <-chan *reply.MMActionReply) {
+Handle:
+	for {
+		select {
+		case action, ok := <-actionsCh:
+			if !ok {
+				break Handle
+			}
+			if action == nil {
+				svc.Log.Debugf("handleActions got nil action; ignoring")
+			} else {
+				url := action.Action
+				// this ignores the error (it's been logged already)
+				svc.urlDispatcher.DispatchURL(url)
+			}
+		case mmuAction, ok := <-mmuActionsCh:
+			if !ok {
+				break Handle
+			}
+			if mmuAction == nil {
+				svc.Log.Debugf("handleActions (MMU) got nil action; ignoring")
+			} else {
+				svc.Log.Debugf("handleActions (MMU) got: %v", mmuAction)
+				url := mmuAction.Action
+				// remove the notification from the messagingmenu map
+				svc.messagingMenu.RemoveNotification(mmuAction.Notification)
+				// this ignores the error (it's been logged already)
+				svc.urlDispatcher.DispatchURL(url)
+			}
+
 		}
-		url := action.Action
-		// this ignores the error (it's been logged already)
-		svc.urlDispatcher.DispatchURL(url)
 	}
 }
 
@@ -300,5 +323,6 @@ func (svc *PostalService) PostBroadcast() error {
 		return err
 	}
 	appId, _ := click.ParseAppId("_ubuntu-push-client")
+	// XXX: Systemupdateurl as the notificationId because it's what's used ATM for the tap action in the bubbles.
 	return svc.Post(appId, SystemUpdateUrl, jsonNotif)
 }
