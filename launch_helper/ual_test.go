@@ -35,7 +35,6 @@ import (
 type ualSuite struct {
 	oldNew func(logger.Logger, cual.UAL) cual.HelperState
 	log    *helpers.TestLogger
-	removes chan string
 }
 
 var _ = Suite(&ualSuite{})
