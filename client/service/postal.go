@@ -302,6 +302,6 @@ func (svc *PostalService) PostBroadcast() error {
 		svc.Log.Errorf("Failed to marshal notification: %v - %v", helperOutput, err)
 		return err
 	}
-	appId, _ := click.ParseAppId("_ubuntu-push-client")
+	appId, _ := click.ParseAppId("_ubuntu-system-settings")
 	return svc.Post(appId, newNid(), jsonNotif)
 }

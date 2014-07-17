@@ -274,7 +274,7 @@ func (ss *postalSuite) TestPostBroadcast(c *C) {
 		c.Fatal("not enough elements in resposne from GetCallArgs")
 	}
 	c.Check(callArgs[l-1].Member, Equals, "::Signal")
-	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", "/_", []interface{}{"_ubuntu-push-client"}})
+	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", "/_", []interface{}{"_ubuntu-system-settings"}})
 }
 
 func (ss *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
