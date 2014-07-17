@@ -303,7 +303,8 @@ func (svc *PostalService) PostBroadcast() error {
 	// action value not visible on the phone, used for the messaging menu default action.
 	actions := []string{SystemUpdateUrl}
 	card := &launch_helper.Card{Icon: icon, Summary: summary, Body: body, Actions: actions, Persist: true}
-	helperOutput := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
+	emblemCounter := &launch_helper.EmblemCounter{Count: 1, Visible: true}
+	helperOutput := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card, EmblemCounter: emblemCounter}}
 	jsonNotif, err := json.Marshal(helperOutput)
 	if err != nil {
 		svc.Log.Errorf("Failed to marshal notification: %v - %v", helperOutput, err)

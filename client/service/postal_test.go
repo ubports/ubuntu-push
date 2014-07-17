@@ -22,6 +22,8 @@ import (
 	"sort"
 	"time"
 
+	"launchpad.net/go-dbus/v1"
+
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -267,7 +269,7 @@ func (ss *postalSuite) TestPostBroadcast(c *C) {
 	// check we don't call Notify
 	callArgs := testibus.GetCallArgs(bus)
 	c.Assert(callArgs, HasLen, 0)
-	// and check it fired the right signal
+	// check it fired the right signal
 	callArgs = testibus.GetCallArgs(ss.bus)
 	l := len(callArgs)
 	if l < 1 {
@@ -275,6 +277,14 @@ func (ss *postalSuite) TestPostBroadcast(c *C) {
 	}
 	c.Check(callArgs[l-1].Member, Equals, "::Signal")
 	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", "/_", []interface{}{"_ubuntu-system-settings"}})
+	// and check we got an emblem
+	callArgs = testibus.GetCallArgs(ss.counterBus)
+	c.Assert(callArgs, HasLen, 2)
+	ss.log.Errorf("callArgs: %v", callArgs[0].Args)
+	c.Check(callArgs[0].Member, Equals, "::SetProperty")
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", "/ubuntu_2dsystem_2dsettings", dbus.Variant{int32(1)}})
+	c.Check(callArgs[1].Member, Equals, "::SetProperty")
+	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", "/ubuntu_2dsystem_2dsettings", dbus.Variant{true}})
 }
 
 func (ss *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
