@@ -28,24 +28,25 @@ import (
 	"launchpad.net/ubuntu-push/click"
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper/cual"
-	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 type poolSuite struct {
-	oldNew func(logger.Logger) cual.HelperState
 	log    *helpers.TestLogger
+	pool   HelperPool
 }
 
 var _ = Suite(&poolSuite{})
 
 type fakeHelperState struct {
+	done  func(string)
 	obs   int
 	err   error
 	argCh chan [5]string
 }
 
-func (fhs *fakeHelperState) InstallObserver(func(string)) error {
+func (fhs *fakeHelperState) InstallObserver(done func(string)) error {
+	fhs.done = done
 	fhs.obs++
 	return nil
 }
@@ -67,39 +68,33 @@ func (fhs *fakeHelperState) Stop(appId string, iid string) error {
 
 var fakeInstance *fakeHelperState
 
-func newFake(logger.Logger) cual.HelperState {
-	return fakeInstance
-}
-
 func (s *poolSuite) SetUpTest(c *C) {
-	s.oldNew = NewHelperState
 	s.log = helpers.NewTestLogger(c, "debug")
-	NewHelperState = newFake
 	fakeInstance = &fakeHelperState{argCh: make(chan [5]string, 10)}
+	s.pool = NewHelperPool(map[string]cual.HelperState{"fake": fakeInstance}, s.log)
 	xdgCacheHome = c.MkDir
 }
 
 func (s *poolSuite) TearDownTest(c *C) {
-	NewHelperState = s.oldNew
+	s.pool = nil
 	xdgCacheHome = xdg.Cache.Home
 }
 
 // check that Stop (tries to) remove the observer
 func (s *poolSuite) TestStartStopWork(c *C) {
-	pool := NewHelperPool(s.log)
 	c.Check(fakeInstance.obs, Equals, 0)
-	pool.Start()
+	s.pool.Start()
+	c.Check(fakeInstance.done, NotNil)
 	c.Check(fakeInstance.obs, Equals, 1)
-	pool.Stop()
+	s.pool.Stop()
 	c.Check(fakeInstance.obs, Equals, 0)
 }
 
 func (s *poolSuite) TestRunLaunches(c *C) {
 	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
 	defer func() { HelperInfo = _helperInfo }()
-	pool := NewHelperPool(s.log)
-	pool.Start()
-	defer pool.Stop()
+	s.pool.Start()
+	defer s.pool.Stop()
 	appId := "com.example.test_test-app"
 	app := clickhelp.MustParseAppId(appId)
 	input := HelperInput{
@@ -107,14 +102,14 @@ func (s *poolSuite) TestRunLaunches(c *C) {
 		NotificationId: "foo",
 		Payload:        []byte(`"hello"`),
 	}
-	pool.Run("fake", &input)
+	s.pool.Run("fake", &input)
 	select {
 	case arg := <-fakeInstance.argCh:
 		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
 	}
-	args := pool.(*kindHelperPool).peekId("0", func(*HelperArgs) {})
+	args := s.pool.(*kindHelperPool).peekId("0", func(*HelperArgs) {})
 	c.Assert(args, NotNil)
 	args.Timer.Stop()
 	c.Check(args.AppId, Equals, "helpId")
@@ -125,16 +120,15 @@ func (s *poolSuite) TestRunLaunches(c *C) {
 
 func (s *poolSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 	// invokes actual _helperInfo which fails with "", ""
-	pool := NewHelperPool(s.log)
-	ch := pool.Start()
-	defer pool.Stop()
+	ch := s.pool.Start()
+	defer s.pool.Stop()
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
 	input := HelperInput{
 		App:            app,
 		NotificationId: "foo",
 		Payload:        []byte(`"hello"`),
 	}
-	pool.Run("fake", &input)
+	s.pool.Run("fake", &input)
 	var res *HelperResult
 	select {
 	case res = <-ch:
@@ -150,9 +144,8 @@ func (s *poolSuite) TestRunCantLaunch(c *C) {
 	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
 	defer func() { HelperInfo = _helperInfo }()
 	fakeInstance.err = cual.ErrCantLaunch
-	pool := NewHelperPool(s.log)
-	ch := pool.Start()
-	defer pool.Stop()
+	ch := s.pool.Start()
+	defer s.pool.Stop()
 	appId := "com.example.test_test-app"
 	app := clickhelp.MustParseAppId(appId)
 	input := HelperInput{
@@ -160,7 +153,7 @@ func (s *poolSuite) TestRunCantLaunch(c *C) {
 		NotificationId: "foo",
 		Payload:        []byte(`"hello"`),
 	}
-	pool.Run("fake", &input)
+	s.pool.Run("fake", &input)
 	select {
 	case arg := <-fakeInstance.argCh:
 		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
@@ -182,10 +175,9 @@ func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
 	defer func() {
 		HelperInfo = _helperInfo
 	}()
-	pool := NewHelperPool(s.log)
-	pool.(*kindHelperPool).maxRuntime = 500 * time.Millisecond
-	ch := pool.Start()
-	defer pool.Stop()
+	s.pool.(*kindHelperPool).maxRuntime = 500 * time.Millisecond
+	ch := s.pool.Start()
+	defer s.pool.Stop()
 	appId := "com.example.test_test-app"
 	app := clickhelp.MustParseAppId(appId)
 	input := HelperInput{
@@ -193,7 +185,7 @@ func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
 		NotificationId: "foo",
 		Payload:        []byte(`"hello"`),
 	}
-	pool.Run("fake", &input)
+	s.pool.Run("fake", &input)
 	select {
 	case arg := <-fakeInstance.argCh:
 		c.Check(arg[0], Equals, "Launch")
@@ -207,7 +199,7 @@ func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
 		c.Fatal("didn't call Stop")
 	}
 	// this will be invoked
-	go pool.(*kindHelperPool).OneDone("0")
+	go fakeInstance.done("0")
 
 	var res *HelperResult
 	select {
@@ -219,12 +211,12 @@ func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
 }
 
 func (s *poolSuite) TestOneDoneNop(c *C) {
-	pool := NewHelperPool(s.log).(*kindHelperPool)
+	pool := s.pool.(*kindHelperPool)
 	pool.OneDone("")
 }
 
 func (s *poolSuite) TestOneDoneOnValid(c *C) {
-	pool := NewHelperPool(s.log).(*kindHelperPool)
+	pool := s.pool.(*kindHelperPool)
 	ch := pool.Start()
 	defer pool.Stop()
 
@@ -262,7 +254,7 @@ func (s *poolSuite) TestOneDoneOnValid(c *C) {
 }
 
 func (s *poolSuite) TestOneDoneOnBadFileOut(c *C) {
-	pool := NewHelperPool(s.log).(*kindHelperPool)
+	pool := s.pool.(*kindHelperPool)
 	ch := pool.Start()
 	defer pool.Stop()
 
@@ -292,7 +284,7 @@ func (s *poolSuite) TestOneDoneOnBadFileOut(c *C) {
 }
 
 func (s *poolSuite) TestOneDonwOnBadJSONOut(c *C) {
-	pool := NewHelperPool(s.log).(*kindHelperPool)
+	pool := s.pool.(*kindHelperPool)
 	ch := pool.Start()
 	defer pool.Stop()
 
@@ -346,11 +338,11 @@ func (s *poolSuite) TestCreateInputTempFile(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 
-	pool := NewHelperPool(s.log)
-	f1, err := pool.(*kindHelperPool).createInputTempFile(input)
+	pool := s.pool.(*kindHelperPool)
+	f1, err := pool.createInputTempFile(input)
 	c.Assert(err, IsNil)
 	c.Check(f1, Not(Equals), "")
-	f2, err := pool.(*kindHelperPool).createOutputTempFile(input)
+	f2, err := pool.createOutputTempFile(input)
 	c.Assert(err, IsNil)
 	c.Check(f2, Not(Equals), "")
 	files, err := ioutil.ReadDir(filepath.Dir(f1))

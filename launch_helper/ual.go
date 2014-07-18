@@ -51,14 +51,11 @@ type kindHelperPool struct {
 	log        logger.Logger
 	chOut      chan *HelperResult
 	chIn       chan *HelperInput
-	mgrs       map[string]cual.HelperState
+	launchers  map[string]cual.HelperState
 	lock       sync.Mutex
 	hmap       map[string]*HelperArgs
 	maxRuntime time.Duration
 }
-
-// NewHelperState is overridable for testing
-var NewHelperState func(logger.Logger) cual.HelperState = cual.New
 
 func _helperInfo(app *click.AppId) (string, string) {
 	return app.Helper()
@@ -68,56 +65,59 @@ func _helperInfo(app *click.AppId) (string, string) {
 var HelperInfo func(*click.AppId) (string, string) = _helperInfo
 
 // a HelperPool that delegates to different per kind HelperLaunchers
-func NewHelperPool(log logger.Logger) HelperPool {
+func NewHelperPool(launchers map[string]cual.HelperState, log logger.Logger) HelperPool {
 	return &kindHelperPool{
 		log:        log,
 		hmap:       make(map[string]*HelperArgs),
-		mgrs:       make(map[string]cual.HelperState),
+		launchers:  launchers,
 		maxRuntime: 5 * time.Second,
 	}
 }
 
-func (ual *kindHelperPool) Start() chan *HelperResult {
-	ual.chOut = make(chan *HelperResult)
-	ual.chIn = make(chan *HelperInput, InputBufferSize)
-	ual.mgrs["click"] = NewHelperState(ual.log)
+func (pool *kindHelperPool) Start() chan *HelperResult {
+	pool.chOut = make(chan *HelperResult)
+	pool.chIn = make(chan *HelperInput, InputBufferSize)
 
-	err := ual.mgrs["click"].InstallObserver(ual.OneDone)
-	if err != nil {
-		panic(fmt.Errorf("failed to install helper observer: %v", err))
+	for kind, launcher := range pool.launchers {
+		err := launcher.InstallObserver(pool.OneDone)
+		if err != nil {
+			panic(fmt.Errorf("failed to install helper observer for %s: %v", kind, err))
+		}
 	}
 
 	// xxx make sure at most X helpers are running
 	go func() {
-		for i := range ual.chIn {
-			if ual.handleOne(i) != nil {
-				ual.failOne(i)
+		for i := range pool.chIn {
+			if pool.handleOne(i) != nil {
+				pool.failOne(i)
 			}
 		}
 	}()
 
-	return ual.chOut
+	return pool.chOut
 }
 
-func (ual *kindHelperPool) Stop() {
-	close(ual.chIn)
-	err := ual.mgrs["click"].RemoveObserver()
-	if err != nil {
-		panic(fmt.Errorf("failed to remove helper observer: %v", err))
+func (pool *kindHelperPool) Stop() {
+	close(pool.chIn)
+	for kind, launcher := range pool.launchers {
+		err := launcher.RemoveObserver()
+		if err != nil {
+			panic(fmt.Errorf("failed to remove helper observer for &s: %v", kind, err))
+		}
 	}
 }
 
-func (ual *kindHelperPool) Run(kind string, input *HelperInput) {
-	input.kind = "click"
-	ual.chIn <- input
+func (pool *kindHelperPool) Run(kind string, input *HelperInput) {
+	input.kind = kind
+	pool.chIn <- input
 }
 
-func (ual *kindHelperPool) failOne(input *HelperInput) {
-	ual.log.Errorf("unable to get helper output; putting payload into message")
-	ual.chOut <- &HelperResult{HelperOutput: HelperOutput{Message: input.Payload, Notification: nil}, Input: input}
+func (pool *kindHelperPool) failOne(input *HelperInput) {
+	pool.log.Errorf("unable to get helper output; putting payload into message")
+	pool.chOut <- &HelperResult{HelperOutput: HelperOutput{Message: input.Payload, Notification: nil}, Input: input}
 }
 
-func (ual *kindHelperPool) cleanupTempFiles(f1, f2 string) {
+func (pool *kindHelperPool) cleanupTempFiles(f1, f2 string) {
 	if f1 != "" {
 		os.Remove(f1)
 	}
@@ -126,27 +126,27 @@ func (ual *kindHelperPool) cleanupTempFiles(f1, f2 string) {
 	}
 }
 
-func (ual *kindHelperPool) handleOne(input *HelperInput) error {
+func (pool *kindHelperPool) handleOne(input *HelperInput) error {
 	helperAppId, helperExec := HelperInfo(input.App)
 	if helperAppId == "" || helperExec == "" {
-		ual.log.Errorf("can't locate helper for app")
+		pool.log.Errorf("can't locate helper for app")
 		return ErrCantFindHelper
 	}
-	ual.log.Debugf("using helper %s (exec: %s) for app %s", helperAppId, helperExec, input.App)
+	pool.log.Debugf("using helper %s (exec: %s) for app %s", helperAppId, helperExec, input.App)
 	var f1, f2 string
-	f1, err := ual.createInputTempFile(input)
+	f1, err := pool.createInputTempFile(input)
 	defer func() {
 		if err != nil {
-			ual.cleanupTempFiles(f1, f2)
+			pool.cleanupTempFiles(f1, f2)
 		}
 	}()
 	if err != nil {
-		ual.log.Errorf("unable to create input tempfile: %v", err)
+		pool.log.Errorf("unable to create input tempfile: %v", err)
 		return err
 	}
-	f2, err = ual.createOutputTempFile(input)
+	f2, err = pool.createOutputTempFile(input)
 	if err != nil {
-		ual.log.Errorf("unable to create output tempfile: %v", err)
+		pool.log.Errorf("unable to create output tempfile: %v", err)
 		return err
 	}
 
@@ -157,33 +157,33 @@ func (ual *kindHelperPool) handleOne(input *HelperInput) error {
 		FileOut: f2,
 	}
 
-	ual.lock.Lock()
-	defer ual.lock.Unlock()
-	mgr := ual.mgrs[input.kind]
+	pool.lock.Lock()
+	defer pool.lock.Unlock()
+	mgr := pool.launchers[input.kind]
 	iid, err := mgr.Launch(helperAppId, helperExec, f1, f2)
 	if err != nil {
-		ual.log.Errorf("unable to launch helper %s: %v", helperAppId, err)
+		pool.log.Errorf("unable to launch helper %s: %v", helperAppId, err)
 		return err
 	}
 	args.Id = iid
-	args.Timer = time.AfterFunc(ual.maxRuntime, func() {
-		ual.peekId(iid, func(a *HelperArgs) {
+	args.Timer = time.AfterFunc(pool.maxRuntime, func() {
+		pool.peekId(iid, func(a *HelperArgs) {
 			a.ForcedStop = true
 			err := mgr.Stop(helperAppId, iid)
 			if err != nil {
-				ual.log.Errorf("unable to forcefully stop helper %s: %v", helperAppId, err)
+				pool.log.Errorf("unable to forcefully stop helper %s: %v", helperAppId, err)
 			}
 		})
 	})
-	ual.hmap[iid] = &args
+	pool.hmap[iid] = &args
 
 	return nil
 }
 
-func (ual *kindHelperPool) peekId(iid string, cb func(*HelperArgs)) *HelperArgs {
-	ual.lock.Lock()
-	defer ual.lock.Unlock()
-	args, ok := ual.hmap[iid]
+func (pool *kindHelperPool) peekId(iid string, cb func(*HelperArgs)) *HelperArgs {
+	pool.lock.Lock()
+	defer pool.lock.Unlock()
+	args, ok := pool.hmap[iid]
 	if ok {
 		cb(args)
 		return args
@@ -191,41 +191,41 @@ func (ual *kindHelperPool) peekId(iid string, cb func(*HelperArgs)) *HelperArgs 
 	return nil
 }
 
-func (ual *kindHelperPool) OneDone(iid string) {
-	args := ual.peekId(iid, func(a *HelperArgs) {
+func (pool *kindHelperPool) OneDone(iid string) {
+	args := pool.peekId(iid, func(a *HelperArgs) {
 		a.Timer.Stop()
 		// dealt with, remove it
-		delete(ual.hmap, iid)
+		delete(pool.hmap, iid)
 	})
 	if args == nil {
 		// nothing to do
 		return
 	}
 	defer func() {
-		ual.cleanupTempFiles(args.FileIn, args.FileOut)
+		pool.cleanupTempFiles(args.FileIn, args.FileOut)
 	}()
 	if args.ForcedStop {
-		ual.failOne(args.Input)
+		pool.failOne(args.Input)
 		return
 	}
 	payload, err := ioutil.ReadFile(args.FileOut)
 	if err != nil {
-		ual.log.Errorf("unable to read output from helper: %v", err)
+		pool.log.Errorf("unable to read output from helper: %v", err)
 	} else {
 		res := &HelperResult{Input: args.Input}
 		err = json.Unmarshal(payload, &res.HelperOutput)
 		if err != nil {
-			ual.log.Debugf("failed to parse HelperOutput from helper output: %v", err)
+			pool.log.Debugf("failed to parse HelperOutput from helper output: %v", err)
 		} else {
-			ual.chOut <- res
+			pool.chOut <- res
 		}
 	}
 	if err != nil {
-		ual.failOne(args.Input)
+		pool.failOne(args.Input)
 	}
 }
 
-func (ual *kindHelperPool) createInputTempFile(input *HelperInput) (string, error) {
+func (pool *kindHelperPool) createInputTempFile(input *HelperInput) (string, error) {
 	f1, err := getTempFilename(input.App.Package)
 	if err != nil {
 		return "", err
@@ -233,7 +233,7 @@ func (ual *kindHelperPool) createInputTempFile(input *HelperInput) (string, erro
 	return f1, ioutil.WriteFile(f1, input.Payload, os.ModeTemporary)
 }
 
-func (ual *kindHelperPool) createOutputTempFile(input *HelperInput) (string, error) {
+func (pool *kindHelperPool) createOutputTempFile(input *HelperInput) (string, error) {
 	return getTempFilename(input.App.Package)
 }
 
