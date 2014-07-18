@@ -210,6 +210,10 @@ func (is *integrationPostalSuite) TestPostWorks(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
 
+	// wait for the two posts to "launch"
+	takeNextBool(is.fakeInstance.ch)
+	takeNextBool(is.fakeInstance.ch)
+
 	x, ok := svc.HelperLauncher.(cual.UAL)
 	c.Assert(ok, Equals, true)
 	go x.OneDone("0")
@@ -280,7 +284,10 @@ func (ss *postalSuite) TestPostFailsIfBadArgs(c *C) {
 //
 // Post (Broadcast) tests
 
-type fakeHelperState struct{ i int }
+type fakeHelperState struct {
+	i  int
+	ch chan bool
+}
 
 func (fhs *fakeHelperState) InstallObserver() error { return nil }
 func (fhs *fakeHelperState) RemoveObserver() error  { return nil }
@@ -297,6 +304,8 @@ func (fhs *fakeHelperState) Launch(_, _, f1, f2 string) (string, error) {
 
 	id := []string{"0", "1", "2"}[fhs.i]
 	fhs.i++
+
+	fhs.ch <- true
 
 	return id, nil
 }
@@ -324,7 +333,7 @@ func (is *integrationPostalSuite) SetUpSuite(c *C) {
 
 func (is *integrationPostalSuite) SetUpTest(c *C) {
 	is.basePostalSuite.SetUpTest(c)
-	is.fakeInstance = &fakeHelperState{}
+	is.fakeInstance = &fakeHelperState{ch: make(chan bool)}
 }
 
 func (is *integrationPostalSuite) TearDownSuite(c *C) {
@@ -343,9 +352,10 @@ func (is *integrationPostalSuite) TestPostBroadcast(c *C) {
 
 	x, ok := svc.HelperLauncher.(cual.UAL)
 	c.Assert(ok, Equals, true)
+	err := svc.PostBroadcast()
+	takeNextBool(is.fakeInstance.ch)
 	go x.OneDone("0")
 
-	err := svc.PostBroadcast()
 	c.Assert(err, IsNil)
 	c.Check(takeNextError(ch), IsNil)
 	// and check it fired the right signal (twice)
