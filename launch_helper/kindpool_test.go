@@ -45,24 +45,24 @@ type fakeHelperLauncher struct {
 	argCh chan [5]string
 }
 
-func (fhs *fakeHelperLauncher) InstallObserver(done func(string)) error {
-	fhs.done = done
-	fhs.obs++
+func (fhl *fakeHelperLauncher) InstallObserver(done func(string)) error {
+	fhl.done = done
+	fhl.obs++
 	return nil
 }
 
-func (fhs *fakeHelperLauncher) RemoveObserver() error {
-	fhs.obs--
+func (fhl *fakeHelperLauncher) RemoveObserver() error {
+	fhl.obs--
 	return nil
 }
 
-func (fhs *fakeHelperLauncher) Launch(appId string, exec string, f1 string, f2 string) (string, error) {
-	fhs.argCh <- [5]string{"Launch", appId, exec, f1, f2}
-	return "0", fhs.err
+func (fhl *fakeHelperLauncher) Launch(appId string, exec string, f1 string, f2 string) (string, error) {
+	fhl.argCh <- [5]string{"Launch", appId, exec, f1, f2}
+	return "0", fhl.err
 }
 
-func (fhs *fakeHelperLauncher) Stop(appId string, iid string) error {
-	fhs.argCh <- [5]string{"Stop", appId, iid, "", ""}
+func (fhl *fakeHelperLauncher) Stop(appId string, iid string) error {
+	fhl.argCh <- [5]string{"Stop", appId, iid, "", ""}
 	return nil
 }
 
