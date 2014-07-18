@@ -33,7 +33,6 @@ import (
 	"launchpad.net/ubuntu-push/click"
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
-	//"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging/reply"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
