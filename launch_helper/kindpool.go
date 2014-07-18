@@ -36,6 +36,7 @@ import (
 
 var (
 	ErrCantFindHelper = errors.New("can't find helper")
+	ErrCantFindLauncher = errors.New("can't find launcher for helper")
 )
 
 type HelperArgs struct {
@@ -145,6 +146,11 @@ func (pool *kindHelperPool) cleanupTempFiles(f1, f2 string) {
 }
 
 func (pool *kindHelperPool) handleOne(input *HelperInput) error {
+	launcher, ok := pool.launchers[input.kind]
+	if !ok {
+		pool.log.Errorf("unable to find launcher for kind: %v", input.kind)
+		return ErrCantFindLauncher
+	}
 	helperAppId, helperExec := HelperInfo(input.App)
 	if helperAppId == "" || helperExec == "" {
 		pool.log.Errorf("can't locate helper for app")
@@ -177,10 +183,6 @@ func (pool *kindHelperPool) handleOne(input *HelperInput) error {
 
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
-	launcher, ok := pool.launchers[input.kind]
-	if !ok {
-		return fmt.Errorf("unable to find launcher for kind %v", input.kind)
-	}
 	iid, err := launcher.Launch(helperAppId, helperExec, f1, f2)
 	if err != nil {
 		pool.log.Errorf("unable to launch helper %s: %v", helperAppId, err)
