@@ -18,6 +18,7 @@ package service
 
 import (
 	"encoding/json"
+	"os"
 	"sync"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -43,10 +44,11 @@ type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) erro
 // PostalService is the dbus api
 type PostalService struct {
 	DBusService
-	mbox           map[string][]string
-	msgHandler     messageHandler
-	HelperLauncher launch_helper.HelperLauncher
-	messagingMenu  *messaging.MessagingMenu
+	mbox          map[string]*mBox
+	msgHandler    messageHandler
+	launchers     map[string]launch_helper.HelperLauncher
+	HelperPool    launch_helper.HelperPool
+	messagingMenu *messaging.MessagingMenu
 	// the endpoints are only exposed for testing from client
 	// XXX: uncouple some more so this isn't necessary
 	EmblemCounterEndp bus.Endpoint
@@ -73,7 +75,8 @@ var (
 )
 
 var (
-	SystemUpdateUrl = "settings:///system/system-update"
+	SystemUpdateUrl  = "settings:///system/system-update"
+	useTrivialHelper = os.Getenv("UBUNTU_PUSH_USE_TRIVIAL_HELPER") != ""
 )
 
 // NewPostalService() builds a new service and returns it.
@@ -88,6 +91,7 @@ func NewPostalService(installedChecker click.InstalledChecker, log logger.Logger
 	svc.URLDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, log)
 	svc.WindowStackEndp = bus.SessionBus.Endpoint(windowstack.BusAddress, log)
 	svc.msgHandler = svc.messageHandler
+	svc.launchers = launch_helper.DefaultLaunchers(log)
 	return svc
 }
 
@@ -124,10 +128,14 @@ func (svc *PostalService) Start() error {
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log)
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
-	svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(svc.Log)
+	if useTrivialHelper {
+		svc.HelperPool = launch_helper.NewTrivialHelperPool(svc.Log)
+	} else {
+		svc.HelperPool = launch_helper.NewHelperPool(svc.launchers, svc.Log)
+	}
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
-	go svc.consumeHelperResults(svc.HelperLauncher.Start())
+	go svc.consumeHelperResults(svc.HelperPool.Start())
 	go svc.handleActions(actionsCh, svc.messagingMenu.Ch)
 	return nil
 }
@@ -178,6 +186,7 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 		{"emblemcounter", svc.EmblemCounterEndp},
 		{"haptic", svc.HapticEndp},
 		{"urldispatcher", svc.URLDispatcherEndp},
+		{"windowstack", svc.WindowStackEndp},
 	}
 	for _, endp := range endps {
 		if endp.endp == nil {
@@ -212,8 +221,13 @@ func (svc *PostalService) popAll(path string, args, _ []interface{}) ([]interfac
 	if svc.mbox == nil {
 		return []interface{}{[]string(nil)}, nil
 	}
-	msgs := svc.mbox[app.Original()]
-	delete(svc.mbox, app.Original())
+	appId := app.Original()
+	box, ok := svc.mbox[appId]
+	if !ok {
+		return []interface{}{[]string(nil)}, nil
+	}
+	msgs := box.AllMessages()
+	delete(svc.mbox, appId)
 
 	return []interface{}{msgs}, nil
 }
@@ -249,7 +263,7 @@ func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMes
 		NotificationId: nid,
 		Payload:        payload,
 	}
-	svc.HelperLauncher.Run(&arg)
+	svc.HelperPool.Run("click", &arg)
 	return nil
 }
 
@@ -263,7 +277,7 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.mbox == nil {
-		svc.mbox = make(map[string][]string)
+		svc.mbox = make(map[string]*mBox)
 	}
 
 	app := res.Input.App
@@ -271,8 +285,12 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	output := res.HelperOutput
 
 	appId := app.Original()
-	// XXX also track the nid in the mbox
-	svc.mbox[appId] = append(svc.mbox[appId], string(output.Message))
+	box, ok := svc.mbox[appId]
+	if !ok {
+		box = new(mBox)
+		svc.mbox[appId] = box
+	}
+	box.Append(output.Message, nid)
 
 	if svc.msgHandler != nil {
 		err := svc.msgHandler(app, nid, &output)
@@ -287,12 +305,17 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 }
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
-	svc.messagingMenu.Present(app, nid, output.Notification)
-	_, err := svc.notifications.Present(app, nid, output.Notification)
-	svc.emblemCounter.Present(app, nid, output.Notification)
-	svc.haptic.Present(app, nid, output.Notification)
-	svc.sound.Present(app, nid, output.Notification)
-	return err
+	if !svc.windowStack.IsAppFocused(app) {
+		svc.messagingMenu.Present(app, nid, output.Notification)
+		_, err := svc.notifications.Present(app, nid, output.Notification)
+		svc.emblemCounter.Present(app, nid, output.Notification)
+		svc.haptic.Present(app, nid, output.Notification)
+		svc.sound.Present(app, nid, output.Notification)
+		return err
+	} else {
+		svc.Log.Debugf("Notification skipped because app is focused.")
+		return nil
+	}
 }
 
 func (svc *PostalService) PostBroadcast() error {

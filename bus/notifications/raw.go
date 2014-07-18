@@ -165,7 +165,6 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 	case 2:
 		hints["x-canonical-snap-decisions"] = &dbus.Variant{"true"}
 		hints["x-canonical-private-button-tint"] = &dbus.Variant{"true"}
-		hints["x-canonical-non-shaped-icon"] = &dbus.Variant{"true"} // XXX: what does this one do, exactly?
 	default:
 		raw.log.Debugf("[%s] don't know what to do with %d actions; no hints set", nid, len(card.Actions))
 	}

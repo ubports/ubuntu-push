@@ -19,6 +19,8 @@ package click
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -179,4 +181,68 @@ func (s *clickSuite) TestParseAndVerifyAppId(c *C) {
 	c.Check(app, NotNil)
 	c.Check(app.Original(), Equals, "_non-existent-app")
 
+}
+
+type helperSuite struct {
+	oldHookPath string
+	symlinkPath string
+}
+
+var _ = Suite(&helperSuite{})
+
+func (s *helperSuite) SetUpTest(c *C) {
+	s.oldHookPath = hookPath
+	hookPath = c.MkDir()
+	s.symlinkPath = c.MkDir()
+}
+
+func (s *helperSuite) createHookfile(name string, content string) error {
+	symlink := filepath.Join(hookPath, name) + ".json"
+	filename := filepath.Join(s.symlinkPath, name)
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString(content)
+	if err != nil {
+		return err
+	}
+	err = os.Symlink(filename, symlink)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *helperSuite) TearDownTest(c *C) {
+	hookPath = s.oldHookPath
+}
+
+func (s *helperSuite) TestHelperBasic(c *C) {
+	c.Assert(s.createHookfile("com.example.test_test-helper_1", `{"exec": "tsthlpr"}`), IsNil)
+	app, err := ParseAppId("com.example.test_test-app_1")
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "com.example.test_test-helper_1")
+	c.Check(hex, Equals, filepath.Join(s.symlinkPath, "tsthlpr"))
+}
+
+func (s *helperSuite) TestHelperFindsSpecific(c *C) {
+	// Glob() sorts, so the first one will come first
+	c.Assert(s.createHookfile("com.example.test_aaaa-helper_1", `{"exec": "aaaaaaa", "app_id": "com.example.test_test-other-app"}`), IsNil)
+	c.Assert(s.createHookfile("com.example.test_test-helper_1", `{"exec": "tsthlpr", "app_id": "com.example.test_test-app"}`), IsNil)
+	app, err := ParseAppId("com.example.test_test-app_1")
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "com.example.test_test-helper_1")
+	c.Check(hex, Equals, filepath.Join(s.symlinkPath, "tsthlpr"))
+}
+
+func (s *helperSuite) TestHelperCanFail(c *C) {
+	c.Assert(s.createHookfile("com.example.test_aaaa-helper_1", `{"exec": "aaaaaaa", "app_id": "com.example.test_test-other-app"}`), IsNil)
+	app, err := ParseAppId("com.example.test_test-app_1")
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "")
+	c.Check(hex, Equals, "")
 }

@@ -14,12 +14,12 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// iface holds the generic HelperLauncher interface, for use by
-// concrete implementations and avoiding cycles.
 package launch_helper
 
-type HelperLauncher interface {
-	Run(*HelperInput)
+type HelperPool interface {
+	Run(kind string, input *HelperInput)
 	Start() chan *HelperResult
 	Stop()
 }
+
+var InputBufferSize = 10
