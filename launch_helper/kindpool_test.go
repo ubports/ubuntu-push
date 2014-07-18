@@ -84,6 +84,8 @@ func (s *poolSuite) TestDefaultLaunchers(c *C) {
 	launchers := DefaultLaunchers(s.log)
 	_, ok := launchers["click"]
 	c.Check(ok, Equals, true)
+	_, ok = launchers["legacy"]
+	c.Check(ok, Equals, true)
 }
 
 // check that Stop (tries to) remove the observer
