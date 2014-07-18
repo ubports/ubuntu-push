@@ -20,11 +20,22 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "launchpad.net/gocheck"
 
 	helpers "launchpad.net/ubuntu-push/testing"
 )
+
+func takeNext(ch chan string, c *C) string {
+	select {
+	case s := <-ch:
+		return s
+	case <-time.After(time.Second):
+		c.Fatal("timed out waiting for value")
+		return ""
+	}
+}
 
 func Test(t *testing.T) { TestingT(t) }
 
@@ -60,11 +71,33 @@ func (ls *legacySuite) TestLaunch(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(id, Not(Equals), "")
 
-	id2 := <-ch
+	id2 := takeNext(ch, c)
 	c.Check(id, Equals, id2)
 
 	d2, err := ioutil.ReadFile(f2)
 	c.Assert(err, IsNil)
 	c.Check(string(d2), Equals, string(d1))
 
+}
+
+func (ls *legacySuite) TestLaunchFails(c *C) {
+	_, err := ls.lhl.Launch("", "/does/not/exist", "", "")
+	c.Assert(err, NotNil)
+}
+
+func (ls *legacySuite) TestStop(c *C) {
+	ch := make(chan string, 1)
+	c.Assert(ls.lhl.InstallObserver(func(id string) { ch <- id }), IsNil)
+
+	exe := helpers.ScriptAbsPath("slow-helper.sh")
+	id, err := ls.lhl.Launch("", exe, "", "")
+
+	err = ls.lhl.Stop("", "===")
+	c.Check(err, NotNil) // not a valid id
+
+	err = ls.lhl.Stop("", id)
+	c.Check(err, IsNil)
+	takeNext(ch, c)
+	err = ls.lhl.Stop("", id)
+	c.Check(err, NotNil) // no such processs
 }

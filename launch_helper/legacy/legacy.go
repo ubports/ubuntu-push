@@ -40,9 +40,9 @@ func (*legacyHelperLauncher) RemoveObserver() error { return nil }
 
 func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, error) {
 	cmd := exec.Command(progname, f1, f2)
-	// cmd.Stdin = nil
-	// cmd.Stdout = nil
-	// cmd.Stderr = nil
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
 
 	err := cmd.Start()
 	if err != nil {
