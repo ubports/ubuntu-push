@@ -33,7 +33,7 @@ import (
 )
 
 type ualSuite struct {
-	oldNew func(logger.Logger, cual.UAL) cual.HelperState
+	oldNew func(logger.Logger) cual.HelperState
 	log    *helpers.TestLogger
 }
 
@@ -45,7 +45,7 @@ type fakeHelperState struct {
 	argCh chan [5]string
 }
 
-func (fhs *fakeHelperState) InstallObserver() error {
+func (fhs *fakeHelperState) InstallObserver(func(string)) error {
 	fhs.obs++
 	return nil
 }
@@ -67,7 +67,7 @@ func (fhs *fakeHelperState) Stop(appId string, iid string) error {
 
 var fakeInstance *fakeHelperState
 
-func newFake(logger.Logger, cual.UAL) cual.HelperState {
+func newFake(logger.Logger) cual.HelperState {
 	return fakeInstance
 }
 

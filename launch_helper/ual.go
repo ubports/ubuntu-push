@@ -58,7 +58,7 @@ type ualHelperLauncher struct {
 }
 
 // NewHelperState is overridable for testing
-var NewHelperState func(logger.Logger, cual.UAL) cual.HelperState = cual.New
+var NewHelperState func(logger.Logger) cual.HelperState = cual.New
 
 func _helperInfo(app *click.AppId) (string, string) {
 	return app.Helper()
@@ -80,9 +80,9 @@ func NewHelperLauncher(log logger.Logger) HelperLauncher {
 func (ual *ualHelperLauncher) Start() chan *HelperResult {
 	ual.chOut = make(chan *HelperResult)
 	ual.chIn = make(chan *HelperInput, InputBufferSize)
-	ual.mgrs["click"] = NewHelperState(ual.log, ual)
+	ual.mgrs["click"] = NewHelperState(ual.log)
 
-	err := ual.mgrs["click"].InstallObserver()
+	err := ual.mgrs["click"].InstallObserver(ual.OneDone)
 	if err != nil {
 		panic(fmt.Errorf("failed to install helper observer: %v", err))
 	}

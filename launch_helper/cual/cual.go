@@ -38,26 +38,22 @@ func gstring(s string) *C.gchar {
 }
 
 type HelperState interface {
-	InstallObserver() error
+	InstallObserver(func(string)) error
 	RemoveObserver() error
 	Launch(appId string, exec string, f1 string, f2 string) (string, error)
 	Stop(appId string, instanceId string) error
 }
 
-type UAL interface {
-	OneDone(string)
-}
-
 type helperState struct {
 	log logger.Logger
-	ual UAL
+	done func(string)
 }
 
 //export helperDone
 func helperDone(gp unsafe.Pointer, ciid *C.char) {
 	hs := (*helperState)(gp)
 	iid := C.GoString(ciid)
-	hs.ual.OneDone(iid)
+	hs.done(iid)
 }
 
 var (
@@ -67,11 +63,12 @@ var (
 	ErrCantStop      = errors.New("can't stop helper")
 )
 
-func New(log logger.Logger, ual UAL) HelperState {
-	return &helperState{log: log, ual: ual}
+func New(log logger.Logger) HelperState {
+	return &helperState{log: log}
 }
 
-func (hs *helperState) InstallObserver() error {
+func (hs *helperState) InstallObserver(done func(string)) error {
+	hs.done = done
 	if C.add_observer(C.gpointer(hs)) != C.TRUE {
 		return ErrCantObserve
 	}
@@ -79,6 +76,7 @@ func (hs *helperState) InstallObserver() error {
 }
 
 func (hs *helperState) RemoveObserver() error {
+	hs.done = nil
 	if C.remove_observer(C.gpointer(hs)) != C.TRUE {
 		return ErrCantUnobserve
 	}
