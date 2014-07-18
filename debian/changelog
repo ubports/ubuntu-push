@@ -1,3 +1,49 @@
+ubuntu-push (0.49-0ubuntu1) UNRELEASED; urgency=medium
+
+  [Samuele Pedroni]
+  * Check in the api whether an app has pushed too many notifications.
+  * Return payload of most recent notification in too many pending
+    notifications API error.
+  * Introduce clear_pending flag to clean everything pending for an app.
+  * Refactor and cleanup.
+  * Introduce replace_tag support in store and api, with acceptance test.
+  * Teach a couple of trick to cmd/acceptanceclient: exit on run timeout,
+    wait for event matching given regexp pattern.
+  * Limit unicast data payload to 2K.
+  * Payload should be json (fixes message needing to be base64-encoded in
+    helper reply)
+  * Implement limited mboxes
+
+  [Richard Huddie]
+  * autopilot test framework and basic coverage of broadcast notifications.
+
+  [Guillermo Gonzalez]
+  * Add scripts to simplify setup/run of the autopilot tests in the
+    device/emulator and include basic unicast tests.
+  * Add autopilot test for notification using the emblem counter.
+  * Adds scenarios to the autopilot tests for legacy and click (without
+    version) applications.
+  * Broadcast via the helpers route.
+  * Basic support for actions (only default action) in the persistent
+    notifications.
+
+  [John R. Lenton]
+  * Detangle client and postal.
+  * Introduce PostalService interface, and change the client tests to use
+    that as much as reasonable.
+  * Async invocation of helpers.
+  * Give click.Click knowledge of helpers.
+  * Write ual-based helper launcher.
+  * Switch to the ual-based helper launcher unless the environment
+    variable UBUNTU_PUSH_USE_TRIVIAL_HELPER is set.
+
+  [Roberto Alsina]
+  * Wrap the (dbus) WindowStack API and add endpoint to the Postal service
+    to support inhibition of notifications for focused apps.
+  * Inhibit notifications for focused apps
+
+ -- John R. Lenton <john.lenton@canonical.com>  Thu, 17 Jul 2014 13:26:48 +0100
+
 ubuntu-push (0.43+14.10.20140707-0ubuntu1) utopic; urgency=medium
 
   [ Samuele Pedroni ]
