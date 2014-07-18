@@ -42,7 +42,6 @@ type HelperArgs struct {
 	AppId      string
 	FileIn     string
 	FileOut    string
-	Id         string
 	Timer      *time.Timer
 	ForcedStop bool
 }
@@ -93,7 +92,10 @@ func (pool *kindHelperPool) Start() chan *HelperResult {
 	pool.chIn = make(chan *HelperInput, InputBufferSize)
 
 	for kind, launcher := range pool.launchers {
-		err := launcher.InstallObserver(pool.OneDone)
+		kind1 := kind
+		err := launcher.InstallObserver(func(iid string) {
+			pool.OneDone(kind1 + ":" + iid)
+		})
 		if err != nil {
 			panic(fmt.Errorf("failed to install helper observer for %s: %v", kind, err))
 		}
@@ -173,31 +175,31 @@ func (pool *kindHelperPool) handleOne(input *HelperInput) error {
 
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
-	mgr := pool.launchers[input.kind]
-	iid, err := mgr.Launch(helperAppId, helperExec, f1, f2)
+	launcher := pool.launchers[input.kind]
+	iid, err := launcher.Launch(helperAppId, helperExec, f1, f2)
 	if err != nil {
 		pool.log.Errorf("unable to launch helper %s: %v", helperAppId, err)
 		return err
 	}
-	args.Id = iid
+	uid := input.kind + ":" + iid // unique across launchers
 	args.Timer = time.AfterFunc(pool.maxRuntime, func() {
-		pool.peekId(iid, func(a *HelperArgs) {
+		pool.peekId(uid, func(a *HelperArgs) {
 			a.ForcedStop = true
-			err := mgr.Stop(helperAppId, iid)
+			err := launcher.Stop(helperAppId, iid)
 			if err != nil {
 				pool.log.Errorf("unable to forcefully stop helper %s: %v", helperAppId, err)
 			}
 		})
 	})
-	pool.hmap[iid] = &args
+	pool.hmap[uid] = &args
 
 	return nil
 }
 
-func (pool *kindHelperPool) peekId(iid string, cb func(*HelperArgs)) *HelperArgs {
+func (pool *kindHelperPool) peekId(uid string, cb func(*HelperArgs)) *HelperArgs {
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
-	args, ok := pool.hmap[iid]
+	args, ok := pool.hmap[uid]
 	if ok {
 		cb(args)
 		return args
@@ -205,11 +207,11 @@ func (pool *kindHelperPool) peekId(iid string, cb func(*HelperArgs)) *HelperArgs
 	return nil
 }
 
-func (pool *kindHelperPool) OneDone(iid string) {
-	args := pool.peekId(iid, func(a *HelperArgs) {
+func (pool *kindHelperPool) OneDone(uid string) {
+	args := pool.peekId(uid, func(a *HelperArgs) {
 		a.Timer.Stop()
 		// dealt with, remove it
-		delete(pool.hmap, iid)
+		delete(pool.hmap, uid)
 	})
 	if args == nil {
 		// nothing to do

@@ -115,7 +115,7 @@ func (s *poolSuite) TestRunLaunches(c *C) {
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
 	}
-	args := s.pool.(*kindHelperPool).peekId("0", func(*HelperArgs) {})
+	args := s.pool.(*kindHelperPool).peekId("fake:0", func(*HelperArgs) {})
 	c.Assert(args, NotNil)
 	args.Timer.Stop()
 	c.Check(args.AppId, Equals, "helpId")
@@ -237,7 +237,7 @@ func (s *poolSuite) TestOneDoneOnValid(c *C) {
 		FileOut: filepath.Join(d, "file_out.json"),
 		Timer:   &time.Timer{},
 	}
-	pool.hmap["1"] = &args
+	pool.hmap["l:1"] = &args
 
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
@@ -245,7 +245,7 @@ func (s *poolSuite) TestOneDoneOnValid(c *C) {
 	_, err = f.Write([]byte(`{"notification": {"sound": "hello"}}`))
 	c.Assert(err, IsNil)
 
-	go pool.OneDone("1")
+	go pool.OneDone("l:1")
 
 	var res *HelperResult
 	select {
@@ -274,9 +274,9 @@ func (s *poolSuite) TestOneDoneOnBadFileOut(c *C) {
 		FileOut: "/does-not-exist",
 		Timer:   &time.Timer{},
 	}
-	pool.hmap["1"] = &args
+	pool.hmap["l:1"] = &args
 
-	go pool.OneDone("1")
+	go pool.OneDone("l:1")
 
 	var res *HelperResult
 	select {
@@ -306,7 +306,7 @@ func (s *poolSuite) TestOneDonwOnBadJSONOut(c *C) {
 		},
 		Timer: &time.Timer{},
 	}
-	pool.hmap["1"] = &args
+	pool.hmap["l:1"] = &args
 
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
@@ -314,7 +314,7 @@ func (s *poolSuite) TestOneDonwOnBadJSONOut(c *C) {
 	_, err = f.Write([]byte(`potato`))
 	c.Assert(err, IsNil)
 
-	go pool.OneDone("1")
+	go pool.OneDone("l:1")
 
 	var res *HelperResult
 	select {
