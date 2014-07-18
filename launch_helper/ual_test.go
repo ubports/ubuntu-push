@@ -72,15 +72,15 @@ func newFake(logger.Logger, cual.UAL) cual.HelperState {
 }
 
 func (us *ualSuite) SetUpTest(c *C) {
-	us.oldNew = newHelperState
+	us.oldNew = NewHelperState
 	us.log = helpers.NewTestLogger(c, "debug")
-	newHelperState = newFake
+	NewHelperState = newFake
 	fakeInstance = &fakeHelperState{argCh: make(chan [5]string, 10)}
 	xdgCacheHome = c.MkDir
 }
 
 func (us *ualSuite) TearDownTest(c *C) {
-	newHelperState = us.oldNew
+	NewHelperState = us.oldNew
 	xdgCacheHome = xdg.Cache.Home
 }
 
@@ -95,8 +95,8 @@ func (us *ualSuite) TestStartStopWork(c *C) {
 }
 
 func (us *ualSuite) TestRunLaunches(c *C) {
-	helperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-	defer func() { helperInfo = _helperInfo }()
+	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
+	defer func() { HelperInfo = _helperInfo }()
 	ual := NewHelperLauncher(us.log)
 	ual.Start()
 	defer ual.Stop()
@@ -147,8 +147,8 @@ func (us *ualSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 }
 
 func (us *ualSuite) TestRunCantLaunch(c *C) {
-	helperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-	defer func() { helperInfo = _helperInfo }()
+	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
+	defer func() { HelperInfo = _helperInfo }()
 	fakeInstance.err = cual.ErrCantLaunch
 	ual := NewHelperLauncher(us.log)
 	ch := ual.Start()
@@ -178,9 +178,9 @@ func (us *ualSuite) TestRunCantLaunch(c *C) {
 }
 
 func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
-	helperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
+	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
 	defer func() {
-		helperInfo = _helperInfo
+		HelperInfo = _helperInfo
 	}()
 	ual := NewHelperLauncher(us.log)
 	ual.(*ualHelperLauncher).maxRuntime = 500 * time.Millisecond
