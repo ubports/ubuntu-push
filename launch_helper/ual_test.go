@@ -32,12 +32,12 @@ import (
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
-type ualSuite struct {
+type poolSuite struct {
 	oldNew func(logger.Logger) cual.HelperState
 	log    *helpers.TestLogger
 }
 
-var _ = Suite(&ualSuite{})
+var _ = Suite(&poolSuite{})
 
 type fakeHelperState struct {
 	obs   int
@@ -71,35 +71,35 @@ func newFake(logger.Logger) cual.HelperState {
 	return fakeInstance
 }
 
-func (us *ualSuite) SetUpTest(c *C) {
-	us.oldNew = NewHelperState
-	us.log = helpers.NewTestLogger(c, "debug")
+func (s *poolSuite) SetUpTest(c *C) {
+	s.oldNew = NewHelperState
+	s.log = helpers.NewTestLogger(c, "debug")
 	NewHelperState = newFake
 	fakeInstance = &fakeHelperState{argCh: make(chan [5]string, 10)}
 	xdgCacheHome = c.MkDir
 }
 
-func (us *ualSuite) TearDownTest(c *C) {
-	NewHelperState = us.oldNew
+func (s *poolSuite) TearDownTest(c *C) {
+	NewHelperState = s.oldNew
 	xdgCacheHome = xdg.Cache.Home
 }
 
 // check that Stop (tries to) remove the observer
-func (us *ualSuite) TestStartStopWork(c *C) {
-	ual := NewHelperLauncher(us.log)
+func (s *poolSuite) TestStartStopWork(c *C) {
+	pool := NewHelperPool(s.log)
 	c.Check(fakeInstance.obs, Equals, 0)
-	ual.Start()
+	pool.Start()
 	c.Check(fakeInstance.obs, Equals, 1)
-	ual.Stop()
+	pool.Stop()
 	c.Check(fakeInstance.obs, Equals, 0)
 }
 
-func (us *ualSuite) TestRunLaunches(c *C) {
+func (s *poolSuite) TestRunLaunches(c *C) {
 	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
 	defer func() { HelperInfo = _helperInfo }()
-	ual := NewHelperLauncher(us.log)
-	ual.Start()
-	defer ual.Stop()
+	pool := NewHelperPool(s.log)
+	pool.Start()
+	defer pool.Stop()
 	appId := "com.example.test_test-app"
 	app := clickhelp.MustParseAppId(appId)
 	input := HelperInput{
@@ -107,14 +107,14 @@ func (us *ualSuite) TestRunLaunches(c *C) {
 		NotificationId: "foo",
 		Payload:        []byte(`"hello"`),
 	}
-	ual.Run(&input)
+	pool.Run("fake", &input)
 	select {
 	case arg := <-fakeInstance.argCh:
 		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
 	}
-	args := ual.(*ualHelperLauncher).peekId("0", func(*HelperArgs) {})
+	args := pool.(*kindHelperPool).peekId("0", func(*HelperArgs) {})
 	c.Assert(args, NotNil)
 	args.Timer.Stop()
 	c.Check(args.AppId, Equals, "helpId")
@@ -123,18 +123,18 @@ func (us *ualSuite) TestRunLaunches(c *C) {
 	c.Check(args.FileOut, NotNil)
 }
 
-func (us *ualSuite) TestGetOutputIfHelperLaunchFail(c *C) {
+func (s *poolSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 	// invokes actual _helperInfo which fails with "", ""
-	ual := NewHelperLauncher(us.log)
-	ch := ual.Start()
-	defer ual.Stop()
+	pool := NewHelperPool(s.log)
+	ch := pool.Start()
+	defer pool.Stop()
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
 	input := HelperInput{
 		App:            app,
 		NotificationId: "foo",
 		Payload:        []byte(`"hello"`),
 	}
-	ual.Run(&input)
+	pool.Run("fake", &input)
 	var res *HelperResult
 	select {
 	case res = <-ch:
@@ -146,13 +146,13 @@ func (us *ualSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 	c.Check(*res.Input, DeepEquals, input)
 }
 
-func (us *ualSuite) TestRunCantLaunch(c *C) {
+func (s *poolSuite) TestRunCantLaunch(c *C) {
 	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
 	defer func() { HelperInfo = _helperInfo }()
 	fakeInstance.err = cual.ErrCantLaunch
-	ual := NewHelperLauncher(us.log)
-	ch := ual.Start()
-	defer ual.Stop()
+	pool := NewHelperPool(s.log)
+	ch := pool.Start()
+	defer pool.Stop()
 	appId := "com.example.test_test-app"
 	app := clickhelp.MustParseAppId(appId)
 	input := HelperInput{
@@ -160,7 +160,7 @@ func (us *ualSuite) TestRunCantLaunch(c *C) {
 		NotificationId: "foo",
 		Payload:        []byte(`"hello"`),
 	}
-	ual.Run(&input)
+	pool.Run("fake", &input)
 	select {
 	case arg := <-fakeInstance.argCh:
 		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
@@ -174,18 +174,18 @@ func (us *ualSuite) TestRunCantLaunch(c *C) {
 		c.Fatal("timeout")
 	}
 	c.Check(res.Message, DeepEquals, input.Payload)
-	c.Check(us.log.Captured(), Equals, "DEBUG using helper helpId (exec: bar) for app com.example.test_test-app\n"+"ERROR unable to launch helper helpId: can't launch helper\n"+"ERROR unable to get helper output; putting payload into message\n")
+	c.Check(s.log.Captured(), Equals, "DEBUG using helper helpId (exec: bar) for app com.example.test_test-app\n"+"ERROR unable to launch helper helpId: can't launch helper\n"+"ERROR unable to get helper output; putting payload into message\n")
 }
 
-func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
+func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
 	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
 	defer func() {
 		HelperInfo = _helperInfo
 	}()
-	ual := NewHelperLauncher(us.log)
-	ual.(*ualHelperLauncher).maxRuntime = 500 * time.Millisecond
-	ch := ual.Start()
-	defer ual.Stop()
+	pool := NewHelperPool(s.log)
+	pool.(*kindHelperPool).maxRuntime = 500 * time.Millisecond
+	ch := pool.Start()
+	defer pool.Stop()
 	appId := "com.example.test_test-app"
 	app := clickhelp.MustParseAppId(appId)
 	input := HelperInput{
@@ -193,7 +193,7 @@ func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
 		NotificationId: "foo",
 		Payload:        []byte(`"hello"`),
 	}
-	ual.Run(&input)
+	pool.Run("fake", &input)
 	select {
 	case arg := <-fakeInstance.argCh:
 		c.Check(arg[0], Equals, "Launch")
@@ -207,7 +207,7 @@ func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
 		c.Fatal("didn't call Stop")
 	}
 	// this will be invoked
-	go ual.(*ualHelperLauncher).OneDone("0")
+	go pool.(*kindHelperPool).OneDone("0")
 
 	var res *HelperResult
 	select {
@@ -218,15 +218,15 @@ func (us *ualSuite) TestRunLaunchesAndTimeout(c *C) {
 	c.Check(res.Message, DeepEquals, input.Payload)
 }
 
-func (us *ualSuite) TestOneDoneNop(c *C) {
-	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
-	ual.OneDone("")
+func (s *poolSuite) TestOneDoneNop(c *C) {
+	pool := NewHelperPool(s.log).(*kindHelperPool)
+	pool.OneDone("")
 }
 
-func (us *ualSuite) TestOneDoneOnValid(c *C) {
-	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
-	ch := ual.Start()
-	defer ual.Stop()
+func (s *poolSuite) TestOneDoneOnValid(c *C) {
+	pool := NewHelperPool(s.log).(*kindHelperPool)
+	ch := pool.Start()
+	defer pool.Stop()
 
 	d := c.MkDir()
 
@@ -239,7 +239,7 @@ func (us *ualSuite) TestOneDoneOnValid(c *C) {
 		FileOut: filepath.Join(d, "file_out.json"),
 		Timer:   &time.Timer{},
 	}
-	ual.hmap["1"] = &args
+	pool.hmap["1"] = &args
 
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
@@ -247,7 +247,7 @@ func (us *ualSuite) TestOneDoneOnValid(c *C) {
 	_, err = f.Write([]byte(`{"notification": {"sound": "hello"}}`))
 	c.Assert(err, IsNil)
 
-	go ual.OneDone("1")
+	go pool.OneDone("1")
 
 	var res *HelperResult
 	select {
@@ -258,13 +258,13 @@ func (us *ualSuite) TestOneDoneOnValid(c *C) {
 
 	expected := HelperOutput{Notification: &Notification{Sound: "hello"}}
 	c.Check(res.HelperOutput, DeepEquals, expected)
-	c.Check(ual.hmap, HasLen, 0)
+	c.Check(pool.hmap, HasLen, 0)
 }
 
-func (us *ualSuite) TestOneDoneOnBadFileOut(c *C) {
-	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
-	ch := ual.Start()
-	defer ual.Stop()
+func (s *poolSuite) TestOneDoneOnBadFileOut(c *C) {
+	pool := NewHelperPool(s.log).(*kindHelperPool)
+	ch := pool.Start()
+	defer pool.Stop()
 
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
 	args := HelperArgs{
@@ -276,9 +276,9 @@ func (us *ualSuite) TestOneDoneOnBadFileOut(c *C) {
 		FileOut: "/does-not-exist",
 		Timer:   &time.Timer{},
 	}
-	ual.hmap["1"] = &args
+	pool.hmap["1"] = &args
 
-	go ual.OneDone("1")
+	go pool.OneDone("1")
 
 	var res *HelperResult
 	select {
@@ -291,10 +291,10 @@ func (us *ualSuite) TestOneDoneOnBadFileOut(c *C) {
 	c.Check(res.HelperOutput, DeepEquals, expected)
 }
 
-func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
-	ual := NewHelperLauncher(us.log).(*ualHelperLauncher)
-	ch := ual.Start()
-	defer ual.Stop()
+func (s *poolSuite) TestOneDonwOnBadJSONOut(c *C) {
+	pool := NewHelperPool(s.log).(*kindHelperPool)
+	ch := pool.Start()
+	defer pool.Stop()
 
 	d := c.MkDir()
 
@@ -308,7 +308,7 @@ func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
 		},
 		Timer: &time.Timer{},
 	}
-	ual.hmap["1"] = &args
+	pool.hmap["1"] = &args
 
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
@@ -316,7 +316,7 @@ func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
 	_, err = f.Write([]byte(`potato`))
 	c.Assert(err, IsNil)
 
-	go ual.OneDone("1")
+	go pool.OneDone("1")
 
 	var res *HelperResult
 	select {
@@ -329,7 +329,7 @@ func (us *ualSuite) TestOneDonwOnBadJSONOut(c *C) {
 	c.Check(res.HelperOutput, DeepEquals, expected)
 }
 
-func (us *ualSuite) TestCreateInputTempFile(c *C) {
+func (s *poolSuite) TestCreateInputTempFile(c *C) {
 	tmpDir := c.MkDir()
 	getTempDir = func(pkgName string) (string, error) {
 		return tmpDir, nil
@@ -346,11 +346,11 @@ func (us *ualSuite) TestCreateInputTempFile(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 
-	ual := NewHelperLauncher(us.log)
-	f1, err := ual.(*ualHelperLauncher).createInputTempFile(input)
+	pool := NewHelperPool(s.log)
+	f1, err := pool.(*kindHelperPool).createInputTempFile(input)
 	c.Assert(err, IsNil)
 	c.Check(f1, Not(Equals), "")
-	f2, err := ual.(*ualHelperLauncher).createOutputTempFile(input)
+	f2, err := pool.(*kindHelperPool).createOutputTempFile(input)
 	c.Assert(err, IsNil)
 	c.Check(f2, Not(Equals), "")
 	files, err := ioutil.ReadDir(filepath.Dir(f1))
@@ -358,7 +358,7 @@ func (us *ualSuite) TestCreateInputTempFile(c *C) {
 	c.Check(files, HasLen, 2)
 }
 
-func (us *ualSuite) TestGetTempFilename(c *C) {
+func (s *poolSuite) TestGetTempFilename(c *C) {
 	getTempDir = func(pkgName string) (string, error) {
 		return c.MkDir(), nil
 	}
@@ -374,7 +374,7 @@ func (us *ualSuite) TestGetTempFilename(c *C) {
 	c.Check(files, HasLen, 1)
 }
 
-func (us *ualSuite) TestGetTempDir(c *C) {
+func (s *poolSuite) TestGetTempDir(c *C) {
 	tmpDir := c.MkDir()
 	oldCacheHome := xdgCacheHome
 	xdgCacheHome = func() string {

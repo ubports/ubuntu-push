@@ -47,7 +47,7 @@ type HelperArgs struct {
 	ForcedStop bool
 }
 
-type ualHelperLauncher struct {
+type kindHelperPool struct {
 	log        logger.Logger
 	chOut      chan *HelperResult
 	chIn       chan *HelperInput
@@ -67,9 +67,9 @@ func _helperInfo(app *click.AppId) (string, string) {
 // HelperInfo is overridable for testing
 var HelperInfo func(*click.AppId) (string, string) = _helperInfo
 
-// a HelperLauncher that calls out to ubuntu-app-launch
-func NewHelperLauncher(log logger.Logger) HelperLauncher {
-	return &ualHelperLauncher{
+// a HelperPool that delegates to different per kind HelperLaunchers
+func NewHelperPool(log logger.Logger) HelperPool {
+	return &kindHelperPool{
 		log:        log,
 		hmap:       make(map[string]*HelperArgs),
 		mgrs:       make(map[string]cual.HelperState),
@@ -77,7 +77,7 @@ func NewHelperLauncher(log logger.Logger) HelperLauncher {
 	}
 }
 
-func (ual *ualHelperLauncher) Start() chan *HelperResult {
+func (ual *kindHelperPool) Start() chan *HelperResult {
 	ual.chOut = make(chan *HelperResult)
 	ual.chIn = make(chan *HelperInput, InputBufferSize)
 	ual.mgrs["click"] = NewHelperState(ual.log)
@@ -99,7 +99,7 @@ func (ual *ualHelperLauncher) Start() chan *HelperResult {
 	return ual.chOut
 }
 
-func (ual *ualHelperLauncher) Stop() {
+func (ual *kindHelperPool) Stop() {
 	close(ual.chIn)
 	err := ual.mgrs["click"].RemoveObserver()
 	if err != nil {
@@ -107,17 +107,17 @@ func (ual *ualHelperLauncher) Stop() {
 	}
 }
 
-func (ual *ualHelperLauncher) Run(input *HelperInput) {
+func (ual *kindHelperPool) Run(kind string, input *HelperInput) {
 	input.kind = "click"
 	ual.chIn <- input
 }
 
-func (ual *ualHelperLauncher) failOne(input *HelperInput) {
+func (ual *kindHelperPool) failOne(input *HelperInput) {
 	ual.log.Errorf("unable to get helper output; putting payload into message")
 	ual.chOut <- &HelperResult{HelperOutput: HelperOutput{Message: input.Payload, Notification: nil}, Input: input}
 }
 
-func (ual *ualHelperLauncher) cleanupTempFiles(f1, f2 string) {
+func (ual *kindHelperPool) cleanupTempFiles(f1, f2 string) {
 	if f1 != "" {
 		os.Remove(f1)
 	}
@@ -126,7 +126,7 @@ func (ual *ualHelperLauncher) cleanupTempFiles(f1, f2 string) {
 	}
 }
 
-func (ual *ualHelperLauncher) handleOne(input *HelperInput) error {
+func (ual *kindHelperPool) handleOne(input *HelperInput) error {
 	helperAppId, helperExec := HelperInfo(input.App)
 	if helperAppId == "" || helperExec == "" {
 		ual.log.Errorf("can't locate helper for app")
@@ -180,7 +180,7 @@ func (ual *ualHelperLauncher) handleOne(input *HelperInput) error {
 	return nil
 }
 
-func (ual *ualHelperLauncher) peekId(iid string, cb func(*HelperArgs)) *HelperArgs {
+func (ual *kindHelperPool) peekId(iid string, cb func(*HelperArgs)) *HelperArgs {
 	ual.lock.Lock()
 	defer ual.lock.Unlock()
 	args, ok := ual.hmap[iid]
@@ -191,7 +191,7 @@ func (ual *ualHelperLauncher) peekId(iid string, cb func(*HelperArgs)) *HelperAr
 	return nil
 }
 
-func (ual *ualHelperLauncher) OneDone(iid string) {
+func (ual *kindHelperPool) OneDone(iid string) {
 	args := ual.peekId(iid, func(a *HelperArgs) {
 		a.Timer.Stop()
 		// dealt with, remove it
@@ -225,7 +225,7 @@ func (ual *ualHelperLauncher) OneDone(iid string) {
 	}
 }
 
-func (ual *ualHelperLauncher) createInputTempFile(input *HelperInput) (string, error) {
+func (ual *kindHelperPool) createInputTempFile(input *HelperInput) (string, error) {
 	f1, err := getTempFilename(input.App.Package)
 	if err != nil {
 		return "", err
@@ -233,7 +233,7 @@ func (ual *ualHelperLauncher) createInputTempFile(input *HelperInput) (string, e
 	return f1, ioutil.WriteFile(f1, input.Payload, os.ModeTemporary)
 }
 
-func (ual *ualHelperLauncher) createOutputTempFile(input *HelperInput) (string, error) {
+func (ual *kindHelperPool) createOutputTempFile(input *HelperInput) (string, error) {
 	return getTempFilename(input.App.Package)
 }
 
