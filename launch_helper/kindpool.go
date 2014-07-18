@@ -30,6 +30,7 @@ import (
 
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper/cual"
+	"launchpad.net/ubuntu-push/launch_helper/legacy"
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -73,7 +74,8 @@ var HelperInfo func(*click.AppId) (string, string) = _helperInfo
 // DefaultLaunchers produces the default map for kind -> HelperLauncher
 func DefaultLaunchers(log logger.Logger) map[string]HelperLauncher {
 	return map[string]HelperLauncher{
-		"click": cual.New(log),
+		"click":  cual.New(log),
+		"legacy": legacy.New(),
 	}
 }
 
@@ -175,7 +177,10 @@ func (pool *kindHelperPool) handleOne(input *HelperInput) error {
 
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
-	launcher := pool.launchers[input.kind]
+	launcher, ok := pool.launchers[input.kind]
+	if !ok {
+		return fmt.Errorf("unable to find launcher for kind %v", input.kind)
+	}
 	iid, err := launcher.Launch(helperAppId, helperExec, f1, f2)
 	if err != nil {
 		pool.log.Errorf("unable to launch helper %s: %v", helperAppId, err)

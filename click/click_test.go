@@ -246,3 +246,12 @@ func (s *helperSuite) TestHelperCanFail(c *C) {
 	c.Check(hid, Equals, "")
 	c.Check(hex, Equals, "")
 }
+
+func (s *clickSuite) TestHelperlegacy(c *C) {
+	appname := "ubuntu-system-settings"
+	app, err := ParseAppId("_" + appname)
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "")
+	c.Check(hex, Equals, filepath.Join(legacyHelperDir, appname))
+}
