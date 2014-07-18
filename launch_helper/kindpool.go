@@ -54,7 +54,6 @@ type HelperLauncher interface {
 	Stop(appId string, instanceId string) error
 }
 
-
 type kindHelperPool struct {
 	log        logger.Logger
 	chOut      chan *HelperResult

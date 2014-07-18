@@ -32,8 +32,8 @@ import (
 )
 
 type poolSuite struct {
-	log    *helpers.TestLogger
-	pool   HelperPool
+	log  *helpers.TestLogger
+	pool HelperPool
 }
 
 var _ = Suite(&poolSuite{})

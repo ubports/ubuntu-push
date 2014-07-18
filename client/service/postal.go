@@ -44,11 +44,11 @@ type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) erro
 // PostalService is the dbus api
 type PostalService struct {
 	DBusService
-	mbox           map[string]*mBox
-	msgHandler     messageHandler
-	launchers      map[string]launch_helper.HelperLauncher
-	HelperPool     launch_helper.HelperPool
-	messagingMenu  *messaging.MessagingMenu
+	mbox          map[string]*mBox
+	msgHandler    messageHandler
+	launchers     map[string]launch_helper.HelperLauncher
+	HelperPool    launch_helper.HelperPool
+	messagingMenu *messaging.MessagingMenu
 	// the endpoints are only exposed for testing from client
 	// XXX: uncouple some more so this isn't necessary
 	EmblemCounterEndp bus.Endpoint

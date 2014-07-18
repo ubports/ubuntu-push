@@ -37,9 +37,8 @@ func gstring(s string) *C.gchar {
 	return (*C.gchar)(C.CString(s))
 }
 
-
 type helperState struct {
-	log logger.Logger
+	log  logger.Logger
 	done func(string)
 }
 

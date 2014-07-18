@@ -83,8 +83,8 @@ func installTickMessageHandler(svc *PostalService) chan error {
 }
 
 type fakeHelperLauncher struct {
-	i  int
-	ch chan bool
+	i    int
+	ch   chan bool
 	done func(string)
 }
 
@@ -113,15 +113,15 @@ func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 }
 
 type postalSuite struct {
-	log            *helpers.TestLogger
-	bus            bus.Endpoint
-	notifBus       bus.Endpoint
-	counterBus     bus.Endpoint
-	hapticBus      bus.Endpoint
-	urlDispBus     bus.Endpoint
-	winStackBus    bus.Endpoint
-	oldHelperInfo  func(*click.AppId) (string, string)
-	fakeLauncher   *fakeHelperLauncher
+	log           *helpers.TestLogger
+	bus           bus.Endpoint
+	notifBus      bus.Endpoint
+	counterBus    bus.Endpoint
+	hapticBus     bus.Endpoint
+	urlDispBus    bus.Endpoint
+	winStackBus   bus.Endpoint
+	oldHelperInfo func(*click.AppId) (string, string)
+	fakeLauncher  *fakeHelperLauncher
 }
 
 type ualPostalSuite struct {
