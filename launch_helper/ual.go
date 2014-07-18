@@ -57,7 +57,15 @@ type ualHelperLauncher struct {
 	maxRuntime time.Duration
 }
 
-var newHelperState = cual.New
+// NewHelperState is overridable for testing
+var NewHelperState func(logger.Logger, cual.UAL) cual.HelperState = cual.New
+
+func _helperInfo(app *click.AppId) (string, string) {
+	return app.Helper()
+}
+
+// HelperInfo is overridable for testing
+var HelperInfo func(*click.AppId) (string, string) = _helperInfo
 
 // a HelperLauncher that calls out to ubuntu-app-launch
 func NewHelperLauncher(log logger.Logger) HelperLauncher {
@@ -71,7 +79,7 @@ func NewHelperLauncher(log logger.Logger) HelperLauncher {
 func (ual *ualHelperLauncher) Start() chan *HelperResult {
 	ual.chOut = make(chan *HelperResult)
 	ual.chIn = make(chan *HelperInput, InputBufferSize)
-	ual.cual = newHelperState(ual.log, ual)
+	ual.cual = NewHelperState(ual.log, ual)
 
 	err := ual.cual.InstallObserver()
 	if err != nil {
@@ -116,14 +124,8 @@ func (ual *ualHelperLauncher) cleanupTempFiles(f1, f2 string) {
 	}
 }
 
-func _helperInfo(app *click.AppId) (string, string) {
-	return app.Helper()
-}
-
-var helperInfo = _helperInfo
-
 func (ual *ualHelperLauncher) handleOne(input *HelperInput) error {
-	helperAppId, helperExec := helperInfo(input.App)
+	helperAppId, helperExec := HelperInfo(input.App)
 	if helperAppId == "" || helperExec == "" {
 		ual.log.Errorf("can't locate helper for app")
 		return ErrCantFindHelper
