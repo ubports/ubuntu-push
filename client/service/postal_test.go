@@ -83,27 +83,74 @@ func installTickMessageHandler(svc *PostalService) chan error {
 	return ch
 }
 
-type basePostalSuite struct {
-	log         *helpers.TestLogger
-	bus         bus.Endpoint
-	notifBus    bus.Endpoint
-	counterBus  bus.Endpoint
-	hapticBus   bus.Endpoint
-	urlDispBus  bus.Endpoint
-	winStackBus bus.Endpoint
+type fakeHelperState struct {
+	i  int
+	ch chan bool
+}
+
+func (fhs *fakeHelperState) InstallObserver() error { return nil }
+func (fhs *fakeHelperState) RemoveObserver() error  { return nil }
+func (fhs *fakeHelperState) Stop(_, _ string) error { return nil }
+func (fhs *fakeHelperState) Launch(_, _, f1, f2 string) (string, error) {
+	dat, err := ioutil.ReadFile(f1)
+	if err != nil {
+		return "", err
+	}
+	err = ioutil.WriteFile(f2, dat, os.ModeTemporary)
+	if err != nil {
+		return "", err
+	}
+
+	id := []string{"0", "1", "2"}[fhs.i]
+	fhs.i++
+
+	fhs.ch <- true
+
+	return id, nil
 }
 
 type postalSuite struct {
-	basePostalSuite
+	log            *helpers.TestLogger
+	bus            bus.Endpoint
+	notifBus       bus.Endpoint
+	counterBus     bus.Endpoint
+	hapticBus      bus.Endpoint
+	urlDispBus     bus.Endpoint
+	winStackBus    bus.Endpoint
+	oldHelperState func(logger.Logger, cual.UAL) cual.HelperState
+	oldHelperInfo  func(*click.AppId) (string, string)
+	fakeInstance   *fakeHelperState
 }
 
-var _ = Suite(&postalSuite{})
-
-func (ss *postalSuite) SetUpSuite(c *C) {
-	//	useTrivialHelper = true
+type ualPostalSuite struct {
+	postalSuite
 }
 
-func (bs *basePostalSuite) SetUpTest(c *C) {
+type trivialPostalSuite struct {
+	postalSuite
+}
+
+var _ = Suite(&ualPostalSuite{})
+var _ = Suite(&trivialPostalSuite{})
+
+func (ss *postalSuite) newFake(logger.Logger, cual.UAL) cual.HelperState {
+	return ss.fakeInstance
+}
+
+func (ps *postalSuite) SetUpSuite(c *C) {
+	ps.oldHelperState = launch_helper.NewHelperState
+	ps.oldHelperInfo = launch_helper.HelperInfo
+	launch_helper.NewHelperState = ps.newFake
+	launch_helper.HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
+
+}
+
+func (is *postalSuite) TearDownSuite(c *C) {
+	launch_helper.NewHelperState = is.oldHelperState
+	launch_helper.HelperInfo = is.oldHelperInfo
+}
+
+func (bs *postalSuite) SetUpTest(c *C) {
 	bs.log = helpers.NewTestLogger(c, "debug")
 	bs.bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	bs.notifBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
@@ -111,9 +158,20 @@ func (bs *basePostalSuite) SetUpTest(c *C) {
 	bs.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	bs.urlDispBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	bs.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
+	bs.fakeInstance = &fakeHelperState{ch: make(chan bool)}
 }
 
-func (bs *basePostalSuite) replaceBuses(pst *PostalService) *PostalService {
+func (ts *trivialPostalSuite) SetUpTest(c *C) {
+	ts.postalSuite.SetUpTest(c)
+	useTrivialHelper = true
+}
+
+func (ts *trivialPostalSuite) TearDownTest(c *C) {
+	ts.postalSuite.SetUpTest(c)
+	useTrivialHelper = false
+}
+
+func (bs *postalSuite) replaceBuses(pst *PostalService) *PostalService {
 	pst.Bus = bs.bus
 	pst.NotificationsEndp = bs.notifBus
 	pst.EmblemCounterEndp = bs.counterBus
@@ -198,7 +256,7 @@ func (ss *postalSuite) TestStopClosesBus(c *C) {
 //
 // Post() tests
 
-func (is *integrationPostalSuite) TestPostWorks(c *C) {
+func (is *postalSuite) TestPostWorks(c *C) {
 	svc := is.replaceBuses(NewPostalService(nil, is.log))
 	svc.msgHandler = nil
 	ch := installTickMessageHandler(svc)
@@ -210,14 +268,15 @@ func (is *integrationPostalSuite) TestPostWorks(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
 
-	// wait for the two posts to "launch"
-	takeNextBool(is.fakeInstance.ch)
-	takeNextBool(is.fakeInstance.ch)
-
 	x, ok := svc.HelperLauncher.(cual.UAL)
-	c.Assert(ok, Equals, true)
-	go x.OneDone("0")
-	go x.OneDone("1")
+	if ok {
+		// wait for the two posts to "launch"
+		takeNextBool(is.fakeInstance.ch)
+		takeNextBool(is.fakeInstance.ch)
+
+		go x.OneDone("0")
+		go x.OneDone("1")
+	}
 
 	c.Check(takeNextError(ch), IsNil) // one,
 	c.Check(takeNextError(ch), IsNil) // two posts
@@ -284,64 +343,7 @@ func (ss *postalSuite) TestPostFailsIfBadArgs(c *C) {
 //
 // Post (Broadcast) tests
 
-type fakeHelperState struct {
-	i  int
-	ch chan bool
-}
-
-func (fhs *fakeHelperState) InstallObserver() error { return nil }
-func (fhs *fakeHelperState) RemoveObserver() error  { return nil }
-func (fhs *fakeHelperState) Stop(_, _ string) error { return nil }
-func (fhs *fakeHelperState) Launch(_, _, f1, f2 string) (string, error) {
-	dat, err := ioutil.ReadFile(f1)
-	if err != nil {
-		return "", err
-	}
-	err = ioutil.WriteFile(f2, dat, os.ModeTemporary)
-	if err != nil {
-		return "", err
-	}
-
-	id := []string{"0", "1", "2"}[fhs.i]
-	fhs.i++
-
-	fhs.ch <- true
-
-	return id, nil
-}
-
-type integrationPostalSuite struct {
-	basePostalSuite
-	oldHelperState func(logger.Logger, cual.UAL) cual.HelperState
-	oldHelperInfo  func(*click.AppId) (string, string)
-	fakeInstance   *fakeHelperState
-}
-
-var _ = Suite(&integrationPostalSuite{})
-
-func (ss *integrationPostalSuite) newFake(logger.Logger, cual.UAL) cual.HelperState {
-	return ss.fakeInstance
-}
-
-func (is *integrationPostalSuite) SetUpSuite(c *C) {
-	is.oldHelperState = launch_helper.NewHelperState
-	is.oldHelperInfo = launch_helper.HelperInfo
-	launch_helper.NewHelperState = is.newFake
-	launch_helper.HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-
-}
-
-func (is *integrationPostalSuite) SetUpTest(c *C) {
-	is.basePostalSuite.SetUpTest(c)
-	is.fakeInstance = &fakeHelperState{ch: make(chan bool)}
-}
-
-func (is *integrationPostalSuite) TearDownSuite(c *C) {
-	launch_helper.NewHelperState = is.oldHelperState
-	launch_helper.HelperInfo = is.oldHelperInfo
-}
-
-func (is *integrationPostalSuite) TestPostBroadcast(c *C) {
+func (is *postalSuite) TestPostBroadcast(c *C) {
 
 	bus := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	svc := is.replaceBuses(NewPostalService(nil, is.log))
@@ -350,13 +352,15 @@ func (is *integrationPostalSuite) TestPostBroadcast(c *C) {
 	svc.NotificationsEndp = bus
 	c.Assert(svc.Start(), IsNil)
 
-	x, ok := svc.HelperLauncher.(cual.UAL)
-	c.Assert(ok, Equals, true)
 	err := svc.PostBroadcast()
-	takeNextBool(is.fakeInstance.ch)
-	go x.OneDone("0")
-
 	c.Assert(err, IsNil)
+
+	x, ok := svc.HelperLauncher.(cual.UAL)
+	if ok {
+		takeNextBool(is.fakeInstance.ch)
+		go x.OneDone("0")
+	}
+
 	c.Check(takeNextError(ch), IsNil)
 	// and check it fired the right signal (twice)
 	callArgs := testibus.GetCallArgs(bus)
@@ -382,6 +386,14 @@ func (ss *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 	})
 	ch := installTickMessageHandler(svc)
 	err := svc.PostBroadcast()
+	c.Assert(err, IsNil)
+
+	x, ok := svc.HelperLauncher.(cual.UAL)
+	if ok {
+		takeNextBool(ss.fakeInstance.ch)
+		go x.OneDone("0")
+	}
+
 	c.Check(takeNextError(ch), NotNil) // the messagehandler failed
 	c.Check(err, IsNil)                // but broadcast was oblivious
 	c.Check(ss.log.Captured(), Matches, `(?sm).*about to fail$`)
@@ -454,7 +466,14 @@ func (ss *postalSuite) TestPostCallsMessageHandler(c *C) {
 	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ch <- s; return nil }
 	svc.SetMessageHandler(f)
 	c.Check(svc.Post(&click.AppId{}, "thing", json.RawMessage("{}")), IsNil)
-	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{Message: []byte("{}")})
+
+	x, ok := svc.HelperLauncher.(cual.UAL)
+	if ok {
+		takeNextBool(ss.fakeInstance.ch)
+		go x.OneDone("0")
+	}
+
+	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
 	err := errors.New("ouch")
 	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return err })
 	// but the error doesn't bubble out
