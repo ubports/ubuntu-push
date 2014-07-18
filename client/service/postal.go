@@ -46,7 +46,7 @@ type PostalService struct {
 	DBusService
 	mbox           map[string]*mBox
 	msgHandler     messageHandler
-	HelperLauncher launch_helper.HelperLauncher
+	HelperPool     launch_helper.HelperPool
 	messagingMenu  *messaging.MessagingMenu
 	// the endpoints are only exposed for testing from client
 	// XXX: uncouple some more so this isn't necessary
@@ -127,13 +127,14 @@ func (svc *PostalService) Start() error {
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
 	if useTrivialHelper {
-		svc.HelperLauncher = launch_helper.NewTrivialHelperLauncher(svc.Log)
+		svc.HelperPool = launch_helper.NewTrivialHelperPool(svc.Log)
 	} else {
-		svc.HelperLauncher = launch_helper.NewHelperLauncher(svc.Log)
+		launchers := map[string]launch_helper.HelperLauncher{}
+		svc.HelperPool = launch_helper.NewHelperPool(launchers, svc.Log)
 	}
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
-	go svc.consumeHelperResults(svc.HelperLauncher.Start())
+	go svc.consumeHelperResults(svc.HelperPool.Start())
 	go svc.handleActions(actionsCh, svc.messagingMenu.Ch)
 	return nil
 }
@@ -261,7 +262,7 @@ func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMes
 		NotificationId: nid,
 		Payload:        payload,
 	}
-	svc.HelperLauncher.Run(&arg)
+	svc.HelperPool.Run("click", &arg)
 	return nil
 }
 

@@ -33,8 +33,7 @@ import (
 	"launchpad.net/ubuntu-push/click"
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/launch_helper/cual"
-	"launchpad.net/ubuntu-push/logger"
+	//"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging/reply"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -117,7 +116,6 @@ type postalSuite struct {
 	hapticBus      bus.Endpoint
 	urlDispBus     bus.Endpoint
 	winStackBus    bus.Endpoint
-	oldHelperState func(logger.Logger, cual.UAL) cual.HelperState
 	oldHelperInfo  func(*click.AppId) (string, string)
 	fakeInstance   *fakeHelperState
 }
@@ -133,20 +131,13 @@ type trivialPostalSuite struct {
 var _ = Suite(&ualPostalSuite{})
 var _ = Suite(&trivialPostalSuite{})
 
-func (ps *postalSuite) newFake(logger.Logger, cual.UAL) cual.HelperState {
-	return ps.fakeInstance
-}
-
 func (ps *postalSuite) SetUpSuite(c *C) {
-	ps.oldHelperState = launch_helper.NewHelperState
 	ps.oldHelperInfo = launch_helper.HelperInfo
-	launch_helper.NewHelperState = ps.newFake
 	launch_helper.HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
 
 }
 
 func (ps *postalSuite) TearDownSuite(c *C) {
-	launch_helper.NewHelperState = ps.oldHelperState
 	launch_helper.HelperInfo = ps.oldHelperInfo
 }
 
@@ -268,7 +259,7 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
 
-	ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
+	/*ualLauncher, ok := svc.HelperPool.(cual.UAL)
 	if ok {
 		// wait for the two posts to "launch"
 		takeNextBool(ps.fakeInstance.ch)
@@ -276,7 +267,7 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 
 		go ualLauncher.OneDone("0")
 		go ualLauncher.OneDone("1")
-	}
+	}*/
 
 	c.Check(takeNextError(ch), IsNil) // one,
 	c.Check(takeNextError(ch), IsNil) // two posts
@@ -355,11 +346,11 @@ func (ps *postalSuite) TestPostBroadcast(c *C) {
 	err := svc.PostBroadcast()
 	c.Assert(err, IsNil)
 
-	ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
+	/*ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
 	if ok {
 		takeNextBool(ps.fakeInstance.ch)
 		go ualLauncher.OneDone("0")
-	}
+	}*/
 
 	c.Check(takeNextError(ch), IsNil)
 	// and check it fired the right signal (twice)
@@ -388,11 +379,11 @@ func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 	err := svc.PostBroadcast()
 	c.Assert(err, IsNil)
 
-	ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
+	/*ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
 	if ok {
 		takeNextBool(ps.fakeInstance.ch)
 		go ualLauncher.OneDone("0")
-	}
+	}*/
 
 	c.Check(takeNextError(ch), NotNil) // the messagehandler failed
 	c.Check(err, IsNil)                // but broadcast was oblivious
@@ -467,11 +458,11 @@ func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
 	svc.SetMessageHandler(f)
 	c.Check(svc.Post(&click.AppId{}, "thing", json.RawMessage("{}")), IsNil)
 
-	ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
+	/*ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
 	if ok {
 		takeNextBool(ps.fakeInstance.ch)
 		go ualLauncher.OneDone("0")
-	}
+	}*/
 
 	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
 	err := errors.New("ouch")
