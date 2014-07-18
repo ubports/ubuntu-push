@@ -24,8 +24,6 @@ import (
 	"sort"
 	"time"
 
-	"launchpad.net/go-dbus/v1"
-
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -347,41 +345,28 @@ func (ps *postalSuite) TestPostBroadcast(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 
-	ch := installTickMessageHandler(svc)
 	svc.NotificationsEndp = bus
 	svc.launchers = map[string]launch_helper.HelperLauncher{
 		"click": ps.fakeLauncher,
 	}
 	c.Assert(svc.Start(), IsNil)
 
-	err := svc.PostBroadcast()
+	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
+		expectedAppId, _ := click.ParseAppId("_ubuntu-system-settings")
+		c.Check(app, DeepEquals, expectedAppId)
+		c.Check(len(nid), Equals, 32)
+		return nil
+	})
+	decoded := map[string]interface{}{
+		"daily/mako": []interface{}{float64(102), "tubular"},
+	}
+	err := svc.PostBroadcast(decoded)
 	c.Assert(err, IsNil)
 
 	if ps.fakeLauncher.done != nil {
 		takeNextBool(ps.fakeLauncher.ch)
 		go ps.fakeLauncher.done("0") // OneDone
 	}
-
-	c.Check(takeNextError(ch), IsNil)
-	// check we don't call Notify
-	callArgs := testibus.GetCallArgs(bus)
-	c.Assert(callArgs, HasLen, 0)
-	// check it fired the right signal
-	callArgs = testibus.GetCallArgs(ss.bus)
-	l := len(callArgs)
-	if l < 1 {
-		c.Fatal("not enough elements in resposne from GetCallArgs")
-	}
-	c.Check(callArgs[l-1].Member, Equals, "::Signal")
-	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", "/_", []interface{}{"_ubuntu-system-settings"}})
-	// and check we got an emblem
-	callArgs = testibus.GetCallArgs(ss.counterBus)
-	c.Assert(callArgs, HasLen, 2)
-	ss.log.Errorf("callArgs: %v", callArgs[0].Args)
-	c.Check(callArgs[0].Member, Equals, "::SetProperty")
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", "/ubuntu_2dsystem_2dsettings", dbus.Variant{int32(1)}})
-	c.Check(callArgs[1].Member, Equals, "::SetProperty")
-	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", "/ubuntu_2dsystem_2dsettings", dbus.Variant{true}})
 }
 
 func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
@@ -398,7 +383,10 @@ func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 		return errors.New("fail")
 	})
 	ch := installTickMessageHandler(svc)
-	err := svc.PostBroadcast()
+	decoded := map[string]interface{}{
+		"daily/mako": []interface{}{float64(102), "tubular"},
+	}
+	err := svc.PostBroadcast(decoded)
 	c.Assert(err, IsNil)
 
 	if ps.fakeLauncher.done != nil {

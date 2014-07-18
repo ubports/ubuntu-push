@@ -85,7 +85,7 @@ type PostalService interface {
 	// latter in the application's mailbox.
 	Post(app *click.AppId, nid string, payload json.RawMessage) error
 	// PostBroadcast is like Post, but for system updates
-	PostBroadcast() error
+	PostBroadcast(map[string]interface{}) error
 	// IsRunning() returns whether the service is running
 	IsRunning() bool
 	// Stop() stops the service
@@ -396,7 +396,7 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 		client.log.Debugf("not posting broadcast notification %d; filtered.", msg.TopLevel)
 		return nil
 	}
-	err := client.postalService.PostBroadcast()
+	err := client.postalService.PostBroadcast(msg.Decoded[len(msg.Decoded)-1])
 	if err != nil {
 		client.log.Errorf("while posting broadcast notification %d: %v", msg.TopLevel, err)
 	} else {
