@@ -30,8 +30,8 @@ type trivialHelperLauncher struct {
 	chIn  chan *HelperInput
 }
 
-// a trivial HelperLauncher that doesn't launch anything at all
-func NewTrivialHelperLauncher(log logger.Logger) HelperLauncher {
+// a trivial HelperPool that doesn't launch anything at all
+func NewTrivialHelperPool(log logger.Logger) HelperPool {
 	return &trivialHelperLauncher{log: log}
 }
 
@@ -59,6 +59,6 @@ func (triv *trivialHelperLauncher) Stop() {
 	close(triv.chIn)
 }
 
-func (triv *trivialHelperLauncher) Run(input *HelperInput) {
+func (triv *trivialHelperLauncher) Run(kind string, input *HelperInput) {
 	triv.chIn <- input
 }

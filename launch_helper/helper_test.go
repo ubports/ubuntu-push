@@ -42,13 +42,13 @@ func (s *runnerSuite) SetUpTest(c *C) {
 	s.app = clickhelp.MustParseAppId("com.example.test_test-app_0")
 }
 
-func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
+func (s *runnerSuite) TestTrivialPoolWorks(c *C) {
 	notif := &Notification{Sound: "42"}
 
-	triv := NewTrivialHelperLauncher(s.testlog)
+	triv := NewTrivialHelperPool(s.testlog)
 	ch := triv.Start()
 	in := &HelperInput{App: s.app, Payload: []byte(`{"message": {"m":42}, "notification": {"sound": "42"}}`)}
-	triv.Run(in)
+	triv.Run("klick", in)
 	out := <-ch
 	c.Assert(out, NotNil)
 	c.Check(out.Message, DeepEquals, json.RawMessage(`{"m":42}`))
@@ -56,12 +56,12 @@ func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
 	c.Check(out.Input, DeepEquals, in)
 }
 
-func (s *runnerSuite) TestTrivialRunnerWorksOnBadInput(c *C) {
-	triv := NewTrivialHelperLauncher(s.testlog)
+func (s *runnerSuite) TestTrivialPoolWorksOnBadInput(c *C) {
+	triv := NewTrivialHelperPool(s.testlog)
 	ch := triv.Start()
 	msg := []byte(`{card: 3}`)
 	in := &HelperInput{App: s.app, Payload: msg}
-	triv.Run(in)
+	triv.Run("klick", in)
 	out := <-ch
 	c.Assert(out, NotNil)
 	c.Check(out.Notification, IsNil)
@@ -69,17 +69,17 @@ func (s *runnerSuite) TestTrivialRunnerWorksOnBadInput(c *C) {
 	c.Check(out.Input, DeepEquals, in)
 }
 
-func (s *runnerSuite) TestTrivialRunnerDoesNotBlockEasily(c *C) {
-	triv := NewTrivialHelperLauncher(s.testlog)
+func (s *runnerSuite) TestTrivialPoolDoesNotBlockEasily(c *C) {
+	triv := NewTrivialHelperPool(s.testlog)
 	triv.Start()
 	msg := []byte(`this is a not your grandmother's json message`)
 	in := &HelperInput{App: s.app, Payload: msg}
 	flagCh := make(chan bool)
 	go func() {
 		// stuff several in there
-		triv.Run(in)
-		triv.Run(in)
-		triv.Run(in)
+		triv.Run("klick", in)
+		triv.Run("klick", in)
+		triv.Run("klick", in)
 		flagCh <- true
 	}()
 	select {

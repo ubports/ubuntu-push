@@ -70,6 +70,7 @@ type HelperResult struct {
 
 // HelperInput is what's passed in to a helper for it to work
 type HelperInput struct {
+	kind           string
 	App            *click.AppId
 	NotificationId string
 	Payload        json.RawMessage
