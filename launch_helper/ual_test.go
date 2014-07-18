@@ -38,40 +38,40 @@ type poolSuite struct {
 
 var _ = Suite(&poolSuite{})
 
-type fakeHelperState struct {
+type fakeHelperLauncher struct {
 	done  func(string)
 	obs   int
 	err   error
 	argCh chan [5]string
 }
 
-func (fhs *fakeHelperState) InstallObserver(done func(string)) error {
+func (fhs *fakeHelperLauncher) InstallObserver(done func(string)) error {
 	fhs.done = done
 	fhs.obs++
 	return nil
 }
 
-func (fhs *fakeHelperState) RemoveObserver() error {
+func (fhs *fakeHelperLauncher) RemoveObserver() error {
 	fhs.obs--
 	return nil
 }
 
-func (fhs *fakeHelperState) Launch(appId string, exec string, f1 string, f2 string) (string, error) {
+func (fhs *fakeHelperLauncher) Launch(appId string, exec string, f1 string, f2 string) (string, error) {
 	fhs.argCh <- [5]string{"Launch", appId, exec, f1, f2}
 	return "0", fhs.err
 }
 
-func (fhs *fakeHelperState) Stop(appId string, iid string) error {
+func (fhs *fakeHelperLauncher) Stop(appId string, iid string) error {
 	fhs.argCh <- [5]string{"Stop", appId, iid, "", ""}
 	return nil
 }
 
-var fakeInstance *fakeHelperState
+var fakeLauncher *fakeHelperLauncher
 
 func (s *poolSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	fakeInstance = &fakeHelperState{argCh: make(chan [5]string, 10)}
-	s.pool = NewHelperPool(map[string]cual.HelperState{"fake": fakeInstance}, s.log)
+	fakeLauncher = &fakeHelperLauncher{argCh: make(chan [5]string, 10)}
+	s.pool = NewHelperPool(map[string]HelperLauncher{"fake": fakeLauncher}, s.log)
 	xdgCacheHome = c.MkDir
 }
 
@@ -82,12 +82,12 @@ func (s *poolSuite) TearDownTest(c *C) {
 
 // check that Stop (tries to) remove the observer
 func (s *poolSuite) TestStartStopWork(c *C) {
-	c.Check(fakeInstance.obs, Equals, 0)
+	c.Check(fakeLauncher.obs, Equals, 0)
 	s.pool.Start()
-	c.Check(fakeInstance.done, NotNil)
-	c.Check(fakeInstance.obs, Equals, 1)
+	c.Check(fakeLauncher.done, NotNil)
+	c.Check(fakeLauncher.obs, Equals, 1)
 	s.pool.Stop()
-	c.Check(fakeInstance.obs, Equals, 0)
+	c.Check(fakeLauncher.obs, Equals, 0)
 }
 
 func (s *poolSuite) TestRunLaunches(c *C) {
@@ -104,7 +104,7 @@ func (s *poolSuite) TestRunLaunches(c *C) {
 	}
 	s.pool.Run("fake", &input)
 	select {
-	case arg := <-fakeInstance.argCh:
+	case arg := <-fakeLauncher.argCh:
 		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
@@ -143,7 +143,7 @@ func (s *poolSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 func (s *poolSuite) TestRunCantLaunch(c *C) {
 	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
 	defer func() { HelperInfo = _helperInfo }()
-	fakeInstance.err = cual.ErrCantLaunch
+	fakeLauncher.err = cual.ErrCantLaunch
 	ch := s.pool.Start()
 	defer s.pool.Stop()
 	appId := "com.example.test_test-app"
@@ -155,7 +155,7 @@ func (s *poolSuite) TestRunCantLaunch(c *C) {
 	}
 	s.pool.Run("fake", &input)
 	select {
-	case arg := <-fakeInstance.argCh:
+	case arg := <-fakeLauncher.argCh:
 		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
@@ -187,19 +187,19 @@ func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
 	}
 	s.pool.Run("fake", &input)
 	select {
-	case arg := <-fakeInstance.argCh:
+	case arg := <-fakeLauncher.argCh:
 		c.Check(arg[0], Equals, "Launch")
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
 	}
 	select {
-	case arg := <-fakeInstance.argCh:
+	case arg := <-fakeLauncher.argCh:
 		c.Check(arg[:3], DeepEquals, []string{"Stop", "helpId", "0"})
 	case <-time.After(2 * time.Second):
 		c.Fatal("didn't call Stop")
 	}
 	// this will be invoked
-	go fakeInstance.done("0")
+	go fakeLauncher.done("0")
 
 	var res *HelperResult
 	select {

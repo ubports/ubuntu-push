@@ -29,7 +29,6 @@ import (
 	"launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/launch_helper/cual"
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -47,11 +46,19 @@ type HelperArgs struct {
 	ForcedStop bool
 }
 
+type HelperLauncher interface {
+	InstallObserver(done func(string)) error
+	RemoveObserver() error
+	Launch(appId string, exec string, f1 string, f2 string) (string, error)
+	Stop(appId string, instanceId string) error
+}
+
+
 type kindHelperPool struct {
 	log        logger.Logger
 	chOut      chan *HelperResult
 	chIn       chan *HelperInput
-	launchers  map[string]cual.HelperState
+	launchers  map[string]HelperLauncher
 	lock       sync.Mutex
 	hmap       map[string]*HelperArgs
 	maxRuntime time.Duration
@@ -65,7 +72,7 @@ func _helperInfo(app *click.AppId) (string, string) {
 var HelperInfo func(*click.AppId) (string, string) = _helperInfo
 
 // a HelperPool that delegates to different per kind HelperLaunchers
-func NewHelperPool(launchers map[string]cual.HelperState, log logger.Logger) HelperPool {
+func NewHelperPool(launchers map[string]HelperLauncher, log logger.Logger) HelperPool {
 	return &kindHelperPool{
 		log:        log,
 		hmap:       make(map[string]*HelperArgs),

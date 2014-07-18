@@ -37,12 +37,6 @@ func gstring(s string) *C.gchar {
 	return (*C.gchar)(C.CString(s))
 }
 
-type HelperState interface {
-	InstallObserver(func(string)) error
-	RemoveObserver() error
-	Launch(appId string, exec string, f1 string, f2 string) (string, error)
-	Stop(appId string, instanceId string) error
-}
 
 type helperState struct {
 	log logger.Logger
@@ -63,7 +57,7 @@ var (
 	ErrCantStop      = errors.New("can't stop helper")
 )
 
-func New(log logger.Logger) HelperState {
+func New(log logger.Logger) *helperState {
 	return &helperState{log: log}
 }
 
