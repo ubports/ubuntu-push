@@ -93,6 +93,13 @@ func (fhl *fakeHelperLauncher) InstallObserver(done func(string)) error {
 }
 func (fhl *fakeHelperLauncher) RemoveObserver() error  { return nil }
 func (fhl *fakeHelperLauncher) Stop(_, _ string) error { return nil }
+func (fhl *fakeHelperLauncher) HelperInfo(app *click.AppId) (string, string) {
+	if app.Click {
+		return "helpId", "bar"
+	} else {
+		return "", "lhex"
+	}
+}
 func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 	dat, err := ioutil.ReadFile(f1)
 	if err != nil {
@@ -112,15 +119,14 @@ func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 }
 
 type postalSuite struct {
-	log           *helpers.TestLogger
-	bus           bus.Endpoint
-	notifBus      bus.Endpoint
-	counterBus    bus.Endpoint
-	hapticBus     bus.Endpoint
-	urlDispBus    bus.Endpoint
-	winStackBus   bus.Endpoint
-	oldHelperInfo func(*click.AppId) (string, string)
-	fakeLauncher  *fakeHelperLauncher
+	log          *helpers.TestLogger
+	bus          bus.Endpoint
+	notifBus     bus.Endpoint
+	counterBus   bus.Endpoint
+	hapticBus    bus.Endpoint
+	urlDispBus   bus.Endpoint
+	winStackBus  bus.Endpoint
+	fakeLauncher *fakeHelperLauncher
 }
 
 type ualPostalSuite struct {
@@ -133,16 +139,6 @@ type trivialPostalSuite struct {
 
 var _ = Suite(&ualPostalSuite{})
 var _ = Suite(&trivialPostalSuite{})
-
-func (ps *postalSuite) SetUpSuite(c *C) {
-	ps.oldHelperInfo = launch_helper.HelperInfo
-	launch_helper.HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-
-}
-
-func (ps *postalSuite) TearDownSuite(c *C) {
-	launch_helper.HelperInfo = ps.oldHelperInfo
-}
 
 func (ps *postalSuite) SetUpTest(c *C) {
 	ps.log = helpers.NewTestLogger(c, "debug")
@@ -255,8 +251,10 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.msgHandler = nil
 	ch := installTickMessageHandler(svc)
+	fakeLauncher2 := &fakeHelperLauncher{ch: make(chan bool)}
 	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"click": ps.fakeLauncher,
+		"click":  ps.fakeLauncher,
+		"legacy": fakeLauncher2,
 	}
 	c.Assert(svc.Start(), IsNil)
 	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, `{"message":{"world":1}}`}, nil)
@@ -265,25 +263,36 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	rvs, err = svc.post(aPackageOnBus, []interface{}{anAppId, `{"message":{"moon":1}}`}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
+	rvs, err = svc.post("_", []interface{}{"_classic-app", `{"message":{"mars":42}}`}, nil)
+	c.Assert(err, IsNil)
+	c.Check(rvs, IsNil)
 
 	if ps.fakeLauncher.done != nil {
 		// wait for the two posts to "launch"
 		takeNextBool(ps.fakeLauncher.ch)
 		takeNextBool(ps.fakeLauncher.ch)
+		takeNextBool(fakeLauncher2.ch)
 
 		go ps.fakeLauncher.done("0") // OneDone
 		go ps.fakeLauncher.done("1") // OneDone
+		go fakeLauncher2.done("0")
 	}
 
 	c.Check(takeNextError(ch), IsNil) // one,
-	c.Check(takeNextError(ch), IsNil) // two posts
-	c.Assert(svc.mbox, HasLen, 1)
+	c.Check(takeNextError(ch), IsNil) // two,
+	c.Check(takeNextError(ch), IsNil) // three posts
+	c.Assert(svc.mbox, HasLen, 2)
 	box, ok := svc.mbox[anAppId]
 	c.Check(ok, Equals, true)
 	msgs := box.AllMessages()
 	c.Assert(msgs, HasLen, 2)
 	c.Check(msgs[0], Equals, `{"world":1}`)
 	c.Check(msgs[1], Equals, `{"moon":1}`)
+	box, ok = svc.mbox["_classic-app"]
+	c.Assert(ok, Equals, true)
+	msgs = box.AllMessages()
+	c.Assert(msgs, HasLen, 1)
+	c.Check(msgs[0], Equals, `{"mars":42}`)
 }
 
 func (ps *postalSuite) TestPostSignal(c *C) {
@@ -348,7 +357,7 @@ func (ps *postalSuite) TestPostBroadcast(c *C) {
 	ch := installTickMessageHandler(svc)
 	svc.NotificationsEndp = bus
 	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"click": ps.fakeLauncher,
+		"legacy": ps.fakeLauncher,
 	}
 	c.Assert(svc.Start(), IsNil)
 
@@ -378,7 +387,7 @@ func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 		condition.Work(false))
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"click": ps.fakeLauncher,
+		"legacy": ps.fakeLauncher,
 	}
 	c.Assert(svc.Start(), IsNil)
 	svc.NotificationsEndp = bus
@@ -469,7 +478,7 @@ func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
 	// check the message handler gets called
 	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ch <- s; return nil }
 	svc.SetMessageHandler(f)
-	c.Check(svc.Post(&click.AppId{}, "thing", json.RawMessage("{}")), IsNil)
+	c.Check(svc.Post(&click.AppId{Click: true}, "thing", json.RawMessage("{}")), IsNil)
 
 	if ps.fakeLauncher.done != nil {
 		takeNextBool(ps.fakeLauncher.ch)

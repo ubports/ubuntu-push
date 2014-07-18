@@ -24,6 +24,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -53,6 +54,14 @@ func (ls *legacySuite) TestInstallObserver(c *C) {
 	c.Check(ls.lhl.done, IsNil)
 	c.Check(ls.lhl.InstallObserver(func(string) {}), IsNil)
 	c.Check(ls.lhl.done, NotNil)
+}
+
+func (s *legacySuite) TestHelperInfo(c *C) {
+	appname := "ubuntu-system-settings"
+	app := clickhelp.MustParseAppId("_" + appname)
+	hid, hex := s.lhl.HelperInfo(app)
+	c.Check(hid, Equals, "")
+	c.Check(hex, Equals, filepath.Join(legacyHelperDir, appname))
 }
 
 func (ls *legacySuite) TestLaunch(c *C) {

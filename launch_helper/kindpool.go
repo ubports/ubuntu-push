@@ -30,11 +30,13 @@ import (
 
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper/cual"
+	"launchpad.net/ubuntu-push/launch_helper/legacy"
 	"launchpad.net/ubuntu-push/logger"
 )
 
 var (
-	ErrCantFindHelper = errors.New("can't find helper")
+	ErrCantFindHelper   = errors.New("can't find helper")
+	ErrCantFindLauncher = errors.New("can't find launcher for helper")
 )
 
 type HelperArgs struct {
@@ -47,6 +49,7 @@ type HelperArgs struct {
 }
 
 type HelperLauncher interface {
+	HelperInfo(app *click.AppId) (string, string)
 	InstallObserver(done func(string)) error
 	RemoveObserver() error
 	Launch(appId string, exec string, f1 string, f2 string) (string, error)
@@ -63,17 +66,11 @@ type kindHelperPool struct {
 	maxRuntime time.Duration
 }
 
-func _helperInfo(app *click.AppId) (string, string) {
-	return app.Helper()
-}
-
-// HelperInfo is overridable for testing
-var HelperInfo func(*click.AppId) (string, string) = _helperInfo
-
 // DefaultLaunchers produces the default map for kind -> HelperLauncher
 func DefaultLaunchers(log logger.Logger) map[string]HelperLauncher {
 	return map[string]HelperLauncher{
-		"click": cual.New(log),
+		"click":  cual.New(log),
+		"legacy": legacy.New(),
 	}
 }
 
@@ -143,8 +140,13 @@ func (pool *kindHelperPool) cleanupTempFiles(f1, f2 string) {
 }
 
 func (pool *kindHelperPool) handleOne(input *HelperInput) error {
-	helperAppId, helperExec := HelperInfo(input.App)
-	if helperAppId == "" || helperExec == "" {
+	launcher, ok := pool.launchers[input.kind]
+	if !ok {
+		pool.log.Errorf("unable to find launcher for kind: %v", input.kind)
+		return ErrCantFindLauncher
+	}
+	helperAppId, helperExec := launcher.HelperInfo(input.App)
+	if helperAppId == "" && helperExec == "" {
 		pool.log.Errorf("can't locate helper for app")
 		return ErrCantFindHelper
 	}
@@ -175,7 +177,6 @@ func (pool *kindHelperPool) handleOne(input *HelperInput) error {
 
 	pool.lock.Lock()
 	defer pool.lock.Unlock()
-	launcher := pool.launchers[input.kind]
 	iid, err := launcher.Launch(helperAppId, helperExec, f1, f2)
 	if err != nil {
 		pool.log.Errorf("unable to launch helper %s: %v", helperAppId, err)

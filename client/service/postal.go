@@ -263,7 +263,13 @@ func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMes
 		NotificationId: nid,
 		Payload:        payload,
 	}
-	svc.HelperPool.Run("click", &arg)
+	var kind string
+	if app.Click {
+		kind = "click"
+	} else {
+		kind = "legacy"
+	}
+	svc.HelperPool.Run(kind, &arg)
 	return nil
 }
 
