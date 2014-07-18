@@ -46,6 +46,7 @@ type PostalService struct {
 	DBusService
 	mbox           map[string]*mBox
 	msgHandler     messageHandler
+	launchers      map[string]launch_helper.HelperLauncher
 	HelperPool     launch_helper.HelperPool
 	messagingMenu  *messaging.MessagingMenu
 	// the endpoints are only exposed for testing from client
@@ -90,6 +91,7 @@ func NewPostalService(installedChecker click.InstalledChecker, log logger.Logger
 	svc.URLDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, log)
 	svc.WindowStackEndp = bus.SessionBus.Endpoint(windowstack.BusAddress, log)
 	svc.msgHandler = svc.messageHandler
+	svc.launchers = launch_helper.DefaultLaunchers(log)
 	return svc
 }
 
@@ -129,8 +131,7 @@ func (svc *PostalService) Start() error {
 	if useTrivialHelper {
 		svc.HelperPool = launch_helper.NewTrivialHelperPool(svc.Log)
 	} else {
-		launchers := map[string]launch_helper.HelperLauncher{}
-		svc.HelperPool = launch_helper.NewHelperPool(launchers, svc.Log)
+		svc.HelperPool = launch_helper.NewHelperPool(svc.launchers, svc.Log)
 	}
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 

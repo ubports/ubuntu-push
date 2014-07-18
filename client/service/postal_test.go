@@ -82,15 +82,19 @@ func installTickMessageHandler(svc *PostalService) chan error {
 	return ch
 }
 
-type fakeHelperState struct {
+type fakeHelperLauncher struct {
 	i  int
 	ch chan bool
+	done func(string)
 }
 
-func (fhs *fakeHelperState) InstallObserver() error { return nil }
-func (fhs *fakeHelperState) RemoveObserver() error  { return nil }
-func (fhs *fakeHelperState) Stop(_, _ string) error { return nil }
-func (fhs *fakeHelperState) Launch(_, _, f1, f2 string) (string, error) {
+func (fhl *fakeHelperLauncher) InstallObserver(done func(string)) error {
+	fhl.done = done
+	return nil
+}
+func (fhl *fakeHelperLauncher) RemoveObserver() error  { return nil }
+func (fhl *fakeHelperLauncher) Stop(_, _ string) error { return nil }
+func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 	dat, err := ioutil.ReadFile(f1)
 	if err != nil {
 		return "", err
@@ -100,10 +104,10 @@ func (fhs *fakeHelperState) Launch(_, _, f1, f2 string) (string, error) {
 		return "", err
 	}
 
-	id := []string{"0", "1", "2"}[fhs.i]
-	fhs.i++
+	id := []string{"0", "1", "2"}[fhl.i]
+	fhl.i++
 
-	fhs.ch <- true
+	fhl.ch <- true
 
 	return id, nil
 }
@@ -117,7 +121,7 @@ type postalSuite struct {
 	urlDispBus     bus.Endpoint
 	winStackBus    bus.Endpoint
 	oldHelperInfo  func(*click.AppId) (string, string)
-	fakeInstance   *fakeHelperState
+	fakeLauncher   *fakeHelperLauncher
 }
 
 type ualPostalSuite struct {
@@ -149,7 +153,7 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.urlDispBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
-	ps.fakeInstance = &fakeHelperState{ch: make(chan bool)}
+	ps.fakeLauncher = &fakeHelperLauncher{ch: make(chan bool)}
 }
 
 func (ts *trivialPostalSuite) SetUpTest(c *C) {
@@ -169,6 +173,7 @@ func (ps *postalSuite) replaceBuses(pst *PostalService) *PostalService {
 	pst.HapticEndp = ps.hapticBus
 	pst.URLDispatcherEndp = ps.urlDispBus
 	pst.WindowStackEndp = ps.winStackBus
+	pst.launchers = map[string]launch_helper.HelperLauncher{}
 	return pst
 }
 
@@ -251,6 +256,9 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.msgHandler = nil
 	ch := installTickMessageHandler(svc)
+	svc.launchers = map[string]launch_helper.HelperLauncher{
+		"click": ps.fakeLauncher,
+	}
 	c.Assert(svc.Start(), IsNil)
 	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, `{"message":{"world":1}}`}, nil)
 	c.Assert(err, IsNil)
@@ -259,15 +267,14 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
 
-	/*ualLauncher, ok := svc.HelperPool.(cual.UAL)
-	if ok {
+	if ps.fakeLauncher.done != nil {
 		// wait for the two posts to "launch"
-		takeNextBool(ps.fakeInstance.ch)
-		takeNextBool(ps.fakeInstance.ch)
+		takeNextBool(ps.fakeLauncher.ch)
+		takeNextBool(ps.fakeLauncher.ch)
 
-		go ualLauncher.OneDone("0")
-		go ualLauncher.OneDone("1")
-	}*/
+		go ps.fakeLauncher.done("0") // OneDone
+		go ps.fakeLauncher.done("1") // OneDone
+	}
 
 	c.Check(takeNextError(ch), IsNil) // one,
 	c.Check(takeNextError(ch), IsNil) // two posts
@@ -341,16 +348,18 @@ func (ps *postalSuite) TestPostBroadcast(c *C) {
 
 	ch := installTickMessageHandler(svc)
 	svc.NotificationsEndp = bus
+	svc.launchers = map[string]launch_helper.HelperLauncher{
+		"click": ps.fakeLauncher,
+	}
 	c.Assert(svc.Start(), IsNil)
 
 	err := svc.PostBroadcast()
 	c.Assert(err, IsNil)
 
-	/*ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
-	if ok {
-		takeNextBool(ps.fakeInstance.ch)
-		go ualLauncher.OneDone("0")
-	}*/
+	if ps.fakeLauncher.done != nil {
+		takeNextBool(ps.fakeLauncher.ch)
+		go ps.fakeLauncher.done("0") // OneDone
+	}
 
 	c.Check(takeNextError(ch), IsNil)
 	// and check it fired the right signal (twice)
@@ -369,6 +378,9 @@ func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true),
 		condition.Work(false))
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	svc.launchers = map[string]launch_helper.HelperLauncher{
+		"click": ps.fakeLauncher,
+	}
 	c.Assert(svc.Start(), IsNil)
 	svc.NotificationsEndp = bus
 	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error {
@@ -379,11 +391,10 @@ func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 	err := svc.PostBroadcast()
 	c.Assert(err, IsNil)
 
-	/*ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
-	if ok {
-		takeNextBool(ps.fakeInstance.ch)
-		go ualLauncher.OneDone("0")
-	}*/
+	if ps.fakeLauncher.done != nil {
+		takeNextBool(ps.fakeLauncher.ch)
+		go ps.fakeLauncher.done("0") // OneDone
+	}
 
 	c.Check(takeNextError(ch), NotNil) // the messagehandler failed
 	c.Check(err, IsNil)                // but broadcast was oblivious
@@ -452,17 +463,20 @@ func (ps *postalSuite) TestMessageHandlerPublicAPI(c *C) {
 func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
 	ch := make(chan *launch_helper.HelperOutput)
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	svc.launchers = map[string]launch_helper.HelperLauncher{
+		"click": ps.fakeLauncher,
+	}
 	c.Assert(svc.Start(), IsNil)
 	// check the message handler gets called
 	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ch <- s; return nil }
 	svc.SetMessageHandler(f)
 	c.Check(svc.Post(&click.AppId{}, "thing", json.RawMessage("{}")), IsNil)
 
-	/*ualLauncher, ok := svc.HelperLauncher.(cual.UAL)
-	if ok {
-		takeNextBool(ps.fakeInstance.ch)
-		go ualLauncher.OneDone("0")
-	}*/
+	if ps.fakeLauncher.done != nil {
+		takeNextBool(ps.fakeLauncher.ch)
+
+		go ps.fakeLauncher.done("0") // OneDone
+	}
 
 	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
 	err := errors.New("ouch")
@@ -480,6 +494,7 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc.NotificationsEndp = endp
 	svc.URLDispatcherEndp = ps.urlDispBus
 	svc.WindowStackEndp = ps.winStackBus
+	svc.launchers = map[string]launch_helper.HelperLauncher{}
 	c.Assert(svc.Start(), IsNil)
 
 	// Persist is false so we just check the log
