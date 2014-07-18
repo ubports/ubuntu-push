@@ -46,8 +46,6 @@ type AppId struct {
 var hookPath = filepath.Join(xdg.Data.Home(), "ubuntu-push-client", "helpers")
 var hookExt = ".json"
 
-var legacyHelperDir = "/usr/lib/ubuntu-push-client/legacy-helpers"
-
 // from https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId
 // except the version is made optional
 var rxClick = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_([0-9][a-zA-Z0-9.+:~-]*))?$`)
@@ -125,7 +123,7 @@ type hookFile struct {
 // helper for this app.
 func (app *AppId) Helper() (helperAppId string, helperExec string) {
 	if !app.Click {
-		return "", filepath.Join(legacyHelperDir, app.Application)
+		return "", ""
 	}
 	// xxx: should probably have a cache of this
 	matches, err := filepath.Glob(filepath.Join(hookPath, app.Package+"_*"+hookExt))

@@ -253,5 +253,5 @@ func (s *clickSuite) TestHelperlegacy(c *C) {
 	c.Assert(err, IsNil)
 	hid, hex := app.Helper()
 	c.Check(hid, Equals, "")
-	c.Check(hex, Equals, filepath.Join(legacyHelperDir, appname))
+	c.Check(hex, Equals, "")
 }

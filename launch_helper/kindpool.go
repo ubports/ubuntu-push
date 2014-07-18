@@ -35,7 +35,7 @@ import (
 )
 
 var (
-	ErrCantFindHelper = errors.New("can't find helper")
+	ErrCantFindHelper   = errors.New("can't find helper")
 	ErrCantFindLauncher = errors.New("can't find launcher for helper")
 )
 
@@ -49,6 +49,7 @@ type HelperArgs struct {
 }
 
 type HelperLauncher interface {
+	HelperInfo(app *click.AppId) (string, string)
 	InstallObserver(done func(string)) error
 	RemoveObserver() error
 	Launch(appId string, exec string, f1 string, f2 string) (string, error)
@@ -64,13 +65,6 @@ type kindHelperPool struct {
 	hmap       map[string]*HelperArgs
 	maxRuntime time.Duration
 }
-
-func _helperInfo(app *click.AppId) (string, string) {
-	return app.Helper()
-}
-
-// HelperInfo is overridable for testing
-var HelperInfo func(*click.AppId) (string, string) = _helperInfo
 
 // DefaultLaunchers produces the default map for kind -> HelperLauncher
 func DefaultLaunchers(log logger.Logger) map[string]HelperLauncher {
@@ -151,8 +145,8 @@ func (pool *kindHelperPool) handleOne(input *HelperInput) error {
 		pool.log.Errorf("unable to find launcher for kind: %v", input.kind)
 		return ErrCantFindLauncher
 	}
-	helperAppId, helperExec := HelperInfo(input.App)
-	if helperAppId == "" || helperExec == "" {
+	helperAppId, helperExec := launcher.HelperInfo(input.App)
+	if helperAppId == "" && helperExec == "" {
 		pool.log.Errorf("can't locate helper for app")
 		return ErrCantFindHelper
 	}

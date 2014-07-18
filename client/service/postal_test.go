@@ -93,6 +93,13 @@ func (fhl *fakeHelperLauncher) InstallObserver(done func(string)) error {
 }
 func (fhl *fakeHelperLauncher) RemoveObserver() error  { return nil }
 func (fhl *fakeHelperLauncher) Stop(_, _ string) error { return nil }
+func (fhl *fakeHelperLauncher) HelperInfo(app *click.AppId) (string, string) {
+	if app.Click {
+		return "helpId", "bar"
+	} else {
+		return "", "lhex"
+	}
+}
 func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 	dat, err := ioutil.ReadFile(f1)
 	if err != nil {
@@ -112,15 +119,14 @@ func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 }
 
 type postalSuite struct {
-	log           *helpers.TestLogger
-	bus           bus.Endpoint
-	notifBus      bus.Endpoint
-	counterBus    bus.Endpoint
-	hapticBus     bus.Endpoint
-	urlDispBus    bus.Endpoint
-	winStackBus   bus.Endpoint
-	oldHelperInfo func(*click.AppId) (string, string)
-	fakeLauncher  *fakeHelperLauncher
+	log          *helpers.TestLogger
+	bus          bus.Endpoint
+	notifBus     bus.Endpoint
+	counterBus   bus.Endpoint
+	hapticBus    bus.Endpoint
+	urlDispBus   bus.Endpoint
+	winStackBus  bus.Endpoint
+	fakeLauncher *fakeHelperLauncher
 }
 
 type ualPostalSuite struct {
@@ -133,16 +139,6 @@ type trivialPostalSuite struct {
 
 var _ = Suite(&ualPostalSuite{})
 var _ = Suite(&trivialPostalSuite{})
-
-func (ps *postalSuite) SetUpSuite(c *C) {
-	ps.oldHelperInfo = launch_helper.HelperInfo
-	launch_helper.HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-
-}
-
-func (ps *postalSuite) TearDownSuite(c *C) {
-	launch_helper.HelperInfo = ps.oldHelperInfo
-}
 
 func (ps *postalSuite) SetUpTest(c *C) {
 	ps.log = helpers.NewTestLogger(c, "debug")
