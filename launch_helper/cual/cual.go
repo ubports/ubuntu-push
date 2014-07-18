@@ -69,7 +69,6 @@ func (hs *helperState) InstallObserver(done func(string)) error {
 }
 
 func (hs *helperState) RemoveObserver() error {
-	hs.done = nil
 	if C.remove_observer(C.gpointer(hs)) != C.TRUE {
 		return ErrCantUnobserve
 	}
