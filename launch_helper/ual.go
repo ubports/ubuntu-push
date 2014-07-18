@@ -51,7 +51,7 @@ type ualHelperLauncher struct {
 	log        logger.Logger
 	chOut      chan *HelperResult
 	chIn       chan *HelperInput
-	cual       cual.HelperState
+	mgrs       map[string]cual.HelperState
 	lock       sync.Mutex
 	hmap       map[string]*HelperArgs
 	maxRuntime time.Duration
@@ -72,6 +72,7 @@ func NewHelperLauncher(log logger.Logger) HelperLauncher {
 	return &ualHelperLauncher{
 		log:        log,
 		hmap:       make(map[string]*HelperArgs),
+		mgrs:       make(map[string]cual.HelperState),
 		maxRuntime: 5 * time.Second,
 	}
 }
@@ -79,9 +80,9 @@ func NewHelperLauncher(log logger.Logger) HelperLauncher {
 func (ual *ualHelperLauncher) Start() chan *HelperResult {
 	ual.chOut = make(chan *HelperResult)
 	ual.chIn = make(chan *HelperInput, InputBufferSize)
-	ual.cual = NewHelperState(ual.log, ual)
+	ual.mgrs["click"] = NewHelperState(ual.log, ual)
 
-	err := ual.cual.InstallObserver()
+	err := ual.mgrs["click"].InstallObserver()
 	if err != nil {
 		panic(fmt.Errorf("failed to install helper observer: %v", err))
 	}
@@ -100,13 +101,14 @@ func (ual *ualHelperLauncher) Start() chan *HelperResult {
 
 func (ual *ualHelperLauncher) Stop() {
 	close(ual.chIn)
-	err := ual.cual.RemoveObserver()
+	err := ual.mgrs["click"].RemoveObserver()
 	if err != nil {
 		panic(fmt.Errorf("failed to remove helper observer: %v", err))
 	}
 }
 
 func (ual *ualHelperLauncher) Run(input *HelperInput) {
+	input.kind = "click"
 	ual.chIn <- input
 }
 
@@ -157,7 +159,8 @@ func (ual *ualHelperLauncher) handleOne(input *HelperInput) error {
 
 	ual.lock.Lock()
 	defer ual.lock.Unlock()
-	iid, err := ual.cual.Launch(helperAppId, helperExec, f1, f2)
+	mgr := ual.mgrs[input.kind]
+	iid, err := mgr.Launch(helperAppId, helperExec, f1, f2)
 	if err != nil {
 		ual.log.Errorf("unable to launch helper %s: %v", helperAppId, err)
 		return err
@@ -166,7 +169,7 @@ func (ual *ualHelperLauncher) handleOne(input *HelperInput) error {
 	args.Timer = time.AfterFunc(ual.maxRuntime, func() {
 		ual.peekId(iid, func(a *HelperArgs) {
 			a.ForcedStop = true
-			err := ual.cual.Stop(helperAppId, iid)
+			err := mgr.Stop(helperAppId, iid)
 			if err != nil {
 				ual.log.Errorf("unable to forcefully stop helper %s: %v", helperAppId, err)
 			}
