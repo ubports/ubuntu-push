@@ -29,6 +29,7 @@ import (
 	"launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/launch_helper/cual"
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -70,6 +71,13 @@ func _helperInfo(app *click.AppId) (string, string) {
 
 // HelperInfo is overridable for testing
 var HelperInfo func(*click.AppId) (string, string) = _helperInfo
+
+// DefaultLaunchers produces the default map for kind -> HelperLauncher
+func DefaultLaunchers(log logger.Logger) map[string]HelperLauncher {
+	return map[string]HelperLauncher{
+		"click": cual.New(log),
+	}
+}
 
 // a HelperPool that delegates to different per kind HelperLaunchers
 func NewHelperPool(launchers map[string]HelperLauncher, log logger.Logger) HelperPool {
