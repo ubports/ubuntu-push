@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -127,6 +128,7 @@ type postalSuite struct {
 	urlDispBus   bus.Endpoint
 	winStackBus  bus.Endpoint
 	fakeLauncher *fakeHelperLauncher
+	getTempDir   func(string) (string, error)
 }
 
 type ualPostalSuite struct {
@@ -149,6 +151,17 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.urlDispBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
 	ps.fakeLauncher = &fakeHelperLauncher{ch: make(chan bool)}
+
+	ps.getTempDir = launch_helper.GetTempDir
+	d := c.MkDir()
+	launch_helper.GetTempDir = func(pkgName string) (string, error) {
+		tmpDir := filepath.Join(d, pkgName)
+		return tmpDir, os.MkdirAll(tmpDir, 0700)
+	}
+}
+
+func (ps *postalSuite) TearDownTest(c *C) {
+	launch_helper.GetTempDir = ps.getTempDir
 }
 
 func (ts *trivialPostalSuite) SetUpTest(c *C) {
@@ -157,7 +170,7 @@ func (ts *trivialPostalSuite) SetUpTest(c *C) {
 }
 
 func (ts *trivialPostalSuite) TearDownTest(c *C) {
-	ts.postalSuite.SetUpTest(c)
+	ts.postalSuite.TearDownTest(c)
 	useTrivialHelper = false
 }
 

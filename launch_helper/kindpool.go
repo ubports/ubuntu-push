@@ -264,10 +264,11 @@ func _getTempDir(pkgName string) (string, error) {
 	return tmpDir, err
 }
 
-var getTempDir = _getTempDir
+// override GetTempDir for testing without writing to ~/.cache/<pkgName>
+var GetTempDir func(pkgName string) (string, error) = _getTempDir
 
 func _getTempFilename(pkgName string) (string, error) {
-	tmpDir, err := getTempDir(pkgName)
+	tmpDir, err := GetTempDir(pkgName)
 	if err != nil {
 		return "", err
 	}

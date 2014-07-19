@@ -13,6 +13,7 @@ ubuntu-push (0.49-0ubuntu1) UNRELEASED; urgency=medium
   * Payload should be json (fixes message needing to be base64-encoded in
     helper reply)
   * Implement limited mboxes
+  * Refactor and cleanup of things done in haste by Chipaca.
 
   [Richard Huddie]
   * autopilot test framework and basic coverage of broadcast notifications.
@@ -36,6 +37,7 @@ ubuntu-push (0.49-0ubuntu1) UNRELEASED; urgency=medium
   * Write ual-based helper launcher.
   * Switch to the ual-based helper launcher unless the environment
     variable UBUNTU_PUSH_USE_TRIVIAL_HELPER is set.
+  * Threw together an implementation of helpers for legacy applications.
 
   [Roberto Alsina]
   * Wrap the (dbus) WindowStack API and add endpoint to the Postal service
