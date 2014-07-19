@@ -27,6 +27,8 @@ ubuntu-push (0.49-0ubuntu1) UNRELEASED; urgency=medium
   * Broadcast via the helpers route.
   * Basic support for actions (only default action) in the persistent
     notifications.
+  * Change PostBroadcast to send the broadcast message to the software
+    updates helper.
 
   [John R. Lenton]
   * Detangle client and postal.
@@ -38,6 +40,8 @@ ubuntu-push (0.49-0ubuntu1) UNRELEASED; urgency=medium
   * Switch to the ual-based helper launcher unless the environment
     variable UBUNTU_PUSH_USE_TRIVIAL_HELPER is set.
   * Threw together an implementation of helpers for legacy applications.
+  * Hacked up an initial software updates helper, to be handed off to the
+    appropriate team shortly.
 
   [Roberto Alsina]
   * Wrap the (dbus) WindowStack API and add endpoint to the Postal service
