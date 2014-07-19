@@ -354,7 +354,7 @@ func (ps *postalSuite) TestPostBroadcast(c *C) {
 	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
 		expectedAppId, _ := click.ParseAppId("_ubuntu-system-settings")
 		c.Check(app, DeepEquals, expectedAppId)
-		c.Check(len(nid), Equals, 32)
+		c.Check(len(nid), Equals, 36)
 		return nil
 	})
 	decoded := map[string]interface{}{
