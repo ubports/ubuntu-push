@@ -112,7 +112,7 @@ func (d *dumbPostal) Post(app *click.AppId, nid string, payload json.RawMessage)
 	d.postArgs = append(d.postArgs, postArgs{app, nid, payload})
 	return d.err
 }
-func (d *dumbPostal) PostBroadcast() error {
+func (d *dumbPostal) PostBroadcast(decoded map[string]interface{}) error {
 	d.bcastCount++
 	return d.err
 }
