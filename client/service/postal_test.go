@@ -48,6 +48,16 @@ func takeNextBool(ch <-chan bool) bool {
 	}
 }
 
+// takeNextBytes takes a value from given channel with a 5s timeout
+func takeNextBytes(ch <-chan []byte) []byte {
+	select {
+	case <-time.After(5 * time.Second):
+		panic("channel stuck: too long waiting")
+	case v := <-ch:
+		return v
+	}
+}
+
 // takeNextHelperOutput takes a value from given channel with a 5s timeout
 func takeNextHelperOutput(ch <-chan *launch_helper.HelperOutput) *launch_helper.HelperOutput {
 	select {
@@ -83,7 +93,7 @@ func installTickMessageHandler(svc *PostalService) chan error {
 
 type fakeHelperLauncher struct {
 	i    int
-	ch   chan bool
+	ch   chan []byte
 	done func(string)
 }
 
@@ -106,7 +116,7 @@ func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 	id := []string{"0", "1", "2"}[fhl.i]
 	fhl.i++
 
-	fhl.ch <- true
+	fhl.ch <- dat
 
 	return id, nil
 }
@@ -152,7 +162,7 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.urlDispBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
-	ps.fakeLauncher = &fakeHelperLauncher{ch: make(chan bool)}
+	ps.fakeLauncher = &fakeHelperLauncher{ch: make(chan []byte)}
 }
 
 func (ts *trivialPostalSuite) SetUpTest(c *C) {
@@ -268,8 +278,8 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 
 	if ps.fakeLauncher.done != nil {
 		// wait for the two posts to "launch"
-		takeNextBool(ps.fakeLauncher.ch)
-		takeNextBool(ps.fakeLauncher.ch)
+		takeNextBytes(ps.fakeLauncher.ch)
+		takeNextBytes(ps.fakeLauncher.ch)
 
 		go ps.fakeLauncher.done("0") // OneDone
 		go ps.fakeLauncher.done("1") // OneDone
@@ -364,7 +374,9 @@ func (ps *postalSuite) TestPostBroadcast(c *C) {
 	c.Assert(err, IsNil)
 
 	if ps.fakeLauncher.done != nil {
-		takeNextBool(ps.fakeLauncher.ch)
+		inputData := takeNextBytes(ps.fakeLauncher.ch)
+		expectedData, _ := json.Marshal(decoded)
+		c.Check(inputData, DeepEquals, expectedData)
 		go ps.fakeLauncher.done("0") // OneDone
 	}
 }
@@ -390,7 +402,7 @@ func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 	c.Assert(err, IsNil)
 
 	if ps.fakeLauncher.done != nil {
-		takeNextBool(ps.fakeLauncher.ch)
+		takeNextBytes(ps.fakeLauncher.ch)
 		go ps.fakeLauncher.done("0") // OneDone
 	}
 
@@ -471,7 +483,7 @@ func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
 	c.Check(svc.Post(&click.AppId{}, "thing", json.RawMessage("{}")), IsNil)
 
 	if ps.fakeLauncher.done != nil {
-		takeNextBool(ps.fakeLauncher.ch)
+		takeNextBytes(ps.fakeLauncher.ch)
 
 		go ps.fakeLauncher.done("0") // OneDone
 	}
