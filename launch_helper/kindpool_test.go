@@ -42,6 +42,7 @@ type fakeHelperLauncher struct {
 	done  func(string)
 	obs   int
 	err   error
+	lhex  string
 	argCh chan [5]string
 }
 
@@ -54,6 +55,14 @@ func (fhl *fakeHelperLauncher) InstallObserver(done func(string)) error {
 func (fhl *fakeHelperLauncher) RemoveObserver() error {
 	fhl.obs--
 	return nil
+}
+
+func (fhl *fakeHelperLauncher) HelperInfo(app *click.AppId) (string, string) {
+	if app.Click {
+		return app.Base() + "-helper", "bar"
+	} else {
+		return "", fhl.lhex
+	}
 }
 
 func (fhl *fakeHelperLauncher) Launch(appId string, exec string, f1 string, f2 string) (string, error) {
@@ -84,6 +93,8 @@ func (s *poolSuite) TestDefaultLaunchers(c *C) {
 	launchers := DefaultLaunchers(s.log)
 	_, ok := launchers["click"]
 	c.Check(ok, Equals, true)
+	_, ok = launchers["legacy"]
+	c.Check(ok, Equals, true)
 }
 
 // check that Stop (tries to) remove the observer
@@ -97,11 +108,37 @@ func (s *poolSuite) TestStartStopWork(c *C) {
 }
 
 func (s *poolSuite) TestRunLaunches(c *C) {
-	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-	defer func() { HelperInfo = _helperInfo }()
 	s.pool.Start()
 	defer s.pool.Stop()
 	appId := "com.example.test_test-app"
+	app := clickhelp.MustParseAppId(appId)
+	helpId := app.Base() + "-helper"
+	input := HelperInput{
+		App:            app,
+		NotificationId: "foo",
+		Payload:        []byte(`"hello"`),
+	}
+	s.pool.Run("fake", &input)
+	select {
+	case arg := <-fakeLauncher.argCh:
+		c.Check(arg[:3], DeepEquals, []string{"Launch", helpId, "bar"})
+	case <-time.After(100 * time.Millisecond):
+		c.Fatal("didn't call Launch")
+	}
+	args := s.pool.(*kindHelperPool).peekId("fake:0", func(*HelperArgs) {})
+	c.Assert(args, NotNil)
+	args.Timer.Stop()
+	c.Check(args.AppId, Equals, helpId)
+	c.Check(args.Input, Equals, &input)
+	c.Check(args.FileIn, NotNil)
+	c.Check(args.FileOut, NotNil)
+}
+
+func (s *poolSuite) TestRunLaunchesLegacyStyle(c *C) {
+	fakeLauncher.lhex = "lhex"
+	s.pool.Start()
+	defer s.pool.Stop()
+	appId := "_legacy"
 	app := clickhelp.MustParseAppId(appId)
 	input := HelperInput{
 		App:            app,
@@ -111,24 +148,43 @@ func (s *poolSuite) TestRunLaunches(c *C) {
 	s.pool.Run("fake", &input)
 	select {
 	case arg := <-fakeLauncher.argCh:
-		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
+		c.Check(arg[:3], DeepEquals, []string{"Launch", "", "lhex"})
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
 	}
 	args := s.pool.(*kindHelperPool).peekId("fake:0", func(*HelperArgs) {})
 	c.Assert(args, NotNil)
 	args.Timer.Stop()
-	c.Check(args.AppId, Equals, "helpId")
 	c.Check(args.Input, Equals, &input)
 	c.Check(args.FileIn, NotNil)
 	c.Check(args.FileOut, NotNil)
 }
 
 func (s *poolSuite) TestGetOutputIfHelperLaunchFail(c *C) {
-	// invokes actual _helperInfo which fails with "", ""
 	ch := s.pool.Start()
 	defer s.pool.Stop()
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
+	input := HelperInput{
+		App:            app,
+		NotificationId: "foo",
+		Payload:        []byte(`"hello"`),
+	}
+	s.pool.Run("not-there", &input)
+	var res *HelperResult
+	select {
+	case res = <-ch:
+	case <-time.After(100 * time.Millisecond):
+		c.Fatal("timeout")
+	}
+	c.Check(res.Message, DeepEquals, input.Payload)
+	c.Check(res.Notification, IsNil)
+	c.Check(*res.Input, DeepEquals, input)
+}
+
+func (s *poolSuite) TestGetOutputIfHelperLaunchFail2(c *C) {
+	ch := s.pool.Start()
+	defer s.pool.Stop()
+	app := clickhelp.MustParseAppId("_legacy")
 	input := HelperInput{
 		App:            app,
 		NotificationId: "foo",
@@ -147,13 +203,12 @@ func (s *poolSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 }
 
 func (s *poolSuite) TestRunCantLaunch(c *C) {
-	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-	defer func() { HelperInfo = _helperInfo }()
 	fakeLauncher.err = cual.ErrCantLaunch
 	ch := s.pool.Start()
 	defer s.pool.Stop()
 	appId := "com.example.test_test-app"
 	app := clickhelp.MustParseAppId(appId)
+	helpId := app.Base() + "-helper"
 	input := HelperInput{
 		App:            app,
 		NotificationId: "foo",
@@ -162,7 +217,7 @@ func (s *poolSuite) TestRunCantLaunch(c *C) {
 	s.pool.Run("fake", &input)
 	select {
 	case arg := <-fakeLauncher.argCh:
-		c.Check(arg[:3], DeepEquals, []string{"Launch", "helpId", "bar"})
+		c.Check(arg[:3], DeepEquals, []string{"Launch", helpId, "bar"})
 	case <-time.After(100 * time.Millisecond):
 		c.Fatal("didn't call Launch")
 	}
@@ -173,19 +228,16 @@ func (s *poolSuite) TestRunCantLaunch(c *C) {
 		c.Fatal("timeout")
 	}
 	c.Check(res.Message, DeepEquals, input.Payload)
-	c.Check(s.log.Captured(), Equals, "DEBUG using helper helpId (exec: bar) for app com.example.test_test-app\n"+"ERROR unable to launch helper helpId: can't launch helper\n"+"ERROR unable to get helper output; putting payload into message\n")
+	c.Check(s.log.Captured(), Equals, "DEBUG using helper com.example.test_test-app-helper (exec: bar) for app com.example.test_test-app\n"+"ERROR unable to launch helper com.example.test_test-app-helper: can't launch helper\n"+"ERROR unable to get helper output; putting payload into message\n")
 }
 
 func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
-	HelperInfo = func(*click.AppId) (string, string) { return "helpId", "bar" }
-	defer func() {
-		HelperInfo = _helperInfo
-	}()
 	s.pool.(*kindHelperPool).maxRuntime = 500 * time.Millisecond
 	ch := s.pool.Start()
 	defer s.pool.Stop()
 	appId := "com.example.test_test-app"
 	app := clickhelp.MustParseAppId(appId)
+	helpId := app.Base() + "-helper"
 	input := HelperInput{
 		App:            app,
 		NotificationId: "foo",
@@ -200,7 +252,7 @@ func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
 	}
 	select {
 	case arg := <-fakeLauncher.argCh:
-		c.Check(arg[:3], DeepEquals, []string{"Stop", "helpId", "0"})
+		c.Check(arg[:3], DeepEquals, []string{"Stop", helpId, "0"})
 	case <-time.After(2 * time.Second):
 		c.Fatal("didn't call Stop")
 	}

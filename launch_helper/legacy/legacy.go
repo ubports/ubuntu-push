@@ -20,7 +20,10 @@ package legacy
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
+
+	"launchpad.net/ubuntu-push/click"
 )
 
 type legacyHelperLauncher struct {
@@ -34,6 +37,12 @@ func New() *legacyHelperLauncher {
 func (lhl *legacyHelperLauncher) InstallObserver(done func(string)) error {
 	lhl.done = done
 	return nil
+}
+
+var legacyHelperDir = "/usr/lib/ubuntu-push-client/legacy-helpers"
+
+func (lhl *legacyHelperLauncher) HelperInfo(app *click.AppId) (string, string) {
+	return "", filepath.Join(legacyHelperDir, app.Application)
 }
 
 func (*legacyHelperLauncher) RemoveObserver() error { return nil }
