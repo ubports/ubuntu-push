@@ -137,6 +137,7 @@ func (svc *PostalService) Start() error {
 
 	go svc.consumeHelperResults(svc.HelperPool.Start())
 	go svc.handleActions(actionsCh, svc.messagingMenu.Ch)
+	svc.messagingMenu.StartCleanupLoop()
 	return nil
 }
 

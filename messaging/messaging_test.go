@@ -17,6 +17,8 @@
 package messaging
 
 import (
+	"time"
+
 	. "launchpad.net/gocheck"
 	"testing"
 
@@ -123,4 +125,72 @@ func (ms *MessagingSuite) TestRemoveNotification(c *C) {
 	// check it's gone
 	_, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, false)
+}
+
+func (ms *MessagingSuite) TestCleanupStaleNotification(c *C) {
+	mmu := New(ms.log)
+	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
+	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
+	mmu.addNotification(ms.app.DesktopId(), "notif-id", &card, actions)
+
+	// check it's there
+	_, ok := mmu.notifications["notif-id"]
+	c.Check(ok, Equals, true)
+
+	// patch cnotificationexists to return true
+	cNotificationExists = func(did string, nid string) bool {
+		return true
+	}
+	// remove the notification
+	mmu.cleanUpNotifications()
+	// check it's still there
+	_, ok = mmu.notifications["notif-id"]
+	c.Check(ok, Equals, true)
+	// patch cnotificationexists to return false
+	cNotificationExists = func(did string, nid string) bool {
+		return false
+	}
+	// remove the notification
+	mmu.cleanUpNotifications()
+	// check it's gone
+	_, ok = mmu.notifications["notif-id"]
+	c.Check(ok, Equals, false)
+}
+
+func (ms *MessagingSuite) TestCleanupLoop(c *C) {
+	// make the cleanup loop run a bit faster
+	cleanupLoopDuration = 100 * time.Nanosecond
+	mmu := New(ms.log)
+	// patch cnotificationexists to return true
+	cNotificationExists = func(did string, nid string) bool {
+		return true
+	}
+	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
+	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
+	mmu.addNotification(ms.app.DesktopId(), "notif-id", &card, actions)
+
+	// check it's there
+	_, ok := mmu.notifications["notif-id"]
+	c.Check(ok, Equals, true)
+
+	// statr the cleanup loop
+	mmu.StartCleanupLoop()
+	// patch cnotificationexists to return false
+	cNotificationExists = func(did string, nid string) bool {
+		return false
+	}
+	// wait for a couple of loops
+	<-time.After(500 * time.Nanosecond)
+	// check it's gone
+	_, ok = mmu.notifications["notif-id"]
+	c.Check(ok, Equals, false)
+
+	// stop the loop and check that it's actually stopped.
+	mmu.StopCleanupLoop()
+	// wait for a couple of loops
+	<-time.After(1 * time.Millisecond)
+	mmu.addNotification(ms.app.DesktopId(), "notif-id-1", &card, actions)
+	// check it's there
+	_, ok = mmu.notifications["notif-id-1"]
+	c.Check(ok, Equals, true)
 }
