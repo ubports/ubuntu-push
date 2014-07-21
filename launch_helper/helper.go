@@ -24,28 +24,41 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 )
 
-type HelperLauncher interface {
-	Run(appId string, message []byte) *HelperOutput
-}
-
 type trivialHelperLauncher struct {
-	log logger.Logger
+	log   logger.Logger
+	chOut chan *HelperResult
+	chIn  chan *HelperInput
 }
 
-// a trivial HelperLauncher that doesn't launch anything at all
-func NewTrivialHelperLauncher(log logger.Logger) HelperLauncher {
-	return &trivialHelperLauncher{log}
+// a trivial HelperPool that doesn't launch anything at all
+func NewTrivialHelperPool(log logger.Logger) HelperPool {
+	return &trivialHelperLauncher{log: log}
 }
 
-func (triv *trivialHelperLauncher) Run(appId string, message []byte) *HelperOutput {
-	out := new(HelperOutput)
-	err := json.Unmarshal(message, out)
-	if err == nil {
-		return out
-	}
-	triv.log.Debugf("failed to parse HelperOutput from message, leaving it alone: %v", err)
-	out.Message = message
-	out.Notification = nil
+func (triv *trivialHelperLauncher) Start() chan *HelperResult {
+	triv.chOut = make(chan *HelperResult)
+	triv.chIn = make(chan *HelperInput, InputBufferSize)
 
-	return out
+	go func() {
+		for i := range triv.chIn {
+			res := &HelperResult{Input: i}
+			err := json.Unmarshal(i.Payload, &res.HelperOutput)
+			if err != nil {
+				triv.log.Debugf("failed to parse HelperOutput from message, leaving it alone: %v", err)
+				res.Message = i.Payload
+				res.Notification = nil
+			}
+			triv.chOut <- res
+		}
+	}()
+
+	return triv.chOut
+}
+
+func (triv *trivialHelperLauncher) Stop() {
+	close(triv.chIn)
+}
+
+func (triv *trivialHelperLauncher) Run(kind string, input *HelperInput) {
+	triv.chIn <- input
 }

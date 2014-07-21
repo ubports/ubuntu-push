@@ -31,7 +31,7 @@ import (
 type channel struct {
 	topLevel      int64
 	notifications []protocol.Notification
-	expirations   []time.Time
+	meta          []Metadata
 }
 
 // InMemoryPendingStore is a basic in-memory pending notification store.
@@ -82,7 +82,7 @@ func (sto *InMemoryPendingStore) GetInternalChannelId(name string) (InternalChan
 	return InternalChannelId(""), ErrUnknownChannel
 }
 
-func (sto *InMemoryPendingStore) appendToChannel(chanId InternalChannelId, newNotification protocol.Notification, inc int64, expiration time.Time) error {
+func (sto *InMemoryPendingStore) appendToChannel(chanId InternalChannelId, newNotification protocol.Notification, inc int64, meta1 Metadata) error {
 	sto.lock.Lock()
 	defer sto.lock.Unlock()
 	prev := sto.store[chanId]
@@ -91,48 +91,101 @@ func (sto *InMemoryPendingStore) appendToChannel(chanId InternalChannelId, newNo
 	}
 	prev.topLevel += inc
 	prev.notifications = append(prev.notifications, newNotification)
-	prev.expirations = append(prev.expirations, expiration)
+	prev.meta = append(prev.meta, meta1)
 	sto.store[chanId] = prev
 	return nil
 }
 
 func (sto *InMemoryPendingStore) AppendToChannel(chanId InternalChannelId, notificationPayload json.RawMessage, expiration time.Time) error {
 	newNotification := protocol.Notification{Payload: notificationPayload}
-	return sto.appendToChannel(chanId, newNotification, 1, expiration)
+	meta1 := Metadata{Expiration: expiration}
+	return sto.appendToChannel(chanId, newNotification, 1, meta1)
 }
 
-func (sto *InMemoryPendingStore) AppendToUnicastChannel(chanId InternalChannelId, appId string, notificationPayload json.RawMessage, msgId string, expiration time.Time) error {
+func (sto *InMemoryPendingStore) AppendToUnicastChannel(chanId InternalChannelId, appId string, notificationPayload json.RawMessage, msgId string, meta Metadata) error {
 	newNotification := protocol.Notification{
 		Payload: notificationPayload,
 		AppId:   appId,
 		MsgId:   msgId,
 	}
-	return sto.appendToChannel(chanId, newNotification, 0, expiration)
+	return sto.appendToChannel(chanId, newNotification, 0, meta)
+}
+
+func (sto *InMemoryPendingStore) getChannelUnfiltered(chanId InternalChannelId) (*channel, []protocol.Notification, []Metadata) {
+	channel, ok := sto.store[chanId]
+	if !ok {
+		return nil, nil, nil
+	}
+	n := len(channel.notifications)
+	res := make([]protocol.Notification, n)
+	meta := make([]Metadata, n)
+	copy(res, channel.notifications)
+	copy(meta, channel.meta)
+	return channel, res, meta
+}
+
+func (sto *InMemoryPendingStore) GetChannelUnfiltered(chanId InternalChannelId) (int64, []protocol.Notification, []Metadata, error) {
+	sto.lock.Lock()
+	defer sto.lock.Unlock()
+	channel, res, meta := sto.getChannelUnfiltered(chanId)
+	if channel == nil {
+		return 0, nil, nil, nil
+	}
+	return channel.topLevel, res, meta, nil
 }
 
 func (sto *InMemoryPendingStore) GetChannelSnapshot(chanId InternalChannelId) (int64, []protocol.Notification, error) {
-	sto.lock.Lock()
-	defer sto.lock.Unlock()
-	channel, ok := sto.store[chanId]
-	if !ok {
+	topLevel, res, meta, _ := sto.GetChannelUnfiltered(chanId)
+	if res == nil {
 		return 0, nil, nil
 	}
-	topLevel := channel.topLevel
-	n := len(channel.notifications)
-	res := make([]protocol.Notification, 0, n)
-	exps := make([]time.Time, 0, n)
-	now := time.Now()
-	for i, expiration := range channel.expirations {
-		if expiration.Before(now) {
+	res = FilterOutObsolete(res, meta)
+	return topLevel, res, nil
+}
+
+func (sto *InMemoryPendingStore) Scrub(chanId InternalChannelId, criteria ...string) error {
+	appId := ""
+	replaceTag := ""
+	switch len(criteria) {
+	case 2:
+		replaceTag = criteria[1]
+		fallthrough
+	case 1:
+		appId = criteria[0]
+	case 0:
+	default:
+		panic("Scrub() expects only up to two criterias")
+	}
+	sto.lock.Lock()
+	defer sto.lock.Unlock()
+	channel, res, meta := sto.getChannelUnfiltered(chanId)
+	if channel == nil {
+		return nil
+	}
+	fresh := FilterOutObsolete(res, meta)
+	res = make([]protocol.Notification, 0, len(fresh))
+	resMeta := make([]Metadata, 0, len(fresh))
+	i := 0
+	for j := range meta {
+		if meta[j].Obsolete {
 			continue
 		}
-		res = append(res, channel.notifications[i])
-		exps = append(exps, expiration)
+		notif := fresh[i]
+		i++
+		if replaceTag != "" {
+			if notif.AppId == appId && meta[j].ReplaceTag == replaceTag {
+				continue
+			}
+		} else if notif.AppId == appId {
+			continue
+		}
+		res = append(res, notif)
+		resMeta = append(resMeta, meta[j])
 	}
 	// store as well
 	channel.notifications = res
-	channel.expirations = exps
-	return topLevel, res, nil
+	channel.meta = resMeta
+	return nil
 }
 
 func (sto *InMemoryPendingStore) Close() {
@@ -146,16 +199,16 @@ func (sto *InMemoryPendingStore) DropByMsgId(chanId InternalChannelId, targets [
 	if !ok {
 		return nil
 	}
-	expById := make(map[string]time.Time, len(channel.notifications))
+	metaById := make(map[string]Metadata, len(channel.notifications))
 	for i, notif := range channel.notifications {
-		expById[notif.MsgId] = channel.expirations[i]
+		metaById[notif.MsgId] = channel.meta[i]
 	}
 	channel.notifications = FilterOutByMsgId(channel.notifications, targets)
-	exps := make([]time.Time, len(channel.notifications))
+	resMeta := make([]Metadata, len(channel.notifications))
 	for i, notif := range channel.notifications {
-		exps[i] = expById[notif.MsgId]
+		resMeta[i] = metaById[notif.MsgId]
 	}
-	channel.expirations = exps
+	channel.meta = resMeta
 	return nil
 }
 

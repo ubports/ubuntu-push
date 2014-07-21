@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -31,14 +32,12 @@ import (
 	"os/exec"
 	"strings"
 
+	"code.google.com/p/go-uuid/uuid"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
-	"launchpad.net/ubuntu-push/bus/emblemcounter"
-	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
-	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/bus/systemimage"
-	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/client/service"
 	"launchpad.net/ubuntu-push/client/session"
@@ -80,35 +79,40 @@ type PushService interface {
 	Unregister(appId string) error
 }
 
+type PostalService interface {
+	// Starts the service
+	Start() error
+	// Post converts a push message into a presentable notification
+	// and a postal message, presents the former and stores the
+	// latter in the application's mailbox.
+	Post(app *click.AppId, nid string, payload json.RawMessage) error
+	// IsRunning() returns whether the service is running
+	IsRunning() bool
+	// Stop() stops the service
+	Stop()
+}
+
 // PushClient is the Ubuntu Push Notifications client-side daemon.
 type PushClient struct {
-	leveldbPath           string
-	configPath            string
-	config                ClientConfig
-	log                   logger.Logger
-	pem                   []byte
-	idder                 identifier.Id
-	deviceId              string
-	notificationsEndp     bus.Endpoint
-	urlDispatcherEndp     bus.Endpoint
-	connectivityEndp      bus.Endpoint
-	emblemcounterEndp     bus.Endpoint
-	hapticEndp            bus.Endpoint
-	systemImageEndp       bus.Endpoint
-	systemImageInfo       *systemimage.InfoResult
-	connCh                chan bool
-	hasConnectivity       bool
-	actionsCh             <-chan notifications.RawActionReply
-	session               *session.ClientSession
-	sessionConnectedCh    chan uint32
-	pushServiceEndpoint   bus.Endpoint
-	pushService           PushService
-	postalServiceEndpoint bus.Endpoint
-	postalService         *service.PostalService
-	unregisterCh          chan string
-	trackAddressees       map[string]bool
-	clickUser             *click.ClickUser
-	hasPackage            func(string) bool
+	leveldbPath        string
+	configPath         string
+	config             ClientConfig
+	log                logger.Logger
+	pem                []byte
+	idder              identifier.Id
+	deviceId           string
+	connectivityEndp   bus.Endpoint
+	systemImageEndp    bus.Endpoint
+	systemImageInfo    *systemimage.InfoResult
+	connCh             chan bool
+	hasConnectivity    bool
+	session            *session.ClientSession
+	sessionConnectedCh chan uint32
+	pushService        PushService
+	postalService      PostalService
+	unregisterCh       chan *click.AppId
+	trackAddressees    map[string]*click.AppId
+	installedChecker   click.InstalledChecker
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
@@ -144,22 +148,15 @@ func (client *PushClient) configure() error {
 	if err != nil {
 		return fmt.Errorf("libclick: %v", err)
 	}
-	client.clickUser = clickUser
 	// overridden for testing
-	client.hasPackage = clickUser.HasPackage
+	client.installedChecker = clickUser
 
-	client.unregisterCh = make(chan string, 10)
+	client.unregisterCh = make(chan *click.AppId, 10)
 
 	// overridden for testing
 	client.idder = identifier.New()
-	client.urlDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, client.log)
 	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
 	client.systemImageEndp = bus.SystemBus.Endpoint(systemimage.BusAddress, client.log)
-	client.notificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, client.log)
-	client.emblemcounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, client.log)
-	client.hapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, client.log)
-	client.postalServiceEndpoint = bus.SessionBus.Endpoint(service.PostalServiceBusAddress, client.log)
-	client.pushServiceEndpoint = bus.SessionBus.Endpoint(service.PushServiceBusAddress, client.log)
 
 	client.connCh = make(chan bool, 1)
 	client.sessionConnectedCh = make(chan uint32, 1)
@@ -204,6 +201,7 @@ func (client *PushClient) derivePushServiceSetup() (*service.PushServiceSetup, e
 	setup.RegURL = purl
 	setup.DeviceId = client.deviceId
 	setup.AuthGetter = client.getAuthorization
+	setup.InstalledChecker = client.installedChecker
 	return setup, nil
 }
 
@@ -246,24 +244,13 @@ func (client *PushClient) getDeviceId() error {
 func (client *PushClient) takeTheBus() error {
 	go connectivity.ConnectedState(client.connectivityEndp,
 		client.config.ConnectivityConfig, client.log, client.connCh)
-	iniCh := make(chan uint32)
-	go func() { iniCh <- util.NewAutoRedialer(client.urlDispatcherEndp).Redial() }()
-	go func() { iniCh <- util.NewAutoRedialer(client.systemImageEndp).Redial() }()
-	<-iniCh
-	<-iniCh
-
+	util.NewAutoRedialer(client.systemImageEndp).Redial()
 	sysimg := systemimage.New(client.systemImageEndp, client.log)
 	info, err := sysimg.Info()
 	if err != nil {
 		return err
 	}
 	client.systemImageInfo = info
-	return err
-}
-
-func (client *PushClient) takePostalServiceBus() error {
-	actionsCh, err := client.postalService.TakeTheBus()
-	client.actionsCh = actionsCh
 	return err
 }
 
@@ -295,36 +282,44 @@ func (client *PushClient) seenStateFactory() (seenstate.SeenState, error) {
 
 // StartAddresseeBatch starts a batch of checks for addressees.
 func (client *PushClient) StartAddresseeBatch() {
-	client.trackAddressees = make(map[string]bool, 10)
+	client.trackAddressees = make(map[string]*click.AppId, 10)
 }
 
 // CheckForAddressee check for the addressee presence.
-func (client *PushClient) CheckForAddressee(notif *protocol.Notification) bool {
+func (client *PushClient) CheckForAddressee(notif *protocol.Notification) *click.AppId {
 	appId := notif.AppId
-	present, ok := client.trackAddressees[appId]
+	parsed, ok := client.trackAddressees[appId]
 	if ok {
-		return present
+		return parsed
 	}
-	present = client.hasPackage(appId)
-	client.trackAddressees[appId] = present
-	if !present {
-		client.unregisterCh <- appId
+	parsed, err := click.ParseAndVerifyAppId(appId, client.installedChecker)
+	switch err {
+	default:
+		client.log.Debugf("notification %#v for invalid app id %#v.", notif.MsgId, notif.AppId)
+	case click.ErrMissingAppId:
+		client.log.Debugf("notification %#v for missing app id %#v.", notif.MsgId, notif.AppId)
+		client.unregisterCh <- parsed
+		parsed = nil
+	case nil:
 	}
-	return present
+	client.trackAddressees[appId] = parsed
+	return parsed
 }
 
 // handleUnregister deals with tokens of uninstalled apps
-func (client *PushClient) handleUnregister(appId string) {
-	if !client.hasPackage(appId) {
+func (client *PushClient) handleUnregister(app *click.AppId) {
+	if !client.installedChecker.Installed(app, false) {
 		// xxx small chance of race here, in case the app gets
 		// reinstalled and registers itself before we finish
 		// the unregister; we need click and app launching
 		// collaboration to do better. we redo the hasPackage
 		// check here just before to keep the race window as
 		// small as possible
-		err := client.pushService.Unregister(appId)
+		err := client.pushService.Unregister(app.Original()) // XXX WIP
 		if err != nil {
-			client.log.Errorf("unregistering %s: %s", appId, err)
+			client.log.Errorf("unregistering %s: %s", app, err)
+		} else {
+			client.log.Debugf("unregistered token for %s", app)
 		}
 	}
 }
@@ -398,69 +393,52 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 // handleBroadcastNotification deals with receiving a broadcast notification
 func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNotification) error {
 	if !client.filterBroadcastNotification(msg) {
+		client.log.Debugf("not posting broadcast notification %d; filtered.", msg.TopLevel)
 		return nil
 	}
-	not_id, err := client.postalService.InjectBroadcast()
-	if err != nil {
-		client.log.Errorf("showing notification: %s", err)
-		return err
+	// marshal the last decoded msg to json
+	payload, err := json.Marshal(msg.Decoded[len(msg.Decoded)-1])
+	if err == nil {
+		appId, _ := click.ParseAppId("_ubuntu-system-settings")
+		err = client.postalService.Post(appId, uuid.New(), payload)
 	}
-	client.log.Debugf("got notification id %d", not_id)
-	return nil
+	if err != nil {
+		client.log.Errorf("while posting broadcast notification %d: %v", msg.TopLevel, err)
+	} else {
+		client.log.Debugf("posted broadcast notification %d.", msg.TopLevel)
+	}
+	return err
 }
 
 // handleUnicastNotification deals with receiving a unicast notification
-func (client *PushClient) handleUnicastNotification(msg *protocol.Notification) error {
-	appId, err := click.ParseAppId(msg.AppId)
+func (client *PushClient) handleUnicastNotification(anotif session.AddressedNotification) error {
+	app := anotif.To
+	msg := anotif.Notification
+	err := client.postalService.Post(app, msg.MsgId, msg.Payload)
 	if err != nil {
-		client.log.Debugf("notification %#v for invalid app id %#v.", msg.MsgId, msg.AppId)
-		return errors.New("invalid app id in notification")
+		client.log.Errorf("while posting unicast notification %s for %s: %v", msg.MsgId, msg.AppId, err)
+	} else {
+		client.log.Debugf("posted unicast notification %s for %s.", msg.MsgId, msg.AppId)
 	}
-	client.log.Debugf("sending notification %#v for %#v.", msg.MsgId, msg.AppId)
-	return client.postalService.Inject(appId.Package, msg.AppId, msg.MsgId, string(msg.Payload))
-}
-
-// handleClick deals with the user clicking a notification
-func (client *PushClient) handleClick(actionId string) error {
-	// “The string is a stark data structure and everywhere it is passed
-	// there is much duplication of process. It is a perfect vehicle for
-	// hiding information.”
-	//
-	// From ACM's SIGPLAN publication, (September, 1982), Article
-	// "Epigrams in Programming", by Alan J. Perlis of Yale University.
-	url := actionId
-	// XXX: branch for the broadcast notifications
-	if strings.HasPrefix(actionId, service.ACTION_ID_PREFIX) {
-		parts := strings.Split(actionId, "::")
-		url = parts[1]
-	}
-	if len(url) == len(actionId) || len(url) == 0 {
-		// it didn't start with the prefix
-		return nil
-	}
-	// it doesn't get much simpler...
-	urld := urldispatcher.New(client.urlDispatcherEndp, client.log)
-	return urld.DispatchURL(url)
+	return err
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), clickhandler func(string) error, bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(*protocol.Notification) error, errhandler func(error), unregisterhandler func(string)) {
+func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId)) {
 	for {
 		select {
 		case state := <-client.connCh:
 			connhandler(state)
-		case action := <-client.actionsCh:
-			clickhandler(action.ActionId)
 		case bcast := <-client.session.BroadcastCh:
 			bcasthandler(bcast)
-		case ucast := <-client.session.NotificationsCh:
-			ucasthandler(ucast)
+		case aucast := <-client.session.NotificationsCh:
+			ucasthandler(aucast)
 		case err := <-client.session.ErrCh:
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
 			client.log.Debugf("Session connected after %d attempts", count)
-		case appId := <-client.unregisterCh:
-			unregisterhandler(appId)
+		case app := <-client.unregisterCh:
+			unregisterhandler(app)
 		}
 	}
 }
@@ -479,20 +457,23 @@ func (client *PushClient) doStart(fs ...func() error) error {
 // Loop calls doLoop with the "real" handlers
 func (client *PushClient) Loop() {
 	client.doLoop(client.handleConnState,
-		client.handleClick,
 		client.handleBroadcastNotification,
 		client.handleUnicastNotification,
 		client.handleErr,
 		client.handleUnregister)
 }
 
-func (client *PushClient) startService() error {
+func (client *PushClient) setupPushService() error {
 	setup, err := client.derivePushServiceSetup()
 	if err != nil {
 		return err
 	}
 
-	client.pushService = service.NewPushService(client.pushServiceEndpoint, setup, client.log)
+	client.pushService = service.NewPushService(setup, client.log)
+	return nil
+}
+
+func (client *PushClient) startPushService() error {
 	if err := client.pushService.Start(); err != nil {
 		return err
 	}
@@ -500,7 +481,7 @@ func (client *PushClient) startService() error {
 }
 
 func (client *PushClient) setupPostalService() error {
-	client.postalService = service.NewPostalService(client.postalServiceEndpoint, client.notificationsEndp, client.emblemcounterEndp, client.hapticEndp, client.log)
+	client.postalService = service.NewPostalService(client.installedChecker, client.log)
 	return nil
 }
 
@@ -516,11 +497,11 @@ func (client *PushClient) Start() error {
 	return client.doStart(
 		client.configure,
 		client.getDeviceId,
-		client.startService,
+		client.setupPushService,
 		client.setupPostalService,
+		client.startPushService,
 		client.startPostalService,
 		client.takeTheBus,
-		client.takePostalServiceBus,
 		client.initSession,
 	)
 }

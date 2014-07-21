@@ -17,10 +17,14 @@
 package launch_helper
 
 import (
+	"encoding/json"
 	"testing"
+	"time"
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/click"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -28,30 +32,60 @@ func Test(t *testing.T) { TestingT(t) }
 
 type runnerSuite struct {
 	testlog *helpers.TestLogger
+	app     *click.AppId
 }
 
 var _ = Suite(&runnerSuite{})
 
 func (s *runnerSuite) SetUpTest(c *C) {
 	s.testlog = helpers.NewTestLogger(c, "error")
+	s.app = clickhelp.MustParseAppId("com.example.test_test-app_0")
 }
 
-func (s *runnerSuite) TestTrivialRunnerWorks(c *C) {
+func (s *runnerSuite) TestTrivialPoolWorks(c *C) {
 	notif := &Notification{Sound: "42"}
 
-	triv := NewTrivialHelperLauncher(s.testlog)
-	// []byte is sent as a base64-encoded string
-	out := triv.Run("foo", []byte(`{"message": "aGVsbG8=", "notification": {"sound": "42"}}`))
+	triv := NewTrivialHelperPool(s.testlog)
+	ch := triv.Start()
+	in := &HelperInput{App: s.app, Payload: []byte(`{"message": {"m":42}, "notification": {"sound": "42"}}`)}
+	triv.Run("klick", in)
+	out := <-ch
 	c.Assert(out, NotNil)
-	c.Check(out.Message, DeepEquals, []byte("hello"))
+	c.Check(out.Message, DeepEquals, json.RawMessage(`{"m":42}`))
 	c.Check(out.Notification, DeepEquals, notif)
+	c.Check(out.Input, DeepEquals, in)
 }
 
-func (s *runnerSuite) TestTrivialRunnerWorksOnBadInput(c *C) {
-	triv := NewTrivialHelperLauncher(s.testlog)
-	msg := []byte(`this is a not your grandmother's json message`)
-	out := triv.Run("foo", msg)
+func (s *runnerSuite) TestTrivialPoolWorksOnBadInput(c *C) {
+	triv := NewTrivialHelperPool(s.testlog)
+	ch := triv.Start()
+	msg := []byte(`{card: 3}`)
+	in := &HelperInput{App: s.app, Payload: msg}
+	triv.Run("klick", in)
+	out := <-ch
 	c.Assert(out, NotNil)
 	c.Check(out.Notification, IsNil)
-	c.Check(out.Message, DeepEquals, msg)
+	c.Check(out.Message, DeepEquals, json.RawMessage(msg))
+	c.Check(out.Input, DeepEquals, in)
+}
+
+func (s *runnerSuite) TestTrivialPoolDoesNotBlockEasily(c *C) {
+	triv := NewTrivialHelperPool(s.testlog)
+	triv.Start()
+	msg := []byte(`this is a not your grandmother's json message`)
+	in := &HelperInput{App: s.app, Payload: msg}
+	flagCh := make(chan bool)
+	go func() {
+		// stuff several in there
+		triv.Run("klick", in)
+		triv.Run("klick", in)
+		triv.Run("klick", in)
+		flagCh <- true
+	}()
+	select {
+	case <-flagCh:
+		// whee
+	case <-time.After(10 * time.Millisecond):
+		c.Fatal("runner blocked too easily")
+	}
 }

@@ -98,6 +98,18 @@ func UnicastInternalChannelId(userId, deviceId string) InternalChannelId {
 	return InternalChannelId(fmt.Sprintf("U%s:%s", userId, deviceId))
 }
 
+// Metadata holds the metadata stored for a notification.
+type Metadata struct {
+	Expiration time.Time
+	ReplaceTag string
+	Obsolete   bool
+}
+
+// Before checks whether the expiration date in the metadata is before ref.
+func (m *Metadata) Before(ref time.Time) bool {
+	return m.Expiration.Before(ref)
+}
+
 // PendingStore let store notifications into channels.
 type PendingStore interface {
 	// Register returns a token for a device id, application id pair.
@@ -114,11 +126,23 @@ type PendingStore interface {
 	// directly a device id, user id pair.
 	GetInternalChannelIdFromToken(token, appId, userId, deviceId string) (InternalChannelId, error)
 	// AppendToUnicastChannel appends a notification to the unicast channel.
+	AppendToUnicastChannel(chanId InternalChannelId, appId string, notification json.RawMessage, msgId string, meta Metadata) error
 	// GetChannelSnapshot gets all the current notifications and
-	AppendToUnicastChannel(chanId InternalChannelId, appId string, notification json.RawMessage, msgId string, expiration time.Time) error
 	// current top level in the channel.
 	GetChannelSnapshot(chanId InternalChannelId) (topLevel int64, notifications []protocol.Notification, err error)
-	// DropByMsgId drops notifications from a unicast channel based on message ids.
+	// GetChannelUnfiltered gets all the stored notifications with
+	// metadata and current top level in the channel.
+	GetChannelUnfiltered(chanId InternalChannelId) (topLevel int64, notifications []protocol.Notification, metadata []Metadata, err error)
+	// Scrub removes notifications from the channel based on criteria.
+	// Usages:
+	// Scrub(chanId) removes all expired notifications.
+	// Scrub(chanId, appId) removes all expired notifications and
+	// all notifications for appId.
+	// Scrub(chanId, appId, replaceTag) removes all expired notifications
+	// and all notifications matching both appId and replaceTag.
+	Scrub(chanId InternalChannelId, criteria ...string) error
+	// DropByMsgId drops notifications from a unicast channel
+	// based on message ids.
 	DropByMsgId(chanId InternalChannelId, targets []protocol.Notification) error
 	// Close is to be called when done with the store.
 	Close()
@@ -154,4 +178,44 @@ func FilterOutByMsgId(orig, targets []protocol.Notification) []protocol.Notifica
 		}
 	}
 	return acc
+}
+
+type tagKey struct {
+	appId, replaceTag string
+}
+
+// FilterOutObsolete filters out expired notifications and superseded
+// notifications sharing a replace tag based on paired meta
+// information.
+func FilterOutObsolete(notifications []protocol.Notification, meta []Metadata) []protocol.Notification {
+	now := time.Now()
+	seenTags := make(map[tagKey]bool, 10)
+	n := 0
+	// walk backward to keep the latest ones with a given ReplaceTag
+	for j := len(meta) - 1; j >= 0; j-- {
+		if meta[j].Before(now) {
+			meta[j].Obsolete = true
+			continue
+		}
+		if meta[j].ReplaceTag != "" {
+			key := tagKey{notifications[j].AppId, meta[j].ReplaceTag}
+			seen := seenTags[key]
+			if seen {
+				meta[j].Obsolete = true
+				continue
+			} else {
+				seenTags[key] = true
+			}
+		}
+		n++
+	}
+	res := make([]protocol.Notification, n)
+	j := 0
+	for i := range meta {
+		if !meta[i].Obsolete {
+			res[j] = notifications[i]
+			j++
+		}
+	}
+	return res
 }

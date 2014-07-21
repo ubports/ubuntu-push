@@ -286,7 +286,7 @@ func (s *CommonBrokerSuite) TestUnicast(c *C) {
 	c.Assert(err, IsNil)
 	clearOfPending(c, sess2)
 	// add notification to channel *after* the registrations
-	muchLater := time.Now().Add(10 * time.Minute)
+	muchLater := store.Metadata{Expiration: time.Now().Add(10 * time.Minute)}
 	sto.AppendToUnicastChannel(chanId1, "app1", notification1, "msg1", muchLater)
 	sto.AppendToUnicastChannel(chanId2, "app2", notification2, "msg2", muchLater)
 	b.Unicast(chanId2, chanId1)
@@ -315,7 +315,7 @@ func (s *CommonBrokerSuite) TestGetAndDrop(c *C) {
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev3"}, "s1")
 	c.Assert(err, IsNil)
-	muchLater := time.Now().Add(10 * time.Minute)
+	muchLater := store.Metadata{Expiration: time.Now().Add(10 * time.Minute)}
 	sto.AppendToUnicastChannel(chanId1, "app1", notification1, "msg1", muchLater)
 	_, expected, err := sto.GetChannelSnapshot(chanId1)
 	c.Assert(err, IsNil)

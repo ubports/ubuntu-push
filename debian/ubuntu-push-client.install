@@ -1,5 +1,8 @@
 #!/usr/bin/dh-exec
 debian/config.json /etc/xdg/ubuntu-push-client
 debian/ubuntu-push-client.conf /usr/share/upstart/sessions
+debian/exec-tool /usr/lib/${DEB_HOST_MULTIARCH}/ubuntu-app-launch/push-helper
+debian/push-helper.hook /usr/share/click/hooks
 signing-helper/signing-helper /usr/lib/ubuntu-push-client
 usr/bin/ubuntu-push => /usr/lib/ubuntu-push-client/ubuntu-push-client
+scripts/software-updates-helper.py => /usr/lib/ubuntu-push-client/legacy-helpers/ubuntu-system-settings

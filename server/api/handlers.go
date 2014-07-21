@@ -29,12 +29,14 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/server/broker"
 	"launchpad.net/ubuntu-push/server/store"
 )
 
 const MaxRequestBodyBytes = 4 * 1024
 const JSONMediaType = "application/json"
+const MaxUnicastPayload = 2 * 1024
 
 // APIError represents a API error (both internally and as JSON in a response).
 type APIError struct {
@@ -44,6 +46,8 @@ type APIError struct {
 	ErrorLabel string `json:"error"`
 	// human message
 	Message string `json:"message"`
+	// extra information
+	Extra json.RawMessage `json:"extra,omitempty"`
 }
 
 // machine readable error labels
@@ -55,6 +59,7 @@ const (
 	unauthorized   = "unauthorized"
 	unavailable    = "unavailable"
 	internalError  = "internal"
+	tooManyPending = "too-many-pending"
 )
 
 func (apiErr *APIError) Error() string {
@@ -67,103 +72,145 @@ var (
 		http.StatusLengthRequired,
 		invalidRequest,
 		"A Content-Length must be provided",
+		nil,
 	}
 	ErrRequestBodyEmpty = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Request body empty",
+		nil,
 	}
 	ErrRequestBodyTooLarge = &APIError{
 		http.StatusRequestEntityTooLarge,
 		invalidRequest,
 		"Request body too large",
+		nil,
 	}
 	ErrWrongContentType = &APIError{
 		http.StatusUnsupportedMediaType,
 		invalidRequest,
 		"Wrong content type, should be application/json",
+		nil,
 	}
 	ErrWrongRequestMethod = &APIError{
 		http.StatusMethodNotAllowed,
 		invalidRequest,
 		"Wrong request method, should be POST",
+		nil,
 	}
 	ErrMalformedJSONObject = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Malformed JSON Object",
+		nil,
 	}
 	ErrCouldNotReadBody = &APIError{
 		http.StatusBadRequest,
 		ioError,
 		"Could not read request body",
+		nil,
 	}
 	ErrMissingIdField = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Missing id field",
+		nil,
 	}
 	ErrMissingData = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Missing data field",
+		nil,
+	}
+	ErrDataTooLarge = &APIError{
+		http.StatusBadRequest,
+		invalidRequest,
+		"Data too large",
+		nil,
 	}
 	ErrInvalidExpiration = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Invalid expiration date",
+		nil,
 	}
 	ErrPastExpiration = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
 		"Past expiration date",
+		nil,
 	}
 	ErrUnknownChannel = &APIError{
 		http.StatusBadRequest,
 		unknownChannel,
 		"Unknown channel",
+		nil,
 	}
 	ErrUnknownToken = &APIError{
 		http.StatusBadRequest,
 		unknownToken,
 		"Unknown token",
+		nil,
 	}
 	ErrUnknown = &APIError{
 		http.StatusInternalServerError,
 		internalError,
 		"Unknown error",
+		nil,
 	}
 	ErrStoreUnavailable = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Message store unavailable",
+		nil,
 	}
 	ErrCouldNotStoreNotification = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Could not store notification",
+		nil,
 	}
 	ErrCouldNotMakeToken = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Could not make token",
+		nil,
 	}
 	ErrCouldNotRemoveToken = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Could not remove token",
+		nil,
 	}
 	ErrCouldNotResolveToken = &APIError{
 		http.StatusServiceUnavailable,
 		unavailable,
 		"Could not resolve token",
+		nil,
 	}
 	ErrUnauthorized = &APIError{
 		http.StatusUnauthorized,
 		unauthorized,
 		"Unauthorized",
+		nil,
+	}
+	ErrTooManyPendingNotifications = &APIError{
+		http.StatusRequestEntityTooLarge,
+		tooManyPending,
+		"Too many pending notifications for this application",
+		nil,
 	}
 )
+
+func apiErrorWithExtra(apiErr *APIError, extra interface{}) *APIError {
+	var clone APIError = *apiErr
+	b, err := json.Marshal(extra)
+	if err != nil {
+		panic(fmt.Errorf("couldn't marshal our own errors: %v", err))
+	}
+	clone.Extra = json.RawMessage(b)
+	return &clone
+}
 
 type Registration struct {
 	DeviceId string `json:"deviceid"`
@@ -171,13 +218,16 @@ type Registration struct {
 }
 
 type Unicast struct {
-	Token    string `json:"token"`
-	UserId   string `json:"userid"`
-	DeviceId string `json:"deviceid"`
-	AppId    string `json:"appid"`
-	//CoalesceTag  string          `json:"coalesce_tag"`
+	Token    string          `json:"token"`
+	UserId   string          `json:"userid"`   // not part of the official API
+	DeviceId string          `json:"deviceid"` // not part of the official API
+	AppId    string          `json:"appid"`
 	ExpireOn string          `json:"expire_on"`
 	Data     json.RawMessage `json:"data"`
+	// clear all pending messages for appid
+	ClearPending bool `json:"clear_pending,omitempty"`
+	// replace pending messages with the same replace_tag
+	ReplaceTag string `json:"replace_tag,omitempty"`
 }
 
 // Broadcast request JSON object.
@@ -260,17 +310,25 @@ func checkBroadcast(bcast *Broadcast) (time.Time, *APIError) {
 	return checkCastCommon(bcast.Data, bcast.ExpireOn)
 }
 
-type StoreForRequest func(w http.ResponseWriter, request *http.Request) (store.PendingStore, error)
+// StoreAccess lets get a notification pending store and parameters
+// for storage.
+type StoreAccess interface {
+	// StoreForRequest gets a pending store for the request.
+	StoreForRequest(w http.ResponseWriter, request *http.Request) (store.PendingStore, error)
+	// GetMaxNotificationsPerApplication gets the maximum number
+	// of pending notifications allowed for a signle application.
+	GetMaxNotificationsPerApplication() int
+}
 
 // context holds the interfaces to delegate to serving requests
 type context struct {
-	storeForRequest StoreForRequest
-	broker          broker.BrokerSending
-	logger          logger.Logger
+	storage StoreAccess
+	broker  broker.BrokerSending
+	logger  logger.Logger
 }
 
 func (ctx *context) getStore(w http.ResponseWriter, request *http.Request) (store.PendingStore, *APIError) {
-	sto, err := ctx.storeForRequest(w, request)
+	sto, err := ctx.storage.StoreForRequest(w, request)
 	if err != nil {
 		apiErr, ok := err.(*APIError)
 		if ok {
@@ -373,6 +431,9 @@ func checkUnicast(ucast *Unicast) (time.Time, *APIError) {
 	if ucast.Token == "" && (ucast.UserId == "" || ucast.DeviceId == "") {
 		return zeroTime, ErrMissingIdField
 	}
+	if len(ucast.Data) > MaxUnicastPayload {
+		return zeroTime, ErrDataTooLarge
+	}
 	return checkCastCommon(ucast.Data, ucast.ExpireOn)
 }
 
@@ -400,8 +461,57 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 		}
 	}
 
+	_, notifs, meta, err := sto.GetChannelUnfiltered(chanId)
+	if err != nil {
+		ctx.logger.Errorf("could not peek at notifications: %v", err)
+		return nil, ErrCouldNotStoreNotification
+	}
+	expired := 0
+	replaceable := 0
+	forApp := 0
+	replaceTag := ucast.ReplaceTag
+	scrubCriteria := []string(nil)
+	now := time.Now()
+	var last *protocol.Notification
+	for i, notif := range notifs {
+		if meta[i].Before(now) {
+			expired++
+			continue
+		}
+		if notif.AppId == ucast.AppId {
+			if replaceTag != "" && replaceTag == meta[i].ReplaceTag {
+				// this we will scrub
+				replaceable++
+				continue
+			}
+			forApp++
+		}
+		last = &notif
+	}
+	if ucast.ClearPending {
+		scrubCriteria = []string{ucast.AppId}
+	} else if forApp >= ctx.storage.GetMaxNotificationsPerApplication() {
+		return nil, apiErrorWithExtra(ErrTooManyPendingNotifications,
+			&last.Payload)
+	} else if replaceable > 0 {
+		scrubCriteria = []string{ucast.AppId, replaceTag}
+	}
+	if expired > 0 || scrubCriteria != nil {
+		err := sto.Scrub(chanId, scrubCriteria...)
+		if err != nil {
+			ctx.logger.Errorf("could not scrub channel: %v", err)
+			return nil, ErrCouldNotStoreNotification
+		}
+	}
+
 	msgId := generateMsgId()
-	err = sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, expire)
+
+	meta1 := store.Metadata{
+		Expiration: expire,
+		ReplaceTag: ucast.ReplaceTag,
+	}
+
+	err = sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, meta1)
 	if err != nil {
 		ctx.logger.Errorf("could not store notification: %v", err)
 		return nil, ErrCouldNotStoreNotification
@@ -447,11 +557,11 @@ func doUnregister(ctx *context, sto store.PendingStore, parsedBodyObj interface{
 }
 
 // MakeHandlersMux makes a handler that dispatches for the various API endpoints.
-func MakeHandlersMux(storeForRequest StoreForRequest, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
+func MakeHandlersMux(storage StoreAccess, broker broker.BrokerSending, logger logger.Logger) *http.ServeMux {
 	ctx := &context{
-		storeForRequest: storeForRequest,
-		broker:          broker,
-		logger:          logger,
+		storage: storage,
+		broker:  broker,
+		logger:  logger,
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/broadcast", &JSONPostHandler{

@@ -31,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/client/gethosts"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/logger"
@@ -81,7 +82,14 @@ type hostGetter interface {
 // AddresseeChecking can check if a notification can be delivered.
 type AddresseeChecking interface {
 	StartAddresseeBatch()
-	CheckForAddressee(*protocol.Notification) bool
+	CheckForAddressee(*protocol.Notification) *click.AppId
+}
+
+// AddressedNotification carries both a protocol.Notification and a parsed
+// AppId addressee.
+type AddressedNotification struct {
+	To           *click.AppId
+	Notification *protocol.Notification
 }
 
 // ClientSessionConfig groups the client session configuration.
@@ -126,7 +134,7 @@ type ClientSession struct {
 	stateP          *uint32
 	ErrCh           chan error
 	BroadcastCh     chan *BroadcastNotification
-	NotificationsCh chan *protocol.Notification
+	NotificationsCh chan AddressedNotification
 	// authorization
 	auth string
 	// autoredial knobs
@@ -436,13 +444,14 @@ func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
 	sess.AddresseeChecker.StartAddresseeBatch()
 	for i := range notifs {
 		notif := &notifs[i]
-		if !sess.AddresseeChecker.CheckForAddressee(notif) {
+		to := sess.AddresseeChecker.CheckForAddressee(notif)
+		if to == nil {
 			continue
 		}
 		sess.Log.Debugf("unicast app:%v msg:%s payload:%s",
 			notif.AppId, notif.MsgId, notif.Payload)
 		sess.Log.Debugf("sending ucast over")
-		sess.NotificationsCh <- notif
+		sess.NotificationsCh <- AddressedNotification{to, notif}
 		sess.Log.Debugf("sent ucast over")
 	}
 	return nil
@@ -572,7 +581,7 @@ func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter
 		if err == nil {
 			sess.ErrCh = make(chan error, 1)
 			sess.BroadcastCh = make(chan *BroadcastNotification)
-			sess.NotificationsCh = make(chan *protocol.Notification)
+			sess.NotificationsCh = make(chan AddressedNotification)
 			go func() { sess.ErrCh <- looper() }()
 		}
 	}

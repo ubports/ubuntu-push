@@ -1,0 +1,2 @@
+#!/bin/sh
+initctl set-env "APP_EXEC=$APP_URIS"

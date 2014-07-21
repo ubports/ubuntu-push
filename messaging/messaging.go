@@ -19,6 +19,11 @@
 package messaging
 
 import (
+	"encoding/json"
+	"sync"
+
+	"launchpad.net/ubuntu-push/bus/notifications"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging/cmessaging"
@@ -26,26 +31,55 @@ import (
 )
 
 type MessagingMenu struct {
-	Log logger.Logger
-	Ch  chan *reply.MMActionReply
+	Log           logger.Logger
+	Ch            chan *reply.MMActionReply
+	notifications map[string]*cmessaging.Payload
+	lock          sync.RWMutex
 }
 
 // New returns a new MessagingMenu
 func New(log logger.Logger) *MessagingMenu {
-	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply)}
+	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload)}
 }
 
 var cAddNotification = cmessaging.AddNotification
 
-func (mmu *MessagingMenu) addNotification(appId string, notificationId string, card *launch_helper.Card) {
-	cAddNotification(appId, notificationId, card, mmu.Ch)
+func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions}
+	mmu.lock.Lock()
+	// XXX: only gets removed if the action is activated.
+	mmu.notifications[notificationId] = payload
+	mmu.lock.Unlock()
+	cAddNotification(desktopId, notificationId, card, payload)
 }
 
-func (mmu *MessagingMenu) Present(appId string, notificationId string, notification *launch_helper.Notification) {
+// RemoveNotification deletes the notification from internal map
+func (mmu *MessagingMenu) RemoveNotification(notificationId string) {
+	mmu.lock.Lock()
+	defer mmu.lock.Unlock()
+	delete(mmu.notifications, notificationId)
+}
+
+func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {
 	if notification == nil || notification.Card == nil || !notification.Card.Persist || notification.Card.Summary == "" {
 		mmu.Log.Debugf("[%s] no notification or notification has no persistable card: %#v", notificationId, notification)
 		return
 	}
+	actions := make([]string, 2*len(notification.Card.Actions))
+	for i, action := range notification.Card.Actions {
+		act, err := json.Marshal(&notifications.RawAction{
+			App:      app,
+			Nid:      notificationId,
+			ActionId: i,
+			Action:   action,
+		})
+		if err != nil {
+			mmu.Log.Errorf("Failed to build action: %s", action)
+			return
+		}
+		actions[2*i] = string(act)
+		actions[2*i+1] = action
+	}
 
-	mmu.addNotification(appId, notificationId, notification.Card)
+	mmu.addNotification(app.DesktopId(), notificationId, notification.Card, actions)
 }

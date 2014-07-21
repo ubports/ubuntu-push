@@ -22,16 +22,22 @@ package cmessaging
 
 #include <glib.h>
 
-void add_notification(const gchar* app_id, const gchar* notification_id,
+void add_notification(const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
-          guint64 timestamp, const gchar** actions, gpointer obj);
+          gint64 timestamp, const gchar** actions, gpointer obj);
 */
 import "C"
+import "unsafe"
 
 import (
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/reply"
 )
+
+type Payload struct {
+	Ch      chan *reply.MMActionReply
+	Actions []string
+}
 
 func gchar(s string) *C.gchar {
 	return (*C.gchar)(C.CString(s))
@@ -42,14 +48,21 @@ func gfree(s *C.gchar) {
 }
 
 //export handleActivate
-func handleActivate(action *C.char, notification *C.char, ch *chan *reply.MMActionReply) {
-	mmar := &reply.MMActionReply{Notification: C.GoString(notification), Action: C.GoString(action)}
-	*ch <- mmar
+func handleActivate(c_action *C.char, c_notification *C.char, obj unsafe.Pointer) {
+	payload := (*Payload)(obj)
+	action := C.GoString(c_action)
+	// Default action, only support ATM, is always "".
+	// Use the first action as the default if it's available.
+	if action == "" && len(payload.Actions) >= 2 {
+		action = payload.Actions[1]
+	}
+	mmar := &reply.MMActionReply{Notification: C.GoString(c_notification), Action: action}
+	payload.Ch <- mmar
 }
 
-func AddNotification(appId string, notificationId string, card *launch_helper.Card, ch chan *reply.MMActionReply) {
-	app_id := gchar(appId)
-	defer gfree(app_id)
+func AddNotification(desktopId string, notificationId string, card *launch_helper.Card, payload *Payload) {
+	desktop_id := gchar(desktopId)
+	defer gfree(desktop_id)
 
 	notification_id := gchar(notificationId)
 	defer gfree(notification_id)
@@ -63,7 +76,9 @@ func AddNotification(appId string, notificationId string, card *launch_helper.Ca
 	body := gchar(card.Body)
 	defer gfree(body)
 
-	C.add_notification(app_id, notification_id, icon_path, summary, body, (C.guint64)(card.Timestamp), nil, (C.gpointer)(&ch))
+	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
+
+	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(payload))
 }
 
 func init() {

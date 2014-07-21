@@ -125,7 +125,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastPending(c *C) {
 func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 	userId, auth := s.associatedAuth("DEV2")
 	// send bunch of unicasts that will be pending
-	payloadFmt := fmt.Sprintf(`{"serial":%%d,"bloat":"%s"}`, strings.Repeat("x", 1024*2))
+	payloadFmt := fmt.Sprintf(`{"serial":%%d,"bloat":"%s"}`, strings.Repeat("x", 2024))
 	for i := 0; i < 32; i++ {
 		got, err := s.PostRequest("/notify", &api.Unicast{
 			UserId:   userId,
@@ -139,7 +139,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 	}
 
 	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
-	// gettting pending on connect
+	// getting pending on connect
 	n := 0
 	for {
 		evt := NextEvent(events, errCh)
@@ -151,6 +151,87 @@ func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 	}
 	// was split
 	c.Check(n > 1, Equals, true)
+	stop()
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}
+
+func (s *UnicastAcceptanceSuite) TestUnicastTooManyClearPending(c *C) {
+	userId, auth := s.associatedAuth("DEV2")
+	// send too many unicasts that will be pending
+	payloadFmt := `{"serial":%d}`
+	for i := 0; i < MaxNotificationsPerApplication; i++ {
+		got, err := s.PostRequest("/notify", &api.Unicast{
+			UserId:   userId,
+			DeviceId: "DEV2",
+			AppId:    "app1",
+			ExpireOn: future,
+			Data:     json.RawMessage(fmt.Sprintf(payloadFmt, i)),
+		})
+		c.Assert(err, IsNil)
+		c.Assert(got, Matches, OK)
+	}
+
+	got, err := s.PostRequest("/notify", &api.Unicast{
+		UserId:   userId,
+		DeviceId: "DEV2",
+		AppId:    "app1",
+		ExpireOn: future,
+		Data:     json.RawMessage(fmt.Sprintf(payloadFmt, MaxNotificationsPerApplication)),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, `.*"error":"too-many-pending".*`)
+
+	// clear all pending
+	got, err = s.PostRequest("/notify", &api.Unicast{
+		UserId:       userId,
+		DeviceId:     "DEV2",
+		AppId:        "app1",
+		ExpireOn:     future,
+		Data:         json.RawMessage(fmt.Sprintf(payloadFmt, 1000)),
+		ClearPending: true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, OK)
+
+	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
+	// getting the 1 pending on connect
+	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"serial":1000};`)
+	stop()
+	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
+	c.Check(len(errCh), Equals, 0)
+}
+
+func (s *UnicastAcceptanceSuite) TestUnicastReplaceTag(c *C) {
+	userId, auth := s.associatedAuth("DEV2")
+
+	// send with replace_tag
+	got, err := s.PostRequest("/notify", &api.Unicast{
+		UserId:     userId,
+		DeviceId:   "DEV2",
+		AppId:      "app1",
+		ExpireOn:   future,
+		Data:       json.RawMessage(`{"m": 1}`),
+		ReplaceTag: "tagFoo",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, OK)
+
+	// replace
+	got, err = s.PostRequest("/notify", &api.Unicast{
+		UserId:     userId,
+		DeviceId:   "DEV2",
+		AppId:      "app1",
+		ExpireOn:   future,
+		Data:       json.RawMessage(`{"m": 2}`),
+		ReplaceTag: "tagFoo",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(got, Matches, OK)
+
+	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
+	// getting the 1 pending on connect
+	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"m":2};`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
 	c.Check(len(errCh), Equals, 0)

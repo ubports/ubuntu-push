@@ -20,6 +20,7 @@ package haptic
 
 import (
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 )
@@ -43,7 +44,7 @@ func New(endp bus.Endpoint, log logger.Logger) *Haptic {
 }
 
 // Present presents the notification via a vibrate pattern
-func (haptic *Haptic) Present(_, _ string, notification *launch_helper.Notification) bool {
+func (haptic *Haptic) Present(_ *click.AppId, _ string, notification *launch_helper.Notification) bool {
 	if notification == nil || notification.Vibrate == nil {
 		haptic.log.Debugf("no notification or no Vibrate in the notification; doing nothing: %#v", notification)
 		return false
@@ -63,7 +64,7 @@ func (haptic *Haptic) Present(_, _ string, notification *launch_helper.Notificat
 	haptic.log.Debugf("vibrating %d times to the tune of %v", repeat, pattern)
 	err := haptic.bus.Call("VibratePattern", bus.Args(pattern, repeat))
 	if err != nil {
-		haptic.log.Debugf("VibratePattern call returned %v", err)
+		haptic.log.Errorf("VibratePattern call returned %v", err)
 		return false
 	}
 	return true

@@ -19,10 +19,18 @@
 package click
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 
+	"launchpad.net/go-xdg/v0"
+
+	"launchpad.net/ubuntu-push/click/cappinfo"
 	"launchpad.net/ubuntu-push/click/cclick"
 )
 
@@ -31,33 +39,175 @@ type AppId struct {
 	Package     string
 	Application string
 	Version     string
+	Click       bool
+	original    string
 }
+
+var hookPath = filepath.Join(xdg.Data.Home(), "ubuntu-push-client", "helpers")
+var hookExt = ".json"
 
 // from https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId
 // except the version is made optional
-var rx = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_([0-9][a-zA-Z0-9.+:~-]*))?$`)
+var rxClick = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_([0-9][a-zA-Z0-9.+:~-]*))?$`)
+
+// no / and not starting with .
+var rxLegacy = regexp.MustCompile(`^[^./][^/]*$`)
 
 var (
 	ErrInvalidAppId = errors.New("invalid application id")
+	ErrMissingAppId = errors.New("missing application id")
 )
 
 func ParseAppId(id string) (*AppId, error) {
-	m := rx.FindStringSubmatch(id)
-	if len(m) == 0 {
-		return nil, ErrInvalidAppId
+	app := new(AppId)
+	err := app.setFromString(id)
+	if err == nil {
+		return app, nil
+	} else {
+		return nil, err
 	}
-	return &AppId{Package: m[1], Application: m[2], Version: m[3]}, nil
 }
 
-func AppInPackage(appId, pkgname string) bool {
-	id, _ := ParseAppId(appId)
-	return id != nil && id.Package == pkgname
+func (app *AppId) setFromString(id string) error {
+	if strings.HasPrefix(id, "_") { // legacy
+		appname := id[1:]
+		if !rxLegacy.MatchString(appname) {
+			return ErrInvalidAppId
+		}
+		app.Package = ""
+		app.Application = appname
+		app.Version = ""
+		app.Click = false
+		app.original = id
+		return nil
+	} else {
+		m := rxClick.FindStringSubmatch(id)
+		if len(m) == 0 {
+			return ErrInvalidAppId
+		}
+		app.Package = m[1]
+		app.Application = m[2]
+		app.Version = m[3]
+		app.Click = true
+		app.original = id
+		return nil
+	}
+}
+
+func (app *AppId) InPackage(pkgname string) bool {
+	return app.Package == pkgname
+}
+
+func (app *AppId) Original() string {
+	return app.original
+}
+
+func (app *AppId) String() string {
+	return app.Original()
+}
+
+func (app *AppId) Base() string {
+	if app.Click {
+		return app.Package + "_" + app.Application
+	} else {
+		return app.Application
+	}
+}
+
+type hookFile struct {
+	AppId string `json:"app_id"`
+	Exec  string `json:"exec"`
+}
+
+// Helper figures out the app id and executable of the untrusted
+// helper for this app.
+func (app *AppId) Helper() (helperAppId string, helperExec string) {
+	if !app.Click {
+		return "", ""
+	}
+	// xxx: should probably have a cache of this
+	matches, err := filepath.Glob(filepath.Join(hookPath, app.Package+"_*"+hookExt))
+	if err != nil {
+		return "", ""
+	}
+	var v hookFile
+	for _, m := range matches {
+		abs, err := filepath.EvalSymlinks(m)
+		if err != nil {
+			continue
+		}
+		data, err := ioutil.ReadFile(abs)
+		if err != nil {
+			continue
+		}
+		err = json.Unmarshal(data, &v)
+		if err != nil {
+			continue
+		}
+		if v.Exec != "" && (v.AppId == "" || v.AppId == app.Base()) {
+			basename := filepath.Base(m)
+			helperAppId = basename[:len(basename)-len(hookExt)]
+			helperExec = filepath.Join(filepath.Dir(abs), v.Exec)
+			return helperAppId, helperExec
+		}
+	}
+	return "", ""
+}
+
+func (app *AppId) Versioned() string {
+	if app.Click {
+		if app.Version == "" {
+			panic(fmt.Errorf("Versioned() on AppId without version/not verified: %#v", app))
+		}
+		return app.Package + "_" + app.Application + "_" + app.Version
+	} else {
+		return app.Application
+	}
+}
+
+func (app *AppId) DesktopId() string {
+	return app.Versioned() + ".desktop"
+}
+
+func (app *AppId) Icon() string {
+	return cappinfo.AppIconFromDesktopId(app.DesktopId())
+}
+
+func (app *AppId) MarshalJSON() ([]byte, error) {
+	return json.Marshal(app.Original())
+}
+
+func (app *AppId) UnmarshalJSON(s []byte) error {
+	var v string
+	err := json.Unmarshal(s, &v)
+	if err != nil {
+		return err
+	}
+	return app.setFromString(v)
 }
 
 // ClickUser exposes the click package registry for the user.
 type ClickUser struct {
 	ccu  cclick.CClickUser
 	lock sync.Mutex
+}
+
+type InstalledChecker interface {
+	Installed(app *AppId, setVersion bool) bool
+}
+
+// ParseAndVerifyAppId parses the given app id and checks if the
+// corresponding app is installed, returning the parsed id or
+// ErrInvalidAppId, or the parsed id and ErrMissingAppId respectively.
+func ParseAndVerifyAppId(id string, installedChecker InstalledChecker) (*AppId, error) {
+	app, err := ParseAppId(id)
+	if err != nil {
+		return nil, err
+	}
+	if installedChecker != nil && !installedChecker.Installed(app, true) {
+		return app, ErrMissingAppId
+	}
+	return app, nil
 }
 
 // User makes a new ClickUser object for the current user.
@@ -70,17 +220,24 @@ func User() (*ClickUser, error) {
 	return cu, nil
 }
 
-// HasPackage checks if the appId is installed for user.
-func (cu *ClickUser) HasPackage(appId string) bool {
+// Installed checks if the appId is installed for user, optionally setting
+// the version if it was absent.
+func (cu *ClickUser) Installed(app *AppId, setVersion bool) bool {
 	cu.lock.Lock()
 	defer cu.lock.Unlock()
-	id, err := ParseAppId(appId)
-	if err != nil {
-		return false
-	}
-	if id.Version != "" {
-		return cu.ccu.CGetVersion(id.Package) == id.Version
+	if app.Click {
+		ver := cu.ccu.CGetVersion(app.Package)
+		if ver == "" {
+			return false
+		}
+		if app.Version != "" {
+			return app.Version == ver
+		} else if setVersion {
+			app.Version = ver
+		}
+		return true
 	} else {
-		return cu.ccu.CHasPackageName(id.Package)
+		_, err := xdg.Data.Find(filepath.Join("applications", app.DesktopId()))
+		return err == nil
 	}
 }
