@@ -323,13 +323,3 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 		return nil
 	}
 }
-
-func (svc *PostalService) PostBroadcast(decoded map[string]interface{}) error {
-	// build the notification and marshal it to json
-	payload, err := json.Marshal(decoded)
-	if err != nil {
-		return err
-	}
-	appId, _ := click.ParseAppId("_ubuntu-system-settings")
-	return svc.Post(appId, newNid(), payload)
-}

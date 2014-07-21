@@ -25,6 +25,8 @@ import (
 	"sort"
 	"time"
 
+	"code.google.com/p/go-uuid/uuid"
+
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -383,16 +385,20 @@ func (ps *postalSuite) TestPostBroadcast(c *C) {
 	}
 	c.Assert(svc.Start(), IsNil)
 
+	msgId := uuid.New()
 	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
 		expectedAppId, _ := click.ParseAppId("_ubuntu-system-settings")
 		c.Check(app, DeepEquals, expectedAppId)
-		c.Check(len(nid), Equals, 36)
+		c.Check(nid, Equals, msgId)
 		return nil
 	})
 	decoded := map[string]interface{}{
 		"daily/mako": []interface{}{float64(102), "tubular"},
 	}
-	err := svc.PostBroadcast(decoded)
+	// marshal decoded  to json
+	payload, _ := json.Marshal(decoded)
+	appId, _ := click.ParseAppId("_ubuntu-system-settings")
+	err := svc.Post(appId, msgId, payload)
 	c.Assert(err, IsNil)
 
 	if ps.fakeLauncher.done != nil {
@@ -420,7 +426,11 @@ func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 	decoded := map[string]interface{}{
 		"daily/mako": []interface{}{float64(102), "tubular"},
 	}
-	err := svc.PostBroadcast(decoded)
+	// marshal decoded  to json
+	payload, _ := json.Marshal(decoded)
+	appId, _ := click.ParseAppId("_ubuntu-system-settings")
+	msgId := uuid.New()
+	err := svc.Post(appId, msgId, payload)
 	c.Assert(err, IsNil)
 
 	if ps.fakeLauncher.done != nil {

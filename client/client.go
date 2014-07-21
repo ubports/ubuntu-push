@@ -32,6 +32,8 @@ import (
 	"os/exec"
 	"strings"
 
+	"code.google.com/p/go-uuid/uuid"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
@@ -84,8 +86,6 @@ type PostalService interface {
 	// and a postal message, presents the former and stores the
 	// latter in the application's mailbox.
 	Post(app *click.AppId, nid string, payload json.RawMessage) error
-	// PostBroadcast is like Post, but for system updates
-	PostBroadcast(map[string]interface{}) error
 	// IsRunning() returns whether the service is running
 	IsRunning() bool
 	// Stop() stops the service
@@ -396,7 +396,12 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 		client.log.Debugf("not posting broadcast notification %d; filtered.", msg.TopLevel)
 		return nil
 	}
-	err := client.postalService.PostBroadcast(msg.Decoded[len(msg.Decoded)-1])
+	// marshal the last decoded msg to json
+	payload, err := json.Marshal(msg.Decoded[len(msg.Decoded)-1])
+	if err == nil {
+		appId, _ := click.ParseAppId("_ubuntu-system-settings")
+		err = client.postalService.Post(appId, uuid.New(), payload)
+	}
 	if err != nil {
 		client.log.Errorf("while posting broadcast notification %d: %v", msg.TopLevel, err)
 	} else {
