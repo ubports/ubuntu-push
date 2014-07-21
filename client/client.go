@@ -32,8 +32,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"code.google.com/p/go-uuid/uuid"
-
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
@@ -85,7 +83,7 @@ type PostalService interface {
 	// Post converts a push message into a presentable notification
 	// and a postal message, presents the former and stores the
 	// latter in the application's mailbox.
-	Post(app *click.AppId, nid string, payload json.RawMessage) error
+	Post(app *click.AppId, nid string, payload json.RawMessage)
 	// IsRunning() returns whether the service is running
 	IsRunning() bool
 	// Stop() stops the service
@@ -398,29 +396,23 @@ func (client *PushClient) handleBroadcastNotification(msg *session.BroadcastNoti
 	}
 	// marshal the last decoded msg to json
 	payload, err := json.Marshal(msg.Decoded[len(msg.Decoded)-1])
-	if err == nil {
-		appId, _ := click.ParseAppId("_ubuntu-system-settings")
-		err = client.postalService.Post(appId, uuid.New(), payload)
-	}
 	if err != nil {
 		client.log.Errorf("while posting broadcast notification %d: %v", msg.TopLevel, err)
-	} else {
-		client.log.Debugf("posted broadcast notification %d.", msg.TopLevel)
+		return err
 	}
-	return err
+	appId, _ := click.ParseAppId("_ubuntu-system-settings")
+	client.postalService.Post(appId, "", payload)
+	client.log.Debugf("posted broadcast notification %d.", msg.TopLevel)
+	return nil
 }
 
 // handleUnicastNotification deals with receiving a unicast notification
 func (client *PushClient) handleUnicastNotification(anotif session.AddressedNotification) error {
 	app := anotif.To
 	msg := anotif.Notification
-	err := client.postalService.Post(app, msg.MsgId, msg.Payload)
-	if err != nil {
-		client.log.Errorf("while posting unicast notification %s for %s: %v", msg.MsgId, msg.AppId, err)
-	} else {
-		client.log.Debugf("posted unicast notification %s for %s.", msg.MsgId, msg.AppId)
-	}
-	return err
+	client.postalService.Post(app, msg.MsgId, msg.Payload)
+	client.log.Debugf("posted unicast notification %s for %s.", msg.MsgId, msg.AppId)
+	return nil
 }
 
 // doLoop connects events with their handlers
