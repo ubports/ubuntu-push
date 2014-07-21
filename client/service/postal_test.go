@@ -270,6 +270,60 @@ func (ps *postalSuite) TestStopClosesBus(c *C) {
 }
 
 //
+// post() tests
+
+func (ps *postalSuite) TestPostHappyPath(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	svc.msgHandler = nil
+	ch := installTickMessageHandler(svc)
+	svc.launchers = map[string]launch_helper.HelperLauncher{
+		"click": ps.fakeLauncher,
+	}
+	c.Assert(svc.Start(), IsNil)
+	payload := `{"message":{"world":1}}`
+	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, payload}, nil)
+	c.Assert(err, IsNil)
+	c.Check(rvs, IsNil)
+
+	if ps.fakeLauncher.done != nil {
+		// wait for the two posts to "launch"
+		inputData := takeNextBytes(ps.fakeLauncher.ch)
+		c.Check(string(inputData), Equals, payload)
+
+		go ps.fakeLauncher.done("0") // OneDone
+	}
+
+	c.Check(takeNextError(ch), IsNil) // one,
+	// xxx here?
+	c.Assert(svc.mbox, HasLen, 1)
+	box, ok := svc.mbox[anAppId]
+	c.Check(ok, Equals, true)
+	msgs := box.AllMessages()
+	c.Assert(msgs, HasLen, 1)
+	c.Check(msgs[0], Equals, `{"world":1}`)
+	c.Check(box.nids[0], Not(Equals), "")
+}
+
+func (ps *postalSuite) TestPostFailsIfBadArgs(c *C) {
+	for i, s := range []struct {
+		args []interface{}
+		errt error
+	}{
+		{nil, ErrBadArgCount},
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{1}, ErrBadArgCount},
+		{[]interface{}{anAppId, 1}, ErrBadArgType},
+		{[]interface{}{anAppId, "zoom"}, ErrBadJSON},
+		{[]interface{}{1, "hello"}, ErrBadArgType},
+		{[]interface{}{1, 2, 3}, ErrBadArgCount},
+		{[]interface{}{"bar", "hello"}, ErrBadAppId},
+	} {
+		reg, err := new(PostalService).post(aPackageOnBus, s.args, nil)
+		c.Check(reg, IsNil, Commentf("iteration #%d", i))
+		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
+	}
+}
+
 // Post() tests
 
 func (ps *postalSuite) TestPostWorks(c *C) {
@@ -282,21 +336,20 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 		"legacy": fakeLauncher2,
 	}
 	c.Assert(svc.Start(), IsNil)
-	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, `{"message":{"world":1}}`}, nil)
-	c.Assert(err, IsNil)
-	c.Check(rvs, IsNil)
-	rvs, err = svc.post(aPackageOnBus, []interface{}{anAppId, `{"message":{"moon":1}}`}, nil)
-	c.Assert(err, IsNil)
-	c.Check(rvs, IsNil)
-	rvs, err = svc.post("_", []interface{}{"_classic-app", `{"message":{"mars":42}}`}, nil)
-	c.Assert(err, IsNil)
-	c.Check(rvs, IsNil)
+
+	app := clickhelp.MustParseAppId(anAppId)
+	svc.Post(app, "m1", json.RawMessage(`{"message":{"world":1}}`))
+	svc.Post(app, "m2", json.RawMessage(`{"message":{"moon":1}}`))
+	classicApp := clickhelp.MustParseAppId("_classic-app")
+	svc.Post(classicApp, "m3", json.RawMessage(`{"message":{"mars":42}}`))
 
 	if ps.fakeLauncher.done != nil {
 		// wait for the two posts to "launch"
 		takeNextBytes(ps.fakeLauncher.ch)
-		takeNextBytes(ps.fakeLauncher.ch)
+		inputData := takeNextBytes(ps.fakeLauncher.ch)
 		takeNextBytes(fakeLauncher2.ch)
+
+		c.Check(string(inputData), Equals, `{"message":{"moon":1}}`)
 
 		go ps.fakeLauncher.done("0") // OneDone
 		go ps.fakeLauncher.done("1") // OneDone
@@ -313,11 +366,39 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	c.Assert(msgs, HasLen, 2)
 	c.Check(msgs[0], Equals, `{"world":1}`)
 	c.Check(msgs[1], Equals, `{"moon":1}`)
+	c.Check(box.nids, DeepEquals, []string{"m1", "m2"})
 	box, ok = svc.mbox["_classic-app"]
 	c.Assert(ok, Equals, true)
 	msgs = box.AllMessages()
 	c.Assert(msgs, HasLen, 1)
 	c.Check(msgs[0], Equals, `{"mars":42}`)
+}
+
+func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
+	ch := make(chan *launch_helper.HelperOutput)
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	svc.launchers = map[string]launch_helper.HelperLauncher{
+		"click": ps.fakeLauncher,
+	}
+	c.Assert(svc.Start(), IsNil)
+	// check the message handler gets called
+	app := clickhelp.MustParseAppId(anAppId)
+	f := func(app *click.AppId, nid string, s *launch_helper.HelperOutput) error {
+		c.Check(app.Base(), Equals, anAppId)
+		c.Check(nid, Equals, "m7")
+		ch <- s
+		return nil
+	}
+	svc.SetMessageHandler(f)
+	c.Check(svc.Post(app, "m7", json.RawMessage("{}")), IsNil)
+
+	if ps.fakeLauncher.done != nil {
+		takeNextBytes(ps.fakeLauncher.ch)
+
+		go ps.fakeLauncher.done("0") // OneDone
+	}
+
+	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
 }
 
 func (ps *postalSuite) TestPostSignal(c *C) {
@@ -341,74 +422,7 @@ func (ps *postalSuite) TestPostSignal(c *C) {
 	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", aPackageOnBus, []interface{}{anAppId}})
 }
 
-func (ps *postalSuite) TestPostFailsIfPostFails(c *C) {
-	bus := testibus.NewTestingEndpoint(condition.Work(true),
-		condition.Work(false))
-	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	svc.Bus = bus
-	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return errors.New("fail") })
-	_, err := svc.post("/hello", []interface{}{"xyzzy"}, nil)
-	c.Check(err, NotNil)
-}
-
-func (ps *postalSuite) TestPostFailsIfBadArgs(c *C) {
-	for i, s := range []struct {
-		args []interface{}
-		errt error
-	}{
-		{nil, ErrBadArgCount},
-		{[]interface{}{}, ErrBadArgCount},
-		{[]interface{}{1}, ErrBadArgCount},
-		{[]interface{}{anAppId, 1}, ErrBadArgType},
-		{[]interface{}{anAppId, "zoom"}, ErrBadJSON},
-		{[]interface{}{1, "hello"}, ErrBadArgType},
-		{[]interface{}{1, 2, 3}, ErrBadArgCount},
-		{[]interface{}{"bar", "hello"}, ErrBadAppId},
-	} {
-		reg, err := new(PostalService).post(aPackageOnBus, s.args, nil)
-		c.Check(reg, IsNil, Commentf("iteration #%d", i))
-		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
-	}
-}
-
-//
-// Post (Broadcast) tests
-
-func (ps *postalSuite) TestPostBroadcast(c *C) {
-
-	bus := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
-	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-
-	svc.NotificationsEndp = bus
-	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"legacy": ps.fakeLauncher,
-	}
-	c.Assert(svc.Start(), IsNil)
-
-	msgId := uuid.New()
-	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
-		expectedAppId, _ := click.ParseAppId("_ubuntu-system-settings")
-		c.Check(app, DeepEquals, expectedAppId)
-		c.Check(nid, Equals, msgId)
-		return nil
-	})
-	decoded := map[string]interface{}{
-		"daily/mako": []interface{}{float64(102), "tubular"},
-	}
-	// marshal decoded  to json
-	payload, _ := json.Marshal(decoded)
-	appId, _ := click.ParseAppId("_ubuntu-system-settings")
-	err := svc.Post(appId, msgId, payload)
-	c.Assert(err, IsNil)
-
-	if ps.fakeLauncher.done != nil {
-		inputData := takeNextBytes(ps.fakeLauncher.ch)
-		expectedData, _ := json.Marshal(decoded)
-		c.Check(inputData, DeepEquals, expectedData)
-		go ps.fakeLauncher.done("0") // OneDone
-	}
-}
-
+// XXX
 func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true),
 		condition.Work(false))
@@ -500,31 +514,6 @@ func (ps *postalSuite) TestMessageHandlerPublicAPI(c *C) {
 	hOutput := &launch_helper.HelperOutput{[]byte("37"), nil}
 	c.Check(svc.msgHandler(nil, "", hOutput), Equals, e)
 	c.Check(ext, DeepEquals, hOutput)
-}
-
-func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
-	ch := make(chan *launch_helper.HelperOutput)
-	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"click": ps.fakeLauncher,
-	}
-	c.Assert(svc.Start(), IsNil)
-	// check the message handler gets called
-	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ch <- s; return nil }
-	svc.SetMessageHandler(f)
-	c.Check(svc.Post(&click.AppId{Click: true}, "thing", json.RawMessage("{}")), IsNil)
-
-	if ps.fakeLauncher.done != nil {
-		takeNextBytes(ps.fakeLauncher.ch)
-
-		go ps.fakeLauncher.done("0") // OneDone
-	}
-
-	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
-	err := errors.New("ouch")
-	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return err })
-	// but the error doesn't bubble out
-	c.Check(svc.Post(&click.AppId{}, "", json.RawMessage("{}")), IsNil)
 }
 
 func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
