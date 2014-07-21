@@ -107,13 +107,12 @@ type dumbPostal struct {
 	postArgs   []postArgs
 }
 
-func (d *dumbPostal) Post(app *click.AppId, nid string, payload json.RawMessage) error {
+func (d *dumbPostal) Post(app *click.AppId, nid string, payload json.RawMessage) {
 	d.postCount++
 	if app.Application == "ubuntu-system-settings" {
 		d.bcastCount++
 	}
 	d.postArgs = append(d.postArgs, postArgs{app, nid, payload})
-	return d.err
 }
 
 var _ PostalService = (*dumbPostal)(nil)
@@ -786,6 +785,9 @@ var (
 	positiveBroadcastNotification = &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{
+				"daily/mako": []interface{}{float64(102), "tubular"},
+			},
+			map[string]interface{}{
 				"daily/mako": []interface{}{float64(103), "tubular"},
 			},
 		},
@@ -811,7 +813,8 @@ func (cs *clientSuite) TestHandleBroadcastNotification(c *C) {
 	c.Assert(d.postArgs, HasLen, 1)
 	expectedApp, _ := click.ParseAppId("_ubuntu-system-settings")
 	c.Check(d.postArgs[0].app, DeepEquals, expectedApp)
-	expectedData, _ := json.Marshal(positiveBroadcastNotification.Decoded[0])
+	c.Check(d.postArgs[0].nid, Equals, "")
+	expectedData, _ := json.Marshal(positiveBroadcastNotification.Decoded[1])
 	c.Check([]byte(d.postArgs[0].payload), DeepEquals, expectedData)
 }
 
@@ -824,18 +827,6 @@ func (cs *clientSuite) TestHandleBroadcastNotificationNothingToDo(c *C) {
 	c.Check(cli.handleBroadcastNotification(negativeBroadcastNotification), IsNil)
 	// we not dun no posted
 	c.Check(d.bcastCount, Equals, 0)
-}
-
-func (cs *clientSuite) TestHandleBroadcastNotificationFail(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.systemImageInfo = siInfoRes
-	cli.log = cs.log
-	d := new(dumbPostal)
-	err := errors.New("potato")
-	d.err = err
-	cli.postalService = d
-	c.Check(cli.handleBroadcastNotification(positiveBroadcastNotification), Equals, err)
-	c.Check(d.bcastCount, Equals, 1)
 }
 
 /*****************************************************************
@@ -858,19 +849,6 @@ func (cs *clientSuite) TestHandleUcastNotification(c *C) {
 	c.Check(d.postArgs[0].app, Equals, appHello)
 	c.Check(d.postArgs[0].nid, Equals, notif.MsgId)
 	c.Check(d.postArgs[0].payload, DeepEquals, notif.Payload)
-}
-
-func (cs *clientSuite) TestHandleUcastNotificationError(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	d := new(dumbPostal)
-	cli.postalService = d
-	fail := errors.New("fail")
-	d.err = fail
-
-	c.Check(cli.handleUnicastNotification(session.AddressedNotification{appHello, notif}), Equals, fail)
-	// check we sent the notification
-	c.Check(d.postCount, Equals, 1)
 }
 
 /*****************************************************************
