@@ -24,6 +24,8 @@ import (
 	"sort"
 	"time"
 
+	"code.google.com/p/go-uuid/uuid"
+
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -40,6 +42,16 @@ import (
 
 // takeNext takes a value from given channel with a 5s timeout
 func takeNextBool(ch <-chan bool) bool {
+	select {
+	case <-time.After(5 * time.Second):
+		panic("channel stuck: too long waiting")
+	case v := <-ch:
+		return v
+	}
+}
+
+// takeNextBytes takes a value from given channel with a 5s timeout
+func takeNextBytes(ch <-chan []byte) []byte {
 	select {
 	case <-time.After(5 * time.Second):
 		panic("channel stuck: too long waiting")
@@ -83,7 +95,7 @@ func installTickMessageHandler(svc *PostalService) chan error {
 
 type fakeHelperLauncher struct {
 	i    int
-	ch   chan bool
+	ch   chan []byte
 	done func(string)
 }
 
@@ -113,7 +125,7 @@ func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 	id := []string{"0", "1", "2"}[fhl.i]
 	fhl.i++
 
-	fhl.ch <- true
+	fhl.ch <- dat
 
 	return id, nil
 }
@@ -148,7 +160,7 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.urlDispBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
-	ps.fakeLauncher = &fakeHelperLauncher{ch: make(chan bool)}
+	ps.fakeLauncher = &fakeHelperLauncher{ch: make(chan []byte)}
 }
 
 func (ts *trivialPostalSuite) SetUpTest(c *C) {
@@ -251,7 +263,7 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.msgHandler = nil
 	ch := installTickMessageHandler(svc)
-	fakeLauncher2 := &fakeHelperLauncher{ch: make(chan bool)}
+	fakeLauncher2 := &fakeHelperLauncher{ch: make(chan []byte)}
 	svc.launchers = map[string]launch_helper.HelperLauncher{
 		"click":  ps.fakeLauncher,
 		"legacy": fakeLauncher2,
@@ -269,9 +281,9 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 
 	if ps.fakeLauncher.done != nil {
 		// wait for the two posts to "launch"
-		takeNextBool(ps.fakeLauncher.ch)
-		takeNextBool(ps.fakeLauncher.ch)
-		takeNextBool(fakeLauncher2.ch)
+		takeNextBytes(ps.fakeLauncher.ch)
+		takeNextBytes(ps.fakeLauncher.ch)
+		takeNextBytes(fakeLauncher2.ch)
 
 		go ps.fakeLauncher.done("0") // OneDone
 		go ps.fakeLauncher.done("1") // OneDone
@@ -354,32 +366,34 @@ func (ps *postalSuite) TestPostBroadcast(c *C) {
 	bus := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 
-	ch := installTickMessageHandler(svc)
 	svc.NotificationsEndp = bus
 	svc.launchers = map[string]launch_helper.HelperLauncher{
 		"legacy": ps.fakeLauncher,
 	}
 	c.Assert(svc.Start(), IsNil)
 
-	err := svc.PostBroadcast()
+	msgId := uuid.New()
+	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
+		expectedAppId, _ := click.ParseAppId("_ubuntu-system-settings")
+		c.Check(app, DeepEquals, expectedAppId)
+		c.Check(nid, Equals, msgId)
+		return nil
+	})
+	decoded := map[string]interface{}{
+		"daily/mako": []interface{}{float64(102), "tubular"},
+	}
+	// marshal decoded  to json
+	payload, _ := json.Marshal(decoded)
+	appId, _ := click.ParseAppId("_ubuntu-system-settings")
+	err := svc.Post(appId, msgId, payload)
 	c.Assert(err, IsNil)
 
 	if ps.fakeLauncher.done != nil {
-		takeNextBool(ps.fakeLauncher.ch)
+		inputData := takeNextBytes(ps.fakeLauncher.ch)
+		expectedData, _ := json.Marshal(decoded)
+		c.Check(inputData, DeepEquals, expectedData)
 		go ps.fakeLauncher.done("0") // OneDone
 	}
-
-	c.Check(takeNextError(ch), IsNil)
-	// and check it fired the right signal (twice)
-	callArgs := testibus.GetCallArgs(bus)
-	c.Assert(callArgs, HasLen, 1)
-	c.Check(callArgs[0].Member, Equals, "Notify")
-	c.Check(callArgs[0].Args[0:6], DeepEquals, []interface{}{"_ubuntu-push-client", uint32(0), "update_manager_icon",
-		"There's an updated system image.", "Tap to open the system updater.",
-		[]string{`{"app":"_ubuntu-push-client","act":"Switch to app","nid":"settings:///system/system-update"}`, "Switch to app"}})
-	// TODO: check the map in callArgs?
-	// c.Check(callArgs[0].Args[7]["x-canonical-secondary-icon"], NotNil)
-	// c.Check(callArgs[0].Args[7]["x-canonical-snap-decisions"], NotNil)
 }
 
 func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
@@ -396,11 +410,18 @@ func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
 		return errors.New("fail")
 	})
 	ch := installTickMessageHandler(svc)
-	err := svc.PostBroadcast()
+	decoded := map[string]interface{}{
+		"daily/mako": []interface{}{float64(102), "tubular"},
+	}
+	// marshal decoded  to json
+	payload, _ := json.Marshal(decoded)
+	appId, _ := click.ParseAppId("_ubuntu-system-settings")
+	msgId := uuid.New()
+	err := svc.Post(appId, msgId, payload)
 	c.Assert(err, IsNil)
 
 	if ps.fakeLauncher.done != nil {
-		takeNextBool(ps.fakeLauncher.ch)
+		takeNextBytes(ps.fakeLauncher.ch)
 		go ps.fakeLauncher.done("0") // OneDone
 	}
 
@@ -481,7 +502,7 @@ func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
 	c.Check(svc.Post(&click.AppId{Click: true}, "thing", json.RawMessage("{}")), IsNil)
 
 	if ps.fakeLauncher.done != nil {
-		takeNextBool(ps.fakeLauncher.ch)
+		takeNextBytes(ps.fakeLauncher.ch)
 
 		go ps.fakeLauncher.done("0") // OneDone
 	}

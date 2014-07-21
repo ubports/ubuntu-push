@@ -109,11 +109,10 @@ type dumbPostal struct {
 
 func (d *dumbPostal) Post(app *click.AppId, nid string, payload json.RawMessage) error {
 	d.postCount++
+	if app.Application == "ubuntu-system-settings" {
+		d.bcastCount++
+	}
 	d.postArgs = append(d.postArgs, postArgs{app, nid, payload})
-	return d.err
-}
-func (d *dumbPostal) PostBroadcast() error {
-	d.bcastCount++
 	return d.err
 }
 
@@ -809,6 +808,11 @@ func (cs *clientSuite) TestHandleBroadcastNotification(c *C) {
 	c.Check(cli.handleBroadcastNotification(positiveBroadcastNotification), IsNil)
 	// we dun posted
 	c.Check(d.bcastCount, Equals, 1)
+	c.Assert(d.postArgs, HasLen, 1)
+	expectedApp, _ := click.ParseAppId("_ubuntu-system-settings")
+	c.Check(d.postArgs[0].app, DeepEquals, expectedApp)
+	expectedData, _ := json.Marshal(positiveBroadcastNotification.Decoded[0])
+	c.Check([]byte(d.postArgs[0].payload), DeepEquals, expectedData)
 }
 
 func (cs *clientSuite) TestHandleBroadcastNotificationNothingToDo(c *C) {

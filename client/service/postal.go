@@ -323,20 +323,3 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 		return nil
 	}
 }
-
-func (svc *PostalService) PostBroadcast() error {
-	icon := "update_manager_icon"
-	summary := "There's an updated system image."
-	body := "Tap to open the system updater."
-	actions := []string{"Switch to app"} // action value not visible on the phone
-	card := &launch_helper.Card{Icon: icon, Summary: summary, Body: body, Actions: actions, Popup: true}
-	helperOutput := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
-	jsonNotif, err := json.Marshal(helperOutput)
-	if err != nil {
-		svc.Log.Errorf("Failed to marshal notification: %v - %v", helperOutput, err)
-		return err
-	}
-	appId, _ := click.ParseAppId("_ubuntu-push-client")
-	// XXX: Systemupdateurl as the notificationId because it's what's used ATM for the tap action in the bubbles.
-	return svc.Post(appId, SystemUpdateUrl, jsonNotif)
-}
