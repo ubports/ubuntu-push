@@ -25,8 +25,6 @@ import (
 	"sort"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
-
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -374,7 +372,7 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	c.Check(msgs[0], Equals, `{"mars":42}`)
 }
 
-func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
+func (ps *postalSuite) TestPostCallsMessageHandlerDetails(c *C) {
 	ch := make(chan *launch_helper.HelperOutput)
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.launchers = map[string]launch_helper.HelperLauncher{
@@ -390,7 +388,7 @@ func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
 		return nil
 	}
 	svc.SetMessageHandler(f)
-	c.Check(svc.Post(app, "m7", json.RawMessage("{}")), IsNil)
+	svc.Post(app, "m7", json.RawMessage("{}"))
 
 	if ps.fakeLauncher.done != nil {
 		takeNextBytes(ps.fakeLauncher.ch)
@@ -401,7 +399,7 @@ func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
 	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
 }
 
-func (ps *postalSuite) TestPostSignal(c *C) {
+func (ps *postalSuite) TestAfterMessageHandlerSignal(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.msgHandler = nil
 
@@ -422,39 +420,23 @@ func (ps *postalSuite) TestPostSignal(c *C) {
 	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", aPackageOnBus, []interface{}{anAppId}})
 }
 
-// XXX
-func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
-	bus := testibus.NewTestingEndpoint(condition.Work(true),
-		condition.Work(false))
+func (ps *postalSuite) TestFailingMessageHandlerSurvived(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"legacy": ps.fakeLauncher,
-	}
-	c.Assert(svc.Start(), IsNil)
-	svc.NotificationsEndp = bus
 	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error {
-		ps.log.Debugf("about to fail")
 		return errors.New("fail")
 	})
-	ch := installTickMessageHandler(svc)
-	decoded := map[string]interface{}{
-		"daily/mako": []interface{}{float64(102), "tubular"},
-	}
-	// marshal decoded  to json
-	payload, _ := json.Marshal(decoded)
-	appId, _ := click.ParseAppId("_ubuntu-system-settings")
-	msgId := uuid.New()
-	err := svc.Post(appId, msgId, payload)
-	c.Assert(err, IsNil)
 
-	if ps.fakeLauncher.done != nil {
-		takeNextBytes(ps.fakeLauncher.ch)
-		go ps.fakeLauncher.done("0") // OneDone
+	hInp := &launch_helper.HelperInput{
+		App: clickhelp.MustParseAppId(anAppId),
 	}
+	res := &launch_helper.HelperResult{Input: hInp}
 
-	c.Check(takeNextError(ch), NotNil) // the messagehandler failed
-	c.Check(err, IsNil)                // but broadcast was oblivious
-	c.Check(ps.log.Captured(), Matches, `(?sm).*about to fail$`)
+	svc.handleHelperResult(res)
+
+	c.Check(ps.log.Captured(), Equals, "ERROR msgHandler returned fail\n")
+	// no signal
+	callArgs := testibus.GetCallArgs(ps.bus)
+	c.Check(callArgs, IsNil)
 }
 
 //
