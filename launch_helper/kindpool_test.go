@@ -381,12 +381,12 @@ func (s *poolSuite) TestOneDonwOnBadJSONOut(c *C) {
 
 func (s *poolSuite) TestCreateInputTempFile(c *C) {
 	tmpDir := c.MkDir()
-	getTempDir = func(pkgName string) (string, error) {
+	GetTempDir = func(pkgName string) (string, error) {
 		return tmpDir, nil
 	}
 	// restore it when we are done
 	defer func() {
-		getTempDir = _getTempDir
+		GetTempDir = _getTempDir
 	}()
 
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
@@ -409,12 +409,12 @@ func (s *poolSuite) TestCreateInputTempFile(c *C) {
 }
 
 func (s *poolSuite) TestGetTempFilename(c *C) {
-	getTempDir = func(pkgName string) (string, error) {
+	GetTempDir = func(pkgName string) (string, error) {
 		return c.MkDir(), nil
 	}
 	// restore it when we are done
 	defer func() {
-		getTempDir = _getTempDir
+		GetTempDir = _getTempDir
 	}()
 	fname, err := getTempFilename("pkg.name")
 	c.Check(err, IsNil)
@@ -434,7 +434,7 @@ func (s *poolSuite) TestGetTempDir(c *C) {
 	defer func() {
 		xdgCacheHome = oldCacheHome
 	}()
-	dname, err := getTempDir("pkg.name")
+	dname, err := GetTempDir("pkg.name")
 	c.Check(err, IsNil)
 	c.Check(dname, Equals, filepath.Join(tmpDir, "pkg.name"))
 }
