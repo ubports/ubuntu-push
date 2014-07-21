@@ -250,14 +250,16 @@ func (svc *PostalService) post(path string, args, _ []interface{}) ([]interface{
 		return nil, ErrBadJSON
 	}
 
-	nid := newNid()
-
-	return nil, svc.Post(app, nid, rawJSON)
+	svc.Post(app, "", rawJSON)
+	return nil, nil
 }
 
 // Post() signals to an application over dbus that a notification
-// has arrived.
-func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMessage) error {
+// has arrived. If nid is "" generate one.
+func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMessage) {
+	if nid == "" {
+		nid = newNid()
+	}
 	arg := launch_helper.HelperInput{
 		App:            app,
 		NotificationId: nid,
@@ -270,7 +272,6 @@ func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMes
 		kind = "legacy"
 	}
 	svc.HelperPool.Run(kind, &arg)
-	return nil
 }
 
 func (svc *PostalService) consumeHelperResults(ch chan *launch_helper.HelperResult) {
