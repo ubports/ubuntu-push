@@ -30,6 +30,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/bus/windowstack"
 	"launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/click/cblacklist"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging"
@@ -312,7 +313,9 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 }
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
-	if !svc.windowStack.IsAppFocused(app) {
+	focused := svc.windowStack.IsAppFocused(app)
+	blacklisted := cblacklist.IsBlacklisted(app)
+	if !focused && !blacklisted {
 		svc.messagingMenu.Present(app, nid, output.Notification)
 		_, err := svc.notifications.Present(app, nid, output.Notification)
 		svc.emblemCounter.Present(app, nid, output.Notification)
@@ -320,7 +323,12 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 		svc.sound.Present(app, nid, output.Notification)
 		return err
 	} else {
-		svc.Log.Debugf("Notification skipped because app is focused.")
+		if focused {
+			svc.Log.Debugf("Notification skipped because app is focused.")
+		}
+		if blacklisted {
+			svc.Log.Debugf("Notification skipped because app is blacklisted.")
+		}
 		return nil
 	}
 }

@@ -33,6 +33,7 @@ int is_blacklisted(const char *pkgname, const char *appname) {
     GVariantIter *iter;
     gchar *pkg;
     gchar *app;
+    int blacklisted = 0;
 
     if (!pushSettings) {
         pushSettings = g_settings_new(BLACKLIST_CONFIG_SCHEMA_ID);
@@ -41,27 +42,30 @@ int is_blacklisted(const char *pkgname, const char *appname) {
     g_variant_get (blacklist, "a(ss)", &iter);
     while (g_variant_iter_loop (iter, "(ss)", &pkg, &app)) {
         if (0==strcmp(pkg, pkgname) && 0==strcmp(app, appname)) {
-            return 1;
+            blacklisted = 1;
+            break;
         }
+        // No need to free pkg and app, according to GVariant array example
     }
-    return 0;
+    g_variant_iter_free (iter);
+    g_variant_unref (blacklist);
+    return blacklisted;
 }
 
 */
 import "C"
 
 import (
-    "unsafe"
+	"unsafe"
 
-    "launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/click"
 )
 
-
 // IsBlacklisted returns true if the application is in the gsettings blacklist
-func IsBlacklisted(appId click.AppId) bool {
-    pkgname := C.CString(appId.Package)
-    appname := C.CString(appId.Application)
-    defer C.free(unsafe.Pointer(pkgname))
-    defer C.free(unsafe.Pointer(appname))
-    return C.is_blacklisted(pkgname, appname) != 1;
+func IsBlacklisted(appId *click.AppId) bool {
+	pkgname := C.CString(appId.Package)
+	appname := C.CString(appId.Application)
+	defer C.free(unsafe.Pointer(pkgname))
+	defer C.free(unsafe.Pointer(appname))
+	return C.is_blacklisted(pkgname, appname) != 1
 }
