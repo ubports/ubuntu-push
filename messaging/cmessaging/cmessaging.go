@@ -26,7 +26,7 @@ void add_notification(const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
           gint64 timestamp, const gchar** actions, gpointer obj);
 
-int notification_exists(const gchar* desktop_id, const gchar* notification_id);
+gboolean notification_exists(const gchar* desktop_id, const gchar* notification_id);
 */
 import "C"
 import "unsafe"
@@ -42,6 +42,7 @@ type Payload struct {
 	Actions []string
 	App     *click.AppId
 	Tag     string
+	Gone    bool
 }
 
 func gchar(s string) *C.gchar {
@@ -93,8 +94,7 @@ func NotificationExists(desktopId string, notificationId string) bool {
 	desktop_id := gchar(desktopId)
 	defer gfree(desktop_id)
 
-	result := int(C.notification_exists(desktop_id, notification_id))
-	return result == 1
+	return C.notification_exists(desktop_id, notification_id) == C.TRUE
 }
 
 func init() {

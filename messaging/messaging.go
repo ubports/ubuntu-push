@@ -36,28 +36,28 @@ var cleanupLoopDuration = 5 * time.Minute
 type MessagingMenu struct {
 	Log               logger.Logger
 	Ch                chan *reply.MMActionReply
-	notifications     map[string]*cmessaging.Payload
+	notifications     map[string]*cmessaging.Payload // keep a ref to the Payload used in the MMU callback
 	lock              sync.RWMutex
 	stopCleanupLoopCh chan bool
 	ticker            *time.Ticker
+	tickerCh          <-chan time.Time
 }
 
 // New returns a new MessagingMenu
 func New(log logger.Logger) *MessagingMenu {
 	ticker := time.NewTicker(cleanupLoopDuration)
 	stopCh := make(chan bool)
-	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload), ticker: ticker, stopCleanupLoopCh: stopCh}
+	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload), ticker: ticker, tickerCh: ticker.C, stopCleanupLoopCh: stopCh}
 }
 
 var cAddNotification = cmessaging.AddNotification
 var cNotificationExists = cmessaging.NotificationExists
 
 func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string) {
-	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app, Tag: tag}
 	mmu.lock.Lock()
-	// XXX: only gets removed if the action is activated.
+	defer mmu.lock.Unlock()
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app, Tag: tag}
 	mmu.notifications[notificationId] = payload
-	mmu.lock.Unlock()
 	cAddNotification(app.DesktopId(), notificationId, card, payload)
 }
 
@@ -73,20 +73,33 @@ func (mmu *MessagingMenu) cleanUpNotifications() {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	for nid, payload := range mmu.notifications {
-		if !cNotificationExists(payload.App.DesktopId(), nid) {
+		if payload.Gone {
+			// sweep
 			delete(mmu.notifications, nid)
+			// don't check the mmu for this nid
+			continue
+		}
+		exists := cNotificationExists(payload.App.DesktopId(), nid)
+		if !exists {
+			// mark
+			payload.Gone = true
 		}
 	}
 }
 
 func (mmu *MessagingMenu) StartCleanupLoop() {
+	mmu.doStartCleanupLoop(mmu.cleanUpNotifications)
+}
+
+func (mmu *MessagingMenu) doStartCleanupLoop(cleanupFunc func()) {
 	go func() {
 		for {
 			select {
-			case <-mmu.ticker.C:
-				mmu.cleanUpNotifications()
+			case <-mmu.tickerCh:
+				cleanupFunc()
 			case <-mmu.stopCleanupLoopCh:
 				mmu.ticker.Stop()
+				mmu.Log.Debugf("CleanupLoop stopped.")
 				return
 			}
 		}
