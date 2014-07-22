@@ -41,6 +41,11 @@ import (
 
 type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) bool
 
+// a Presenter is something that knows how to present a Notification
+type Presenter interface {
+	Present(*click.AppId, string, *launch_helper.Notification) bool
+}
+
 // PostalService is the dbus api
 type PostalService struct {
 	DBusService
@@ -57,6 +62,7 @@ type PostalService struct {
 	URLDispatcherEndp bus.Endpoint
 	WindowStackEndp   bus.Endpoint
 	// presenters:
+	Presenters    []Presenter
 	emblemCounter *emblemcounter.EmblemCounter
 	haptic        *haptic.Haptic
 	notifications *notifications.RawNotifications
@@ -128,6 +134,13 @@ func (svc *PostalService) Start() error {
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log)
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
+	svc.Presenters = []Presenter{
+		svc.notifications,
+		svc.emblemCounter,
+		svc.haptic,
+		svc.sound,
+		svc.messagingMenu,
+	}
 	if useTrivialHelper {
 		svc.HelperPool = launch_helper.NewTrivialHelperPool(svc.Log)
 	} else {
@@ -310,10 +323,6 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
-type presenter interface {
-	Present(*click.AppId, string, *launch_helper.Notification) bool
-}
-
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {
 	if output == nil || output.Notification == nil {
 		svc.Log.Debugf("skipping notification: nil.")
@@ -321,13 +330,7 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 	}
 	if !svc.windowStack.IsAppFocused(app) {
 		b := false
-		for _, p := range []presenter{
-			svc.messagingMenu,
-			svc.notifications,
-			svc.emblemCounter,
-			svc.haptic,
-			svc.sound,
-		} {
+		for _, p := range svc.Presenters {
 			// we don't want this to shortcut :)
 			b = p.Present(app, nid, output.Notification) || b
 		}
