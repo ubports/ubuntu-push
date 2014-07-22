@@ -21,6 +21,7 @@ package messaging
 import (
 	"encoding/json"
 	"sync"
+	"time"
 
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/click"
@@ -30,22 +31,29 @@ import (
 	"launchpad.net/ubuntu-push/messaging/reply"
 )
 
+var cleanupLoopDuration = 5 * time.Minute
+
 type MessagingMenu struct {
-	Log           logger.Logger
-	Ch            chan *reply.MMActionReply
-	notifications map[string]*cmessaging.Payload
-	lock          sync.RWMutex
+	Log               logger.Logger
+	Ch                chan *reply.MMActionReply
+	notifications     map[string]*cmessaging.Payload
+	lock              sync.RWMutex
+	stopCleanupLoopCh chan bool
+	ticker            *time.Ticker
 }
 
 // New returns a new MessagingMenu
 func New(log logger.Logger) *MessagingMenu {
-	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload)}
+	ticker := time.NewTicker(cleanupLoopDuration)
+	stopCh := make(chan bool)
+	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload), ticker: ticker, stopCleanupLoopCh: stopCh}
 }
 
 var cAddNotification = cmessaging.AddNotification
+var cNotificationExists = cmessaging.NotificationExists
 
 func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
-	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions}
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId}
 	mmu.lock.Lock()
 	// XXX: only gets removed if the action is activated.
 	mmu.notifications[notificationId] = payload
@@ -58,6 +66,35 @@ func (mmu *MessagingMenu) RemoveNotification(notificationId string) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	delete(mmu.notifications, notificationId)
+}
+
+// cleanupNotifications remove notifications that were cleared from the messaging menu
+func (mmu *MessagingMenu) cleanUpNotifications() {
+	mmu.lock.Lock()
+	defer mmu.lock.Unlock()
+	for nid, payload := range mmu.notifications {
+		if !cNotificationExists(payload.DesktopId, nid) {
+			delete(mmu.notifications, nid)
+		}
+	}
+}
+
+func (mmu *MessagingMenu) StartCleanupLoop() {
+	go func() {
+		for {
+			select {
+			case <-mmu.ticker.C:
+				mmu.cleanUpNotifications()
+			case <-mmu.stopCleanupLoopCh:
+				mmu.ticker.Stop()
+				return
+			}
+		}
+	}()
+}
+
+func (mmu *MessagingMenu) StopCleanupLoop() {
+	mmu.stopCleanupLoopCh <- true
 }
 
 func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {
