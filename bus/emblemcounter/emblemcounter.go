@@ -38,13 +38,23 @@ var BusAddress = bus.Address{
 // EmblemCounter is a little tool that fiddles with the unity launcher
 // to put emblems with counters on launcher icons.
 type EmblemCounter struct {
-	bus bus.Endpoint
-	log logger.Logger
+	bus  bus.Endpoint
+	log  logger.Logger
+	tags map[string][]string
 }
 
 // Build an EmblemCounter using the given bus and log.
 func New(endp bus.Endpoint, log logger.Logger) *EmblemCounter {
-	return &EmblemCounter{bus: endp, log: log}
+	return &EmblemCounter{bus: endp, log: log, tags: make(map[string][]string)}
+}
+
+// Tags returns the notification tags for the given app
+func (ctr *EmblemCounter) Tags(app *click.AppId) map[string][]string {
+	tags, ok := ctr.tags[app.Base()]
+	if !ok {
+		return nil
+	}
+	return map[string][]string{"counter": tags}
 }
 
 // Look for an EmblemCounter section in a Notification and, if
@@ -61,9 +71,9 @@ func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *la
 		return false
 	}
 
-	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, app.Base(), ec.Count, ec.Visible)
-
-	quoted := string(nih.Quote([]byte(app.Base())))
+	base := app.Base()
+	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, base, ec.Count, ec.Visible)
+	quoted := string(nih.Quote([]byte(base)))
 
 	err := ctr.bus.SetProperty("count", "/"+quoted, dbus.Variant{ec.Count})
 	if err != nil {
@@ -75,6 +85,8 @@ func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *la
 		ctr.log.Errorf("[%s] call to set countVisible failed: %v", nid, err)
 		return false
 	}
+
+	ctr.tags[base] = append(ctr.tags[base], notification.Tag)
 
 	return true
 }

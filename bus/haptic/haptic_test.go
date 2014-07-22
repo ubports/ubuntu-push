@@ -120,3 +120,14 @@ func (hs *hapticSuite) TestPanicsIfNil(c *C) {
 	// no notification at all
 	c.Check(func() { ec.Present(hs.app, "", nil) }, Panics, `please check notification is not nil before calling present`)
 }
+
+func (hs *hapticSuite) TestCourtseyListTags(c *C) {
+	// vibrations don't track tags, but we implement it anyway
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
+
+	ec := New(endp, hs.log)
+	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Pattern: []uint32{200, 100}, Repeat: 2}, Tag: "one"}
+	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
+
+	c.Check(ec.Tags(hs.app), IsNil)
+}

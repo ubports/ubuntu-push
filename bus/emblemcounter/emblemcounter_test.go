@@ -89,3 +89,26 @@ func (ecs *ecSuite) TestPanicsIfNil(c *C) {
 	// nothing happens if no EmblemCounter in Notification
 	c.Check(func() { ec.Present(ecs.app, "nid", nil) }, Panics, `please check notification is not nil before calling present`)
 }
+
+// checks that Tags() keeps track of the tags
+func (ecs *ecSuite) TestTagsListsTags(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
+
+	ec := New(endp, ecs.log)
+
+	f := func(tag string, n int32, v bool) *launch_helper.Notification {
+		e := &launch_helper.EmblemCounter{Count: n, Visible: v}
+		return &launch_helper.Notification{EmblemCounter: e, Tag: tag}
+	}
+
+	c.Check(ec.Tags(ecs.app), IsNil)
+	c.Assert(ec.Present(ecs.app, "notif1", f("one", 1, true)), Equals, true)
+	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one"}})
+	c.Assert(ec.Present(ecs.app, "notif2", f("two", 0, true)), Equals, true)
+	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one", "two"}})
+	c.Assert(ec.Present(ecs.app, "notif3", f("three", 1, false)), Equals, true)
+	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one", "two", "three"}})
+	// and an empty notification doesn't count
+	c.Assert(ec.Present(ecs.app, "notif4", &launch_helper.Notification{Tag: "xxx"}), Equals, false)
+	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one", "two", "three"}})
+}

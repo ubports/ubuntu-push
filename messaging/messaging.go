@@ -52,8 +52,8 @@ func New(log logger.Logger) *MessagingMenu {
 var cAddNotification = cmessaging.AddNotification
 var cNotificationExists = cmessaging.NotificationExists
 
-func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
-	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId}
+func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, tag string, card *launch_helper.Card, actions []string) {
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId, Tag: tag}
 	mmu.lock.Lock()
 	// XXX: only gets removed if the action is activated.
 	mmu.notifications[notificationId] = payload
@@ -97,6 +97,22 @@ func (mmu *MessagingMenu) StopCleanupLoop() {
 	mmu.stopCleanupLoopCh <- true
 }
 
+func (mmu *MessagingMenu) Tags(app *click.AppId) map[string][]string {
+	desktopId := app.DesktopId()
+	tags := []string(nil)
+	mmu.lock.RLock()
+	defer mmu.lock.RUnlock()
+	for _, payload := range mmu.notifications {
+		if payload.DesktopId == desktopId {
+			tags = append(tags, payload.Tag)
+		}
+	}
+	if tags == nil {
+		return nil
+	}
+	return map[string][]string{"card": tags}
+}
+
 func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")
@@ -127,7 +143,7 @@ func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *la
 
 	mmu.Log.Debugf("[%s] creating notification centre entry for %s (summary: %s)", nid, app.Base(), card.Summary)
 
-	mmu.addNotification(app.DesktopId(), nid, card, actions)
+	mmu.addNotification(app.DesktopId(), nid, notification.Tag, card, actions)
 
 	return true
 }

@@ -43,6 +43,10 @@ func New(endp bus.Endpoint, log logger.Logger) *Haptic {
 	return &Haptic{endp, log}
 }
 
+func (haptic *Haptic) Tags(app *click.AppId) map[string][]string {
+	return nil
+}
+
 // Present presents the notification via a vibrate pattern
 func (haptic *Haptic) Present(_ *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {

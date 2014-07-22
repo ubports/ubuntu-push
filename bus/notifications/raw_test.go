@@ -157,6 +157,16 @@ func (s *RawSuite) TestWatchActionsFails(c *C) {
 	c.Check(err, NotNil)
 }
 
+func (s *RawSuite) TestCourtseyListTags(c *C) {
+	// bubbles don't track tags, but we implement it anyway
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true}})
+	c.Check(worked, Equals, true)
+
+	c.Check(raw.Tags(s.app), IsNil)
+}
+
 func (s *RawSuite) TestPresentNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
