@@ -40,21 +40,21 @@ var BusAddress = bus.Address{
 type EmblemCounter struct {
 	bus  bus.Endpoint
 	log  logger.Logger
-	tags map[string][]string
+	tags map[string]string
 }
 
 // Build an EmblemCounter using the given bus and log.
 func New(endp bus.Endpoint, log logger.Logger) *EmblemCounter {
-	return &EmblemCounter{bus: endp, log: log, tags: make(map[string][]string)}
+	return &EmblemCounter{bus: endp, log: log, tags: make(map[string]string)}
 }
 
 // Tags returns the notification tags for the given app
 func (ctr *EmblemCounter) Tags(app *click.AppId) map[string][]string {
-	tags, ok := ctr.tags[app.Base()]
-	if !ok {
+	tag := ctr.tags[app.Base()]
+	if tag == "" {
 		return nil
 	}
-	return map[string][]string{"counter": tags}
+	return map[string][]string{"counter": {tag}}
 }
 
 // Look for an EmblemCounter section in a Notification and, if
@@ -86,7 +86,11 @@ func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *la
 		return false
 	}
 
-	ctr.tags[base] = append(ctr.tags[base], notification.Tag)
+	if ec.Visible && ec.Count != 0 {
+		ctr.tags[base] = notification.Tag
+	} else {
+		delete(ctr.tags, base)
+	}
 
 	return true
 }

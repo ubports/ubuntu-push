@@ -104,11 +104,19 @@ func (ecs *ecSuite) TestTagsListsTags(c *C) {
 	c.Check(ec.Tags(ecs.app), IsNil)
 	c.Assert(ec.Present(ecs.app, "notif1", f("one", 1, true)), Equals, true)
 	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one"}})
-	c.Assert(ec.Present(ecs.app, "notif2", f("two", 0, true)), Equals, true)
-	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one", "two"}})
-	c.Assert(ec.Present(ecs.app, "notif3", f("three", 1, false)), Equals, true)
-	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one", "two", "three"}})
+	// setting one tag clears the previous one
+	c.Assert(ec.Present(ecs.app, "notif1", f("two", 1, true)), Equals, true)
+	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"two"}})
+	// but setting a non-visible one clears it
+	c.Assert(ec.Present(ecs.app, "notif2", f("three", 1, false)), Equals, true)
+	c.Check(ec.Tags(ecs.app), IsNil)
+	// (re-adding one...)
+	c.Assert(ec.Present(ecs.app, "notif1", f("one", 1, true)), Equals, true)
+	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one"}})
+	// 0 counts as not visible
+	c.Assert(ec.Present(ecs.app, "notif2", f("three", 0, true)), Equals, true)
+	c.Check(ec.Tags(ecs.app), IsNil)
 	// and an empty notification doesn't count
 	c.Assert(ec.Present(ecs.app, "notif4", &launch_helper.Notification{Tag: "xxx"}), Equals, false)
-	c.Check(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one", "two", "three"}})
+	c.Check(ec.Tags(ecs.app), IsNil)
 }
