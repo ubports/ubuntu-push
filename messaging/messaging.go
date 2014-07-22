@@ -54,10 +54,10 @@ var cAddNotification = cmessaging.AddNotification
 var cNotificationExists = cmessaging.NotificationExists
 
 func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
-	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId}
 	mmu.lock.Lock()
+	defer mmu.lock.Unlock()
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId}
 	mmu.notifications[notificationId] = payload
-	mmu.lock.Unlock()
 	cAddNotification(desktopId, notificationId, card, payload)
 }
 
