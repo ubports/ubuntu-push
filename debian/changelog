@@ -1,6 +1,11 @@
+ubuntu-push (0.49.1) UNRELEASED; urgency=medium
+
+  * Fixed push-helper click hook pointing at the wrong place.
+
+ -- John R. Lenton <john.lenton@canonical.com>  Wed, 23 Jul 2014 00:43:19 +0100
+
 ubuntu-push (0.49+14.10.20140721.2-0ubuntu1) utopic; urgency=medium
 
-  [ John R. Lenton ]
   [Samuele Pedroni]
   * Check in the api whether an app has pushed too many notifications.
   * Return payload of most recent notification in too many pending

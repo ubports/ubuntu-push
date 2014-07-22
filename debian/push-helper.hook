@@ -1,3 +1,3 @@
-Pattern: ${home}/.local/share/push-helpers/${short-id}.json
+Pattern: ${home}/.local/share/ubuntu-push-client/helpers/${short-id}.json
 User-Level: yes
 Hook-Name: push-helper
