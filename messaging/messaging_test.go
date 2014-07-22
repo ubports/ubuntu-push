@@ -177,7 +177,7 @@ func (ms *MessagingSuite) TestCleanupLoop(c *C) {
 	// check it's there
 	payload, ok := mmu.notifications["notif-id"]
 	c.Check(ok, Equals, true)
-	c.Check(payload.Alive, Equals, true)
+	c.Check(payload.Gone, Equals, false)
 
 	// statr the cleanup loop
 	mmu.StartCleanupLoop()
@@ -190,7 +190,7 @@ func (ms *MessagingSuite) TestCleanupLoop(c *C) {
 	// check it's there, and marked
 	payload, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, true)
-	c.Check(payload.Alive, Equals, false)
+	c.Check(payload.Gone, Equals, true)
 	// sweep
 	tickerCh <- time.Now()
 	// check it's gone

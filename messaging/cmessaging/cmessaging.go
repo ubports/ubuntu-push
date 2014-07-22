@@ -40,7 +40,7 @@ type Payload struct {
 	Ch        chan *reply.MMActionReply
 	Actions   []string
 	DesktopId string
-	Alive     bool
+	Gone      bool
 }
 
 func gchar(s string) *C.gchar {

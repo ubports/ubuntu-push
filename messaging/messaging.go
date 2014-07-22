@@ -54,7 +54,7 @@ var cAddNotification = cmessaging.AddNotification
 var cNotificationExists = cmessaging.NotificationExists
 
 func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
-	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId, Alive: true}
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId}
 	mmu.lock.Lock()
 	mmu.notifications[notificationId] = payload
 	mmu.lock.Unlock()
@@ -73,14 +73,16 @@ func (mmu *MessagingMenu) cleanUpNotifications() {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	for nid, payload := range mmu.notifications {
-		exists := cNotificationExists(payload.DesktopId, nid)
-		payload, ok := mmu.notifications[nid]
-		if !exists && ok && payload.Alive {
-			// mark
-			payload.Alive = false
-		} else if !exists && ok && !payload.Alive {
+		if payload.Gone {
 			// sweep
 			delete(mmu.notifications, nid)
+			// don't check the mmu for this nid
+			continue
+		}
+		exists := cNotificationExists(payload.DesktopId, nid)
+		if !exists {
+			// mark
+			payload.Gone = true
 		}
 	}
 }
