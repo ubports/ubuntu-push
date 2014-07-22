@@ -180,7 +180,7 @@ func (ms *MessagingSuite) TestCleanupLoop(c *C) {
 		return false
 	}
 	// wait for a couple of loops
-	<-time.After(500 * time.Nanosecond)
+	time.Sleep(500 * time.Nanosecond)
 	// check it's gone
 	_, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, false)
@@ -188,7 +188,7 @@ func (ms *MessagingSuite) TestCleanupLoop(c *C) {
 	// stop the loop and check that it's actually stopped.
 	mmu.StopCleanupLoop()
 	// wait for a couple of loops
-	<-time.After(1 * time.Millisecond)
+	time.Sleep(1 * time.Millisecond)
 	mmu.addNotification(ms.app.DesktopId(), "notif-id-1", &card, actions)
 	// check it's there
 	_, ok = mmu.notifications["notif-id-1"]

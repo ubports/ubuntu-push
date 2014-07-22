@@ -56,7 +56,7 @@ void add_notification (const gchar* desktop_id, const gchar* notification_id,
     g_object_unref(msg);
 }
 
-int notification_exists (const gchar* desktop_id, const gchar* notification_id) {
+gboolean notification_exists (const gchar* desktop_id, const gchar* notification_id) {
     if (map == NULL) {
         return 0;
     }
@@ -68,10 +68,9 @@ int notification_exists (const gchar* desktop_id, const gchar* notification_id) 
     MessagingMenuMessage* msg = messaging_menu_app_get_message(app, notification_id);
     if (msg != NULL) {
         // the notification is still there
-        g_object_unref(msg);
-        return 1;
+        return TRUE;
     }
-    return 0;
+    return FALSE;
 }
 */
 import "C"

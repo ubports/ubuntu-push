@@ -36,7 +36,7 @@ var cleanupLoopDuration = 5 * time.Minute
 type MessagingMenu struct {
 	Log               logger.Logger
 	Ch                chan *reply.MMActionReply
-	notifications     map[string]*cmessaging.Payload
+	notifications     map[string]*cmessaging.Payload // keep a ref to the Payload used in the MMU callback
 	lock              sync.RWMutex
 	stopCleanupLoopCh chan bool
 	ticker            *time.Ticker
@@ -55,7 +55,6 @@ var cNotificationExists = cmessaging.NotificationExists
 func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
 	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId}
 	mmu.lock.Lock()
-	// XXX: only gets removed if the action is activated.
 	mmu.notifications[notificationId] = payload
 	mmu.lock.Unlock()
 	cAddNotification(desktopId, notificationId, card, payload)
@@ -73,7 +72,13 @@ func (mmu *MessagingMenu) cleanUpNotifications() {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	for nid, payload := range mmu.notifications {
-		if !cNotificationExists(payload.DesktopId, nid) {
+		exists := cNotificationExists(payload.DesktopId, nid)
+		payload, ok := mmu.notifications[nid]
+		if !exists && ok && payload.Alive {
+			// mark
+			payload.Alive = false
+		} else if !exists && ok && !payload.Alive {
+			// sweep
 			delete(mmu.notifications, nid)
 		}
 	}

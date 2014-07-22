@@ -26,7 +26,7 @@ void add_notification(const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
           gint64 timestamp, const gchar** actions, gpointer obj);
 
-int notification_exists(const gchar* desktop_id, const gchar* notification_id);
+gboolean notification_exists(const gchar* desktop_id, const gchar* notification_id);
 */
 import "C"
 import "unsafe"
@@ -40,6 +40,7 @@ type Payload struct {
 	Ch        chan *reply.MMActionReply
 	Actions   []string
 	DesktopId string
+	Alive     bool
 }
 
 func gchar(s string) *C.gchar {
