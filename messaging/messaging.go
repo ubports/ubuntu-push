@@ -52,13 +52,13 @@ func New(log logger.Logger) *MessagingMenu {
 var cAddNotification = cmessaging.AddNotification
 var cNotificationExists = cmessaging.NotificationExists
 
-func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, tag string, card *launch_helper.Card, actions []string) {
-	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId, Tag: tag}
+func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string) {
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app, Tag: tag}
 	mmu.lock.Lock()
 	// XXX: only gets removed if the action is activated.
 	mmu.notifications[notificationId] = payload
 	mmu.lock.Unlock()
-	cAddNotification(desktopId, notificationId, card, payload)
+	cAddNotification(app.DesktopId(), notificationId, card, payload)
 }
 
 // RemoveNotification deletes the notification from internal map
@@ -73,7 +73,7 @@ func (mmu *MessagingMenu) cleanUpNotifications() {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	for nid, payload := range mmu.notifications {
-		if !cNotificationExists(payload.DesktopId, nid) {
+		if !cNotificationExists(payload.App.DesktopId(), nid) {
 			delete(mmu.notifications, nid)
 		}
 	}
@@ -98,12 +98,12 @@ func (mmu *MessagingMenu) StopCleanupLoop() {
 }
 
 func (mmu *MessagingMenu) Tags(app *click.AppId) map[string][]string {
-	desktopId := app.DesktopId()
+	orig := app.Original()
 	tags := []string(nil)
 	mmu.lock.RLock()
 	defer mmu.lock.RUnlock()
 	for _, payload := range mmu.notifications {
-		if payload.DesktopId == desktopId {
+		if payload.App.Original() == orig {
 			tags = append(tags, payload.Tag)
 		}
 	}
@@ -143,7 +143,7 @@ func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *la
 
 	mmu.Log.Debugf("[%s] creating notification centre entry for %s (summary: %s)", nid, app.Base(), card.Summary)
 
-	mmu.addNotification(app.DesktopId(), nid, notification.Tag, card, actions)
+	mmu.addNotification(app, nid, notification.Tag, card, actions)
 
 	return true
 }

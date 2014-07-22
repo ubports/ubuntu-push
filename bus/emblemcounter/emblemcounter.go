@@ -50,7 +50,7 @@ func New(endp bus.Endpoint, log logger.Logger) *EmblemCounter {
 
 // Tags returns the notification tags for the given app
 func (ctr *EmblemCounter) Tags(app *click.AppId) map[string][]string {
-	tag := ctr.tags[app.Base()]
+	tag := ctr.tags[app.Original()]
 	if tag == "" {
 		return nil
 	}
@@ -87,9 +87,9 @@ func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *la
 	}
 
 	if ec.Visible && ec.Count != 0 {
-		ctr.tags[base] = notification.Tag
+		ctr.tags[app.Original()] = notification.Tag
 	} else {
-		delete(ctr.tags, base)
+		delete(ctr.tags, app.Original())
 	}
 
 	return true
