@@ -92,8 +92,7 @@ func NotificationExists(desktopId string, notificationId string) bool {
 	desktop_id := gchar(desktopId)
 	defer gfree(desktop_id)
 
-	result := int(C.notification_exists(desktop_id, notification_id))
-	return result == 1
+	return C.notification_exists(desktop_id, notification_id) == C.TRUE
 }
 
 func init() {

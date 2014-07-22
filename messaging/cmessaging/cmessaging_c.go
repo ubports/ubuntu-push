@@ -58,12 +58,12 @@ void add_notification (const gchar* desktop_id, const gchar* notification_id,
 
 gboolean notification_exists (const gchar* desktop_id, const gchar* notification_id) {
     if (map == NULL) {
-        return 0;
+        return FALSE;
     }
     MessagingMenuApp* app = g_hash_table_lookup (map, desktop_id);
     if (app == NULL) {
         // no app in the hash table, bailout
-        return 0;
+        return FALSE;
     }
     MessagingMenuMessage* msg = messaging_menu_app_get_message(app, notification_id);
     if (msg != NULL) {
