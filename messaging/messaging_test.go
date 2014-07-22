@@ -158,9 +158,9 @@ func (ms *MessagingSuite) TestCleanupStaleNotification(c *C) {
 }
 
 func (ms *MessagingSuite) TestCleanupLoop(c *C) {
-	// make the cleanup loop run a bit faster
-	cleanupLoopDuration = 100 * time.Nanosecond
 	mmu := New(ms.log)
+	tickerCh := make(chan time.Time, 1)
+	mmu.tickerCh = tickerCh
 	// patch cnotificationexists to return true
 	cNotificationExists = func(did string, nid string) bool {
 		return true
@@ -179,18 +179,19 @@ func (ms *MessagingSuite) TestCleanupLoop(c *C) {
 	cNotificationExists = func(did string, nid string) bool {
 		return false
 	}
-	// wait for a couple of loops
-	time.Sleep(500 * time.Nanosecond)
+	// mark
+	tickerCh <- time.Now()
+	// check it's gone
+	payload, ok := mmu.notifications["notif-id"]
+	c.Check(ok, Equals, true)
+	c.Check(payload.Alive, Equals, false)
+	// sweep
+	tickerCh <- time.Now()
 	// check it's gone
 	_, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, false)
 
 	// stop the loop and check that it's actually stopped.
 	mmu.StopCleanupLoop()
-	// wait for a couple of loops
-	time.Sleep(1 * time.Millisecond)
-	mmu.addNotification(ms.app.DesktopId(), "notif-id-1", &card, actions)
-	// check it's there
-	_, ok = mmu.notifications["notif-id-1"]
-	c.Check(ok, Equals, true)
+	c.Check(ms.log.Captured(), Matches, "(?s).*DEBUG CleanupLoop stopped.*")
 }

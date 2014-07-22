@@ -40,13 +40,14 @@ type MessagingMenu struct {
 	lock              sync.RWMutex
 	stopCleanupLoopCh chan bool
 	ticker            *time.Ticker
+	tickerCh          <-chan time.Time
 }
 
 // New returns a new MessagingMenu
 func New(log logger.Logger) *MessagingMenu {
 	ticker := time.NewTicker(cleanupLoopDuration)
 	stopCh := make(chan bool)
-	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload), ticker: ticker, stopCleanupLoopCh: stopCh}
+	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload), ticker: ticker, tickerCh: ticker.C, stopCleanupLoopCh: stopCh}
 }
 
 var cAddNotification = cmessaging.AddNotification
@@ -88,10 +89,11 @@ func (mmu *MessagingMenu) StartCleanupLoop() {
 	go func() {
 		for {
 			select {
-			case <-mmu.ticker.C:
+			case <-mmu.tickerCh:
 				mmu.cleanUpNotifications()
 			case <-mmu.stopCleanupLoopCh:
 				mmu.ticker.Stop()
+				mmu.Log.Debugf("CleanupLoop stopped.")
 				return
 			}
 		}
