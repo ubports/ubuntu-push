@@ -25,6 +25,8 @@ package cmessaging
 void add_notification(const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
           gint64 timestamp, const gchar** actions, gpointer obj);
+
+gboolean notification_exists(const gchar* desktop_id, const gchar* notification_id);
 */
 import "C"
 import "unsafe"
@@ -35,8 +37,10 @@ import (
 )
 
 type Payload struct {
-	Ch      chan *reply.MMActionReply
-	Actions []string
+	Ch        chan *reply.MMActionReply
+	Actions   []string
+	DesktopId string
+	Gone      bool
 }
 
 func gchar(s string) *C.gchar {
@@ -79,6 +83,16 @@ func AddNotification(desktopId string, notificationId string, card *launch_helpe
 	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
 
 	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(payload))
+}
+
+func NotificationExists(desktopId string, notificationId string) bool {
+	notification_id := gchar(notificationId)
+	defer gfree(notification_id)
+
+	desktop_id := gchar(desktopId)
+	defer gfree(desktop_id)
+
+	return C.notification_exists(desktop_id, notification_id) == C.TRUE
 }
 
 func init() {
