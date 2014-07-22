@@ -166,39 +166,40 @@ func (ms *MessagingSuite) TestCleanupLoop(c *C) {
 	mmu := New(ms.log)
 	tickerCh := make(chan time.Time)
 	mmu.tickerCh = tickerCh
-	// patch cnotificationexists to return true
-	cNotificationExists = func(did string, nid string) bool {
-		return true
+	cleanupCh := make(chan bool)
+	cleanupFunc := func() {
+		cleanupCh <- true
 	}
+	// start the cleanup loop
+	mmu.doStartCleanupLoop(cleanupFunc)
+	// mark
+	tickerCh <- time.Now()
+	// check it was called
+	<-cleanupCh
+	// stop the loop and check that it's actually stopped.
+	mmu.StopCleanupLoop()
+	c.Check(ms.log.Captured(), Matches, "(?s).*DEBUG CleanupLoop stopped.*")
+}
+
+func (ms *MessagingSuite) TestStartCleanupLoop(c *C) {
+	mmu := New(ms.log)
+	tickerCh := make(chan time.Time)
+	mmu.tickerCh = tickerCh
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
 	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
 	mmu.addNotification(ms.app.DesktopId(), "notif-id", &card, actions)
-
-	// check it's there
-	payload, ok := mmu.notifications["notif-id"]
-	c.Check(ok, Equals, true)
-	c.Check(payload.Gone, Equals, false)
-
+	// patch cnotificationexists to return true and signal when it's called
+	notifExistsCh := make(chan bool)
+	cNotificationExists = func(did string, nid string) bool {
+		notifExistsCh <- true
+		return true
+	}
 	// statr the cleanup loop
 	mmu.StartCleanupLoop()
-	// patch cnotificationexists to return false
-	cNotificationExists = func(did string, nid string) bool {
-		return false
-	}
 	// mark
 	tickerCh <- time.Now()
 	// check it's there, and marked
-	payload, ok = mmu.notifications["notif-id"]
-	c.Check(ok, Equals, true)
-	c.Check(payload.Gone, Equals, true)
-	// sweep
-	tickerCh <- time.Now()
-	// check it's gone
-	_, ok = mmu.notifications["notif-id"]
-	c.Check(ok, Equals, false)
-
-	// stop the loop and check that it's actually stopped.
+	<-notifExistsCh
+	// stop the loop
 	mmu.StopCleanupLoop()
-	time.Sleep(1 * time.Millisecond)
-	c.Check(ms.log.Captured(), Matches, "(?s).*DEBUG CleanupLoop stopped.*")
 }

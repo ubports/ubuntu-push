@@ -88,11 +88,15 @@ func (mmu *MessagingMenu) cleanUpNotifications() {
 }
 
 func (mmu *MessagingMenu) StartCleanupLoop() {
+	mmu.doStartCleanupLoop(mmu.cleanUpNotifications)
+}
+
+func (mmu *MessagingMenu) doStartCleanupLoop(cleanupFunc func()) {
 	go func() {
 		for {
 			select {
 			case <-mmu.tickerCh:
-				mmu.cleanUpNotifications()
+				cleanupFunc()
 			case <-mmu.stopCleanupLoopCh:
 				mmu.ticker.Stop()
 				mmu.Log.Debugf("CleanupLoop stopped.")
