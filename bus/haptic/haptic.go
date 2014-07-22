@@ -44,9 +44,13 @@ func New(endp bus.Endpoint, log logger.Logger) *Haptic {
 }
 
 // Present presents the notification via a vibrate pattern
-func (haptic *Haptic) Present(_ *click.AppId, _ string, notification *launch_helper.Notification) bool {
-	if notification == nil || notification.Vibrate == nil {
-		haptic.log.Debugf("no notification or no Vibrate in the notification; doing nothing: %#v", notification)
+func (haptic *Haptic) Present(_ *click.AppId, nid string, notification *launch_helper.Notification) bool {
+	if notification == nil {
+		panic("please check notification is not nil before calling present")
+	}
+
+	if notification.Vibrate == nil {
+		haptic.log.Debugf("[%s] notification has no Vibrate: %#v", nid, notification.Vibrate)
 		return false
 	}
 	pattern := notification.Vibrate.Pattern
@@ -58,13 +62,13 @@ func (haptic *Haptic) Present(_ *click.AppId, _ string, notification *launch_hel
 		pattern = []uint32{notification.Vibrate.Duration}
 	}
 	if len(pattern) == 0 {
-		haptic.log.Debugf("not enough information in the notification's Vibrate section to create a pattern")
+		haptic.log.Debugf("[%s] not enough information in the Vibrate to create a pattern", nid)
 		return false
 	}
-	haptic.log.Debugf("vibrating %d times to the tune of %v", repeat, pattern)
+	haptic.log.Debugf("[%s] vibrating %d times to the tune of %v", nid, repeat, pattern)
 	err := haptic.bus.Call("VibratePattern", bus.Args(pattern, repeat))
 	if err != nil {
-		haptic.log.Errorf("VibratePattern call returned %v", err)
+		haptic.log.Errorf("[%s] call to VibratePattern returned %v", nid, err)
 		return false
 	}
 	return true

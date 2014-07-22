@@ -55,7 +55,7 @@ func (ms *MessagingSuite) TestPresentPresents(c *C) {
 	card := launch_helper.Card{Summary: "ehlo", Persist: true}
 	notif := launch_helper.Notification{Card: &card}
 
-	mmu.Present(ms.app, "notif-id", &notif)
+	c.Check(mmu.Present(ms.app, "notif-id", &notif), Equals, true)
 
 	c.Check(ms.log.Captured(), Matches, `(?s).* ADD:.*notif-id.*`)
 }
@@ -65,7 +65,7 @@ func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNoSummary(c *C) {
 	card := launch_helper.Card{Persist: true}
 	notif := launch_helper.Notification{Card: &card}
 
-	mmu.Present(ms.app, "notif-id", &notif)
+	c.Check(mmu.Present(ms.app, "notif-id", &notif), Equals, false)
 
 	c.Check(ms.log.Captured(), Matches, "(?sm).*has no persistable card.*")
 }
@@ -75,21 +75,20 @@ func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNotPersist(c *C) {
 	card := launch_helper.Card{Summary: "ehlo"}
 	notif := launch_helper.Notification{Card: &card}
 
-	mmu.Present(ms.app, "notif-id", &notif)
+	c.Check(mmu.Present(ms.app, "notif-id", &notif), Equals, false)
 
 	c.Check(ms.log.Captured(), Matches, "(?sm).*has no persistable card.*")
 }
 
-func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNil(c *C) {
+func (ms *MessagingSuite) TestPresentPanicsIfNil(c *C) {
 	mmu := New(ms.log)
-	mmu.Present(ms.app, "notif-id", nil)
-	c.Check(ms.log.Captured(), Matches, "(?sm).*no notification.*")
+	c.Check(func() { mmu.Present(ms.app, "notif-id", nil) }, Panics, `please check notification is not nil before calling present`)
 }
 
 func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNilCard(c *C) {
 	mmu := New(ms.log)
-	mmu.Present(ms.app, "notif-id", &launch_helper.Notification{})
-	c.Check(ms.log.Captured(), Matches, "(?sm).*no notification.*")
+	c.Check(mmu.Present(ms.app, "notif-id", &launch_helper.Notification{}), Equals, false)
+	c.Check(ms.log.Captured(), Matches, "(?sm).*no persistable card.*")
 }
 
 func (ms *MessagingSuite) TestPresentWithActions(c *C) {
@@ -97,7 +96,7 @@ func (ms *MessagingSuite) TestPresentWithActions(c *C) {
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
 	notif := launch_helper.Notification{Card: &card}
 
-	mmu.Present(ms.app, "notif-id", &notif)
+	c.Check(mmu.Present(ms.app, "notif-id", &notif), Equals, true)
 
 	c.Check(ms.log.Captured(), Matches, `(?s).* ADD:.*notif-id.*`)
 

@@ -39,7 +39,12 @@ import (
 	"launchpad.net/ubuntu-push/util"
 )
 
-type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) error
+type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) bool
+
+// a Presenter is something that knows how to present a Notification
+type Presenter interface {
+	Present(*click.AppId, string, *launch_helper.Notification) bool
+}
 
 // PostalService is the dbus api
 type PostalService struct {
@@ -57,6 +62,7 @@ type PostalService struct {
 	URLDispatcherEndp bus.Endpoint
 	WindowStackEndp   bus.Endpoint
 	// presenters:
+	Presenters    []Presenter
 	emblemCounter *emblemcounter.EmblemCounter
 	haptic        *haptic.Haptic
 	notifications *notifications.RawNotifications
@@ -128,6 +134,13 @@ func (svc *PostalService) Start() error {
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log)
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
+	svc.Presenters = []Presenter{
+		svc.notifications,
+		svc.emblemCounter,
+		svc.haptic,
+		svc.sound,
+		svc.messagingMenu,
+	}
 	if useTrivialHelper {
 		svc.HelperPool = launch_helper.NewTrivialHelperPool(svc.Log)
 	} else {
@@ -301,27 +314,29 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	box.Append(output.Message, nid)
 
 	if svc.msgHandler != nil {
-		err := svc.msgHandler(app, nid, &output)
-		if err != nil {
-			svc.DBusService.Log.Errorf("msgHandler returned %v", err)
-			return
+		b := svc.msgHandler(app, nid, &output)
+		if !b {
+			svc.Log.Debugf("msgHandler did not present the notification")
 		}
-		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 
 	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
-func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
+func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {
+	if output == nil || output.Notification == nil {
+		svc.Log.Debugf("skipping notification: nil.")
+		return false
+	}
 	if !svc.windowStack.IsAppFocused(app) {
-		svc.messagingMenu.Present(app, nid, output.Notification)
-		_, err := svc.notifications.Present(app, nid, output.Notification)
-		svc.emblemCounter.Present(app, nid, output.Notification)
-		svc.haptic.Present(app, nid, output.Notification)
-		svc.sound.Present(app, nid, output.Notification)
-		return err
+		b := false
+		for _, p := range svc.Presenters {
+			// we don't want this to shortcut :)
+			b = p.Present(app, nid, output.Notification) || b
+		}
+		return b
 	} else {
-		svc.Log.Debugf("Notification skipped because app is focused.")
-		return nil
+		svc.Log.Debugf("notification skipped because app is focused.")
+		return false
 	}
 }

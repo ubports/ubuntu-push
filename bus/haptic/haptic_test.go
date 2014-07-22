@@ -106,10 +106,17 @@ func (hs *hapticSuite) TestSkipIfMissing(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 
 	ec := New(endp, hs.log)
-	// no notification at all
-	c.Check(ec.Present(hs.app, "", nil), Equals, false)
 	// no Vibration in the notificaton
 	c.Check(ec.Present(hs.app, "", &launch_helper.Notification{}), Equals, false)
 	// empty Vibration
 	c.Check(ec.Present(hs.app, "", &launch_helper.Notification{Vibrate: &launch_helper.Vibration{}}), Equals, false)
+}
+
+// check that Present() panics if the notification is nil
+func (hs *hapticSuite) TestPanicsIfNil(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
+
+	ec := New(endp, hs.log)
+	// no notification at all
+	c.Check(func() { ec.Present(hs.app, "", nil) }, Panics, `please check notification is not nil before calling present`)
 }

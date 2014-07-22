@@ -160,16 +160,15 @@ func (s *RawSuite) TestWatchActionsFails(c *C) {
 func (s *RawSuite) TestPresentNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true}})
-	c.Check(err, IsNil)
-	c.Check(nid, Equals, uint32(1))
+	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true}})
+	c.Check(worked, Equals, true)
 }
 
 func (s *RawSuite) TestPresentOneAction(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	_, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes"}}})
-	c.Check(err, IsNil)
+	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes"}}})
+	c.Check(worked, Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 1)
 	c.Assert(callArgs[0].Member, Equals, "Notify")
@@ -192,8 +191,8 @@ func (s *RawSuite) TestPresentOneAction(c *C) {
 func (s *RawSuite) TestPresentTwoActions(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	_, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes", "No"}}})
-	c.Check(err, IsNil)
+	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes", "No"}}})
+	c.Check(worked, Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 1)
 	c.Assert(callArgs[0].Member, Equals, "Notify")
@@ -219,8 +218,8 @@ func (s *RawSuite) TestPresentTwoActions(c *C) {
 func (s *RawSuite) TestPresentThreeActions(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	_, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes", "No", "What"}}})
-	c.Check(err, IsNil)
+	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true, Actions: []string{"Yes", "No", "What"}}})
+	c.Check(worked, Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 1)
 	c.Assert(callArgs[0].Member, Equals, "Notify")
@@ -236,34 +235,29 @@ func (s *RawSuite) TestPresentThreeActions(c *C) {
 	c.Check(s.log.Captured(), Matches, `(?ms).* no hints set$`)
 }
 
-func (s *RawSuite) TestPresentNoNotificationDoesNotNotify(c *C) {
+func (s *RawSuite) TestPresentNoNotificationPanics(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present(s.app, "notifId", nil)
-	c.Check(err, IsNil)
-	c.Check(nid, Equals, uint32(0))
+	c.Check(func() { raw.Present(s.app, "notifId", nil) }, Panics, `please check notification is not nil before calling present`)
 }
 
 func (s *RawSuite) TestPresentNoCardDoesNotNotify(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present(s.app, "notifId", &launch_helper.Notification{})
-	c.Check(err, IsNil)
-	c.Check(nid, Equals, uint32(0))
+	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{})
+	c.Check(worked, Equals, false)
 }
 
 func (s *RawSuite) TestPresentNoSummaryDoesNotNotify(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{}})
-	c.Check(err, IsNil)
-	c.Check(nid, Equals, uint32(0))
+	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{}})
+	c.Check(worked, Equals, false)
 }
 
 func (s *RawSuite) TestPresentNoPopupNoNotify(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)
-	nid, err := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary"}})
-	c.Check(err, IsNil)
-	c.Check(nid, Equals, uint32(0))
+	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary"}})
+	c.Check(worked, Equals, false)
 }
