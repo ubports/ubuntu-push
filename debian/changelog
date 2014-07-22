@@ -1,4 +1,4 @@
-ubuntu-push (0.49-0ubuntu1) UNRELEASED; urgency=medium
+ubuntu-push (0.49+14.10.20140721.2-0ubuntu1) utopic; urgency=medium
 
   [Samuele Pedroni]
   * Check in the api whether an app has pushed too many notifications.
@@ -48,7 +48,7 @@ ubuntu-push (0.49-0ubuntu1) UNRELEASED; urgency=medium
     to support inhibition of notifications for focused apps.
   * Inhibit notifications for focused apps
 
- -- John R. Lenton <john.lenton@canonical.com>  Thu, 17 Jul 2014 13:26:48 +0100
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 21 Jul 2014 14:17:35 +0000
 
 ubuntu-push (0.43+14.10.20140707-0ubuntu1) utopic; urgency=medium
 
@@ -62,10 +62,6 @@ ubuntu-push (0.43+14.10.20140707-0ubuntu1) utopic; urgency=medium
   * Support emblem counter notifications
   * Support haptic (vibration) notifications
   * Support sound notifications
-
-  [ Roberto Alsina ]
-  * Wrap WindowStack API
-  * Inhibit notifications for focused apps
 
  -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 07 Jul 2014 14:26:27 +0000
 
