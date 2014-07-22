@@ -433,9 +433,10 @@ func (ps *postalSuite) TestFailingMessageHandlerSurvived(c *C) {
 	svc.handleHelperResult(res)
 
 	c.Check(ps.log.Captured(), Equals, "DEBUG msgHandler did not present the notification\n")
-	// no signal
+	// we actually want to send a signal even if we didn't do anything
 	callArgs := testibus.GetCallArgs(ps.bus)
-	c.Check(callArgs, IsNil)
+	c.Assert(len(callArgs), Equals, 1)
+	c.Check(callArgs[0].Member, Equals, "::Signal")
 }
 
 //

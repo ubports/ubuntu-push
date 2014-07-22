@@ -304,8 +304,6 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 		b := svc.msgHandler(app, nid, &output)
 		if !b {
 			svc.Log.Debugf("msgHandler did not present the notification")
-			// XXX this is a bug:
-			return
 		}
 	}
 
