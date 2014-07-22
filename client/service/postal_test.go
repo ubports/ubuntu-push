@@ -18,7 +18,6 @@ package service
 
 import (
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -78,16 +77,16 @@ func takeNextError(ch <-chan error) error {
 	}
 }
 
-func installTickMessageHandler(svc *PostalService) chan error {
-	ch := make(chan error)
+func installTickMessageHandler(svc *PostalService) chan bool {
+	ch := make(chan bool)
 	msgHandler := svc.GetMessageHandler()
-	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
-		var err error
+	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {
+		var b bool
 		if msgHandler != nil {
-			err = msgHandler(app, nid, output)
+			b = msgHandler(app, nid, output)
 		}
-		ch <- err
-		return err
+		ch <- b
+		return b
 	})
 	return ch
 }
@@ -278,7 +277,7 @@ func (ps *postalSuite) TestPostHappyPath(c *C) {
 		"click": ps.fakeLauncher,
 	}
 	c.Assert(svc.Start(), IsNil)
-	payload := `{"message":{"world":1}}`
+	payload := `{"message": {"world":1}}`
 	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, payload}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
@@ -291,7 +290,7 @@ func (ps *postalSuite) TestPostHappyPath(c *C) {
 		go ps.fakeLauncher.done("0") // OneDone
 	}
 
-	c.Check(takeNextError(ch), IsNil) // one,
+	c.Check(takeNextBool(ch), Equals, false) // one,
 	// xxx here?
 	c.Assert(svc.mbox, HasLen, 1)
 	box, ok := svc.mbox[anAppId]
@@ -354,9 +353,9 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 		go fakeLauncher2.done("0")
 	}
 
-	c.Check(takeNextError(ch), IsNil) // one,
-	c.Check(takeNextError(ch), IsNil) // two,
-	c.Check(takeNextError(ch), IsNil) // three posts
+	c.Check(takeNextBool(ch), Equals, false) // one,
+	c.Check(takeNextBool(ch), Equals, false) // two,
+	c.Check(takeNextBool(ch), Equals, false) // three posts
 	c.Assert(svc.mbox, HasLen, 2)
 	box, ok := svc.mbox[anAppId]
 	c.Check(ok, Equals, true)
@@ -381,11 +380,11 @@ func (ps *postalSuite) TestPostCallsMessageHandlerDetails(c *C) {
 	c.Assert(svc.Start(), IsNil)
 	// check the message handler gets called
 	app := clickhelp.MustParseAppId(anAppId)
-	f := func(app *click.AppId, nid string, s *launch_helper.HelperOutput) error {
+	f := func(app *click.AppId, nid string, s *launch_helper.HelperOutput) bool {
 		c.Check(app.Base(), Equals, anAppId)
 		c.Check(nid, Equals, "m7")
 		ch <- s
-		return nil
+		return true
 	}
 	svc.SetMessageHandler(f)
 	svc.Post(app, "m7", json.RawMessage("{}"))
@@ -422,8 +421,8 @@ func (ps *postalSuite) TestAfterMessageHandlerSignal(c *C) {
 
 func (ps *postalSuite) TestFailingMessageHandlerSurvived(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error {
-		return errors.New("fail")
+	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) bool {
+		return false
 	})
 
 	hInp := &launch_helper.HelperInput{
@@ -433,7 +432,7 @@ func (ps *postalSuite) TestFailingMessageHandlerSurvived(c *C) {
 
 	svc.handleHelperResult(res)
 
-	c.Check(ps.log.Captured(), Equals, "ERROR msgHandler returned fail\n")
+	c.Check(ps.log.Captured(), Equals, "DEBUG msgHandler did not present the notification\n")
 	// no signal
 	callArgs := testibus.GetCallArgs(ps.bus)
 	c.Check(callArgs, IsNil)
@@ -488,13 +487,12 @@ func (ps *postalSuite) TestMessageHandlerPublicAPI(c *C) {
 	svc := new(PostalService)
 	c.Assert(svc.msgHandler, IsNil)
 	var ext = &launch_helper.HelperOutput{}
-	e := errors.New("Hello")
-	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ext = s; return e }
+	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) bool { ext = s; return false }
 	c.Check(svc.GetMessageHandler(), IsNil)
 	svc.SetMessageHandler(f)
 	c.Check(svc.GetMessageHandler(), NotNil)
 	hOutput := &launch_helper.HelperOutput{[]byte("37"), nil}
-	c.Check(svc.msgHandler(nil, "", hOutput), Equals, e)
+	c.Check(svc.msgHandler(nil, "", hOutput), Equals, false)
 	c.Check(ext, DeepEquals, hOutput)
 }
 
@@ -515,12 +513,12 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	vib := &launch_helper.Vibration{Duration: 500}
 	emb := &launch_helper.EmblemCounter{Count: 2, Visible: true}
 	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card, EmblemCounter: emb, Vibrate: vib}}
-	err := svc.messageHandler(&click.AppId{}, "", output)
-	c.Assert(err, IsNil)
+	b := svc.messageHandler(&click.AppId{}, "", output)
+	c.Assert(b, Equals, true)
 	args := testibus.GetCallArgs(endp)
 	l := len(args)
 	if l < 4 {
-		c.Fatal("not enough elements in resposne from GetCallArgs")
+		c.Fatal("not enough elements in response from GetCallArgs")
 	}
 	mm := make([]string, 4)
 	for i, m := range args[l-4:] {
@@ -532,7 +530,7 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	c.Check(mm, DeepEquals, []string{"::SetProperty", "::SetProperty", "Notify", "VibratePattern"})
 	// For the other ones, check the logs
 	c.Check(ps.log.Captured(), Matches, `(?sm).* no persistable card:.*`)
-	c.Check(ps.log.Captured(), Matches, `(?sm).* no Sound in the notification.*`)
+	c.Check(ps.log.Captured(), Matches, `(?sm).* notification has no Sound:.*`)
 }
 
 func (ps *postalSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
@@ -552,18 +550,18 @@ func (ps *postalSuite) TestMessageHandlerInhibition(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.WindowStackEndp = endp
 	c.Assert(svc.Start(), IsNil)
-	output := &launch_helper.HelperOutput{} // Doesn't matter
-	err := svc.messageHandler(clickhelp.MustParseAppId("com.example.test_test-app_0"), "", output)
-	c.Check(err, IsNil)
-	c.Check(ps.log.Captured(), Matches, `(?sm).* Notification skipped because app is focused.*`)
+	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{}} // Doesn't matter
+	b := svc.messageHandler(clickhelp.MustParseAppId("com.example.test_test-app_0"), "", output)
+	c.Check(b, Equals, false)
+	c.Check(ps.log.Captured(), Matches, `(?sm).* notification skipped because app is focused.*`)
 }
 
 func (ps *postalSuite) TestMessageHandlerReportsButIgnoresUnmarshalErrors(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	c.Assert(svc.Start(), IsNil)
 	output := &launch_helper.HelperOutput{[]byte(`broken`), nil}
-	err := svc.messageHandler(nil, "", output)
-	c.Check(err, IsNil)
+	b := svc.messageHandler(nil, "", output)
+	c.Check(b, Equals, false)
 	c.Check(ps.log.Captured(), Matches, "(?msi).*skipping notification: nil.*")
 }
 
@@ -573,8 +571,8 @@ func (ps *postalSuite) TestMessageHandlerReportsButIgnoresNilNotifies(c *C) {
 	c.Assert(svc.Start(), IsNil)
 	svc.NotificationsEndp = endp
 	output := &launch_helper.HelperOutput{[]byte(`{}`), nil}
-	err := svc.messageHandler(nil, "", output)
-	c.Assert(err, IsNil)
+	b := svc.messageHandler(nil, "", output)
+	c.Assert(b, Equals, false)
 	c.Check(ps.log.Captured(), Matches, "(?msi).*skipping notification: nil.*")
 }
 

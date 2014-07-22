@@ -19,7 +19,7 @@ package sounds
 import (
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 
 	"launchpad.net/go-xdg/v0"
 
@@ -40,8 +40,12 @@ func New(log logger.Logger) *Sound {
 }
 
 func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
-	if notification == nil || notification.Sound == "" {
-		snd.log.Debugf("[%s] no notification or no Sound in the notification; doing nothing: %#v", nid, notification)
+	if notification == nil {
+		panic("please check notification is not nil before calling present")
+	}
+
+	if notification.Sound == "" {
+		snd.log.Debugf("[%s] notification has no Sound: %#v", nid, notification.Sound)
 		return false
 	}
 	absPath := snd.findSoundFile(app, nid, notification.Sound)
@@ -68,7 +72,7 @@ func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_hel
 func (snd *Sound) findSoundFile(app *click.AppId, nid string, sound string) string {
 	// XXX also support legacy appIds?
 	// first, check package-specific
-	absPath, err := snd.dataFind(path.Join(app.Package, sound))
+	absPath, err := snd.dataFind(filepath.Join(app.Package, sound))
 	if err == nil {
 		// ffffound
 		return absPath
@@ -76,7 +80,7 @@ func (snd *Sound) findSoundFile(app *click.AppId, nid string, sound string) stri
 	// next, check the XDG data dirs (but skip the first one -- that's "home")
 	// XXX should we only check in $XDG/sounds ? (that's for sound *themes*...)
 	for _, dir := range snd.dataDirs()[1:] {
-		absPath := path.Join(dir, sound)
+		absPath := filepath.Join(dir, sound)
 		_, err := os.Stat(absPath)
 		if err == nil {
 			return absPath

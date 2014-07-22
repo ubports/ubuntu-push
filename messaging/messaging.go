@@ -97,26 +97,37 @@ func (mmu *MessagingMenu) StopCleanupLoop() {
 	mmu.stopCleanupLoopCh <- true
 }
 
-func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {
-	if notification == nil || notification.Card == nil || !notification.Card.Persist || notification.Card.Summary == "" {
-		mmu.Log.Debugf("[%s] no notification or notification has no persistable card: %#v", notificationId, notification)
-		return
+func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
+	if notification == nil {
+		panic("please check notification is not nil before calling present")
 	}
-	actions := make([]string, 2*len(notification.Card.Actions))
-	for i, action := range notification.Card.Actions {
+
+	card := notification.Card
+
+	if card == nil || !card.Persist || card.Summary == "" {
+		mmu.Log.Debugf("[%s] notification has no persistable card: %#v", nid, card)
+		return false
+	}
+
+	actions := make([]string, 2*len(card.Actions))
+	for i, action := range card.Actions {
 		act, err := json.Marshal(&notifications.RawAction{
 			App:      app,
-			Nid:      notificationId,
+			Nid:      nid,
 			ActionId: i,
 			Action:   action,
 		})
 		if err != nil {
 			mmu.Log.Errorf("Failed to build action: %s", action)
-			return
+			return false
 		}
 		actions[2*i] = string(act)
 		actions[2*i+1] = action
 	}
 
-	mmu.addNotification(app.DesktopId(), notificationId, notification.Card, actions)
+	mmu.Log.Debugf("[%s] creating notification centre entry for %s (summary: %s)", nid, app.Base(), card.Summary)
+
+	mmu.addNotification(app.DesktopId(), nid, card, actions)
+
+	return true
 }

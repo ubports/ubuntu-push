@@ -39,7 +39,7 @@ import (
 	"launchpad.net/ubuntu-push/util"
 )
 
-type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) error
+type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) bool
 
 // PostalService is the dbus api
 type PostalService struct {
@@ -301,27 +301,41 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	box.Append(output.Message, nid)
 
 	if svc.msgHandler != nil {
-		err := svc.msgHandler(app, nid, &output)
-		if err != nil {
-			svc.DBusService.Log.Errorf("msgHandler returned %v", err)
+		b := svc.msgHandler(app, nid, &output)
+		if !b {
+			svc.Log.Debugf("msgHandler did not present the notification")
+			// XXX this is a bug:
 			return
 		}
-		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 
 	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
-func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
+type presenter interface {
+	Present(*click.AppId, string, *launch_helper.Notification) bool
+}
+
+func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {
+	if output == nil || output.Notification == nil {
+		svc.Log.Debugf("skipping notification: nil.")
+		return false
+	}
 	if !svc.windowStack.IsAppFocused(app) {
-		svc.messagingMenu.Present(app, nid, output.Notification)
-		_, err := svc.notifications.Present(app, nid, output.Notification)
-		svc.emblemCounter.Present(app, nid, output.Notification)
-		svc.haptic.Present(app, nid, output.Notification)
-		svc.sound.Present(app, nid, output.Notification)
-		return err
+		b := false
+		for _, p := range []presenter{
+			svc.messagingMenu,
+			svc.notifications,
+			svc.emblemCounter,
+			svc.haptic,
+			svc.sound,
+		} {
+			// we don't want this to shortcut :)
+			b = p.Present(app, nid, output.Notification) || b
+		}
+		return b
 	} else {
-		svc.Log.Debugf("Notification skipped because app is focused.")
-		return nil
+		svc.Log.Debugf("notification skipped because app is focused.")
+		return false
 	}
 }
