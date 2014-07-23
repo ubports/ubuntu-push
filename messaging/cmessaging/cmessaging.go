@@ -32,15 +32,16 @@ import "C"
 import "unsafe"
 
 import (
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/reply"
 )
 
 type Payload struct {
-	Ch        chan *reply.MMActionReply
-	Actions   []string
-	DesktopId string
-	Gone      bool
+	Ch      chan *reply.MMActionReply
+	Actions []string
+	App     *click.AppId
+	Gone    bool
 }
 
 func gchar(s string) *C.gchar {
@@ -60,7 +61,7 @@ func handleActivate(c_action *C.char, c_notification *C.char, obj unsafe.Pointer
 	if action == "" && len(payload.Actions) >= 2 {
 		action = payload.Actions[1]
 	}
-	mmar := &reply.MMActionReply{Notification: C.GoString(c_notification), Action: action}
+	mmar := &reply.MMActionReply{Notification: C.GoString(c_notification), Action: action, App: payload.App}
 	payload.Ch <- mmar
 }
 

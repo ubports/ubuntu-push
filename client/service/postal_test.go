@@ -579,13 +579,14 @@ func (ps *postalSuite) TestMessageHandlerReportsButIgnoresNilNotifies(c *C) {
 
 func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	app, _ := click.ParseAppId("com.example.test_test-app")
 	c.Assert(svc.Start(), IsNil)
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
 	bCh := make(chan bool)
 	go func() {
 		aCh <- nil // just in case?
-		aCh <- &notifications.RawAction{Action: "potato://"}
+		aCh <- &notifications.RawAction{App: app, Action: "potato://"}
 		close(aCh)
 		bCh <- true
 	}()
@@ -596,18 +597,19 @@ func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Assert(args[0].Args, HasLen, 2)
 	c.Assert(args[0].Args[0], Equals, "potato://")
-	c.Assert(args[0].Args[1], Equals, "")
+	c.Assert(args[0].Args[1], Equals, app.Base())
 }
 
 func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	c.Assert(svc.Start(), IsNil)
+	app, _ := click.ParseAppId("com.example.test_test-app")
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
 	bCh := make(chan bool)
 	go func() {
 		rCh <- nil // just in case?
-		rCh <- &reply.MMActionReply{Action: "potato://", Notification: "foo.bar"}
+		rCh <- &reply.MMActionReply{App: app, Action: "potato://", Notification: "foo.bar"}
 		close(rCh)
 		bCh <- true
 	}()
@@ -618,5 +620,5 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Assert(args[0].Args, HasLen, 2)
 	c.Assert(args[0].Args[0], Equals, "potato://")
-	c.Assert(args[0].Args[1], Equals, "")
+	c.Assert(args[0].Args[1], Equals, app.Base())
 }

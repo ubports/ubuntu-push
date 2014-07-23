@@ -53,12 +53,12 @@ func New(log logger.Logger) *MessagingMenu {
 var cAddNotification = cmessaging.AddNotification
 var cNotificationExists = cmessaging.NotificationExists
 
-func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
+func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, card *launch_helper.Card, actions []string) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
-	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, DesktopId: desktopId}
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app}
 	mmu.notifications[notificationId] = payload
-	cAddNotification(desktopId, notificationId, card, payload)
+	cAddNotification(app.DesktopId(), notificationId, card, payload)
 }
 
 // RemoveNotification deletes the notification from internal map
@@ -79,7 +79,7 @@ func (mmu *MessagingMenu) cleanUpNotifications() {
 			// don't check the mmu for this nid
 			continue
 		}
-		exists := cNotificationExists(payload.DesktopId, nid)
+		exists := cNotificationExists(payload.App.DesktopId(), nid)
 		if !exists {
 			// mark
 			payload.Gone = true
@@ -140,7 +140,7 @@ func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *la
 
 	mmu.Log.Debugf("[%s] creating notification centre entry for %s (summary: %s)", nid, app.Base(), card.Summary)
 
-	mmu.addNotification(app.DesktopId(), nid, card, actions)
+	mmu.addNotification(app, nid, card, actions)
 
 	return true
 }
