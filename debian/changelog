@@ -1,6 +1,7 @@
 ubuntu-push (0.49.1) UNRELEASED; urgency=medium
 
   * Fixed push-helper click hook pointing at the wrong place.
+  * Made exec-tool executable.
 
  -- John R. Lenton <john.lenton@canonical.com>  Wed, 23 Jul 2014 00:43:19 +0100
 
