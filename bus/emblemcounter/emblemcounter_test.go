@@ -120,3 +120,47 @@ func (ecs *ecSuite) TestTagsListsTags(c *C) {
 	c.Assert(ec.Present(ecs.app, "notif6", &launch_helper.Notification{Tag: "xxx"}), Equals, false)
 	c.Check(ec.Tags(ecs.app), IsNil)
 }
+
+func (ecs *ecSuite) TestClear(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
+	ec := New(endp, ecs.log)
+	f := buildNotification
+
+	app2 := clickhelp.MustParseAppId("com.example.test_test-app-2_0")
+	// (re-adding a couple)
+	c.Assert(ec.Present(ecs.app, "notif7", f("one", 1, true)), Equals, true)
+	c.Assert(ec.Present(app2, "notif8", f("two", 1, true)), Equals, true)
+	c.Assert(ec.Tags(ecs.app), DeepEquals, map[string][]string{"counter": {"one"}})
+	c.Assert(ec.Tags(app2), DeepEquals, map[string][]string{"counter": {"two"}})
+
+	// asking to clear a non-existent tag does nothing
+	c.Check(ec.Clear(app2, "foo"), Equals, 0)
+	c.Check(ec.Tags(ecs.app)["counter"], HasLen, 1)
+	c.Check(ec.Tags(app2)["counter"], HasLen, 1)
+
+	// asking to clear a tag that exists only for another app does nothing
+	c.Check(ec.Clear(app2, "one"), Equals, 0)
+	c.Check(ec.Tags(ecs.app)["counter"], HasLen, 1)
+	c.Check(ec.Tags(app2)["counter"], HasLen, 1)
+
+	// asking to clear a list of tags, only one of which is yours, only clears yours
+	c.Check(ec.Clear(app2, "one", "two"), Equals, 1)
+	c.Check(ec.Tags(ecs.app)["counter"], HasLen, 1)
+	c.Check(ec.Tags(app2), IsNil)
+
+	// asking to clear all the tags from an already tagless app does nothing
+	c.Check(ec.Clear(app2), Equals, 0)
+	c.Check(ec.Tags(ecs.app)["counter"], HasLen, 1)
+	c.Check(ec.Tags(app2), IsNil)
+
+	// clearing with no args just empties it
+	c.Check(ec.Clear(ecs.app), Equals, 1)
+	c.Check(ec.Clear(ecs.app), Equals, 0)
+
+	// check we work ok with a "" tag, too.
+	app3 := clickhelp.MustParseAppId("com.example.test_test-app-3_0")
+	c.Assert(ec.Present(app3, "notif9", f("", 1, true)), Equals, true)
+	c.Check(ec.Tags(app3), DeepEquals, map[string][]string{"counter": {""}})
+	c.Check(ec.Clear(app3, ""), Equals, 1)
+	c.Check(ec.Tags(app3), IsNil)
+}

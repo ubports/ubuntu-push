@@ -68,6 +68,31 @@ func (ctr *EmblemCounter) tag(orig string) (string, bool) {
 	return tag, ok
 }
 
+func (ctr *EmblemCounter) Clear(app *click.AppId, tags ...string) int {
+
+	tag, ok := ctr.tag(app.Original())
+	if !ok {
+		// nothing to do
+		return 0
+	}
+	doClear := false
+	if len(tags) == 0 {
+		// no tags? clear anything
+		doClear = true
+	}
+
+	for i := range tags {
+		if tag == tags[i] {
+			doClear = true
+			break
+		}
+	}
+	if doClear && ctr.present(app, "", 0, false) {
+		return 1
+	}
+	return 0
+}
+
 // Look for an EmblemCounter section in a Notification and, if
 // present, presents it to the user.
 func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {

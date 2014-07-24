@@ -138,6 +138,34 @@ func (mmu *MessagingMenu) Tags(app *click.AppId) map[string][]string {
 	return map[string][]string{"card": tags}
 }
 
+func (mmu *MessagingMenu) Clear(app *click.AppId, tags ...string) int {
+	orig := app.Original()
+	var nids []string
+
+	mmu.lock.RLock()
+	// O(n×m). Should be small n and m though.
+	for nid, payload := range mmu.notifications {
+		if payload.App.Original() == orig {
+			if len(tags) == 0 {
+				nids = append(nids, nid)
+			} else {
+				for _, tag := range tags {
+					if payload.Tag == tag {
+						nids = append(nids, nid)
+					}
+				}
+			}
+		}
+	}
+	mmu.lock.RUnlock()
+
+	for _, nid := range nids {
+		mmu.removeNotification(nid, true)
+	}
+
+	return len(nids)
+}
+
 func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")
