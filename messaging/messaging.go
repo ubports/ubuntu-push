@@ -51,6 +51,7 @@ func New(log logger.Logger) *MessagingMenu {
 }
 
 var cAddNotification = cmessaging.AddNotification
+var cRemoveNotification = cmessaging.RemoveNotification
 var cNotificationExists = cmessaging.NotificationExists
 
 func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string) {
@@ -63,8 +64,19 @@ func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId strin
 
 // RemoveNotification deletes the notification from internal map
 func (mmu *MessagingMenu) RemoveNotification(notificationId string) {
+	mmu.removeNotification(notificationId, false)
+}
+
+func (mmu *MessagingMenu) removeNotification(notificationId string, fromUI bool) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
+	payload := mmu.notifications[notificationId]
+	if payload == nil {
+		return
+	}
+	if fromUI {
+		cRemoveNotification(payload.App.DesktopId(), notificationId)
+	}
 	delete(mmu.notifications, notificationId)
 }
 

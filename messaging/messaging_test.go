@@ -43,6 +43,17 @@ func (ms *MessagingSuite) SetUpSuite(c *C) {
 	cAddNotification = func(a string, n string, c *launch_helper.Card, payload *cmessaging.Payload) {
 		ms.log.Debugf("ADD: app: %s, not: %s, card: %v, chan: %v", a, n, c, payload)
 	}
+	cRemoveNotification = func(a, n string) {
+		ms.log.Debugf("REMOVE: app: %s, not: %s", a, n)
+	}
+	// just in case
+	cNotificationExists = nil
+}
+
+func (ms *MessagingSuite) TearDownSuite(c *C) {
+	cAddNotification = cmessaging.AddNotification
+	cRemoveNotification = cmessaging.RemoveNotification
+	cNotificationExists = cmessaging.NotificationExists
 }
 
 func (ms *MessagingSuite) SetUpTest(c *C) {
@@ -143,11 +154,30 @@ func (ms *MessagingSuite) TestRemoveNotification(c *C) {
 	c.Check(payload.Actions, DeepEquals, actions)
 	c.Check(payload.Tag, Equals, "a-tag")
 	c.Check(payload.Ch, Equals, mmu.Ch)
-	// remove the notification
-	mmu.RemoveNotification("notif-id")
+	// remove the notification (internal only)
+	mmu.removeNotification("notif-id", false)
 	// check it's gone
 	_, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, false)
+}
+
+func (ms *MessagingSuite) TestRemoveNotificationsFromUI(c *C) {
+	mmu := New(ms.log)
+	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
+	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
+	mmu.addNotification(ms.app, "notif-id", "a-tag", &card, actions)
+
+	// check it's there
+	_, ok := mmu.notifications["notif-id"]
+	c.Assert(ok, Equals, true)
+	// remove the notification (both internal and from UI)
+	mmu.removeNotification("notif-id", true)
+	// check it's gone
+	_, ok = mmu.notifications["notif-id"]
+	c.Check(ok, Equals, false)
+
+	// and check it's been removed from the UI too
+	c.Check(ms.log.Captured(), Matches, `(?s).* REMOVE:.*notif-id.*`)
 }
 
 func (ms *MessagingSuite) TestCleanupStaleNotification(c *C) {
