@@ -71,7 +71,11 @@ func (ctr *EmblemCounter) tag(orig string) (string, bool) {
 }
 
 func (ctr *EmblemCounter) Clear(app *click.AppId, tags ...string) int {
-
+	// note we don't hold the lock all the way through, so somebody could
+	// change things between getting the tag (at the top) and clearing it
+	// (at the bottom). But it'd be the app doing damage to itself at that
+	// point (either by interacting badly with its helper, or straight
+	// from the app itself).
 	tag, ok := ctr.tag(app.Original())
 	if !ok {
 		// nothing to do
