@@ -112,21 +112,21 @@ func (ms *MessagingSuite) TestPresentWithActions(c *C) {
 func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 	mmu := New(ms.log)
 	f := func(s string) *launch_helper.Notification {
-		card := launch_helper.Card{Summary: s, Persist: true}
+		card := launch_helper.Card{Summary: "tag: \"" + s + "\"", Persist: true}
 		return &launch_helper.Notification{Card: &card, Tag: s}
 	}
 
 	c.Check(mmu.Tags(ms.app), IsNil)
 	c.Assert(mmu.Present(ms.app, "notif1", f("one")), Equals, true)
-	c.Check(mmu.Tags(ms.app), DeepEquals, map[string][]string{"card": {"one"}})
-	c.Assert(mmu.Present(ms.app, "notif2", f("two")), Equals, true)
-	c.Check(mmu.Tags(ms.app), DeepEquals, map[string][]string{"card": {"one", "two"}})
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one"})
+	c.Assert(mmu.Present(ms.app, "notif2", f("")), Equals, true)
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one", ""})
 	// and an empty notification doesn't count
-	c.Assert(mmu.Present(ms.app, "notif2", &launch_helper.Notification{Tag: "xxx"}), Equals, false)
-	c.Check(mmu.Tags(ms.app), DeepEquals, map[string][]string{"card": {"one", "two"}})
+	c.Assert(mmu.Present(ms.app, "notif3", &launch_helper.Notification{Tag: "X"}), Equals, false)
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one", ""})
 	// and they go away if we remove one
 	mmu.RemoveNotification("notif1")
-	c.Check(mmu.Tags(ms.app), DeepEquals, map[string][]string{"card": {"two"}})
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{""})
 	mmu.RemoveNotification("notif2")
 	c.Check(mmu.Tags(ms.app), IsNil)
 }

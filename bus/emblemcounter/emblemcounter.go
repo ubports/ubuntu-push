@@ -49,12 +49,12 @@ func New(endp bus.Endpoint, log logger.Logger) *EmblemCounter {
 }
 
 // Tags returns the notification tags for the given app
-func (ctr *EmblemCounter) Tags(app *click.AppId) map[string][]string {
-	tag := ctr.tags[app.Original()]
-	if tag == "" {
+func (ctr *EmblemCounter) Tags(app *click.AppId) []string {
+	tag, ok := ctr.tags[app.Original()]
+	if !ok {
 		return nil
 	}
-	return map[string][]string{"counter": {tag}}
+	return []string{tag}
 }
 
 // Look for an EmblemCounter section in a Notification and, if
