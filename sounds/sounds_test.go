@@ -61,6 +61,20 @@ func (ss *soundsSuite) TestPresent(c *C) {
 	c.Check(ss.log.Captured(), Matches, `(?sm).* playing sound com.example.test/hello using echo`)
 }
 
+func (ss *soundsSuite) TestCourtseyListTags(c *C) {
+	// sounds don't track tags, but we implement it anyway
+
+	s := &Sound{
+		player: "echo", log: ss.log,
+		dataFind: func(s string) (string, error) { return s, nil },
+	}
+
+	c.Check(s.Present(ss.app, "",
+		&launch_helper.Notification{Tag: "hi", Sound: "hello"}), Equals, true)
+
+	c.Check(s.Tags(ss.app), IsNil)
+}
+
 func (ss *soundsSuite) TestPresentFails(c *C) {
 	s := &Sound{
 		player:   "/",

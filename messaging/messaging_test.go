@@ -94,7 +94,7 @@ func (ms *MessagingSuite) TestPresentDoesNotPresentsIfNilCard(c *C) {
 func (ms *MessagingSuite) TestPresentWithActions(c *C) {
 	mmu := New(ms.log)
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
-	notif := launch_helper.Notification{Card: &card}
+	notif := launch_helper.Notification{Card: &card, Tag: "a-tag"}
 
 	c.Check(mmu.Present(ms.app, "notif-id", &notif), Equals, true)
 
@@ -103,21 +103,45 @@ func (ms *MessagingSuite) TestPresentWithActions(c *C) {
 	payload, _ := mmu.notifications["notif-id"]
 	c.Check(payload.Ch, Equals, mmu.Ch)
 	c.Check(len(payload.Actions), Equals, 2)
+	c.Check(payload.Tag, Equals, "a-tag")
 	rawAction := "{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}"
 	c.Check(payload.Actions[0], Equals, rawAction)
 	c.Check(payload.Actions[1], Equals, "action-1")
+}
+
+func (ms *MessagingSuite) TestTagsListsTags(c *C) {
+	mmu := New(ms.log)
+	f := func(s string) *launch_helper.Notification {
+		card := launch_helper.Card{Summary: "tag: \"" + s + "\"", Persist: true}
+		return &launch_helper.Notification{Card: &card, Tag: s}
+	}
+
+	c.Check(mmu.Tags(ms.app), IsNil)
+	c.Assert(mmu.Present(ms.app, "notif1", f("one")), Equals, true)
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one"})
+	c.Assert(mmu.Present(ms.app, "notif2", f("")), Equals, true)
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one", ""})
+	// and an empty notification doesn't count
+	c.Assert(mmu.Present(ms.app, "notif3", &launch_helper.Notification{Tag: "X"}), Equals, false)
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one", ""})
+	// and they go away if we remove one
+	mmu.RemoveNotification("notif1")
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{""})
+	mmu.RemoveNotification("notif2")
+	c.Check(mmu.Tags(ms.app), IsNil)
 }
 
 func (ms *MessagingSuite) TestRemoveNotification(c *C) {
 	mmu := New(ms.log)
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
 	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
-	mmu.addNotification(ms.app.DesktopId(), "notif-id", &card, actions)
+	mmu.addNotification(ms.app, "notif-id", "a-tag", &card, actions)
 
 	// check it's there
 	payload, ok := mmu.notifications["notif-id"]
 	c.Check(ok, Equals, true)
 	c.Check(payload.Actions, DeepEquals, actions)
+	c.Check(payload.Tag, Equals, "a-tag")
 	c.Check(payload.Ch, Equals, mmu.Ch)
 	// remove the notification
 	mmu.RemoveNotification("notif-id")
@@ -130,7 +154,7 @@ func (ms *MessagingSuite) TestCleanupStaleNotification(c *C) {
 	mmu := New(ms.log)
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
 	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
-	mmu.addNotification(ms.app.DesktopId(), "notif-id", &card, actions)
+	mmu.addNotification(ms.app, "notif-id", "", &card, actions)
 
 	// check it's there
 	_, ok := mmu.notifications["notif-id"]
@@ -186,7 +210,7 @@ func (ms *MessagingSuite) TestStartCleanupLoop(c *C) {
 	mmu.tickerCh = tickerCh
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
 	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
-	mmu.addNotification(ms.app.DesktopId(), "notif-id", &card, actions)
+	mmu.addNotification(ms.app, "notif-id", "", &card, actions)
 	// patch cnotificationexists to return true and signal when it's called
 	notifExistsCh := make(chan bool)
 	cNotificationExists = func(did string, nid string) bool {

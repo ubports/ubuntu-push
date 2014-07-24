@@ -39,6 +39,10 @@ func New(log logger.Logger) *Sound {
 	return &Sound{player: "paplay", log: log, dataDirs: xdg.Data.Dirs, dataFind: xdg.Data.Find}
 }
 
+func (snd *Sound) Tags(app *click.AppId) []string {
+	return nil
+}
+
 func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")

@@ -32,15 +32,17 @@ import "C"
 import "unsafe"
 
 import (
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/reply"
 )
 
 type Payload struct {
-	Ch        chan *reply.MMActionReply
-	Actions   []string
-	DesktopId string
-	Gone      bool
+	Ch      chan *reply.MMActionReply
+	Actions []string
+	App     *click.AppId
+	Tag     string
+	Gone    bool
 }
 
 func gchar(s string) *C.gchar {
