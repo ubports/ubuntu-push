@@ -323,22 +323,35 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
+func (svc *PostalService) validateActions(app *click.AppId, notif *launch_helper.Notification) bool {
+	// validate actions
+	if notif.Card != nil && len(notif.Card.Actions) > 0 {
+		actions := notif.Card.Actions
+		// this ignores the error (it's been logged already)
+		appIds, err := svc.urlDispatcher.TestURL(actions)
+		if err != nil {
+			// already logged in URLDispatcher
+			return false
+		}
+		for _, appId := range appIds {
+			if appId != app.Base() {
+				svc.Log.Debugf("Notification skipped because of different appid for actions: %v - %s != %s", actions, appId, app.Base())
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {
 	if output == nil || output.Notification == nil {
 		svc.Log.Debugf("skipping notification: nil.")
 		return false
 	}
 	// validate actions
-	if output.Notification.Card != nil && len(output.Notification.Card.Actions) > 0 {
-		actions := output.Notification.Card.Actions
-		// this ignores the error (it's been logged already)
-		appIds, _ := svc.urlDispatcher.TestURL(actions)
-		for _, appId := range appIds {
-			if appId != app.Base() {
-				svc.Log.Debugf("Notification skipped because of invalid action(s): %v", actions)
-				return false
-			}
-		}
+	if !svc.validateActions(app, output.Notification) {
+		// no need to log, (it's been logged already)
+		return false
 	}
 	if !svc.windowStack.IsAppFocused(app) {
 		b := false

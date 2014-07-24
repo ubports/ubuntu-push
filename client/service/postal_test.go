@@ -622,3 +622,63 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	c.Assert(args[0].Args[0], Equals, "potato://")
 	c.Assert(args[0].Args[1], Equals, app.Base())
 }
+
+func (ps *postalSuite) TestValidateActions(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"potato://test-app"}}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+	c.Check(ps.log.Captured(), Matches, `(?sm).*TestURL: \[potato://test-app\].*`)
+}
+
+func (ps *postalSuite) TestValidateMultipleActions(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app", "com.example.test_test-app"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"potato://test-app", "potato_a://foo"}}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+	c.Check(ps.log.Captured(), Matches, `(?sm).*TestURL: \[potato://test-app potato_a://foo\].*`)
+}
+
+func (ps *postalSuite) TestValidateActionsWrongApp(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app1"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"potato://test-app"}}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, false)
+	c.Check(ps.log.Captured(), Matches, `(?sm).*Notification skipped because of different appid for actions: \[potato://test-app\] - com.example.test_test-app1 != com.example.test_test-app.*`)
+}
+
+func (ps *postalSuite) TestValidateMultipleActionsOneWrongApp(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app", "com.example.test_test-app1"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"potato://test-app", "potato_a://foo"}}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, false)
+	c.Check(ps.log.Captured(), Matches, `(?sm).*Notification skipped because of different appid for actions: \[potato://test-app potato_a://foo\] - com.example.test_test-app1 != com.example.test_test-app.*`)
+}
+
+func (ps *postalSuite) TestValidateActionsInvalidAction(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false), []string{"com.example.test_test-app1"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"notsupported://test-app"}}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, false)
+	c.Check(ps.log.Captured(), Matches, `(?sm).*TestURL for \[notsupported://test-app\] failed with no way.*`)
+}
