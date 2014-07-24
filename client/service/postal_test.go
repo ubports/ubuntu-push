@@ -577,6 +577,18 @@ func (ps *postalSuite) TestMessageHandlerReportsButIgnoresNilNotifies(c *C) {
 	c.Check(ps.log.Captured(), Matches, "(?msi).*skipping notification: nil.*")
 }
 
+func (ps *postalSuite) TestMessageHandlerInvalidAction(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false), []string{"com.example.test_test-app"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"notsupported://test-app"}}
+	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: &card}}
+	b := svc.messageHandler(clickhelp.MustParseAppId("com.example.test_test-app_0"), "", output)
+	c.Check(b, Equals, false)
+	c.Check(ps.log.Captured(), Matches, `(?sm).*TestURL for \[notsupported://test-app\] failed with no way.*`)
+}
+
 func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	app, _ := click.ParseAppId("com.example.test_test-app")
