@@ -682,3 +682,18 @@ func (ps *postalSuite) TestValidateActionsInvalidAction(c *C) {
 	c.Check(b, Equals, false)
 	c.Check(ps.log.Captured(), Matches, `(?sm).*TestURL for \[notsupported://test-app\] failed with no way.*`)
 }
+
+func (ps *postalSuite) TestValidateActionsNoActions(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	card := launch_helper.Card{}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+}
+
+func (ps *postalSuite) TestValidateActionsNoCard(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	notif := &launch_helper.Notification{}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+}

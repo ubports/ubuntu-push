@@ -324,20 +324,19 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 }
 
 func (svc *PostalService) validateActions(app *click.AppId, notif *launch_helper.Notification) bool {
-	// validate actions
-	if notif.Card != nil && len(notif.Card.Actions) > 0 {
-		actions := notif.Card.Actions
-		// this ignores the error (it's been logged already)
-		appIds, err := svc.urlDispatcher.TestURL(actions)
-		if err != nil {
-			// already logged in URLDispatcher
+	if notif.Card == nil || len(notif.Card.Actions) == 0 {
+		return true
+	}
+	actions := notif.Card.Actions
+	appIds, err := svc.urlDispatcher.TestURL(actions)
+	if err != nil {
+		// already logged in URLDispatcher
+		return false
+	}
+	for _, appId := range appIds {
+		if appId != app.Base() {
+			svc.Log.Debugf("Notification skipped because of different appid for actions: %v - %s != %s", actions, appId, app.Base())
 			return false
-		}
-		for _, appId := range appIds {
-			if appId != app.Base() {
-				svc.Log.Debugf("Notification skipped because of different appid for actions: %v - %s != %s", actions, appId, app.Base())
-				return false
-			}
 		}
 	}
 	return true
