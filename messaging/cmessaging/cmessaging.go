@@ -26,6 +26,8 @@ void add_notification(const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
           gint64 timestamp, const gchar** actions, gpointer obj);
 
+void remove_notification(const gchar* desktop_id, const gchar* notification_id);
+
 gboolean notification_exists(const gchar* desktop_id, const gchar* notification_id);
 */
 import "C"
@@ -41,6 +43,7 @@ type Payload struct {
 	Ch      chan *reply.MMActionReply
 	Actions []string
 	App     *click.AppId
+	Tag     string
 	Gone    bool
 }
 
@@ -84,6 +87,16 @@ func AddNotification(desktopId string, notificationId string, card *launch_helpe
 	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
 
 	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(payload))
+}
+
+func RemoveNotification(desktopId string, notificationId string) {
+	desktop_id := gchar(desktopId)
+	defer gfree(desktop_id)
+
+	notification_id := gchar(notificationId)
+	defer gfree(notification_id)
+
+	C.remove_notification(desktop_id, notification_id)
 }
 
 func NotificationExists(desktopId string, notificationId string) bool {

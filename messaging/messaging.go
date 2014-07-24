@@ -51,20 +51,32 @@ func New(log logger.Logger) *MessagingMenu {
 }
 
 var cAddNotification = cmessaging.AddNotification
+var cRemoveNotification = cmessaging.RemoveNotification
 var cNotificationExists = cmessaging.NotificationExists
 
-func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, card *launch_helper.Card, actions []string) {
+func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
-	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app}
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app, Tag: tag}
 	mmu.notifications[notificationId] = payload
 	cAddNotification(app.DesktopId(), notificationId, card, payload)
 }
 
 // RemoveNotification deletes the notification from internal map
 func (mmu *MessagingMenu) RemoveNotification(notificationId string) {
+	mmu.removeNotification(notificationId, false)
+}
+
+func (mmu *MessagingMenu) removeNotification(notificationId string, fromUI bool) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
+	payload := mmu.notifications[notificationId]
+	if payload == nil {
+		return
+	}
+	if fromUI {
+		cRemoveNotification(payload.App.DesktopId(), notificationId)
+	}
 	delete(mmu.notifications, notificationId)
 }
 
@@ -110,6 +122,19 @@ func (mmu *MessagingMenu) StopCleanupLoop() {
 	mmu.stopCleanupLoopCh <- true
 }
 
+func (mmu *MessagingMenu) Tags(app *click.AppId) []string {
+	orig := app.Original()
+	tags := []string(nil)
+	mmu.lock.RLock()
+	defer mmu.lock.RUnlock()
+	for _, payload := range mmu.notifications {
+		if payload.App.Original() == orig {
+			tags = append(tags, payload.Tag)
+		}
+	}
+	return tags
+}
+
 func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")
@@ -140,7 +165,7 @@ func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *la
 
 	mmu.Log.Debugf("[%s] creating notification centre entry for %s (summary: %s)", nid, app.Base(), card.Summary)
 
-	mmu.addNotification(app, nid, card, actions)
+	mmu.addNotification(app, nid, notification.Tag, card, actions)
 
 	return true
 }
