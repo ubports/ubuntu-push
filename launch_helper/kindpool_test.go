@@ -294,7 +294,7 @@ func (s *poolSuite) TestOneDoneOnValid(c *C) {
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
 	defer f.Close()
-	_, err = f.Write([]byte(`{"notification": {"sound": "hello"}}`))
+	_, err = f.Write([]byte(`{"notification": {"sound": "hello", "tag": "a-tag"}}`))
 	c.Assert(err, IsNil)
 
 	go pool.OneDone("l:1")
@@ -306,7 +306,7 @@ func (s *poolSuite) TestOneDoneOnValid(c *C) {
 		c.Fatal("timeout")
 	}
 
-	expected := HelperOutput{Notification: &Notification{Sound: "hello"}}
+	expected := HelperOutput{Notification: &Notification{Sound: "hello", Tag: "a-tag"}}
 	c.Check(res.HelperOutput, DeepEquals, expected)
 	c.Check(pool.hmap, HasLen, 0)
 }

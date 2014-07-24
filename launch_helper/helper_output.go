@@ -54,6 +54,7 @@ type Notification struct {
 	Sound         string         `json:"sound"`          // a sound file. Users can disable this, so don't rely on it exclusively. Defaults to empty (no sound).
 	Vibrate       *Vibration     `json:"vibrate"`        // users can disable this, blah blah. Defaults to null (no vibration)
 	EmblemCounter *EmblemCounter `json:"emblem-counter"` // puts a counter on an emblem in the launcher. Defaults to nil (no change to emblem counter).
+	Tag           string         `json:"tag,omitempty"`  // tag used for Clear/ListPersistent.
 }
 
 // HelperOutput is the expected output of a helper
