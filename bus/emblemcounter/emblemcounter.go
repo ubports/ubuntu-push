@@ -93,7 +93,7 @@ func (ctr *EmblemCounter) Clear(app *click.AppId, tags ...string) int {
 			break
 		}
 	}
-	if doClear && ctr.present(app, "", 0, false) {
+	if doClear && ctr.SetCounter(app, "", 0, false) {
 		return 1
 	}
 	return 0
@@ -113,10 +113,12 @@ func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *la
 		return false
 	}
 	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, app.Base(), ec.Count, ec.Visible)
-	return ctr.present(app, notification.Tag, ec.Count, ec.Visible)
+	return ctr.SetCounter(app, notification.Tag, ec.Count, ec.Visible)
 }
 
-func (ctr *EmblemCounter) present(app *click.AppId, tag string, count int32, visible bool) bool {
+// SetCounter sets an emblem counter on the launcher for app to count (if
+// visible is true), or clears it (if count is 0 or visible is false).
+func (ctr *EmblemCounter) SetCounter(app *click.AppId, tag string, count int32, visible bool) bool {
 	base := app.Base()
 	quoted := string(nih.Quote([]byte(base)))
 

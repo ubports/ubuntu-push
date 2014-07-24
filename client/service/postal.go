@@ -120,10 +120,11 @@ func (svc *PostalService) GetMessageHandler() messageHandler {
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *PostalService) Start() error {
 	err := svc.DBusService.Start(bus.DispatchMap{
-		"PopAll": svc.popAll,
-		"Post":   svc.post,
-		"Tags":   svc.tags,
-		"Clear":  svc.clear,
+		"PopAll":         svc.popAll,
+		"Post":           svc.post,
+		"ListPersistent": svc.tags,
+		"Clear":          svc.clear,
+		"SetCounter":     svc.setCounter,
 	}, PostalServiceBusAddress)
 	if err != nil {
 		return err
@@ -278,6 +279,25 @@ func (svc *PostalService) clear(path string, args, _ []interface{}) ([]interface
 		n = svc.Presenters[kind].Clear(app, tags...)
 	}
 	return []interface{}{n}, nil
+}
+
+func (svc *PostalService) setCounter(path string, args, _ []interface{}) ([]interface{}, error) {
+	app, err := svc.grabDBusPackageAndAppId(path, args, 2)
+	if err != nil {
+		return nil, err
+	}
+
+	count, ok := args[1].(int32)
+	if !ok {
+		return nil, ErrBadArgType
+	}
+	visible, ok := args[2].(bool)
+	if !ok {
+		return nil, ErrBadArgType
+	}
+
+	svc.emblemCounter.SetCounter(app, "", count, visible)
+	return nil, nil
 }
 
 func (svc *PostalService) popAll(path string, args, _ []interface{}) ([]interface{}, error) {

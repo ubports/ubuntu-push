@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -34,6 +35,7 @@ import (
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/reply"
+	"launchpad.net/ubuntu-push/nih"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 )
@@ -624,7 +626,7 @@ type testingPresenter struct {
 	cleared int
 }
 
-func (tp *testingPresenter) Present(*click.AppId, string, *launch_helper.Notification) bool {
+func (tp *testingPresenter) Present(app *click.AppId, nid string, notif *launch_helper.Notification) bool {
 	return true
 }
 func (tp *testingPresenter) Tags(*click.AppId) []string {
@@ -709,4 +711,22 @@ func (ps *postalSuite) TestClearErrors(c *C) {
 		_, err := svc.clear(aPackageOnBus, s.args, nil)
 		c.Check(err, Equals, s.err, Commentf("iter %d", i))
 	}
+}
+
+func (ps *postalSuite) TestSetCounter(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	c.Check(svc.Start(), IsNil)
+
+	_, err := svc.setCounter(aPackageOnBus, []interface{}{anAppId, int32(42), true}, nil)
+	c.Assert(err, IsNil)
+
+	quoted := "/" + string(nih.Quote([]byte(anAppId)))
+
+	callArgs := testibus.GetCallArgs(svc.EmblemCounterEndp)
+	c.Assert(callArgs, HasLen, 2)
+	c.Check(callArgs[0].Member, Equals, "::SetProperty")
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", quoted, dbus.Variant{int32(42)}})
+
+	c.Check(callArgs[1].Member, Equals, "::SetProperty")
+	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", quoted, dbus.Variant{true}})
 }

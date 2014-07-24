@@ -45,6 +45,21 @@ func (ecs *ecSuite) SetUpTest(c *C) {
 	ecs.app = clickhelp.MustParseAppId("com.example.test_test-app_0")
 }
 
+// checks that SetCounter() actually calls SetProperty on the launcher
+func (ecs *ecSuite) TestSetCounterSetsTheCounter(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
+	quoted := string(nih.Quote([]byte(ecs.app.Base())))
+
+	ec := New(endp, ecs.log)
+	c.Check(ec.SetCounter(ecs.app, "nid", 42, true), Equals, true)
+	callArgs := testibus.GetCallArgs(endp)
+	c.Assert(callArgs, HasLen, 2)
+	c.Check(callArgs[0].Member, Equals, "::SetProperty")
+	c.Check(callArgs[1].Member, Equals, "::SetProperty")
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", "/" + quoted, dbus.Variant{Value: int32(42)}})
+	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", "/" + quoted, dbus.Variant{Value: true}})
+}
+
 // checks that Present() actually calls SetProperty on the launcher
 func (ecs *ecSuite) TestPresentPresents(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
