@@ -19,6 +19,8 @@
 package emblemcounter
 
 import (
+	"sync"
+
 	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -41,6 +43,7 @@ type EmblemCounter struct {
 	bus  bus.Endpoint
 	log  logger.Logger
 	tags map[string]string
+	lock sync.RWMutex
 }
 
 // Build an EmblemCounter using the given bus and log.
@@ -50,11 +53,19 @@ func New(endp bus.Endpoint, log logger.Logger) *EmblemCounter {
 
 // Tags returns the notification tags for the given app
 func (ctr *EmblemCounter) Tags(app *click.AppId) map[string][]string {
-	tag := ctr.tags[app.Original()]
-	if tag == "" {
+	tag, ok := ctr.tag(app.Original())
+	if !ok {
 		return nil
 	}
 	return map[string][]string{"counter": {tag}}
+}
+
+func (ctr *EmblemCounter) tag(orig string) (string, bool) {
+	ctr.lock.RLock()
+	defer ctr.lock.RUnlock()
+
+	tag, ok := ctr.tags[orig]
+	return tag, ok
 }
 
 // Look for an EmblemCounter section in a Notification and, if
@@ -70,24 +81,29 @@ func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *la
 		ctr.log.Debugf("[%s] notification has no EmblemCounter: %#v", nid, ec)
 		return false
 	}
+	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, app.Base(), ec.Count, ec.Visible)
+	return ctr.present(app, notification.Tag, ec.Count, ec.Visible)
+}
 
+func (ctr *EmblemCounter) present(app *click.AppId, tag string, count int32, visible bool) bool {
 	base := app.Base()
-	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, base, ec.Count, ec.Visible)
 	quoted := string(nih.Quote([]byte(base)))
 
-	err := ctr.bus.SetProperty("count", "/"+quoted, dbus.Variant{ec.Count})
+	err := ctr.bus.SetProperty("count", "/"+quoted, dbus.Variant{count})
 	if err != nil {
-		ctr.log.Errorf("[%s] call to set count failed: %v", nid, err)
+		ctr.log.Errorf("call to set count failed: %v", err)
 		return false
 	}
-	err = ctr.bus.SetProperty("countVisible", "/"+quoted, dbus.Variant{ec.Visible})
+	err = ctr.bus.SetProperty("countVisible", "/"+quoted, dbus.Variant{visible})
 	if err != nil {
-		ctr.log.Errorf("[%s] call to set countVisible failed: %v", nid, err)
+		ctr.log.Errorf("call to set countVisible failed: %v", err)
 		return false
 	}
 
-	if ec.Visible && ec.Count != 0 {
-		ctr.tags[app.Original()] = notification.Tag
+	ctr.lock.Lock()
+	defer ctr.lock.Unlock()
+	if visible && count != 0 {
+		ctr.tags[app.Original()] = tag
 	} else {
 		delete(ctr.tags, app.Original())
 	}

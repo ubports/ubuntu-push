@@ -44,6 +44,7 @@ type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) bool
 // a Presenter is something that knows how to present a Notification
 type Presenter interface {
 	Present(*click.AppId, string, *launch_helper.Notification) bool
+	Tags(*click.AppId) map[string][]string
 }
 
 // PostalService is the dbus api

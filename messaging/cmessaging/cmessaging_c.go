@@ -56,6 +56,18 @@ void add_notification (const gchar* desktop_id, const gchar* notification_id,
     g_object_unref(msg);
 }
 
+void remove_notification (const gchar* desktop_id, const gchar* notification_id) {
+    if (map == NULL) {
+        return;
+    }
+    MessagingMenuApp* app = g_hash_table_lookup (map, desktop_id);
+    if (app == NULL) {
+        // no app in the hash table, bailout
+        return;
+    }
+    messaging_menu_app_remove_message_by_id (app, notification_id);
+}
+
 gboolean notification_exists (const gchar* desktop_id, const gchar* notification_id) {
     if (map == NULL) {
         return FALSE;
