@@ -618,3 +618,95 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	c.Assert(args[0].Args, HasLen, 1)
 	c.Assert(args[0].Args[0], Equals, "potato://")
 }
+
+type testingPresenter struct {
+	tags    []string
+	cleared int
+}
+
+func (tp *testingPresenter) Present(*click.AppId, string, *launch_helper.Notification) bool {
+	return true
+}
+func (tp *testingPresenter) Tags(*click.AppId) []string {
+	return tp.tags
+}
+
+func (tp *testingPresenter) Clear(app *click.AppId, tags ...string) int {
+	return tp.cleared + len(tags) - len(tp.tags)
+}
+
+func (ps *postalSuite) TestTags(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	tp1 := testingPresenter{tags: []string{"tag1", "tag2", ""}}
+	tp2 := testingPresenter{tags: []string{"tag2", "tag3"}}
+	svc.Presenters = map[string]Presenter{"kind1": &tp1, "kind2": &tp2}
+
+	itags, err := svc.tags(aPackageOnBus, []interface{}{anAppId}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(itags, HasLen, 1)
+	c.Assert(itags[0], FitsTypeOf, map[string][]string{})
+	tags := itags[0].(map[string][]string)
+	c.Check(tags, HasLen, 4)
+
+	for tag, kinds := range map[string][]string{
+		"tag1": []string{"kind1"},
+		"tag2": []string{"kind1", "kind2"},
+		"tag3": []string{"kind2"},
+		"":     []string{"kind1"},
+	} {
+		sort.Strings(tags[tag])
+		c.Check(tags[tag], DeepEquals, kinds, Commentf("on tag %#v", tag))
+	}
+}
+
+func (ps *postalSuite) TestTagsErrors(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	_, err := svc.tags(aPackageOnBus, nil, nil)
+	c.Check(err, Equals, ErrBadArgCount)
+	_, err = svc.tags(aPackageOnBus, []interface{}{42}, nil)
+	c.Check(err, Equals, ErrBadArgType)
+	_, err = svc.tags(aPackageOnBus, []interface{}{"xyzzy"}, nil)
+	c.Check(err, Equals, ErrBadAppId)
+}
+
+func (ps *postalSuite) TestClear(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	tp1 := testingPresenter{cleared: 2}
+	tp2 := testingPresenter{cleared: 3, tags: []string{"tag2", "tag3"}}
+	svc.Presenters = map[string]Presenter{"kind1": &tp1, "kind2": &tp2}
+
+	for i, s := range []struct {
+		args   []interface{}
+		retval int
+	}{
+		{[]interface{}{anAppId, "kind1"}, 2},
+		{[]interface{}{anAppId, "kind2"}, 1},
+		{[]interface{}{anAppId}, 3},
+		{[]interface{}{anAppId, ""}, 3},
+		{[]interface{}{anAppId, "kind1", ""}, 3},
+		{[]interface{}{anAppId, "kind2", ""}, 2},
+		{[]interface{}{anAppId, "", ""}, 5},
+	} {
+		icleared, err := svc.clear(aPackageOnBus, s.args, nil)
+		c.Assert(err, IsNil, Commentf("iter %d", i))
+		c.Assert(icleared, HasLen, 1, Commentf("iter %d", i))
+		c.Check(icleared[0], Equals, s.retval, Commentf("iter %d", i))
+	}
+}
+
+func (ps *postalSuite) TestClearErrors(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	for i, s := range []struct {
+		args []interface{}
+		err  error
+	}{
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{42}, ErrBadArgType},
+		{[]interface{}{"xyzzy"}, ErrBadAppId},
+		{[]interface{}{anAppId, 42}, ErrBadArgType},
+		{[]interface{}{anAppId, "", 42}, ErrBadArgType},
+	} {
+		_, err := svc.clear(aPackageOnBus, s.args, nil)
+		c.Check(err, Equals, s.err, Commentf("iter %d", i))
+	}
+}

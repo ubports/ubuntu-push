@@ -64,7 +64,7 @@ type PostalService struct {
 	URLDispatcherEndp bus.Endpoint
 	WindowStackEndp   bus.Endpoint
 	// presenters:
-	Presenters    []Presenter
+	Presenters    map[string]Presenter
 	emblemCounter *emblemcounter.EmblemCounter
 	haptic        *haptic.Haptic
 	notifications *notifications.RawNotifications
@@ -122,6 +122,8 @@ func (svc *PostalService) Start() error {
 	err := svc.DBusService.Start(bus.DispatchMap{
 		"PopAll": svc.popAll,
 		"Post":   svc.post,
+		"Tags":   svc.tags,
+		"Clear":  svc.clear,
 	}, PostalServiceBusAddress)
 	if err != nil {
 		return err
@@ -136,12 +138,12 @@ func (svc *PostalService) Start() error {
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log)
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
-	svc.Presenters = []Presenter{
-		svc.notifications,
-		svc.emblemCounter,
-		svc.haptic,
-		svc.sound,
-		svc.messagingMenu,
+	svc.Presenters = map[string]Presenter{
+		"bubble":  svc.notifications,
+		"counter": svc.emblemCounter,
+		"vibrate": svc.haptic,
+		"sound":   svc.sound,
+		"card":    svc.messagingMenu,
 	}
 	if useTrivialHelper {
 		svc.HelperPool = launch_helper.NewTrivialHelperPool(svc.Log)
@@ -223,6 +225,59 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 	wg.Wait()
 
 	return notifications.Raw(svc.NotificationsEndp, svc.Log).WatchActions()
+}
+
+func (svc *PostalService) tags(path string, args, _ []interface{}) ([]interface{}, error) {
+	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	tagmap := make(map[string][]string)
+	for kind, p := range svc.Presenters {
+		for _, tag := range p.Tags(app) {
+			tagmap[tag] = append(tagmap[tag], kind)
+		}
+	}
+	return []interface{}{tagmap}, nil
+}
+
+func (svc *PostalService) clear(path string, args, _ []interface{}) ([]interface{}, error) {
+	m := 1
+	if m > len(args) {
+		m = len(args)
+	}
+	app, err := svc.grabDBusPackageAndAppId(path, args[:m], 0)
+	if err != nil {
+		return nil, err
+	}
+	kind := ""
+	var tags []string
+	if len(args) > 1 {
+		var ok bool
+		kind, ok = args[1].(string)
+		if !ok {
+			return nil, ErrBadArgType
+		}
+		tags = make([]string, len(args)-2)
+		for i, itag := range args[2:] {
+			tag, ok := itag.(string)
+			if !ok {
+				return nil, ErrBadArgType
+			}
+			tags[i] = tag
+		}
+
+	}
+	n := 0
+	if kind == "" {
+		for _, p := range svc.Presenters {
+			n += p.Clear(app, tags...)
+		}
+	} else {
+		n = svc.Presenters[kind].Clear(app, tags...)
+	}
+	return []interface{}{n}, nil
 }
 
 func (svc *PostalService) popAll(path string, args, _ []interface{}) ([]interface{}, error) {
