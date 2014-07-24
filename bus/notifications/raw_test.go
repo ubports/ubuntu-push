@@ -165,6 +165,8 @@ func (s *RawSuite) TestCourtseyListTags(c *C) {
 	c.Check(worked, Equals, true)
 
 	c.Check(raw.Tags(s.app), IsNil)
+	c.Check(raw.Clear(s.app, "42"), Equals, 0)
+	c.Check(raw.Clear(s.app), Equals, 0)
 }
 
 func (s *RawSuite) TestPresentNotifies(c *C) {

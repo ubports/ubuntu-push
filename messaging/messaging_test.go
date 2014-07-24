@@ -142,6 +142,75 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 	c.Check(mmu.Tags(ms.app), IsNil)
 }
 
+func (ms *MessagingSuite) TestClearClears(c *C) {
+	app1 := ms.app
+	app2 := clickhelp.MustParseAppId("com.example.test_test-2_0")
+	app3 := clickhelp.MustParseAppId("com.example.test_test-3_0")
+	mm := New(ms.log)
+	f := func(app *click.AppId, nid string, tag string, withCard bool) bool {
+		notif := launch_helper.Notification{Tag: tag}
+		card := launch_helper.Card{Summary: "tag: \"" + tag + "\"", Persist: true}
+		if withCard {
+			notif.Card = &card
+		}
+		return mm.Present(app, nid, &notif)
+	}
+	// create a bunch
+	c.Assert(f(app1, "notif1", "one", true), Equals, true)
+	c.Assert(f(app1, "notif2", "two", true), Equals, true)
+	c.Assert(f(app1, "notif3", "", true), Equals, true)
+	c.Assert(f(app2, "notif4", "one", true), Equals, true)
+	c.Assert(f(app2, "notif5", "two", true), Equals, true)
+	c.Assert(f(app3, "notif6", "one", true), Equals, true)
+	c.Assert(f(app3, "notif7", "", true), Equals, true)
+
+	// that is:
+	//   app 1: "one", "two", "";
+	//   app 2: "one", "two";
+	//   app 3: "one", ""
+	c.Assert(mm.Tags(app1), DeepEquals, []string{"one", "two", ""})
+	c.Assert(mm.Tags(app2), DeepEquals, []string{"one", "two"})
+	c.Assert(mm.Tags(app3), DeepEquals, []string{"one", ""})
+
+	// clearing a non-existent tag does nothing
+	c.Check(mm.Clear(app1, "foo"), Equals, 0)
+	c.Check(mm.Tags(app1), HasLen, 3)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 2)
+
+	// asking to clear a tag that exists only for another app does nothing
+	c.Check(mm.Clear(app3, "two"), Equals, 0)
+	c.Check(mm.Tags(app1), HasLen, 3)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 2)
+
+	// asking to clear a list of tags, only one of which is yours, only clears yours
+	c.Check(mm.Clear(app3, "one", "two"), Equals, 1)
+	c.Check(mm.Tags(app1), HasLen, 3)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 1)
+
+	// clearing with no args just empties it
+	c.Check(mm.Clear(app1), Equals, 3)
+	c.Check(mm.Tags(app1), IsNil)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 1)
+
+	// asking to clear all the tags from an already tagless app does nothing
+	c.Check(mm.Clear(app1), Equals, 0)
+	c.Check(mm.Tags(app1), IsNil)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 1)
+
+	// check we work ok with a "" tag, too.
+	c.Check(mm.Clear(app1, ""), Equals, 0)
+	c.Check(mm.Clear(app2, ""), Equals, 0)
+	c.Check(mm.Clear(app3, ""), Equals, 1)
+	c.Check(mm.Tags(app1), IsNil)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 0)
+}
+
 func (ms *MessagingSuite) TestRemoveNotification(c *C) {
 	mmu := New(ms.log)
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}

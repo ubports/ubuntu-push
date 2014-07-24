@@ -130,4 +130,6 @@ func (hs *hapticSuite) TestCourtseyListTags(c *C) {
 	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
 
 	c.Check(ec.Tags(hs.app), IsNil)
+	c.Check(ec.Clear(hs.app, "one"), Equals, 0)
+	c.Check(ec.Clear(hs.app), Equals, 0)
 }

@@ -73,6 +73,8 @@ func (ss *soundsSuite) TestCourtseyListTags(c *C) {
 		&launch_helper.Notification{Tag: "hi", Sound: "hello"}), Equals, true)
 
 	c.Check(s.Tags(ss.app), IsNil)
+	c.Check(s.Clear(ss.app, "hi"), Equals, 0)
+	c.Check(s.Clear(ss.app), Equals, 0)
 }
 
 func (ss *soundsSuite) TestPresentFails(c *C) {

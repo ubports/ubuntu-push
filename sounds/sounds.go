@@ -43,6 +43,10 @@ func (snd *Sound) Tags(app *click.AppId) []string {
 	return nil
 }
 
+func (snd *Sound) Clear(*click.AppId, ...string) int {
+	return 0
+}
+
 func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")
