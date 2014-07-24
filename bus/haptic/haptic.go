@@ -43,7 +43,7 @@ func New(endp bus.Endpoint, log logger.Logger) *Haptic {
 	return &Haptic{endp, log}
 }
 
-func (haptic *Haptic) Tags(app *click.AppId) map[string][]string {
+func (haptic *Haptic) Tags(app *click.AppId) []string {
 	return nil
 }
 

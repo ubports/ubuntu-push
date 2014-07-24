@@ -125,7 +125,7 @@ func (raw *RawNotifications) WatchActions() (<-chan *RawAction, error) {
 	return ch, nil
 }
 
-func (raw *RawNotifications) Tags(app *click.AppId) map[string][]string {
+func (raw *RawNotifications) Tags(app *click.AppId) []string {
 	return nil
 }
 
