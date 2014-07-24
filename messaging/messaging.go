@@ -122,7 +122,7 @@ func (mmu *MessagingMenu) StopCleanupLoop() {
 	mmu.stopCleanupLoopCh <- true
 }
 
-func (mmu *MessagingMenu) Tags(app *click.AppId) map[string][]string {
+func (mmu *MessagingMenu) Tags(app *click.AppId) []string {
 	orig := app.Original()
 	tags := []string(nil)
 	mmu.lock.RLock()
@@ -132,10 +132,7 @@ func (mmu *MessagingMenu) Tags(app *click.AppId) map[string][]string {
 			tags = append(tags, payload.Tag)
 		}
 	}
-	if tags == nil {
-		return nil
-	}
-	return map[string][]string{"card": tags}
+	return tags
 }
 
 func (mmu *MessagingMenu) Clear(app *click.AppId, tags ...string) int {

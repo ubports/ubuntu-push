@@ -39,7 +39,7 @@ func New(log logger.Logger) *Sound {
 	return &Sound{player: "paplay", log: log, dataDirs: xdg.Data.Dirs, dataFind: xdg.Data.Find}
 }
 
-func (snd *Sound) Tags(app *click.AppId) map[string][]string {
+func (snd *Sound) Tags(app *click.AppId) []string {
 	return nil
 }
 

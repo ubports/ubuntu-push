@@ -129,15 +129,15 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 
 	c.Check(mmu.Tags(ms.app), IsNil)
 	c.Assert(mmu.Present(ms.app, "notif1", f("one")), Equals, true)
-	c.Check(mmu.Tags(ms.app), DeepEquals, map[string][]string{"card": {"one"}})
-	c.Assert(mmu.Present(ms.app, "notif2", f("two")), Equals, true)
-	c.Check(mmu.Tags(ms.app), DeepEquals, map[string][]string{"card": {"one", "two"}})
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one"})
+	c.Assert(mmu.Present(ms.app, "notif2", f("")), Equals, true)
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one", ""})
 	// and an empty notification doesn't count
-	c.Assert(mmu.Present(ms.app, "notif2", &launch_helper.Notification{Tag: "xxx"}), Equals, false)
-	c.Check(mmu.Tags(ms.app), DeepEquals, map[string][]string{"card": {"one", "two"}})
+	c.Assert(mmu.Present(ms.app, "notif3", &launch_helper.Notification{Tag: "X"}), Equals, false)
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one", ""})
 	// and they go away if we remove one
 	mmu.RemoveNotification("notif1")
-	c.Check(mmu.Tags(ms.app), DeepEquals, map[string][]string{"card": {"two"}})
+	c.Check(mmu.Tags(ms.app), DeepEquals, []string{""})
 	mmu.RemoveNotification("notif2")
 	c.Check(mmu.Tags(ms.app), IsNil)
 }
@@ -168,47 +168,47 @@ func (ms *MessagingSuite) TestClearClears(c *C) {
 	//   app 1: "one", "two", "";
 	//   app 2: "one", "two";
 	//   app 3: "one", ""
-	c.Assert(mm.Tags(app1), DeepEquals, map[string][]string{"card": {"one", "two", ""}})
-	c.Assert(mm.Tags(app2), DeepEquals, map[string][]string{"card": {"one", "two"}})
-	c.Assert(mm.Tags(app3), DeepEquals, map[string][]string{"card": {"one", ""}})
+	c.Assert(mm.Tags(app1), DeepEquals, []string{"one", "two", ""})
+	c.Assert(mm.Tags(app2), DeepEquals, []string{"one", "two"})
+	c.Assert(mm.Tags(app3), DeepEquals, []string{"one", ""})
 
 	// clearing a non-existent tag does nothing
 	c.Check(mm.Clear(app1, "foo"), Equals, 0)
-	c.Check(mm.Tags(app1)["card"], HasLen, 3)
-	c.Check(mm.Tags(app2)["card"], HasLen, 2)
-	c.Check(mm.Tags(app3)["card"], HasLen, 2)
+	c.Check(mm.Tags(app1), HasLen, 3)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 2)
 
 	// asking to clear a tag that exists only for another app does nothing
 	c.Check(mm.Clear(app3, "two"), Equals, 0)
-	c.Check(mm.Tags(app1)["card"], HasLen, 3)
-	c.Check(mm.Tags(app2)["card"], HasLen, 2)
-	c.Check(mm.Tags(app3)["card"], HasLen, 2)
+	c.Check(mm.Tags(app1), HasLen, 3)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 2)
 
 	// asking to clear a list of tags, only one of which is yours, only clears yours
 	c.Check(mm.Clear(app3, "one", "two"), Equals, 1)
-	c.Check(mm.Tags(app1)["card"], HasLen, 3)
-	c.Check(mm.Tags(app2)["card"], HasLen, 2)
-	c.Check(mm.Tags(app3)["card"], HasLen, 1)
+	c.Check(mm.Tags(app1), HasLen, 3)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 1)
 
 	// clearing with no args just empties it
 	c.Check(mm.Clear(app1), Equals, 3)
 	c.Check(mm.Tags(app1), IsNil)
-	c.Check(mm.Tags(app2)["card"], HasLen, 2)
-	c.Check(mm.Tags(app3)["card"], HasLen, 1)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 1)
 
 	// asking to clear all the tags from an already tagless app does nothing
 	c.Check(mm.Clear(app1), Equals, 0)
 	c.Check(mm.Tags(app1), IsNil)
-	c.Check(mm.Tags(app2)["card"], HasLen, 2)
-	c.Check(mm.Tags(app3)["card"], HasLen, 1)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 1)
 
 	// check we work ok with a "" tag, too.
 	c.Check(mm.Clear(app1, ""), Equals, 0)
 	c.Check(mm.Clear(app2, ""), Equals, 0)
 	c.Check(mm.Clear(app3, ""), Equals, 1)
 	c.Check(mm.Tags(app1), IsNil)
-	c.Check(mm.Tags(app2)["card"], HasLen, 2)
-	c.Check(mm.Tags(app3)["card"], HasLen, 0)
+	c.Check(mm.Tags(app2), HasLen, 2)
+	c.Check(mm.Tags(app3), HasLen, 0)
 }
 
 func (ms *MessagingSuite) TestRemoveNotification(c *C) {
