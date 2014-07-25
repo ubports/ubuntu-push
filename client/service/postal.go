@@ -44,7 +44,14 @@ type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) bool
 // a Presenter is something that knows how to present a Notification
 type Presenter interface {
 	Present(*click.AppId, string, *launch_helper.Notification) bool
-	Tags(app *click.AppId) []string
+}
+
+type notificationCentre interface {
+	Presenter
+	GetCh() chan *reply.MMActionReply
+	RemoveNotification(string)
+	StartCleanupLoop()
+	Tags(*click.AppId) []string
 	Clear(*click.AppId, ...string) int
 }
 
@@ -55,7 +62,7 @@ type PostalService struct {
 	msgHandler    messageHandler
 	launchers     map[string]launch_helper.HelperLauncher
 	HelperPool    launch_helper.HelperPool
-	messagingMenu *messaging.MessagingMenu
+	messagingMenu notificationCentre
 	// the endpoints are only exposed for testing from client
 	// XXX: uncouple some more so this isn't necessary
 	EmblemCounterEndp bus.Endpoint
@@ -120,8 +127,11 @@ func (svc *PostalService) GetMessageHandler() messageHandler {
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *PostalService) Start() error {
 	err := svc.DBusService.Start(bus.DispatchMap{
-		"PopAll": svc.popAll,
-		"Post":   svc.post,
+		"PopAll":          svc.popAll,
+		"Post":            svc.post,
+		"ListPersistent":  svc.listPersistent,
+		"ClearPersistent": svc.clearPersistent,
+		"SetCounter":      svc.setCounter,
 	}, PostalServiceBusAddress)
 	if err != nil {
 		return err
@@ -151,7 +161,7 @@ func (svc *PostalService) Start() error {
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
 	go svc.consumeHelperResults(svc.HelperPool.Start())
-	go svc.handleActions(actionsCh, svc.messagingMenu.Ch)
+	go svc.handleActions(actionsCh, svc.messagingMenu.GetCh())
 	svc.messagingMenu.StartCleanupLoop()
 	return nil
 }
@@ -223,6 +233,54 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 	wg.Wait()
 
 	return notifications.Raw(svc.NotificationsEndp, svc.Log).WatchActions()
+}
+
+func (svc *PostalService) listPersistent(path string, args, _ []interface{}) ([]interface{}, error) {
+	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	tagmap := svc.messagingMenu.Tags(app)
+	return []interface{}{tagmap}, nil
+}
+
+func (svc *PostalService) clearPersistent(path string, args, _ []interface{}) ([]interface{}, error) {
+	if len(args) == 0 {
+		return nil, ErrBadArgCount
+	}
+	app, err := svc.grabDBusPackageAndAppId(path, args[:1], 0)
+	if err != nil {
+		return nil, err
+	}
+	tags := make([]string, len(args)-1)
+	for i, itag := range args[1:] {
+		tag, ok := itag.(string)
+		if !ok {
+			return nil, ErrBadArgType
+		}
+		tags[i] = tag
+	}
+	return []interface{}{svc.messagingMenu.Clear(app, tags...)}, nil
+}
+
+func (svc *PostalService) setCounter(path string, args, _ []interface{}) ([]interface{}, error) {
+	app, err := svc.grabDBusPackageAndAppId(path, args, 2)
+	if err != nil {
+		return nil, err
+	}
+
+	count, ok := args[1].(int32)
+	if !ok {
+		return nil, ErrBadArgType
+	}
+	visible, ok := args[2].(bool)
+	if !ok {
+		return nil, ErrBadArgType
+	}
+
+	svc.emblemCounter.SetCounter(app, count, visible)
+	return nil, nil
 }
 
 func (svc *PostalService) popAll(path string, args, _ []interface{}) ([]interface{}, error) {

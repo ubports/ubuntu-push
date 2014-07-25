@@ -54,6 +54,11 @@ var cAddNotification = cmessaging.AddNotification
 var cRemoveNotification = cmessaging.RemoveNotification
 var cNotificationExists = cmessaging.NotificationExists
 
+// GetCh returns the reply channel, exactly like mm.Ch.
+func (mmu *MessagingMenu) GetCh() chan *reply.MMActionReply {
+	return mmu.Ch
+}
+
 func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
@@ -71,13 +76,10 @@ func (mmu *MessagingMenu) removeNotification(notificationId string, fromUI bool)
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	payload := mmu.notifications[notificationId]
-	if payload == nil {
-		return
-	}
-	if fromUI {
+	delete(mmu.notifications, notificationId)
+	if payload != nil && payload.App != nil && fromUI {
 		cRemoveNotification(payload.App.DesktopId(), notificationId)
 	}
-	delete(mmu.notifications, notificationId)
 }
 
 // cleanupNotifications remove notifications that were cleared from the messaging menu

@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -34,6 +35,7 @@ import (
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/reply"
+	"launchpad.net/ubuntu-push/nih"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 )
@@ -617,4 +619,113 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Assert(args[0].Args, HasLen, 1)
 	c.Assert(args[0].Args[0], Equals, "potato://")
+}
+
+type fakeMM struct {
+	calls []string
+}
+
+func (*fakeMM) Present(*click.AppId, string, *launch_helper.Notification) bool { return false }
+func (*fakeMM) GetCh() chan *reply.MMActionReply                               { return nil }
+func (*fakeMM) RemoveNotification(string)                                      {}
+func (*fakeMM) StartCleanupLoop()                                              {}
+func (fmm *fakeMM) Clear(*click.AppId, ...string) int {
+	fmm.calls = append(fmm.calls, "clear")
+	return 42
+}
+func (fmm *fakeMM) Tags(*click.AppId) []string {
+	fmm.calls = append(fmm.calls, "tags")
+	return []string{"hello"}
+}
+
+func (ps *postalSuite) TestListPersistent(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	fmm := new(fakeMM)
+	svc.messagingMenu = fmm
+
+	itags, err := svc.listPersistent(aPackageOnBus, []interface{}{anAppId}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(itags, HasLen, 1)
+	c.Assert(itags[0], FitsTypeOf, []string(nil))
+	tags := itags[0].([]string)
+	c.Check(tags, DeepEquals, []string{"hello"})
+	c.Check(fmm.calls, DeepEquals, []string{"tags"})
+}
+
+func (ps *postalSuite) TestListPersistentErrors(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	_, err := svc.listPersistent(aPackageOnBus, nil, nil)
+	c.Check(err, Equals, ErrBadArgCount)
+	_, err = svc.listPersistent(aPackageOnBus, []interface{}{42}, nil)
+	c.Check(err, Equals, ErrBadArgType)
+	_, err = svc.listPersistent(aPackageOnBus, []interface{}{"xyzzy"}, nil)
+	c.Check(err, Equals, ErrBadAppId)
+}
+
+func (ps *postalSuite) TestClearPersistent(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	fmm := new(fakeMM)
+	svc.messagingMenu = fmm
+
+	icleared, err := svc.clearPersistent(aPackageOnBus, []interface{}{anAppId, "one", ""}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(icleared, HasLen, 1)
+	c.Check(icleared[0], Equals, 42)
+}
+
+func (ps *postalSuite) TestClearPersistentErrors(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	for i, s := range []struct {
+		args []interface{}
+		err  error
+	}{
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{42}, ErrBadArgType},
+		{[]interface{}{"xyzzy"}, ErrBadAppId},
+		{[]interface{}{anAppId, 42}, ErrBadArgType},
+		{[]interface{}{anAppId, "", 42}, ErrBadArgType},
+	} {
+		_, err := svc.clearPersistent(aPackageOnBus, s.args, nil)
+		c.Check(err, Equals, s.err, Commentf("iter %d", i))
+	}
+}
+
+func (ps *postalSuite) TestSetCounter(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	c.Check(svc.Start(), IsNil)
+
+	_, err := svc.setCounter(aPackageOnBus, []interface{}{anAppId, int32(42), true}, nil)
+	c.Assert(err, IsNil)
+
+	quoted := "/" + string(nih.Quote([]byte(anAppId)))
+
+	callArgs := testibus.GetCallArgs(svc.EmblemCounterEndp)
+	c.Assert(callArgs, HasLen, 2)
+	c.Check(callArgs[0].Member, Equals, "::SetProperty")
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", quoted, dbus.Variant{int32(42)}})
+
+	c.Check(callArgs[1].Member, Equals, "::SetProperty")
+	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", quoted, dbus.Variant{true}})
+}
+
+func (ps *postalSuite) TestSetCounterErrors(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	svc.Start()
+	for i, s := range []struct {
+		args []interface{}
+		err  error
+	}{
+		{[]interface{}{anAppId, int32(42), true}, nil}, // for reference
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{anAppId}, ErrBadArgCount},
+		{[]interface{}{anAppId, int32(42)}, ErrBadArgCount},
+		{[]interface{}{anAppId, int32(42), true, "potato"}, ErrBadArgCount},
+		{[]interface{}{"xyzzy", int32(42), true}, ErrBadAppId},
+		{[]interface{}{1234567, int32(42), true}, ErrBadArgType},
+		{[]interface{}{anAppId, "potatoe", true}, ErrBadArgType},
+		{[]interface{}{anAppId, int32(42), "ru"}, ErrBadArgType},
+	} {
+		_, err := svc.setCounter(aPackageOnBus, s.args, nil)
+		c.Check(err, Equals, s.err, Commentf("iter %d", i))
+	}
 }

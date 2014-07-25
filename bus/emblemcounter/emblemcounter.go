@@ -19,8 +19,6 @@
 package emblemcounter
 
 import (
-	"sync"
-
 	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -40,63 +38,13 @@ var BusAddress = bus.Address{
 // EmblemCounter is a little tool that fiddles with the unity launcher
 // to put emblems with counters on launcher icons.
 type EmblemCounter struct {
-	bus  bus.Endpoint
-	log  logger.Logger
-	tags map[string]string
-	lock sync.RWMutex
+	bus bus.Endpoint
+	log logger.Logger
 }
 
 // Build an EmblemCounter using the given bus and log.
 func New(endp bus.Endpoint, log logger.Logger) *EmblemCounter {
-	return &EmblemCounter{bus: endp, log: log, tags: make(map[string]string)}
-}
-
-// Tags returns the notification tags for the given app
-func (ctr *EmblemCounter) Tags(app *click.AppId) []string {
-	tag, ok := ctr.tag(app.Original())
-	if !ok {
-		return nil
-	}
-
-	return []string{tag}
-}
-
-func (ctr *EmblemCounter) tag(orig string) (string, bool) {
-	ctr.lock.RLock()
-	defer ctr.lock.RUnlock()
-
-	tag, ok := ctr.tags[orig]
-
-	return tag, ok
-}
-
-func (ctr *EmblemCounter) Clear(app *click.AppId, tags ...string) int {
-	// note we don't hold the lock all the way through, so somebody could
-	// change things between getting the tag (at the top) and clearing it
-	// (at the bottom). But it'd be the app doing damage to itself at that
-	// point (either by interacting badly with its helper, or straight
-	// from the app itself).
-	tag, ok := ctr.tag(app.Original())
-	if !ok {
-		// nothing to do
-		return 0
-	}
-	doClear := false
-	if len(tags) == 0 {
-		// no tags? clear anything
-		doClear = true
-	}
-
-	for i := range tags {
-		if tag == tags[i] {
-			doClear = true
-			break
-		}
-	}
-	if doClear && ctr.present(app, "", 0, false) {
-		return 1
-	}
-	return 0
+	return &EmblemCounter{bus: endp, log: log}
 }
 
 // Look for an EmblemCounter section in a Notification and, if
@@ -113,10 +61,12 @@ func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *la
 		return false
 	}
 	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, app.Base(), ec.Count, ec.Visible)
-	return ctr.present(app, notification.Tag, ec.Count, ec.Visible)
+	return ctr.SetCounter(app, ec.Count, ec.Visible)
 }
 
-func (ctr *EmblemCounter) present(app *click.AppId, tag string, count int32, visible bool) bool {
+// SetCounter sets an emblem counter on the launcher for app to count (if
+// visible is true), or clears it (if count is 0 or visible is false).
+func (ctr *EmblemCounter) SetCounter(app *click.AppId, count int32, visible bool) bool {
 	base := app.Base()
 	quoted := string(nih.Quote([]byte(base)))
 
@@ -129,14 +79,6 @@ func (ctr *EmblemCounter) present(app *click.AppId, tag string, count int32, vis
 	if err != nil {
 		ctr.log.Errorf("call to set countVisible failed: %v", err)
 		return false
-	}
-
-	ctr.lock.Lock()
-	defer ctr.lock.Unlock()
-	if visible && count != 0 {
-		ctr.tags[app.Original()] = tag
-	} else {
-		delete(ctr.tags, app.Original())
 	}
 
 	return true

@@ -125,14 +125,6 @@ func (raw *RawNotifications) WatchActions() (<-chan *RawAction, error) {
 	return ch, nil
 }
 
-func (raw *RawNotifications) Tags(app *click.AppId) []string {
-	return nil
-}
-
-func (raw *RawNotifications) Clear(*click.AppId, ...string) int {
-	return 0
-}
-
 // Present displays a given card.
 //
 // If card.Actions is empty it's a plain, noninteractive bubble notification.

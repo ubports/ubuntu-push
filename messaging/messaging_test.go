@@ -26,6 +26,7 @@ import (
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/cmessaging"
+	"launchpad.net/ubuntu-push/messaging/reply"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -324,4 +325,10 @@ func (ms *MessagingSuite) TestStartCleanupLoop(c *C) {
 	<-notifExistsCh
 	// stop the loop
 	mmu.StopCleanupLoop()
+}
+
+func (ms *MessagingSuite) TestGetCh(c *C) {
+	mmu := New(ms.log)
+	mmu.Ch = make(chan *reply.MMActionReply)
+	c.Check(mmu.GetCh(), Equals, mmu.Ch)
 }
