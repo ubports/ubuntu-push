@@ -44,7 +44,14 @@ type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) bool
 // a Presenter is something that knows how to present a Notification
 type Presenter interface {
 	Present(*click.AppId, string, *launch_helper.Notification) bool
-	Tags(app *click.AppId) []string
+}
+
+type notificationCentre interface {
+	Presenter
+	GetCh() chan *reply.MMActionReply
+	RemoveNotification(string)
+	StartCleanupLoop()
+	Tags(*click.AppId) []string
 	Clear(*click.AppId, ...string) int
 }
 
@@ -55,7 +62,7 @@ type PostalService struct {
 	msgHandler    messageHandler
 	launchers     map[string]launch_helper.HelperLauncher
 	HelperPool    launch_helper.HelperPool
-	messagingMenu *messaging.MessagingMenu
+	messagingMenu notificationCentre
 	// the endpoints are only exposed for testing from client
 	// XXX: uncouple some more so this isn't necessary
 	EmblemCounterEndp bus.Endpoint
@@ -64,7 +71,7 @@ type PostalService struct {
 	URLDispatcherEndp bus.Endpoint
 	WindowStackEndp   bus.Endpoint
 	// presenters:
-	Presenters    map[string]Presenter
+	Presenters    []Presenter
 	emblemCounter *emblemcounter.EmblemCounter
 	haptic        *haptic.Haptic
 	notifications *notifications.RawNotifications
@@ -122,7 +129,7 @@ func (svc *PostalService) Start() error {
 	err := svc.DBusService.Start(bus.DispatchMap{
 		"PopAll":         svc.popAll,
 		"Post":           svc.post,
-		"ListPersistent": svc.tags,
+		"ListPersistent": svc.listPersistent,
 		"Clear":          svc.clear,
 		"SetCounter":     svc.setCounter,
 	}, PostalServiceBusAddress)
@@ -139,12 +146,12 @@ func (svc *PostalService) Start() error {
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log)
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
-	svc.Presenters = map[string]Presenter{
-		"bubble":  svc.notifications,
-		"counter": svc.emblemCounter,
-		"vibrate": svc.haptic,
-		"sound":   svc.sound,
-		"card":    svc.messagingMenu,
+	svc.Presenters = []Presenter{
+		svc.notifications,
+		svc.emblemCounter,
+		svc.haptic,
+		svc.sound,
+		svc.messagingMenu,
 	}
 	if useTrivialHelper {
 		svc.HelperPool = launch_helper.NewTrivialHelperPool(svc.Log)
@@ -154,7 +161,7 @@ func (svc *PostalService) Start() error {
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
 	go svc.consumeHelperResults(svc.HelperPool.Start())
-	go svc.handleActions(actionsCh, svc.messagingMenu.Ch)
+	go svc.handleActions(actionsCh, svc.messagingMenu.GetCh())
 	svc.messagingMenu.StartCleanupLoop()
 	return nil
 }
@@ -228,57 +235,33 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 	return notifications.Raw(svc.NotificationsEndp, svc.Log).WatchActions()
 }
 
-func (svc *PostalService) tags(path string, args, _ []interface{}) ([]interface{}, error) {
+func (svc *PostalService) listPersistent(path string, args, _ []interface{}) ([]interface{}, error) {
 	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	tagmap := make(map[string][]string)
-	for kind, p := range svc.Presenters {
-		for _, tag := range p.Tags(app) {
-			tagmap[tag] = append(tagmap[tag], kind)
-		}
-	}
+	tagmap := svc.messagingMenu.Tags(app)
 	return []interface{}{tagmap}, nil
 }
 
 func (svc *PostalService) clear(path string, args, _ []interface{}) ([]interface{}, error) {
-	m := 1
-	if m > len(args) {
-		m = len(args)
+	if len(args) == 0 {
+		return nil, ErrBadArgCount
 	}
-	app, err := svc.grabDBusPackageAndAppId(path, args[:m], 0)
+	app, err := svc.grabDBusPackageAndAppId(path, args[:1], 0)
 	if err != nil {
 		return nil, err
 	}
-	kind := ""
-	var tags []string
-	if len(args) > 1 {
-		var ok bool
-		kind, ok = args[1].(string)
+	tags := make([]string, len(args)-1)
+	for i, itag := range args[1:] {
+		tag, ok := itag.(string)
 		if !ok {
 			return nil, ErrBadArgType
 		}
-		tags = make([]string, len(args)-2)
-		for i, itag := range args[2:] {
-			tag, ok := itag.(string)
-			if !ok {
-				return nil, ErrBadArgType
-			}
-			tags[i] = tag
-		}
-
+		tags[i] = tag
 	}
-	n := 0
-	if kind == "" {
-		for _, p := range svc.Presenters {
-			n += p.Clear(app, tags...)
-		}
-	} else {
-		n = svc.Presenters[kind].Clear(app, tags...)
-	}
-	return []interface{}{n}, nil
+	return []interface{}{svc.messagingMenu.Clear(app, tags...)}, nil
 }
 
 func (svc *PostalService) setCounter(path string, args, _ []interface{}) ([]interface{}, error) {

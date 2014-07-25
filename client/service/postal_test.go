@@ -621,79 +621,56 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	c.Assert(args[0].Args[0], Equals, "potato://")
 }
 
-type testingPresenter struct {
-	tags    []string
-	cleared int
+type fakeMM struct {
+	calls []string
 }
 
-func (tp *testingPresenter) Present(app *click.AppId, nid string, notif *launch_helper.Notification) bool {
-	return true
+func (*fakeMM) Present(*click.AppId, string, *launch_helper.Notification) bool { return false }
+func (*fakeMM) GetCh() chan *reply.MMActionReply                               { return nil }
+func (*fakeMM) RemoveNotification(string)                                      {}
+func (*fakeMM) StartCleanupLoop()                                              {}
+func (fmm *fakeMM) Clear(*click.AppId, ...string) int {
+	fmm.calls = append(fmm.calls, "clear")
+	return 42
 }
-func (tp *testingPresenter) Tags(*click.AppId) []string {
-	return tp.tags
+func (fmm *fakeMM) Tags(*click.AppId) []string {
+	fmm.calls = append(fmm.calls, "tags")
+	return []string{"hello"}
 }
 
-func (tp *testingPresenter) Clear(app *click.AppId, tags ...string) int {
-	return tp.cleared + len(tags) - len(tp.tags)
-}
-
-func (ps *postalSuite) TestTags(c *C) {
+func (ps *postalSuite) TestListPersistent(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	tp1 := testingPresenter{tags: []string{"tag1", "tag2", ""}}
-	tp2 := testingPresenter{tags: []string{"tag2", "tag3"}}
-	svc.Presenters = map[string]Presenter{"kind1": &tp1, "kind2": &tp2}
+	fmm := new(fakeMM)
+	svc.messagingMenu = fmm
 
-	itags, err := svc.tags(aPackageOnBus, []interface{}{anAppId}, nil)
+	itags, err := svc.listPersistent(aPackageOnBus, []interface{}{anAppId}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(itags, HasLen, 1)
-	c.Assert(itags[0], FitsTypeOf, map[string][]string{})
-	tags := itags[0].(map[string][]string)
-	c.Check(tags, HasLen, 4)
-
-	for tag, kinds := range map[string][]string{
-		"tag1": []string{"kind1"},
-		"tag2": []string{"kind1", "kind2"},
-		"tag3": []string{"kind2"},
-		"":     []string{"kind1"},
-	} {
-		sort.Strings(tags[tag])
-		c.Check(tags[tag], DeepEquals, kinds, Commentf("on tag %#v", tag))
-	}
+	c.Assert(itags[0], FitsTypeOf, []string(nil))
+	tags := itags[0].([]string)
+	c.Check(tags, DeepEquals, []string{"hello"})
+	c.Check(fmm.calls, DeepEquals, []string{"tags"})
 }
 
-func (ps *postalSuite) TestTagsErrors(c *C) {
+func (ps *postalSuite) TestListPersistentErrors(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	_, err := svc.tags(aPackageOnBus, nil, nil)
+	_, err := svc.listPersistent(aPackageOnBus, nil, nil)
 	c.Check(err, Equals, ErrBadArgCount)
-	_, err = svc.tags(aPackageOnBus, []interface{}{42}, nil)
+	_, err = svc.listPersistent(aPackageOnBus, []interface{}{42}, nil)
 	c.Check(err, Equals, ErrBadArgType)
-	_, err = svc.tags(aPackageOnBus, []interface{}{"xyzzy"}, nil)
+	_, err = svc.listPersistent(aPackageOnBus, []interface{}{"xyzzy"}, nil)
 	c.Check(err, Equals, ErrBadAppId)
 }
 
 func (ps *postalSuite) TestClear(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	tp1 := testingPresenter{cleared: 2}
-	tp2 := testingPresenter{cleared: 3, tags: []string{"tag2", "tag3"}}
-	svc.Presenters = map[string]Presenter{"kind1": &tp1, "kind2": &tp2}
+	fmm := new(fakeMM)
+	svc.messagingMenu = fmm
 
-	for i, s := range []struct {
-		args   []interface{}
-		retval int
-	}{
-		{[]interface{}{anAppId, "kind1"}, 2},
-		{[]interface{}{anAppId, "kind2"}, 1},
-		{[]interface{}{anAppId}, 3},
-		{[]interface{}{anAppId, ""}, 3},
-		{[]interface{}{anAppId, "kind1", ""}, 3},
-		{[]interface{}{anAppId, "kind2", ""}, 2},
-		{[]interface{}{anAppId, "", ""}, 5},
-	} {
-		icleared, err := svc.clear(aPackageOnBus, s.args, nil)
-		c.Assert(err, IsNil, Commentf("iter %d", i))
-		c.Assert(icleared, HasLen, 1, Commentf("iter %d", i))
-		c.Check(icleared[0], Equals, s.retval, Commentf("iter %d", i))
-	}
+	icleared, err := svc.clear(aPackageOnBus, []interface{}{anAppId, "one", ""}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(icleared, HasLen, 1)
+	c.Check(icleared[0], Equals, 42)
 }
 
 func (ps *postalSuite) TestClearErrors(c *C) {
