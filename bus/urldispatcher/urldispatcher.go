@@ -51,7 +51,7 @@ var _ URLDispatcher = &urlDispatcher{} // ensures it conforms
 
 func (ud *urlDispatcher) DispatchURL(url string, app *click.AppId) error {
 	ud.log.Debugf("Dispatching %s", url)
-	err := ud.endp.Call("DispatchURL", bus.Args(url, app.Base()))
+	err := ud.endp.Call("DispatchURL", bus.Args(url, app.DispatchPackage()))
 	if err != nil {
 		ud.log.Errorf("Dispatch to %s failed with %s", url, err)
 	}

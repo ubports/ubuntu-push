@@ -98,6 +98,13 @@ func (app *AppId) InPackage(pkgname string) bool {
 	return app.Package == pkgname
 }
 
+func (app *AppId) DispatchPackage() string {
+	if app.Click {
+		return app.Package
+	}
+	return app.Application
+}
+
 func (app *AppId) Original() string {
 	return app.original
 }
