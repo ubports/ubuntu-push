@@ -707,3 +707,25 @@ func (ps *postalSuite) TestSetCounter(c *C) {
 	c.Check(callArgs[1].Member, Equals, "::SetProperty")
 	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", quoted, dbus.Variant{true}})
 }
+
+func (ps *postalSuite) TestSetCounterErrors(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	svc.Start()
+	for i, s := range []struct {
+		args []interface{}
+		err  error
+	}{
+		{[]interface{}{anAppId, int32(42), true}, nil}, // for reference
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{anAppId}, ErrBadArgCount},
+		{[]interface{}{anAppId, int32(42)}, ErrBadArgCount},
+		{[]interface{}{anAppId, int32(42), true, "potato"}, ErrBadArgCount},
+		{[]interface{}{"xyzzy", int32(42), true}, ErrBadAppId},
+		{[]interface{}{1234567, int32(42), true}, ErrBadArgType},
+		{[]interface{}{anAppId, "potatoe", true}, ErrBadArgType},
+		{[]interface{}{anAppId, int32(42), "ru"}, ErrBadArgType},
+	} {
+		_, err := svc.setCounter(aPackageOnBus, s.args, nil)
+		c.Check(err, Equals, s.err, Commentf("iter %d", i))
+	}
+}

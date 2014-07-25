@@ -76,13 +76,10 @@ func (mmu *MessagingMenu) removeNotification(notificationId string, fromUI bool)
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	payload := mmu.notifications[notificationId]
-	if payload == nil {
-		return
-	}
-	if fromUI {
+	delete(mmu.notifications, notificationId)
+	if payload != nil && payload.App != nil && fromUI {
 		cRemoveNotification(payload.App.DesktopId(), notificationId)
 	}
-	delete(mmu.notifications, notificationId)
 }
 
 // cleanupNotifications remove notifications that were cleared from the messaging menu
