@@ -51,7 +51,7 @@ func (ecs *ecSuite) TestSetCounterSetsTheCounter(c *C) {
 	quoted := string(nih.Quote([]byte(ecs.app.Base())))
 
 	ec := New(endp, ecs.log)
-	c.Check(ec.SetCounter(ecs.app, "nid", 42, true), Equals, true)
+	c.Check(ec.SetCounter(ecs.app, 42, true), Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 2)
 	c.Check(callArgs[0].Member, Equals, "::SetProperty")

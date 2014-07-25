@@ -279,7 +279,7 @@ func (svc *PostalService) setCounter(path string, args, _ []interface{}) ([]inte
 		return nil, ErrBadArgType
 	}
 
-	svc.emblemCounter.SetCounter(app, "", count, visible)
+	svc.emblemCounter.SetCounter(app, count, visible)
 	return nil, nil
 }
 
