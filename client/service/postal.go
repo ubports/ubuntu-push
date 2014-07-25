@@ -171,7 +171,7 @@ Handle:
 			} else {
 				url := action.Action
 				// this ignores the error (it's been logged already)
-				svc.urlDispatcher.DispatchURL(url, action.App.Base())
+				svc.urlDispatcher.DispatchURL(url, action.App)
 			}
 		case mmuAction, ok := <-mmuActionsCh:
 			if !ok {
@@ -185,7 +185,7 @@ Handle:
 				// remove the notification from the messagingmenu map
 				svc.messagingMenu.RemoveNotification(mmuAction.Notification)
 				// this ignores the error (it's been logged already)
-				svc.urlDispatcher.DispatchURL(url, mmuAction.App.Base())
+				svc.urlDispatcher.DispatchURL(url, mmuAction.App)
 			}
 
 		}
@@ -328,19 +328,7 @@ func (svc *PostalService) validateActions(app *click.AppId, notif *launch_helper
 	if notif.Card == nil || len(notif.Card.Actions) == 0 {
 		return true
 	}
-	actions := notif.Card.Actions
-	appIds, err := svc.urlDispatcher.TestURL(actions)
-	if err != nil {
-		// already logged in URLDispatcher
-		return false
-	}
-	for _, appId := range appIds {
-		if appId != app.Base() {
-			svc.Log.Debugf("Notification skipped because of different appid for actions: %v - %s != %s", actions, appId, app.Base())
-			return false
-		}
-	}
-	return true
+	return svc.urlDispatcher.TestURL(app, notif.Card.Actions)
 }
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {

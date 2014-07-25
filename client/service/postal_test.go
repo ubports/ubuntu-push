@@ -637,7 +637,7 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 
 func (ps *postalSuite) TestValidateActions(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app"})
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app_0"})
 	svc.URLDispatcherEndp = endp
 	c.Assert(svc.Start(), IsNil)
 	card := launch_helper.Card{Actions: []string{"potato://test-app"}}
@@ -649,7 +649,7 @@ func (ps *postalSuite) TestValidateActions(c *C) {
 
 func (ps *postalSuite) TestValidateMultipleActions(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app", "com.example.test_test-app"})
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app_0", "com.example.test_test-app_0"})
 	svc.URLDispatcherEndp = endp
 	c.Assert(svc.Start(), IsNil)
 	card := launch_helper.Card{Actions: []string{"potato://test-app", "potato_a://foo"}}
@@ -673,7 +673,7 @@ func (ps *postalSuite) TestValidateActionsWrongApp(c *C) {
 
 func (ps *postalSuite) TestValidateMultipleActionsOneWrongApp(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app", "com.example.test_test-app1"})
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app_0", "com.example.test_test-app1"})
 	svc.URLDispatcherEndp = endp
 	c.Assert(svc.Start(), IsNil)
 	card := launch_helper.Card{Actions: []string{"potato://test-app", "potato_a://foo"}}
@@ -707,5 +707,16 @@ func (ps *postalSuite) TestValidateActionsNoCard(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	notif := &launch_helper.Notification{}
 	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+}
+
+func (ps *postalSuite) TestValidateActionsLegacyApp(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"ubuntu-system-settings"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"settings://test-app"}}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("_ubuntu-system-settings"), notif)
 	c.Check(b, Equals, true)
 }

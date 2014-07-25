@@ -19,6 +19,7 @@ package urldispatcher
 import (
 	. "launchpad.net/gocheck"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -41,28 +42,29 @@ func (s *UDSuite) SetUpTest(c *C) {
 func (s *UDSuite) TestDispatchURLWorks(c *C) {
 	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{})
 	ud := New(endp, s.log)
-	err := ud.DispatchURL("this", "")
+	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
+	err := ud.DispatchURL("this", appId)
 	c.Check(err, IsNil)
 }
 
 func (s *UDSuite) TestDispatchURLFailsIfCallFails(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	ud := New(endp, s.log)
-	err := ud.DispatchURL("this", "")
+	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
+	err := ud.DispatchURL("this", appId)
 	c.Check(err, NotNil)
 }
 
 func (s *UDSuite) TestTestURLWorks(c *C) {
-	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{[]string{"this.app"}})
+	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{[]string{"com.example.test_app_0.99"}})
 	ud := New(endp, s.log)
-	appids, err := ud.TestURL([]string{"this"})
-	c.Check(err, IsNil)
-	c.Check(appids, DeepEquals, []string{"this.app"})
+	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
+	c.Check(ud.TestURL(appId, []string{"this"}), Equals, true)
 }
 
 func (s *UDSuite) TestTestURLFailsIfCallFails(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	ud := New(endp, s.log)
-	_, err := ud.TestURL([]string{"this"})
-	c.Check(err, NotNil)
+	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
+	c.Check(ud.TestURL(appId, []string{"this"}), Equals, false)
 }
