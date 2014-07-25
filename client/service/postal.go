@@ -127,11 +127,11 @@ func (svc *PostalService) GetMessageHandler() messageHandler {
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *PostalService) Start() error {
 	err := svc.DBusService.Start(bus.DispatchMap{
-		"PopAll":         svc.popAll,
-		"Post":           svc.post,
-		"ListPersistent": svc.listPersistent,
-		"Clear":          svc.clear,
-		"SetCounter":     svc.setCounter,
+		"PopAll":          svc.popAll,
+		"Post":            svc.post,
+		"ListPersistent":  svc.listPersistent,
+		"ClearPersistent": svc.clearPersistent,
+		"SetCounter":      svc.setCounter,
 	}, PostalServiceBusAddress)
 	if err != nil {
 		return err
@@ -245,7 +245,7 @@ func (svc *PostalService) listPersistent(path string, args, _ []interface{}) ([]
 	return []interface{}{tagmap}, nil
 }
 
-func (svc *PostalService) clear(path string, args, _ []interface{}) ([]interface{}, error) {
+func (svc *PostalService) clearPersistent(path string, args, _ []interface{}) ([]interface{}, error) {
 	if len(args) == 0 {
 		return nil, ErrBadArgCount
 	}

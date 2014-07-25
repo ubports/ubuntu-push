@@ -662,18 +662,18 @@ func (ps *postalSuite) TestListPersistentErrors(c *C) {
 	c.Check(err, Equals, ErrBadAppId)
 }
 
-func (ps *postalSuite) TestClear(c *C) {
+func (ps *postalSuite) TestClearPersistent(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	fmm := new(fakeMM)
 	svc.messagingMenu = fmm
 
-	icleared, err := svc.clear(aPackageOnBus, []interface{}{anAppId, "one", ""}, nil)
+	icleared, err := svc.clearPersistent(aPackageOnBus, []interface{}{anAppId, "one", ""}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(icleared, HasLen, 1)
 	c.Check(icleared[0], Equals, 42)
 }
 
-func (ps *postalSuite) TestClearErrors(c *C) {
+func (ps *postalSuite) TestClearPersistentErrors(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	for i, s := range []struct {
 		args []interface{}
@@ -685,7 +685,7 @@ func (ps *postalSuite) TestClearErrors(c *C) {
 		{[]interface{}{anAppId, 42}, ErrBadArgType},
 		{[]interface{}{anAppId, "", 42}, ErrBadArgType},
 	} {
-		_, err := svc.clear(aPackageOnBus, s.args, nil)
+		_, err := svc.clearPersistent(aPackageOnBus, s.args, nil)
 		c.Check(err, Equals, s.err, Commentf("iter %d", i))
 	}
 }
