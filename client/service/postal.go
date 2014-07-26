@@ -182,7 +182,7 @@ Handle:
 			} else {
 				url := action.Action
 				// this ignores the error (it's been logged already)
-				svc.urlDispatcher.DispatchURL(url)
+				svc.urlDispatcher.DispatchURL(url, "")
 			}
 		case mmuAction, ok := <-mmuActionsCh:
 			if !ok {
@@ -196,7 +196,7 @@ Handle:
 				// remove the notification from the messagingmenu map
 				svc.messagingMenu.RemoveNotification(mmuAction.Notification)
 				// this ignores the error (it's been logged already)
-				svc.urlDispatcher.DispatchURL(url)
+				svc.urlDispatcher.DispatchURL(url, "")
 			}
 
 		}

@@ -38,16 +38,31 @@ func (s *UDSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
 }
 
-func (s *UDSuite) TestWorks(c *C) {
+func (s *UDSuite) TestDispatchURLWorks(c *C) {
 	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{})
 	ud := New(endp, s.log)
-	err := ud.DispatchURL("this")
+	err := ud.DispatchURL("this", "")
 	c.Check(err, IsNil)
 }
 
-func (s *UDSuite) TestFailsIfCallFails(c *C) {
+func (s *UDSuite) TestDispatchURLFailsIfCallFails(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	ud := New(endp, s.log)
-	err := ud.DispatchURL("this")
+	err := ud.DispatchURL("this", "")
+	c.Check(err, NotNil)
+}
+
+func (s *UDSuite) TestTestURLWorks(c *C) {
+	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{[]string{"this.app"}})
+	ud := New(endp, s.log)
+	appids, err := ud.TestURL([]string{"this"})
+	c.Check(err, IsNil)
+	c.Check(appids, DeepEquals, []string{"this.app"})
+}
+
+func (s *UDSuite) TestTestURLFailsIfCallFails(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
+	ud := New(endp, s.log)
+	_, err := ud.TestURL([]string{"this"})
 	c.Check(err, NotNil)
 }

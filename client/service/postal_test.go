@@ -596,8 +596,9 @@ func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	args := testibus.GetCallArgs(ps.urlDispBus)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
-	c.Assert(args[0].Args, HasLen, 1)
+	c.Assert(args[0].Args, HasLen, 2)
 	c.Assert(args[0].Args[0], Equals, "potato://")
+	c.Assert(args[0].Args[1], Equals, "")
 }
 
 func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
@@ -617,8 +618,9 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	args := testibus.GetCallArgs(ps.urlDispBus)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
-	c.Assert(args[0].Args, HasLen, 1)
+	c.Assert(args[0].Args, HasLen, 2)
 	c.Assert(args[0].Args[0], Equals, "potato://")
+	c.Assert(args[0].Args[1], Equals, "")
 }
 
 type fakeMM struct {
