@@ -64,7 +64,7 @@ func handleActivate(c_action *C.char, c_notification *C.char, obj unsafe.Pointer
 	if action == "" && len(payload.Actions) >= 2 {
 		action = payload.Actions[1]
 	}
-	mmar := &reply.MMActionReply{Notification: C.GoString(c_notification), Action: action}
+	mmar := &reply.MMActionReply{Notification: C.GoString(c_notification), Action: action, App: payload.App}
 	payload.Ch <- mmar
 }
 

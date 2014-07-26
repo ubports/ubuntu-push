@@ -579,15 +579,28 @@ func (ps *postalSuite) TestMessageHandlerReportsButIgnoresNilNotifies(c *C) {
 	c.Check(ps.log.Captured(), Matches, "(?msi).*skipping notification: nil.*")
 }
 
+func (ps *postalSuite) TestMessageHandlerInvalidAction(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false), []string{"com.example.test_test-app"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"notsupported://test-app"}}
+	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: &card}}
+	b := svc.messageHandler(clickhelp.MustParseAppId("com.example.test_test-app_0"), "", output)
+	c.Check(b, Equals, false)
+	c.Check(ps.log.Captured(), Matches, `(?sm).*TestURL for \[notsupported://test-app\] failed with no way.*`)
+}
+
 func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	app, _ := click.ParseAppId("com.example.test_test-app")
 	c.Assert(svc.Start(), IsNil)
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
 	bCh := make(chan bool)
 	go func() {
 		aCh <- nil // just in case?
-		aCh <- &notifications.RawAction{Action: "potato://"}
+		aCh <- &notifications.RawAction{App: app, Action: "potato://"}
 		close(aCh)
 		bCh <- true
 	}()
@@ -598,18 +611,19 @@ func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Assert(args[0].Args, HasLen, 2)
 	c.Assert(args[0].Args[0], Equals, "potato://")
-	c.Assert(args[0].Args[1], Equals, "")
+	c.Assert(args[0].Args[1], Equals, app.DispatchPackage())
 }
 
 func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	c.Assert(svc.Start(), IsNil)
+	app, _ := click.ParseAppId("com.example.test_test-app")
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
 	bCh := make(chan bool)
 	go func() {
 		rCh <- nil // just in case?
-		rCh <- &reply.MMActionReply{Action: "potato://", Notification: "foo.bar"}
+		rCh <- &reply.MMActionReply{App: app, Action: "potato://", Notification: "foo.bar"}
 		close(rCh)
 		bCh <- true
 	}()
@@ -620,7 +634,33 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	c.Check(args[0].Member, Equals, "DispatchURL")
 	c.Assert(args[0].Args, HasLen, 2)
 	c.Assert(args[0].Args[0], Equals, "potato://")
-	c.Assert(args[0].Args[1], Equals, "")
+	c.Assert(args[0].Args[1], Equals, app.DispatchPackage())
+}
+
+func (ps *postalSuite) TestValidateActions(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app_0"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"potato://test-app"}}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+}
+
+func (ps *postalSuite) TestValidateActionsNoActions(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	card := launch_helper.Card{}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+}
+
+func (ps *postalSuite) TestValidateActionsNoCard(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	notif := &launch_helper.Notification{}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
 }
 
 type fakeMM struct {

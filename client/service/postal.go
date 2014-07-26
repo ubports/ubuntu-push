@@ -182,7 +182,7 @@ Handle:
 			} else {
 				url := action.Action
 				// this ignores the error (it's been logged already)
-				svc.urlDispatcher.DispatchURL(url, "")
+				svc.urlDispatcher.DispatchURL(url, action.App)
 			}
 		case mmuAction, ok := <-mmuActionsCh:
 			if !ok {
@@ -196,7 +196,7 @@ Handle:
 				// remove the notification from the messagingmenu map
 				svc.messagingMenu.RemoveNotification(mmuAction.Notification)
 				// this ignores the error (it's been logged already)
-				svc.urlDispatcher.DispatchURL(url, "")
+				svc.urlDispatcher.DispatchURL(url, mmuAction.App)
 			}
 
 		}
@@ -383,9 +383,21 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
+func (svc *PostalService) validateActions(app *click.AppId, notif *launch_helper.Notification) bool {
+	if notif.Card == nil || len(notif.Card.Actions) == 0 {
+		return true
+	}
+	return svc.urlDispatcher.TestURL(app, notif.Card.Actions)
+}
+
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {
 	if output == nil || output.Notification == nil {
 		svc.Log.Debugf("skipping notification: nil.")
+		return false
+	}
+	// validate actions
+	if !svc.validateActions(app, output.Notification) {
+		// no need to log, (it's been logged already)
 		return false
 	}
 	if !svc.windowStack.IsAppFocused(app) {
