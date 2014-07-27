@@ -165,13 +165,12 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 	switch len(card.Actions) {
 	case 0:
 		// nothing
+	default:
+		raw.log.Errorf("[%s] don't know what to do with %d actions; ignoring the rest", nid, len(card.Actions))
+		actions = actions[:2]
+		fallthrough
 	case 1:
 		hints["x-canonical-switch-to-application"] = &dbus.Variant{"true"}
-	case 2:
-		hints["x-canonical-snap-decisions"] = &dbus.Variant{"true"}
-		hints["x-canonical-private-button-tint"] = &dbus.Variant{"true"}
-	default:
-		raw.log.Errorf("[%s] don't know what to do with %d actions; no hints set", nid, len(card.Actions))
 	}
 
 	raw.log.Debugf("[%s] creating popup (or snap decision) for %s (summary: %s)", nid, app.Base(), card.Summary)
