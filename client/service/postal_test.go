@@ -669,7 +669,7 @@ type fakeMM struct {
 
 func (*fakeMM) Present(*click.AppId, string, *launch_helper.Notification) bool { return false }
 func (*fakeMM) GetCh() chan *reply.MMActionReply                               { return nil }
-func (*fakeMM) RemoveNotification(string)                                      {}
+func (*fakeMM) RemoveNotification(string, bool)                                {}
 func (*fakeMM) StartCleanupLoop()                                              {}
 func (fmm *fakeMM) Clear(*click.AppId, ...string) int {
 	fmm.calls = append(fmm.calls, "clear")

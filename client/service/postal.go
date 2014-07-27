@@ -49,7 +49,7 @@ type Presenter interface {
 type notificationCentre interface {
 	Presenter
 	GetCh() chan *reply.MMActionReply
-	RemoveNotification(string)
+	RemoveNotification(string, bool)
 	StartCleanupLoop()
 	Tags(*click.AppId) []string
 	Clear(*click.AppId, ...string) int
@@ -194,7 +194,7 @@ Handle:
 				svc.Log.Debugf("handleActions (MMU) got: %v", mmuAction)
 				url := mmuAction.Action
 				// remove the notification from the messagingmenu map
-				svc.messagingMenu.RemoveNotification(mmuAction.Notification)
+				svc.messagingMenu.RemoveNotification(mmuAction.Notification, false)
 				// this ignores the error (it's been logged already)
 				svc.urlDispatcher.DispatchURL(url, mmuAction.App)
 			}
