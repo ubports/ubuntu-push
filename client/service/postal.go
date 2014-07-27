@@ -181,6 +181,8 @@ Handle:
 				svc.Log.Debugf("handleActions got nil action; ignoring")
 			} else {
 				url := action.Action
+				// remove the notification from the messaging menu
+				svc.messagingMenu.RemoveNotification(action.Nid, true)
 				// this ignores the error (it's been logged already)
 				svc.urlDispatcher.DispatchURL(url, action.App)
 			}
