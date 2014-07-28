@@ -439,15 +439,23 @@ func (s *poolSuite) TestSecondRunSameAppToBacklog(c *C) {
 	s.pool.Start()
 	defer s.pool.Stop()
 
-	app := clickhelp.MustParseAppId("com.example.test_test-app")
-	input := &HelperInput{
-		App:            app,
-		NotificationId: "foo",
-		Payload:        []byte(`"hello"`),
+	app1 := clickhelp.MustParseAppId("com.example.test_test-app-1")
+	input1 := &HelperInput{
+		App:            app1,
+		NotificationId: "foo1",
+		Payload:        []byte(`"hello1"`),
+	}
+	app2 := clickhelp.MustParseAppId("com.example.test_test-app-1")
+	input2 := &HelperInput{
+		App:            app2,
+		NotificationId: "foo2",
+		Payload:        []byte(`"hello2"`),
 	}
 
-	s.pool.Run("fake", input)
-	s.pool.Run("fake", input)
+	c.Assert(app1.Base(), Equals, app2.Base())
+
+	s.pool.Run("fake", input1)
+	s.pool.Run("fake", input2)
 
 	s.waitForArgs(c, "Launch")
 

@@ -108,7 +108,7 @@ func (pool *kindHelperPool) Start() chan *HelperResult {
 }
 
 func (pool *kindHelperPool) loop() {
-	running := make(map[*click.AppId]bool)
+	running := make(map[string]bool)
 	var backlog []*HelperInput
 
 	for {
@@ -117,16 +117,16 @@ func (pool *kindHelperPool) loop() {
 			if !ok {
 				return
 			}
-			if len(running) >= pool.maxNum || running[in.App] {
+			if len(running) >= pool.maxNum || running[in.App.Original()] {
 				backlog = append(backlog, in)
 				pool.log.Debugf("current helper input backlog has grown to %d entries.", len(backlog))
-			} else if pool.handleOne(in) != nil {
-				pool.failOne(in)
 			} else {
-				running[in.App] = true
+				if pool.tryOne(in) {
+					running[in.App.Original()] = true
+				}
 			}
 		case app := <-pool.chDone:
-			delete(running, app)
+			delete(running, app.Original())
 			if len(backlog) == 0 {
 				continue
 			}
@@ -134,12 +134,10 @@ func (pool *kindHelperPool) loop() {
 			done := false
 			for i, in := range backlog {
 				if in != nil {
-					if !done && !running[in.App] {
+					if !done && !running[in.App.Original()] {
 						backlog[i] = nil
-						if pool.handleOne(in) != nil {
-							pool.failOne(in)
-						} else {
-							running[in.App] = true
+						if pool.tryOne(in) {
+							running[in.App.Original()] = true
 							done = true
 						}
 					} else {
@@ -167,6 +165,14 @@ func (pool *kindHelperPool) Stop() {
 func (pool *kindHelperPool) Run(kind string, input *HelperInput) {
 	input.kind = kind
 	pool.chIn <- input
+}
+
+func (pool *kindHelperPool) tryOne(input *HelperInput) bool {
+	if pool.handleOne(input) != nil {
+		pool.failOne(input)
+		return false
+	}
+	return true
 }
 
 func (pool *kindHelperPool) failOne(input *HelperInput) {
