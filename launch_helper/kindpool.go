@@ -133,12 +133,10 @@ func (pool *kindHelperPool) loop() {
 			backlogSz := 0
 			done := false
 			for i, in := range backlog {
-				pool.log.Debugf("### inspecting backlog entry %d", i)
 				if in != nil {
 					if !done && !running[in.App] {
 						backlog[i] = nil
 						if pool.handleOne(in) != nil {
-							pool.log.Debugf("*** FAILED TO HANDLE ONE")
 							pool.failOne(in)
 						} else {
 							running[in.App] = true
