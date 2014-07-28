@@ -24,9 +24,14 @@ def main(helpers_data_path=None, helpers_data_path_tmp=None, hooks_path=None):
         except Exception:
             continue
         else:
-            exec_path = data['exec']
-            app_id = data['app_id']
             helper_id = os.path.splitext(hook_fname)[0]
+            exec_path = data['exec']
+            if exec_path != "":
+                realpath = os.path.realpath(os.path.join(hooks_path, hook_fname))
+                exec_path = os.path.join(os.path.dirname(realpath), exec_path)
+            app_id = data['app_id']
+            if app_id == "":
+                app_id = helper_id
             helpers_data[app_id] = {'exec': exec_path, 'helper_id': helper_id}
 
     # write the collected data to a temp file and rename the original once
