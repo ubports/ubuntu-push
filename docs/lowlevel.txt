@@ -141,7 +141,7 @@ sounds, haptic feedbak, etc.) Regardless of whether the user acknowledges those 
 is put in the Postal service for the application to pick up.
 
 Because user response to notifications can cause application activation, apps should check the status of the Postal service every time
-the application activates
+the application activates.
 
 com.ubuntu.Postal.Post
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -195,6 +195,27 @@ incoming notifications if it's running when they arrive. Remember that on Ubuntu
 it will often **not** be running when notifications arrive.
 
 The object path is similar to that of the Postal service methods, containing the QUOTED_PKGNAME.
+
+Persistent Notification Management
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Some notifications are persistent, meaning they remain even after the user interacts with it. For those notifications, there is a API that
+allows the app to manage them without having to know the underlying details of the platform.
+
+On each notification there's an optional ``tag`` field, used for this purpose.
+
+``array(string) ListPersistent(string APP_ID)``
+
+Returns a list of the tags of “persistent notifications” (messaging menu / notification centre entries) that are visible to the user right now.
+
+``void ClearPersistent(string APP_ID, [tag1, tag2,....])``
+
+Clears persistent notifications for that app by tag(s). If none given, match all.
+
+``void SetCounter(string APP_ID, int count int, bool visible)``
+
+Set the counter to the given values.
+
 
 Application Helpers
 -------------------
@@ -273,6 +294,7 @@ Here's a simple example::
 				"persist": true
 			}
 			"sound": "buzz.mp3",
+			"tag": "foo",
 			"vibrate": {
 				"duration": 200,
 				"pattern": (200, 100),
@@ -314,6 +336,8 @@ standard xdg dirs.
 
 The notification can contain a **vibrate** field, causing haptic feedback, that has the following content:
 
+The notification can contain a **tag** field, which can later be used by the `persistent notification management API. <#persistent-notification-management>`__
+
 :duration: duration in milliseconds
 :pattern: a list of integers describing a vibration pattern
 :repeat: number of times the pattern has to be repeated (defaults to 1, 0 is the same as 1)
@@ -323,8 +347,8 @@ The notification can contain a **emblem-counter** field, with the following cont
 :count: a number to be displayed over the application's icon in the launcher.
 :visible: set to true to show the counter, or false to hide it.
 
-.. note:: Unlike other notifications, emblem-counter needs to be cleaned by the app itself. That can be done by using Post and a notification
-          setting it to invisible, or to 0.
+.. note:: Unlike other notifications, emblem-counter needs to be cleaned by the app itself.
+          Please see `the persistent notification management section. <#persistent-notification-management>`__
 
 The actions this triggers can include:
 
@@ -370,6 +394,7 @@ Here is an example of the POST body using all the fields::
 					"persist": true
 				}
 				"sound": "buzz.mp3",
+				"tag": "foo",
 				"vibrate": {
 					"duration": 200,
 					"pattern": (200, 100),
