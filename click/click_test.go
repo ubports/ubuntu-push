@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "launchpad.net/gocheck"
 )
@@ -187,8 +188,9 @@ func (s *clickSuite) TestParseAndVerifyAppId(c *C) {
 }
 
 type helperSuite struct {
-	oldHookPath string
-	symlinkPath string
+	oldHookPath        string
+	symlinkPath        string
+	oldHelpersDataPath string
 }
 
 var _ = Suite(&helperSuite{})
@@ -197,6 +199,8 @@ func (s *helperSuite) SetUpTest(c *C) {
 	s.oldHookPath = hookPath
 	hookPath = c.MkDir()
 	s.symlinkPath = c.MkDir()
+	s.oldHelpersDataPath = helpersDataPath
+	helpersDataPath = filepath.Join(c.MkDir(), "helpers_data.json")
 }
 
 func (s *helperSuite) createHookfile(name string, content string) error {
@@ -217,32 +221,60 @@ func (s *helperSuite) createHookfile(name string, content string) error {
 	return nil
 }
 
+func (s *helperSuite) createHelpersDatafile(content string) error {
+	f, err := os.Create(helpersDataPath)
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString(content)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *helperSuite) TearDownTest(c *C) {
 	hookPath = s.oldHookPath
+	os.Remove(helpersDataPath)
+	helpersDataPath = s.oldHelpersDataPath
+	helpersDataMtime = time.Now().Add(-1 * time.Hour)
+	helpersInfo = nil
 }
 
 func (s *helperSuite) TestHelperBasic(c *C) {
-	c.Assert(s.createHookfile("com.example.test_test-helper_1", `{"exec": "tsthlpr"}`), IsNil)
+	c.Assert(s.createHelpersDatafile(`{"com.example.test_test-app_1": {"helper_id": "com.example.test_test-helper_1", "exec": "tsthlpr"}}`), IsNil)
 	app, err := ParseAppId("com.example.test_test-app_1")
 	c.Assert(err, IsNil)
 	hid, hex := app.Helper()
 	c.Check(hid, Equals, "com.example.test_test-helper_1")
-	c.Check(hex, Equals, filepath.Join(s.symlinkPath, "tsthlpr"))
+	c.Check(hex, Equals, "tsthlpr")
 }
 
 func (s *helperSuite) TestHelperFindsSpecific(c *C) {
-	// Glob() sorts, so the first one will come first
-	c.Assert(s.createHookfile("com.example.test_aaaa-helper_1", `{"exec": "aaaaaaa", "app_id": "com.example.test_test-other-app"}`), IsNil)
-	c.Assert(s.createHookfile("com.example.test_test-helper_1", `{"exec": "tsthlpr", "app_id": "com.example.test_test-app"}`), IsNil)
+	fileContent := `{"com.example.test_test-other-app": {"exec": "aaaaaaa", "helper_id": "com.example.test_aaaa-helper_1"},
+    "com.example.test_test-app_1": {"exec": "tsthlpr", "helper_id": "com.example.test_test-helper_1"}}`
+	c.Assert(s.createHelpersDatafile(fileContent), IsNil)
+
 	app, err := ParseAppId("com.example.test_test-app_1")
 	c.Assert(err, IsNil)
 	hid, hex := app.Helper()
 	c.Check(hid, Equals, "com.example.test_test-helper_1")
-	c.Check(hex, Equals, filepath.Join(s.symlinkPath, "tsthlpr"))
+	c.Check(hex, Equals, "tsthlpr")
 }
 
 func (s *helperSuite) TestHelperCanFail(c *C) {
-	c.Assert(s.createHookfile("com.example.test_aaaa-helper_1", `{"exec": "aaaaaaa", "app_id": "com.example.test_test-other-app"}`), IsNil)
+	fileContent := `{"com.example.test_test-other-app": {"exec": "aaaaaaa", "helper_id": "com.example.test_aaaa-helper_1"}}`
+	c.Assert(s.createHelpersDatafile(fileContent), IsNil)
+	app, err := ParseAppId("com.example.test_test-app_1")
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "")
+	c.Check(hex, Equals, "")
+}
+
+func (s *helperSuite) TestHelperFailInvalidJson(c *C) {
+	fileContent := `{invalid json"com.example.test_test-other-app": {"exec": "aaaaaaa", "helper_id": "com.example.test_aaaa-helper_1"}}`
+	c.Assert(s.createHelpersDatafile(fileContent), IsNil)
 	app, err := ParseAppId("com.example.test_test-app_1")
 	c.Assert(err, IsNil)
 	hid, hex := app.Helper()
@@ -253,6 +285,55 @@ func (s *helperSuite) TestHelperCanFail(c *C) {
 func (s *clickSuite) TestHelperlegacy(c *C) {
 	appname := "ubuntu-system-settings"
 	app, err := ParseAppId("_" + appname)
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "")
+	c.Check(hex, Equals, "")
+}
+
+// Missing Cache file test
+
+func (s *helperSuite) TestHelperMissingCacheFile(c *C) {
+	c.Assert(s.createHookfile("com.example.test_test-helper_1", `{"exec": "tsthlpr"}`), IsNil)
+	app, err := ParseAppId("com.example.test_test-app_1")
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "com.example.test_test-helper_1")
+	c.Check(hex, Equals, filepath.Join(s.symlinkPath, "tsthlpr"))
+}
+
+func (s *helperSuite) TestHelperFromHookBasic(c *C) {
+	c.Assert(s.createHookfile("com.example.test_test-helper_1", `{"exec": "tsthlpr"}`), IsNil)
+	app, err := ParseAppId("com.example.test_test-app_1")
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "com.example.test_test-helper_1")
+	c.Check(hex, Equals, filepath.Join(s.symlinkPath, "tsthlpr"))
+}
+
+func (s *helperSuite) TestHelperFromHookFindsSpecific(c *C) {
+	// Glob() sorts, so the first one will come first
+	c.Assert(s.createHookfile("com.example.test_aaaa-helper_1", `{"exec": "aaaaaaa", "app_id": "com.example.test_test-other-app"}`), IsNil)
+	c.Assert(s.createHookfile("com.example.test_test-helper_1", `{"exec": "tsthlpr", "app_id": "com.example.test_test-app"}`), IsNil)
+	app, err := ParseAppId("com.example.test_test-app_1")
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "com.example.test_test-helper_1")
+	c.Check(hex, Equals, filepath.Join(s.symlinkPath, "tsthlpr"))
+}
+
+func (s *helperSuite) TestHelperFromHookCanFail(c *C) {
+	c.Assert(s.createHookfile("com.example.test_aaaa-helper_1", `{"exec": "aaaaaaa", "app_id": "com.example.test_test-other-app"}`), IsNil)
+	app, err := ParseAppId("com.example.test_test-app_1")
+	c.Assert(err, IsNil)
+	hid, hex := app.Helper()
+	c.Check(hid, Equals, "")
+	c.Check(hex, Equals, "")
+}
+
+func (s *helperSuite) TestHelperFromHookCanFailInvalidJson(c *C) {
+	c.Assert(s.createHookfile("com.example.test_aaaa-helper_1", `invalid json {"exec": "aaaaaaa", "app_id": "com.example.test_test-other-app"}`), IsNil)
+	app, err := ParseAppId("com.example.test_test-app_1")
 	c.Assert(err, IsNil)
 	hid, hex := app.Helper()
 	c.Check(hid, Equals, "")
