@@ -60,10 +60,12 @@ type kindHelperPool struct {
 	log        logger.Logger
 	chOut      chan *HelperResult
 	chIn       chan *HelperInput
+	chDone     chan *click.AppId
 	launchers  map[string]HelperLauncher
 	lock       sync.Mutex
 	hmap       map[string]*HelperArgs
 	maxRuntime time.Duration
+	maxNum     int
 }
 
 // DefaultLaunchers produces the default map for kind -> HelperLauncher
@@ -81,12 +83,14 @@ func NewHelperPool(launchers map[string]HelperLauncher, log logger.Logger) Helpe
 		hmap:       make(map[string]*HelperArgs),
 		launchers:  launchers,
 		maxRuntime: 5 * time.Second,
+		maxNum:     5,
 	}
 }
 
 func (pool *kindHelperPool) Start() chan *HelperResult {
 	pool.chOut = make(chan *HelperResult)
 	pool.chIn = make(chan *HelperInput, InputBufferSize)
+	pool.chDone = make(chan *click.AppId)
 
 	for kind, launcher := range pool.launchers {
 		kind1 := kind
@@ -98,18 +102,56 @@ func (pool *kindHelperPool) Start() chan *HelperResult {
 		}
 	}
 
-	// xxx make sure at most X helpers are running
-	go func() {
-		for i := range pool.chIn {
-			if pool.handleOne(i) != nil {
-				pool.failOne(i)
-			}
-		}
-	}()
+	go pool.loop()
 
 	return pool.chOut
 }
 
+func (pool *kindHelperPool) loop() {
+	running := make(map[string]bool)
+	var backlog []*HelperInput
+
+	for {
+		select {
+		case in, ok := <-pool.chIn:
+			if !ok {
+				return
+			}
+			if len(running) >= pool.maxNum || running[in.App.Original()] {
+				backlog = append(backlog, in)
+				pool.log.Debugf("current helper input backlog has grown to %d entries.", len(backlog))
+			} else {
+				if pool.tryOne(in) {
+					running[in.App.Original()] = true
+				}
+			}
+		case app := <-pool.chDone:
+			delete(running, app.Original())
+			if len(backlog) == 0 {
+				continue
+			}
+			backlogSz := 0
+			done := false
+			for i, in := range backlog {
+				if in != nil {
+					if !done && !running[in.App.Original()] {
+						backlog[i] = nil
+						if pool.tryOne(in) {
+							running[in.App.Original()] = true
+							done = true
+						}
+					} else {
+						backlogSz++
+					}
+				}
+			}
+			if backlogSz == 0 {
+				backlog = nil
+			}
+			pool.log.Debugf("current helper input backlog has shrunk to %d entries.", backlogSz)
+		}
+	}
+}
 func (pool *kindHelperPool) Stop() {
 	close(pool.chIn)
 	for kind, launcher := range pool.launchers {
@@ -123,6 +165,14 @@ func (pool *kindHelperPool) Stop() {
 func (pool *kindHelperPool) Run(kind string, input *HelperInput) {
 	input.kind = kind
 	pool.chIn <- input
+}
+
+func (pool *kindHelperPool) tryOne(input *HelperInput) bool {
+	if pool.handleOne(input) != nil {
+		pool.failOne(input)
+		return false
+	}
+	return true
 }
 
 func (pool *kindHelperPool) failOne(input *HelperInput) {
@@ -218,6 +268,7 @@ func (pool *kindHelperPool) OneDone(uid string) {
 		// nothing to do
 		return
 	}
+	pool.chDone <- args.Input.App
 	defer func() {
 		pool.cleanupTempFiles(args.FileIn, args.FileOut)
 	}()
