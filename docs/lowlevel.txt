@@ -418,24 +418,3 @@ Here is an example of the POST body using all the fields::
 
 In this example, data is a `push message <#push-message-format>`__ but that's not necessarily the case. The content of the data field
 will be passed to the helper application which **has** to produce a push message.
-
-::
-
-
-	{
-		"appid": "com.ubuntu.music_music",
-		"token": "RAlG3ltQqK0gjGcU0QTUHw==",
-		"data": {
-			"message": {
-				"text": "hello"
-			},
-			"notification": {
-				"card": {
-					"summary": "the summary",
-					"body": "hello",
-					"popup": true,
-					"persist": true
-				}
-			}
-		}
-	}
