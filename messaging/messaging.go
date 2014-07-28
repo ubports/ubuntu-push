@@ -67,12 +67,7 @@ func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId strin
 	cAddNotification(app.DesktopId(), notificationId, card, payload)
 }
 
-// RemoveNotification deletes the notification from internal map
-func (mmu *MessagingMenu) RemoveNotification(notificationId string) {
-	mmu.removeNotification(notificationId, false)
-}
-
-func (mmu *MessagingMenu) removeNotification(notificationId string, fromUI bool) {
+func (mmu *MessagingMenu) RemoveNotification(notificationId string, fromUI bool) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	payload := mmu.notifications[notificationId]
@@ -159,7 +154,7 @@ func (mmu *MessagingMenu) Clear(app *click.AppId, tags ...string) int {
 	mmu.lock.RUnlock()
 
 	for _, nid := range nids {
-		mmu.removeNotification(nid, true)
+		mmu.RemoveNotification(nid, true)
 	}
 
 	return len(nids)

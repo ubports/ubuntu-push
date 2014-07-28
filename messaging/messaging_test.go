@@ -137,9 +137,9 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 	c.Assert(mmu.Present(ms.app, "notif3", &launch_helper.Notification{Tag: "X"}), Equals, false)
 	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one", ""})
 	// and they go away if we remove one
-	mmu.RemoveNotification("notif1")
+	mmu.RemoveNotification("notif1", false)
 	c.Check(mmu.Tags(ms.app), DeepEquals, []string{""})
-	mmu.RemoveNotification("notif2")
+	mmu.RemoveNotification("notif2", false)
 	c.Check(mmu.Tags(ms.app), IsNil)
 }
 
@@ -225,7 +225,7 @@ func (ms *MessagingSuite) TestRemoveNotification(c *C) {
 	c.Check(payload.Tag, Equals, "a-tag")
 	c.Check(payload.Ch, Equals, mmu.Ch)
 	// remove the notification (internal only)
-	mmu.removeNotification("notif-id", false)
+	mmu.RemoveNotification("notif-id", false)
 	// check it's gone
 	_, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, false)
@@ -241,7 +241,7 @@ func (ms *MessagingSuite) TestRemoveNotificationsFromUI(c *C) {
 	_, ok := mmu.notifications["notif-id"]
 	c.Assert(ok, Equals, true)
 	// remove the notification (both internal and from UI)
-	mmu.removeNotification("notif-id", true)
+	mmu.RemoveNotification("notif-id", true)
 	// check it's gone
 	_, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, false)

@@ -18,6 +18,7 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -593,14 +594,16 @@ func (ps *postalSuite) TestMessageHandlerInvalidAction(c *C) {
 
 func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	fmm := new(fakeMM)
 	app, _ := click.ParseAppId("com.example.test_test-app")
 	c.Assert(svc.Start(), IsNil)
+	svc.messagingMenu = fmm
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
 	bCh := make(chan bool)
 	go func() {
 		aCh <- nil // just in case?
-		aCh <- &notifications.RawAction{App: app, Action: "potato://"}
+		aCh <- &notifications.RawAction{App: app, Action: "potato://", Nid: "xyzzy"}
 		close(aCh)
 		bCh <- true
 	}()
@@ -612,6 +615,7 @@ func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	c.Assert(args[0].Args, HasLen, 2)
 	c.Assert(args[0].Args[0], Equals, "potato://")
 	c.Assert(args[0].Args[1], Equals, app.DispatchPackage())
+	c.Check(fmm.calls, DeepEquals, []string{"remove:xyzzy:true"})
 }
 
 func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
@@ -669,8 +673,10 @@ type fakeMM struct {
 
 func (*fakeMM) Present(*click.AppId, string, *launch_helper.Notification) bool { return false }
 func (*fakeMM) GetCh() chan *reply.MMActionReply                               { return nil }
-func (*fakeMM) RemoveNotification(string)                                      {}
 func (*fakeMM) StartCleanupLoop()                                              {}
+func (fmm *fakeMM) RemoveNotification(s string, b bool) {
+	fmm.calls = append(fmm.calls, fmt.Sprintf("remove:%s:%t", s, b))
+}
 func (fmm *fakeMM) Clear(*click.AppId, ...string) int {
 	fmm.calls = append(fmm.calls, "clear")
 	return 42
