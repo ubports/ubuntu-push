@@ -18,15 +18,14 @@ package service
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
-
+	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -37,6 +36,7 @@ import (
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/reply"
+	"launchpad.net/ubuntu-push/nih"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 )
@@ -80,16 +80,16 @@ func takeNextError(ch <-chan error) error {
 	}
 }
 
-func installTickMessageHandler(svc *PostalService) chan error {
-	ch := make(chan error)
+func installTickMessageHandler(svc *PostalService) chan bool {
+	ch := make(chan bool)
 	msgHandler := svc.GetMessageHandler()
-	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
-		var err error
+	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {
+		var b bool
 		if msgHandler != nil {
-			err = msgHandler(app, nid, output)
+			b = msgHandler(app, nid, output)
 		}
-		ch <- err
-		return err
+		ch <- b
+		return b
 	})
 	return ch
 }
@@ -270,85 +270,38 @@ func (ps *postalSuite) TestStopClosesBus(c *C) {
 }
 
 //
-// Post() tests
+// post() tests
 
-func (ps *postalSuite) TestPostWorks(c *C) {
+func (ps *postalSuite) TestPostHappyPath(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.msgHandler = nil
 	ch := installTickMessageHandler(svc)
-	fakeLauncher2 := &fakeHelperLauncher{ch: make(chan []byte)}
 	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"click":  ps.fakeLauncher,
-		"legacy": fakeLauncher2,
+		"click": ps.fakeLauncher,
 	}
 	c.Assert(svc.Start(), IsNil)
-	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, `{"message":{"world":1}}`}, nil)
-	c.Assert(err, IsNil)
-	c.Check(rvs, IsNil)
-	rvs, err = svc.post(aPackageOnBus, []interface{}{anAppId, `{"message":{"moon":1}}`}, nil)
-	c.Assert(err, IsNil)
-	c.Check(rvs, IsNil)
-	rvs, err = svc.post("_", []interface{}{"_classic-app", `{"message":{"mars":42}}`}, nil)
+	payload := `{"message": {"world":1}}`
+	rvs, err := svc.post(aPackageOnBus, []interface{}{anAppId, payload}, nil)
 	c.Assert(err, IsNil)
 	c.Check(rvs, IsNil)
 
 	if ps.fakeLauncher.done != nil {
 		// wait for the two posts to "launch"
-		takeNextBytes(ps.fakeLauncher.ch)
-		takeNextBytes(ps.fakeLauncher.ch)
-		takeNextBytes(fakeLauncher2.ch)
+		inputData := takeNextBytes(ps.fakeLauncher.ch)
+		c.Check(string(inputData), Equals, payload)
 
 		go ps.fakeLauncher.done("0") // OneDone
-		go ps.fakeLauncher.done("1") // OneDone
-		go fakeLauncher2.done("0")
 	}
 
-	c.Check(takeNextError(ch), IsNil) // one,
-	c.Check(takeNextError(ch), IsNil) // two,
-	c.Check(takeNextError(ch), IsNil) // three posts
-	c.Assert(svc.mbox, HasLen, 2)
+	c.Check(takeNextBool(ch), Equals, false) // one,
+	// xxx here?
+	c.Assert(svc.mbox, HasLen, 1)
 	box, ok := svc.mbox[anAppId]
 	c.Check(ok, Equals, true)
 	msgs := box.AllMessages()
-	c.Assert(msgs, HasLen, 2)
-	c.Check(msgs[0], Equals, `{"world":1}`)
-	c.Check(msgs[1], Equals, `{"moon":1}`)
-	box, ok = svc.mbox["_classic-app"]
-	c.Assert(ok, Equals, true)
-	msgs = box.AllMessages()
 	c.Assert(msgs, HasLen, 1)
-	c.Check(msgs[0], Equals, `{"mars":42}`)
-}
-
-func (ps *postalSuite) TestPostSignal(c *C) {
-	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	svc.msgHandler = nil
-
-	hInp := &launch_helper.HelperInput{
-		App: clickhelp.MustParseAppId(anAppId),
-	}
-	res := &launch_helper.HelperResult{Input: hInp}
-
-	svc.handleHelperResult(res)
-
-	// and check it fired the right signal
-	callArgs := testibus.GetCallArgs(ps.bus)
-	l := len(callArgs)
-	if l < 1 {
-		c.Fatal("not enough elements in resposne from GetCallArgs")
-	}
-	c.Check(callArgs[l-1].Member, Equals, "::Signal")
-	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", aPackageOnBus, []interface{}{anAppId}})
-}
-
-func (ps *postalSuite) TestPostFailsIfPostFails(c *C) {
-	bus := testibus.NewTestingEndpoint(condition.Work(true),
-		condition.Work(false))
-	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	svc.Bus = bus
-	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return errors.New("fail") })
-	_, err := svc.post("/hello", []interface{}{"xyzzy"}, nil)
-	c.Check(err, NotNil)
+	c.Check(msgs[0], Equals, `{"world":1}`)
+	c.Check(box.nids[0], Not(Equals), "")
 }
 
 func (ps *postalSuite) TestPostFailsIfBadArgs(c *C) {
@@ -371,76 +324,122 @@ func (ps *postalSuite) TestPostFailsIfBadArgs(c *C) {
 	}
 }
 
-//
-// Post (Broadcast) tests
+// Post() tests
 
-func (ps *postalSuite) TestPostBroadcast(c *C) {
-
-	bus := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(1))
+func (ps *postalSuite) TestPostWorks(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-
-	svc.NotificationsEndp = bus
+	svc.msgHandler = nil
+	ch := installTickMessageHandler(svc)
+	fakeLauncher2 := &fakeHelperLauncher{ch: make(chan []byte)}
 	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"legacy": ps.fakeLauncher,
+		"click":  ps.fakeLauncher,
+		"legacy": fakeLauncher2,
 	}
 	c.Assert(svc.Start(), IsNil)
 
-	msgId := uuid.New()
-	svc.SetMessageHandler(func(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
-		expectedAppId, _ := click.ParseAppId("_ubuntu-system-settings")
-		c.Check(app, DeepEquals, expectedAppId)
-		c.Check(nid, Equals, msgId)
-		return nil
-	})
-	decoded := map[string]interface{}{
-		"daily/mako": []interface{}{float64(102), "tubular"},
-	}
-	// marshal decoded  to json
-	payload, _ := json.Marshal(decoded)
-	appId, _ := click.ParseAppId("_ubuntu-system-settings")
-	err := svc.Post(appId, msgId, payload)
-	c.Assert(err, IsNil)
+	app := clickhelp.MustParseAppId(anAppId)
+	svc.Post(app, "m1", json.RawMessage(`{"message":{"world":1}}`))
+	svc.Post(app, "m2", json.RawMessage(`{"message":{"moon":1}}`))
+	classicApp := clickhelp.MustParseAppId("_classic-app")
+	svc.Post(classicApp, "m3", json.RawMessage(`{"message":{"mars":42}}`))
 
 	if ps.fakeLauncher.done != nil {
+		// wait for the two posts to "launch"
+		takeNextBytes(ps.fakeLauncher.ch)
 		inputData := takeNextBytes(ps.fakeLauncher.ch)
-		expectedData, _ := json.Marshal(decoded)
-		c.Check(inputData, DeepEquals, expectedData)
+		takeNextBytes(fakeLauncher2.ch)
+
+		c.Check(string(inputData), Equals, `{"message":{"moon":1}}`)
+
 		go ps.fakeLauncher.done("0") // OneDone
+		go ps.fakeLauncher.done("1") // OneDone
+		go fakeLauncher2.done("0")
 	}
+
+	c.Check(takeNextBool(ch), Equals, false) // one,
+	c.Check(takeNextBool(ch), Equals, false) // two,
+	c.Check(takeNextBool(ch), Equals, false) // three posts
+	c.Assert(svc.mbox, HasLen, 2)
+	box, ok := svc.mbox[anAppId]
+	c.Check(ok, Equals, true)
+	msgs := box.AllMessages()
+	c.Assert(msgs, HasLen, 2)
+	c.Check(msgs[0], Equals, `{"world":1}`)
+	c.Check(msgs[1], Equals, `{"moon":1}`)
+	c.Check(box.nids, DeepEquals, []string{"m1", "m2"})
+	box, ok = svc.mbox["_classic-app"]
+	c.Assert(ok, Equals, true)
+	msgs = box.AllMessages()
+	c.Assert(msgs, HasLen, 1)
+	c.Check(msgs[0], Equals, `{"mars":42}`)
 }
 
-func (ps *postalSuite) TestPostBroadcastDoesNotFail(c *C) {
-	bus := testibus.NewTestingEndpoint(condition.Work(true),
-		condition.Work(false))
+func (ps *postalSuite) TestPostCallsMessageHandlerDetails(c *C) {
+	ch := make(chan *launch_helper.HelperOutput)
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"legacy": ps.fakeLauncher,
+		"click": ps.fakeLauncher,
 	}
 	c.Assert(svc.Start(), IsNil)
-	svc.NotificationsEndp = bus
-	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error {
-		ps.log.Debugf("about to fail")
-		return errors.New("fail")
-	})
-	ch := installTickMessageHandler(svc)
-	decoded := map[string]interface{}{
-		"daily/mako": []interface{}{float64(102), "tubular"},
+	// check the message handler gets called
+	app := clickhelp.MustParseAppId(anAppId)
+	f := func(app *click.AppId, nid string, s *launch_helper.HelperOutput) bool {
+		c.Check(app.Base(), Equals, anAppId)
+		c.Check(nid, Equals, "m7")
+		ch <- s
+		return true
 	}
-	// marshal decoded  to json
-	payload, _ := json.Marshal(decoded)
-	appId, _ := click.ParseAppId("_ubuntu-system-settings")
-	msgId := uuid.New()
-	err := svc.Post(appId, msgId, payload)
-	c.Assert(err, IsNil)
+	svc.SetMessageHandler(f)
+	svc.Post(app, "m7", json.RawMessage("{}"))
 
 	if ps.fakeLauncher.done != nil {
 		takeNextBytes(ps.fakeLauncher.ch)
+
 		go ps.fakeLauncher.done("0") // OneDone
 	}
 
-	c.Check(takeNextError(ch), NotNil) // the messagehandler failed
-	c.Check(err, IsNil)                // but broadcast was oblivious
-	c.Check(ps.log.Captured(), Matches, `(?sm).*about to fail$`)
+	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
+}
+
+func (ps *postalSuite) TestAfterMessageHandlerSignal(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	svc.msgHandler = nil
+
+	hInp := &launch_helper.HelperInput{
+		App: clickhelp.MustParseAppId(anAppId),
+	}
+	res := &launch_helper.HelperResult{Input: hInp}
+
+	svc.handleHelperResult(res)
+
+	// and check it fired the right signal
+	callArgs := testibus.GetCallArgs(ps.bus)
+	l := len(callArgs)
+	if l < 1 {
+		c.Fatal("not enough elements in resposne from GetCallArgs")
+	}
+	c.Check(callArgs[l-1].Member, Equals, "::Signal")
+	c.Check(callArgs[l-1].Args, DeepEquals, []interface{}{"Post", aPackageOnBus, []interface{}{anAppId}})
+}
+
+func (ps *postalSuite) TestFailingMessageHandlerSurvived(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) bool {
+		return false
+	})
+
+	hInp := &launch_helper.HelperInput{
+		App: clickhelp.MustParseAppId(anAppId),
+	}
+	res := &launch_helper.HelperResult{Input: hInp}
+
+	svc.handleHelperResult(res)
+
+	c.Check(ps.log.Captured(), Equals, "DEBUG msgHandler did not present the notification\n")
+	// we actually want to send a signal even if we didn't do anything
+	callArgs := testibus.GetCallArgs(ps.bus)
+	c.Assert(len(callArgs), Equals, 1)
+	c.Check(callArgs[0].Member, Equals, "::Signal")
 }
 
 //
@@ -492,39 +491,13 @@ func (ps *postalSuite) TestMessageHandlerPublicAPI(c *C) {
 	svc := new(PostalService)
 	c.Assert(svc.msgHandler, IsNil)
 	var ext = &launch_helper.HelperOutput{}
-	e := errors.New("Hello")
-	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ext = s; return e }
+	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) bool { ext = s; return false }
 	c.Check(svc.GetMessageHandler(), IsNil)
 	svc.SetMessageHandler(f)
 	c.Check(svc.GetMessageHandler(), NotNil)
 	hOutput := &launch_helper.HelperOutput{[]byte("37"), nil}
-	c.Check(svc.msgHandler(nil, "", hOutput), Equals, e)
+	c.Check(svc.msgHandler(nil, "", hOutput), Equals, false)
 	c.Check(ext, DeepEquals, hOutput)
-}
-
-func (ps *postalSuite) TestPostCallsMessageHandler(c *C) {
-	ch := make(chan *launch_helper.HelperOutput)
-	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	svc.launchers = map[string]launch_helper.HelperLauncher{
-		"click": ps.fakeLauncher,
-	}
-	c.Assert(svc.Start(), IsNil)
-	// check the message handler gets called
-	f := func(_ *click.AppId, _ string, s *launch_helper.HelperOutput) error { ch <- s; return nil }
-	svc.SetMessageHandler(f)
-	c.Check(svc.Post(&click.AppId{Click: true}, "thing", json.RawMessage("{}")), IsNil)
-
-	if ps.fakeLauncher.done != nil {
-		takeNextBytes(ps.fakeLauncher.ch)
-
-		go ps.fakeLauncher.done("0") // OneDone
-	}
-
-	c.Check(takeNextHelperOutput(ch), DeepEquals, &launch_helper.HelperOutput{})
-	err := errors.New("ouch")
-	svc.SetMessageHandler(func(*click.AppId, string, *launch_helper.HelperOutput) error { return err })
-	// but the error doesn't bubble out
-	c.Check(svc.Post(&click.AppId{}, "", json.RawMessage("{}")), IsNil)
 }
 
 func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
@@ -544,12 +517,12 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	vib := &launch_helper.Vibration{Duration: 500}
 	emb := &launch_helper.EmblemCounter{Count: 2, Visible: true}
 	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card, EmblemCounter: emb, Vibrate: vib}}
-	err := svc.messageHandler(&click.AppId{}, "", output)
-	c.Assert(err, IsNil)
+	b := svc.messageHandler(&click.AppId{}, "", output)
+	c.Assert(b, Equals, true)
 	args := testibus.GetCallArgs(endp)
 	l := len(args)
 	if l < 4 {
-		c.Fatal("not enough elements in resposne from GetCallArgs")
+		c.Fatal("not enough elements in response from GetCallArgs")
 	}
 	mm := make([]string, 4)
 	for i, m := range args[l-4:] {
@@ -561,7 +534,7 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	c.Check(mm, DeepEquals, []string{"::SetProperty", "::SetProperty", "Notify", "VibratePattern"})
 	// For the other ones, check the logs
 	c.Check(ps.log.Captured(), Matches, `(?sm).* no persistable card:.*`)
-	c.Check(ps.log.Captured(), Matches, `(?sm).* no Sound in the notification.*`)
+	c.Check(ps.log.Captured(), Matches, `(?sm).* notification has no Sound:.*`)
 }
 
 func (ps *postalSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
@@ -581,18 +554,18 @@ func (ps *postalSuite) TestMessageHandlerInhibition(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.WindowStackEndp = endp
 	c.Assert(svc.Start(), IsNil)
-	output := &launch_helper.HelperOutput{} // Doesn't matter
-	err := svc.messageHandler(clickhelp.MustParseAppId("com.example.test_test-app_0"), "", output)
-	c.Check(err, IsNil)
-	c.Check(ps.log.Captured(), Matches, `(?sm).* Notification skipped because app is focused.*`)
+	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{}} // Doesn't matter
+	b := svc.messageHandler(clickhelp.MustParseAppId("com.example.test_test-app_0"), "", output)
+	c.Check(b, Equals, false)
+	c.Check(ps.log.Captured(), Matches, `(?sm).* notification skipped because app is focused.*`)
 }
 
 func (ps *postalSuite) TestMessageHandlerReportsButIgnoresUnmarshalErrors(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	c.Assert(svc.Start(), IsNil)
 	output := &launch_helper.HelperOutput{[]byte(`broken`), nil}
-	err := svc.messageHandler(nil, "", output)
-	c.Check(err, IsNil)
+	b := svc.messageHandler(nil, "", output)
+	c.Check(b, Equals, false)
 	c.Check(ps.log.Captured(), Matches, "(?msi).*skipping notification: nil.*")
 }
 
@@ -602,20 +575,35 @@ func (ps *postalSuite) TestMessageHandlerReportsButIgnoresNilNotifies(c *C) {
 	c.Assert(svc.Start(), IsNil)
 	svc.NotificationsEndp = endp
 	output := &launch_helper.HelperOutput{[]byte(`{}`), nil}
-	err := svc.messageHandler(nil, "", output)
-	c.Assert(err, IsNil)
+	b := svc.messageHandler(nil, "", output)
+	c.Assert(b, Equals, false)
 	c.Check(ps.log.Captured(), Matches, "(?msi).*skipping notification: nil.*")
+}
+
+func (ps *postalSuite) TestMessageHandlerInvalidAction(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false), []string{"com.example.test_test-app"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"notsupported://test-app"}}
+	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: &card}}
+	b := svc.messageHandler(clickhelp.MustParseAppId("com.example.test_test-app_0"), "", output)
+	c.Check(b, Equals, false)
+	c.Check(ps.log.Captured(), Matches, `(?sm).*TestURL for \[notsupported://test-app\] failed with no way.*`)
 }
 
 func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	fmm := new(fakeMM)
+	app, _ := click.ParseAppId("com.example.test_test-app")
 	c.Assert(svc.Start(), IsNil)
+	svc.messagingMenu = fmm
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
 	bCh := make(chan bool)
 	go func() {
 		aCh <- nil // just in case?
-		aCh <- &notifications.RawAction{Action: "potato://"}
+		aCh <- &notifications.RawAction{App: app, Action: "potato://", Nid: "xyzzy"}
 		close(aCh)
 		bCh <- true
 	}()
@@ -624,19 +612,22 @@ func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	args := testibus.GetCallArgs(ps.urlDispBus)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
-	c.Assert(args[0].Args, HasLen, 1)
+	c.Assert(args[0].Args, HasLen, 2)
 	c.Assert(args[0].Args[0], Equals, "potato://")
+	c.Assert(args[0].Args[1], Equals, app.DispatchPackage())
+	c.Check(fmm.calls, DeepEquals, []string{"remove:xyzzy:true"})
 }
 
 func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	c.Assert(svc.Start(), IsNil)
+	app, _ := click.ParseAppId("com.example.test_test-app")
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
 	bCh := make(chan bool)
 	go func() {
 		rCh <- nil // just in case?
-		rCh <- &reply.MMActionReply{Action: "potato://", Notification: "foo.bar"}
+		rCh <- &reply.MMActionReply{App: app, Action: "potato://", Notification: "foo.bar"}
 		close(rCh)
 		bCh <- true
 	}()
@@ -645,6 +636,144 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	args := testibus.GetCallArgs(ps.urlDispBus)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "DispatchURL")
-	c.Assert(args[0].Args, HasLen, 1)
+	c.Assert(args[0].Args, HasLen, 2)
 	c.Assert(args[0].Args[0], Equals, "potato://")
+	c.Assert(args[0].Args[1], Equals, app.DispatchPackage())
+}
+
+func (ps *postalSuite) TestValidateActions(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app_0"})
+	svc.URLDispatcherEndp = endp
+	c.Assert(svc.Start(), IsNil)
+	card := launch_helper.Card{Actions: []string{"potato://test-app"}}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+}
+
+func (ps *postalSuite) TestValidateActionsNoActions(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	card := launch_helper.Card{}
+	notif := &launch_helper.Notification{Card: &card}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+}
+
+func (ps *postalSuite) TestValidateActionsNoCard(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	notif := &launch_helper.Notification{}
+	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
+	c.Check(b, Equals, true)
+}
+
+type fakeMM struct {
+	calls []string
+}
+
+func (*fakeMM) Present(*click.AppId, string, *launch_helper.Notification) bool { return false }
+func (*fakeMM) GetCh() chan *reply.MMActionReply                               { return nil }
+func (*fakeMM) StartCleanupLoop()                                              {}
+func (fmm *fakeMM) RemoveNotification(s string, b bool) {
+	fmm.calls = append(fmm.calls, fmt.Sprintf("remove:%s:%t", s, b))
+}
+func (fmm *fakeMM) Clear(*click.AppId, ...string) int {
+	fmm.calls = append(fmm.calls, "clear")
+	return 42
+}
+func (fmm *fakeMM) Tags(*click.AppId) []string {
+	fmm.calls = append(fmm.calls, "tags")
+	return []string{"hello"}
+}
+
+func (ps *postalSuite) TestListPersistent(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	fmm := new(fakeMM)
+	svc.messagingMenu = fmm
+
+	itags, err := svc.listPersistent(aPackageOnBus, []interface{}{anAppId}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(itags, HasLen, 1)
+	c.Assert(itags[0], FitsTypeOf, []string(nil))
+	tags := itags[0].([]string)
+	c.Check(tags, DeepEquals, []string{"hello"})
+	c.Check(fmm.calls, DeepEquals, []string{"tags"})
+}
+
+func (ps *postalSuite) TestListPersistentErrors(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	_, err := svc.listPersistent(aPackageOnBus, nil, nil)
+	c.Check(err, Equals, ErrBadArgCount)
+	_, err = svc.listPersistent(aPackageOnBus, []interface{}{42}, nil)
+	c.Check(err, Equals, ErrBadArgType)
+	_, err = svc.listPersistent(aPackageOnBus, []interface{}{"xyzzy"}, nil)
+	c.Check(err, Equals, ErrBadAppId)
+}
+
+func (ps *postalSuite) TestClearPersistent(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	fmm := new(fakeMM)
+	svc.messagingMenu = fmm
+
+	icleared, err := svc.clearPersistent(aPackageOnBus, []interface{}{anAppId, "one", ""}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(icleared, HasLen, 1)
+	c.Check(icleared[0], Equals, 42)
+}
+
+func (ps *postalSuite) TestClearPersistentErrors(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	for i, s := range []struct {
+		args []interface{}
+		err  error
+	}{
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{42}, ErrBadArgType},
+		{[]interface{}{"xyzzy"}, ErrBadAppId},
+		{[]interface{}{anAppId, 42}, ErrBadArgType},
+		{[]interface{}{anAppId, "", 42}, ErrBadArgType},
+	} {
+		_, err := svc.clearPersistent(aPackageOnBus, s.args, nil)
+		c.Check(err, Equals, s.err, Commentf("iter %d", i))
+	}
+}
+
+func (ps *postalSuite) TestSetCounter(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	c.Check(svc.Start(), IsNil)
+
+	_, err := svc.setCounter(aPackageOnBus, []interface{}{anAppId, int32(42), true}, nil)
+	c.Assert(err, IsNil)
+
+	quoted := "/" + string(nih.Quote([]byte(anAppId)))
+
+	callArgs := testibus.GetCallArgs(svc.EmblemCounterEndp)
+	c.Assert(callArgs, HasLen, 2)
+	c.Check(callArgs[0].Member, Equals, "::SetProperty")
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", quoted, dbus.Variant{int32(42)}})
+
+	c.Check(callArgs[1].Member, Equals, "::SetProperty")
+	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", quoted, dbus.Variant{true}})
+}
+
+func (ps *postalSuite) TestSetCounterErrors(c *C) {
+	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
+	svc.Start()
+	for i, s := range []struct {
+		args []interface{}
+		err  error
+	}{
+		{[]interface{}{anAppId, int32(42), true}, nil}, // for reference
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{anAppId}, ErrBadArgCount},
+		{[]interface{}{anAppId, int32(42)}, ErrBadArgCount},
+		{[]interface{}{anAppId, int32(42), true, "potato"}, ErrBadArgCount},
+		{[]interface{}{"xyzzy", int32(42), true}, ErrBadAppId},
+		{[]interface{}{1234567, int32(42), true}, ErrBadArgType},
+		{[]interface{}{anAppId, "potatoe", true}, ErrBadArgType},
+		{[]interface{}{anAppId, int32(42), "ru"}, ErrBadArgType},
+	} {
+		_, err := svc.setCounter(aPackageOnBus, s.args, nil)
+		c.Check(err, Equals, s.err, Commentf("iter %d", i))
+	}
 }

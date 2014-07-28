@@ -70,7 +70,7 @@ func (ss *soundsSuite) TestPresentFails(c *C) {
 	}
 
 	// nil notification
-	c.Check(s.Present(ss.app, "", nil), Equals, false)
+	c.Check(func() { s.Present(ss.app, "", nil) }, Panics, `please check notification is not nil before calling present`)
 	// no Sound
 	c.Check(s.Present(ss.app, "", &launch_helper.Notification{}), Equals, false)
 	// bad player

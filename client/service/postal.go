@@ -39,7 +39,21 @@ import (
 	"launchpad.net/ubuntu-push/util"
 )
 
-type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) error
+type messageHandler func(*click.AppId, string, *launch_helper.HelperOutput) bool
+
+// a Presenter is something that knows how to present a Notification
+type Presenter interface {
+	Present(*click.AppId, string, *launch_helper.Notification) bool
+}
+
+type notificationCentre interface {
+	Presenter
+	GetCh() chan *reply.MMActionReply
+	RemoveNotification(string, bool)
+	StartCleanupLoop()
+	Tags(*click.AppId) []string
+	Clear(*click.AppId, ...string) int
+}
 
 // PostalService is the dbus api
 type PostalService struct {
@@ -48,7 +62,7 @@ type PostalService struct {
 	msgHandler    messageHandler
 	launchers     map[string]launch_helper.HelperLauncher
 	HelperPool    launch_helper.HelperPool
-	messagingMenu *messaging.MessagingMenu
+	messagingMenu notificationCentre
 	// the endpoints are only exposed for testing from client
 	// XXX: uncouple some more so this isn't necessary
 	EmblemCounterEndp bus.Endpoint
@@ -57,6 +71,7 @@ type PostalService struct {
 	URLDispatcherEndp bus.Endpoint
 	WindowStackEndp   bus.Endpoint
 	// presenters:
+	Presenters    []Presenter
 	emblemCounter *emblemcounter.EmblemCounter
 	haptic        *haptic.Haptic
 	notifications *notifications.RawNotifications
@@ -112,8 +127,11 @@ func (svc *PostalService) GetMessageHandler() messageHandler {
 // Start() dials the bus, grab the name, and listens for method calls.
 func (svc *PostalService) Start() error {
 	err := svc.DBusService.Start(bus.DispatchMap{
-		"PopAll": svc.popAll,
-		"Post":   svc.post,
+		"PopAll":          svc.popAll,
+		"Post":            svc.post,
+		"ListPersistent":  svc.listPersistent,
+		"ClearPersistent": svc.clearPersistent,
+		"SetCounter":      svc.setCounter,
 	}, PostalServiceBusAddress)
 	if err != nil {
 		return err
@@ -128,6 +146,13 @@ func (svc *PostalService) Start() error {
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log)
 	svc.sound = sounds.New(svc.Log)
 	svc.messagingMenu = messaging.New(svc.Log)
+	svc.Presenters = []Presenter{
+		svc.notifications,
+		svc.emblemCounter,
+		svc.haptic,
+		svc.sound,
+		svc.messagingMenu,
+	}
 	if useTrivialHelper {
 		svc.HelperPool = launch_helper.NewTrivialHelperPool(svc.Log)
 	} else {
@@ -136,7 +161,8 @@ func (svc *PostalService) Start() error {
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
 	go svc.consumeHelperResults(svc.HelperPool.Start())
-	go svc.handleActions(actionsCh, svc.messagingMenu.Ch)
+	go svc.handleActions(actionsCh, svc.messagingMenu.GetCh())
+	svc.messagingMenu.StartCleanupLoop()
 	return nil
 }
 
@@ -155,8 +181,10 @@ Handle:
 				svc.Log.Debugf("handleActions got nil action; ignoring")
 			} else {
 				url := action.Action
+				// remove the notification from the messaging menu
+				svc.messagingMenu.RemoveNotification(action.Nid, true)
 				// this ignores the error (it's been logged already)
-				svc.urlDispatcher.DispatchURL(url)
+				svc.urlDispatcher.DispatchURL(url, action.App)
 			}
 		case mmuAction, ok := <-mmuActionsCh:
 			if !ok {
@@ -168,9 +196,9 @@ Handle:
 				svc.Log.Debugf("handleActions (MMU) got: %v", mmuAction)
 				url := mmuAction.Action
 				// remove the notification from the messagingmenu map
-				svc.messagingMenu.RemoveNotification(mmuAction.Notification)
+				svc.messagingMenu.RemoveNotification(mmuAction.Notification, false)
 				// this ignores the error (it's been logged already)
-				svc.urlDispatcher.DispatchURL(url)
+				svc.urlDispatcher.DispatchURL(url, mmuAction.App)
 			}
 
 		}
@@ -207,6 +235,54 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 	wg.Wait()
 
 	return notifications.Raw(svc.NotificationsEndp, svc.Log).WatchActions()
+}
+
+func (svc *PostalService) listPersistent(path string, args, _ []interface{}) ([]interface{}, error) {
+	app, err := svc.grabDBusPackageAndAppId(path, args, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	tagmap := svc.messagingMenu.Tags(app)
+	return []interface{}{tagmap}, nil
+}
+
+func (svc *PostalService) clearPersistent(path string, args, _ []interface{}) ([]interface{}, error) {
+	if len(args) == 0 {
+		return nil, ErrBadArgCount
+	}
+	app, err := svc.grabDBusPackageAndAppId(path, args[:1], 0)
+	if err != nil {
+		return nil, err
+	}
+	tags := make([]string, len(args)-1)
+	for i, itag := range args[1:] {
+		tag, ok := itag.(string)
+		if !ok {
+			return nil, ErrBadArgType
+		}
+		tags[i] = tag
+	}
+	return []interface{}{svc.messagingMenu.Clear(app, tags...)}, nil
+}
+
+func (svc *PostalService) setCounter(path string, args, _ []interface{}) ([]interface{}, error) {
+	app, err := svc.grabDBusPackageAndAppId(path, args, 2)
+	if err != nil {
+		return nil, err
+	}
+
+	count, ok := args[1].(int32)
+	if !ok {
+		return nil, ErrBadArgType
+	}
+	visible, ok := args[2].(bool)
+	if !ok {
+		return nil, ErrBadArgType
+	}
+
+	svc.emblemCounter.SetCounter(app, count, visible)
+	return nil, nil
 }
 
 func (svc *PostalService) popAll(path string, args, _ []interface{}) ([]interface{}, error) {
@@ -250,14 +326,16 @@ func (svc *PostalService) post(path string, args, _ []interface{}) ([]interface{
 		return nil, ErrBadJSON
 	}
 
-	nid := newNid()
-
-	return nil, svc.Post(app, nid, rawJSON)
+	svc.Post(app, "", rawJSON)
+	return nil, nil
 }
 
 // Post() signals to an application over dbus that a notification
-// has arrived.
-func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMessage) error {
+// has arrived. If nid is "" generate one.
+func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMessage) {
+	if nid == "" {
+		nid = newNid()
+	}
 	arg := launch_helper.HelperInput{
 		App:            app,
 		NotificationId: nid,
@@ -270,7 +348,6 @@ func (svc *PostalService) Post(app *click.AppId, nid string, payload json.RawMes
 		kind = "legacy"
 	}
 	svc.HelperPool.Run(kind, &arg)
-	return nil
 }
 
 func (svc *PostalService) consumeHelperResults(ch chan *launch_helper.HelperResult) {
@@ -299,27 +376,41 @@ func (svc *PostalService) handleHelperResult(res *launch_helper.HelperResult) {
 	box.Append(output.Message, nid)
 
 	if svc.msgHandler != nil {
-		err := svc.msgHandler(app, nid, &output)
-		if err != nil {
-			svc.DBusService.Log.Errorf("msgHandler returned %v", err)
-			return
+		b := svc.msgHandler(app, nid, &output)
+		if !b {
+			svc.Log.Debugf("msgHandler did not present the notification")
 		}
-		svc.DBusService.Log.Debugf("call to msgHandler successful")
 	}
 
 	svc.Bus.Signal("Post", "/"+string(nih.Quote([]byte(app.Package))), []interface{}{appId})
 }
 
-func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) error {
+func (svc *PostalService) validateActions(app *click.AppId, notif *launch_helper.Notification) bool {
+	if notif.Card == nil || len(notif.Card.Actions) == 0 {
+		return true
+	}
+	return svc.urlDispatcher.TestURL(app, notif.Card.Actions)
+}
+
+func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {
+	if output == nil || output.Notification == nil {
+		svc.Log.Debugf("skipping notification: nil.")
+		return false
+	}
+	// validate actions
+	if !svc.validateActions(app, output.Notification) {
+		// no need to log, (it's been logged already)
+		return false
+	}
 	if !svc.windowStack.IsAppFocused(app) {
-		svc.messagingMenu.Present(app, nid, output.Notification)
-		_, err := svc.notifications.Present(app, nid, output.Notification)
-		svc.emblemCounter.Present(app, nid, output.Notification)
-		svc.haptic.Present(app, nid, output.Notification)
-		svc.sound.Present(app, nid, output.Notification)
-		return err
+		b := false
+		for _, p := range svc.Presenters {
+			// we don't want this to shortcut :)
+			b = p.Present(app, nid, output.Notification) || b
+		}
+		return b
 	} else {
-		svc.Log.Debugf("Notification skipped because app is focused.")
-		return nil
+		svc.Log.Debugf("notification skipped because app is focused.")
+		return false
 	}
 }
