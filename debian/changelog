@@ -2,7 +2,7 @@ ubuntu-push (0.50) UNRELEASED; urgency=medium
 
   [ Samuele Pedroni ]
   * Cleanup and improve pos/Post tests
-  
+
   [ Guillermo Gonzalez ]
   * Add a loop to cleanup MessagingMenu.notifications map when the
     notifications are dismissed.
@@ -15,6 +15,7 @@ ubuntu-push (0.50) UNRELEASED; urgency=medium
   * Remove snap decisions support.
   * Remove the notification from the messaging menu when the bubble is
     acted on.
+  * Don't run more than 5 helpers at a time, and never more than one per app.
 
  -- John R. Lenton <john.lenton@canonical.com>  Mon, 28 Jul 2014 17:44:35 +0200
 
