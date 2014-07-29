@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Collect helpers hook data into a single json file"""
 
 import argparse
@@ -9,11 +9,43 @@ import time
 
 import xdg.BaseDirectory
 
+from gi.repository import GLib
+from gi.repository import Gio
+from gi.repository import Click
 
 hook_ext = '.json'
 
 
-def main(helpers_data_path=None, helpers_data_path_tmp=None, hooks_path=None):
+def tup2variant(tup):
+    builder = GLib.VariantBuilder.new(GLib.VariantType.new("(ss)"))
+    builder.add_value(GLib.Variant.new_string(tup[0]))
+    builder.add_value(GLib.Variant.new_string(tup[1]))
+    return builder.end()
+
+
+def cleanup_settings():
+    clickdb = Click.DB.new()
+    clickdb.read()
+
+    pkgnames = []
+    for package in clickdb.get_packages(False):
+        pkgnames.append(package.get_property('package'))
+
+    settings = Gio.Settings.new('com.ubuntu.touch.notifications')
+    goodapps = GLib.VariantBuilder.new(GLib.VariantType.new("a(ss)"))
+
+    for appname in settings.get_value('popup-blacklist').unpack():
+        if appname[0] in pkgnames:
+            goodapps.add_value(tup2variant(appname))
+        elif (appname[0] == appname[1]):
+            appinfo = Gio.DesktopAppInfo.new(appname[0] + ".desktop")
+            if not appinfo is None:
+                goodapps.add_value(tup2variant(appname))
+
+    settings.set_value('popup-blacklist', goodapps.end())
+
+
+def collect_helpers(helpers_data_path, helpers_data_path_tmp, hooks_path):
     helpers_data = {}
     for hook_fname in os.listdir(hooks_path):
         if not hook_fname.endswith(hook_ext):
@@ -48,8 +80,19 @@ def main(helpers_data_path=None, helpers_data_path_tmp=None, hooks_path=None):
             dest.flush()
         os.rename(tmp_filename, helpers_data_path)
     except Exception:
-        return 1
-    return 0
+        return True
+    return False
+
+
+def main(helpers_data_path=None, helpers_data_path_tmp=None, hooks_path=None):
+    collect_fail = collect_helpers(helpers_data_path, helpers_data_path_tmp, hooks_path)
+    clean_settings_fail = False
+    try:
+        cleanup_settings()
+    except Exception:
+        clean_settings_fail = True
+    return int(collect_fail or clean_settings_fail)
+
 
 if __name__ == "__main__":
     xdg_data_home = xdg.BaseDirectory.xdg_data_home
