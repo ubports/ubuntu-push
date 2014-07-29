@@ -40,6 +40,16 @@ type poolSuite struct {
 
 var _ = Suite(&poolSuite{})
 
+func takeNext(ch chan *HelperResult, c *C) *HelperResult {
+	select {
+	case res := <-ch:
+		return res
+	case <-time.After(100 * time.Millisecond):
+		c.Fatal("timeout waiting for result")
+	}
+	return nil
+}
+
 type fakeHelperLauncher struct {
 	done  func(string)
 	obs   int
@@ -84,7 +94,7 @@ func (s *poolSuite) waitForArgs(c *C, method string) [5]string {
 	var args [5]string
 	select {
 	case args = <-s.fakeLauncher.argCh:
-	case <-time.After(1 * time.Second):
+	case <-time.After(2 * time.Second):
 		c.Fatal("didn't call " + method)
 	}
 	c.Assert(args[0], Equals, method)
@@ -176,12 +186,7 @@ func (s *poolSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 	s.pool.Run("not-there", &input)
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 	c.Check(res.Message, DeepEquals, input.Payload)
 	c.Check(res.Notification, IsNil)
 	c.Check(*res.Input, DeepEquals, input)
@@ -197,12 +202,7 @@ func (s *poolSuite) TestGetOutputIfHelperLaunchFail2(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 	s.pool.Run("fake", &input)
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 	c.Check(res.Message, DeepEquals, input.Payload)
 	c.Check(res.Notification, IsNil)
 	c.Check(*res.Input, DeepEquals, input)
@@ -223,12 +223,7 @@ func (s *poolSuite) TestRunCantLaunch(c *C) {
 	s.pool.Run("fake", &input)
 	launchArgs := s.waitForArgs(c, "Launch")
 	c.Check(launchArgs[:3], DeepEquals, []string{"Launch", helpId, "bar"})
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 	c.Check(res.Message, DeepEquals, input.Payload)
 	c.Check(s.log.Captured(), Equals, "DEBUG using helper com.example.test_test-app-helper (exec: bar) for app com.example.test_test-app\n"+"ERROR unable to launch helper com.example.test_test-app-helper: can't launch helper\n"+"ERROR unable to get helper output; putting payload into message\n")
 }
@@ -253,12 +248,7 @@ func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
 	// this will be invoked
 	go s.fakeLauncher.done("0")
 
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 	c.Check(res.Message, DeepEquals, input.Payload)
 }
 
@@ -293,12 +283,7 @@ func (s *poolSuite) TestOneDoneOnValid(c *C) {
 
 	go pool.OneDone("l:1")
 
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 
 	expected := HelperOutput{Notification: &Notification{Sound: "hello", Tag: "a-tag"}}
 	c.Check(res.HelperOutput, DeepEquals, expected)
@@ -324,12 +309,7 @@ func (s *poolSuite) TestOneDoneOnBadFileOut(c *C) {
 
 	go pool.OneDone("l:1")
 
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 
 	expected := HelperOutput{Message: args.Input.Payload}
 	c.Check(res.HelperOutput, DeepEquals, expected)
@@ -362,12 +342,7 @@ func (s *poolSuite) TestOneDonwOnBadJSONOut(c *C) {
 
 	go pool.OneDone("l:1")
 
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 
 	expected := HelperOutput{Message: args.Input.Payload}
 	c.Check(res.HelperOutput, DeepEquals, expected)
@@ -436,7 +411,7 @@ func (s *poolSuite) TestGetTempDir(c *C) {
 // checks that the a second helper run of an already-running helper
 // (for an app) goes to the backlog
 func (s *poolSuite) TestSecondRunSameAppToBacklog(c *C) {
-	s.pool.Start()
+	ch := s.pool.Start()
 	defer s.pool.Stop()
 
 	app1 := clickhelp.MustParseAppId("com.example.test_test-app-1")
@@ -458,6 +433,8 @@ func (s *poolSuite) TestSecondRunSameAppToBacklog(c *C) {
 	s.pool.Run("fake", input2)
 
 	s.waitForArgs(c, "Launch")
+	go s.fakeLauncher.done("0")
+	takeNext(ch, c)
 
 	// this is where we check that:
 	c.Check(s.log.Captured(), Matches, `(?ms).* helper input backlog has grown to 1 entries.$`)
@@ -500,15 +477,15 @@ func (s *poolSuite) TestRunNthAppToBacklog(c *C) {
 	go s.fakeLauncher.done("0")
 	s.waitForArgs(c, "Launch")
 
-	select {
-	case res := <-ch:
-		c.Assert(res, NotNil)
-		c.Assert(res.Input, NotNil)
-		c.Assert(res.Input.App, NotNil)
-		c.Assert(res.Input.App.Original(), Equals, "com.example.test_test-app-1")
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
+	c.Assert(res, NotNil)
+	c.Assert(res.Input, NotNil)
+	c.Assert(res.Input.App, NotNil)
+	c.Assert(res.Input.App.Original(), Equals, "com.example.test_test-app-1")
+	go s.fakeLauncher.done("1")
+	go s.fakeLauncher.done("2")
+	takeNext(ch, c)
+	takeNext(ch, c)
 
 	// this is the crux: we're checking that the third Run() went to the backlog.
 	c.Check(s.log.Captured(), Matches,
@@ -556,10 +533,65 @@ func (s *poolSuite) TestRunBacklogFailedContinuesDiffApp(c *C) {
 	//
 	// What we're checking for is that, if a helper launch fails, the
 	// next one in the backlog is picked up.
-	c.Assert((<-ch).Input.App, Equals, app1)
-	c.Assert((<-ch).Input.App, Equals, app2)
+	c.Assert(takeNext(ch, c).Input.App, Equals, app1)
+	c.Assert(takeNext(ch, c).Input.App, Equals, app2)
 	go s.fakeLauncher.done("2")
 	s.waitForArgs(c, "Launch")
 	c.Check(s.log.Captured(), Matches,
 		`(?ms).* helper input backlog has grown to 3 entries\.$.*shrunk to 1 entries\.$`)
+}
+
+func (s *poolSuite) TestBigBacklogShrinks(c *C) {
+	s.pool.(*kindHelperPool).maxNum = 1
+	ch := s.pool.Start()
+	defer s.pool.Stop()
+	numBad := 10
+
+	app := clickhelp.MustParseAppId("com.example.test_test-app")
+	s.pool.Run("fake", &HelperInput{App: app, NotificationId: "0", Payload: []byte(`""`)})
+
+	for i := 0; i < numBad; i++ {
+		s.pool.Run("NOT-THERE", &HelperInput{App: app})
+	}
+	s.pool.Run("fake", &HelperInput{App: app, NotificationId: "1", Payload: []byte(`""`)})
+	s.pool.Run("fake", &HelperInput{App: app, NotificationId: "2", Payload: []byte(`""`)})
+	s.waitForArgs(c, "Launch")
+	go s.fakeLauncher.done("0")
+	// now we should get the fake + all the bad ones
+	for i := 0; i < numBad+1; i++ {
+		takeNext(ch, c)
+	}
+	s.waitForArgs(c, "Launch")
+	go s.fakeLauncher.done("1")
+	takeNext(ch, c)
+	// so now there's one good one "running", and one more waiting.
+	c.Check(s.log.Captured(), Matches, `(?ms).* shrunk to 1 entries\.$`)
+	// and the shrinker shrunk
+	c.Check(s.log.Captured(), Matches, `(?ms).*copying backlog to avoid wasting too much space .*`)
+}
+
+func (s *poolSuite) TestBacklogShrinkerNilToNil(c *C) {
+	pool := s.pool.(*kindHelperPool)
+	c.Check(pool.shrinkBacklog(nil, 0), IsNil)
+}
+
+func (s *poolSuite) TestBacklogShrinkerEmptyToNil(c *C) {
+	pool := s.pool.(*kindHelperPool)
+	empty := []*HelperInput{nil, nil, nil}
+	c.Check(pool.shrinkBacklog(empty, 0), IsNil)
+}
+
+func (s *poolSuite) TestBacklogShrinkerFullUntouched(c *C) {
+	pool := s.pool.(*kindHelperPool)
+	input := &HelperInput{}
+	full := []*HelperInput{input, input, input}
+	c.Check(pool.shrinkBacklog(full, 3), DeepEquals, full)
+}
+
+func (s *poolSuite) TestBacklogShrinkerSparseShrunk(c *C) {
+	pool := s.pool.(*kindHelperPool)
+	input := &HelperInput{}
+	sparse := []*HelperInput{nil, input, nil, input, nil}
+	full := []*HelperInput{input, input}
+	c.Check(pool.shrinkBacklog(sparse, 2), DeepEquals, full)
 }
