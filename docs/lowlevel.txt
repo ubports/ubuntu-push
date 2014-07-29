@@ -411,7 +411,7 @@ Here is an example of the POST body using all the fields::
 :appid: ID of the application that will receive the notification, as described in the client side documentation.
 :expire_on: Expiration date/time for this message, in `ISO8601 Extendend format <http://en.wikipedia.org/wiki/ISO_8601>`__
 :token: The token identifying the user+device to which the message is directed, as described in the client side documentation.
-:clear_pending: Discards all previous pending notifications.
+:clear_pending: Discards all previous pending notifications. Usually in response to getting a "too-many-pending" error.
 :replace_tag: If there's a pending notification with the same tag, delete it before queuing this new one.
 :data: A JSON object.
 
