@@ -101,7 +101,9 @@ and device. For this to succeed the user **must** have an Ubuntu One account con
 
 The APP_ID is as described in the `ApplicationId documentation <https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId>`__
 except that the version is treated as optional. Therefore both ``com.ubuntu.music_music`` and ``com.ubuntu.music_music_1.3.496``
-are valid.
+are valid. Keep in mind that while both versioned and unversioned APP_IDs are valid, they are still different and will affect
+which notifications are delivered to the application. Unversioned IDs mean the token will be the same after updates and the application
+will receive old notifications, while versioned IDs mean the app needs to explicitly ask to get older messages delivered.
 
 This token is later used by the application server to indicate the recipient of notifications.
 
@@ -179,10 +181,9 @@ Example::
 
 	(['{"message": "foobar", "notification":{"card": {"summary": "yes", "body": "hello", "popup": true, "persist": true}}}'],)
 
-The argument for the PopAll method is the APP_ID and it returns a list of strings, each string being a separate push message received
-by the Ubuntu Push Client, either via `Post <#com-ubuntu-postal-post>`__ or from the Ubuntu Push service.
-
-The interesting part of the push messages for the app is probably the "message" element, but the whole structure is made available.
+The argument for the PopAll method is the APP_ID and it returns a list of strings, each string being the "message" element of a
+separate postal message received by the Ubuntu Push Client, either via `Post <#com-ubuntu-postal-post>`__ or from the
+Ubuntu Push service, after processing by a helper.
 
 
 Post Signal
@@ -192,21 +193,22 @@ Post Signal
 
 Every time a notification is posted, the postal service will emit the Post signal. Your app can connect to it to react to
 incoming notifications if it's running when they arrive. Remember that on Ubuntu Touch, the application lifecycle means
-it will often **not** be running when notifications arrive.
+it will often **not** be running when notifications arrive. If the application is in the foreground when a notification
+arrives, the notification **will not** be presented.
 
 The object path is similar to that of the Postal service methods, containing the QUOTED_PKGNAME.
 
 Persistent Notification Management
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Some notifications are persistent, meaning they remain even after the user interacts with it. For those notifications, there is a API that
+Some notifications are persistent, meaning they don't disappear automatically. For those notifications, there is an API that
 allows the app to manage them without having to know the underlying details of the platform.
 
 On each notification there's an optional ``tag`` field, used for this purpose.
 
 ``array(string) ListPersistent(string APP_ID)``
 
-Returns a list of the tags of “persistent notifications” (messaging menu / notification centre entries) that are visible to the user right now.
+Returns a list of the tags of notifications with the "persist" element set to true that are visible to the user right now.
 
 ``void ClearPersistent(string APP_ID, [tag1, tag2,....])``
 
@@ -221,15 +223,18 @@ Application Helpers
 -------------------
 
 The payload delivered to push-client will be passed onto a helper program that can modify it as needed before passing it onto
-the postal service.
+the postal service (see `Helper Output Format <#helper-output-format>`__).
 
 The helper receives two arguments ``infile`` and ``outfile``. The message is delivered via ``infile`` and the transformed
 version is placed in ``outfile``.
 
 This is the simplest possible useful helper, which simply passes the message through unchanged::
 
-    #/bin/sh
-    cat $1 > $2
+	#!/usr/bin/python3
+
+	import sys
+	f1, f2 = sys.argv[1:3]
+	open(f2, "w").write(open(f1).read())
 
 Helpers need to be added to the click package manifest::
 
@@ -275,12 +280,10 @@ an app_id key containing the short id of one of the apps in the package (in the 
 
 .. note:: For deb packages, helpers should be installed into /usr/lib/ubuntu-push-client/legacy-helpers/ as part of the package.
 
-Push Message Format
--------------------
+Helper Output Format
+--------------------
 
-The Ubuntu Push Client receives push messages from different sources, including applications in the device (via Post) and
-application servers (via the Ubuntu Push server). Those push messages are described using JSON strings. This section
-describes the parts relevant to client-side apps.
+Helpers output has two parts, the postal message (in the "message" key) and a notification to be presented to the user (in the "notification" key).
 
 Here's a simple example::
 
@@ -307,7 +310,7 @@ Here's a simple example::
 		}
 	}
 
-:message: A JSON object that is passed as-is to the application.
+:message: (optional) A JSON object that is passed as-is to the application via PopAll.
 :notification: (optional) Describes the user-facing notifications triggered by this push message.
 
 The notification can contain one **card**. Each card describes a specific notification to be given to the user,
@@ -336,11 +339,11 @@ standard xdg dirs.
 
 The notification can contain a **vibrate** field, causing haptic feedback, that has the following content:
 
-The notification can contain a **tag** field, which can later be used by the `persistent notification management API. <#persistent-notification-management>`__
-
 :duration: duration in milliseconds
 :pattern: a list of integers describing a vibration pattern
 :repeat: number of times the pattern has to be repeated (defaults to 1, 0 is the same as 1)
+
+The notification can contain a **tag** field, which can later be used by the `persistent notification management API. <#persistent-notification-management>`__
 
 The notification can contain a **emblem-counter** field, with the following content:
 
@@ -349,10 +352,6 @@ The notification can contain a **emblem-counter** field, with the following cont
 
 .. note:: Unlike other notifications, emblem-counter needs to be cleaned by the app itself.
           Please see `the persistent notification management section. <#persistent-notification-management>`__
-
-The actions this triggers can include:
-
---------------
 
 .. FIXME crosslink to hello example app on each method
 
@@ -382,7 +381,7 @@ Here is an example of the POST body using all the fields::
 		"appid": "com.ubuntu.music_music",
 		"expire_on": "2014-10-08T14:48:00.000Z",
 		"token": "LeA4tRQG9hhEkuhngdouoA==",
-		"clean_pending": true,
+		"clear_pending": true,
 		"replace_tag": "tagname",
 		"data": {
 			"message": "foobar",
@@ -416,5 +415,5 @@ Here is an example of the POST body using all the fields::
 :replace_tag: If there's a pending notification with the same tag, delete it before queuing this new one.
 :data: A JSON object.
 
-In this example, data is a `push message <#push-message-format>`__ but that's not necessarily the case. The content of the data field
-will be passed to the helper application which **has** to produce a push message.
+In this example, data is `what a helper would output <#helper-output-format>`__ but that's not necessarily the case.
+The content of the data field will be passed to the helper application which **has** to produce output in that format.
