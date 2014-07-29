@@ -193,9 +193,14 @@ func (app *AppId) Helper() (helperAppId string, helperExec string) {
 		}
 		helpersDataMtime = fInfo.ModTime()
 	}
-	info, ok := helpersInfo[app.Versioned()]
+	var info helperValue
+	info, ok := helpersInfo[app.Base()]
 	if !ok {
-		return "", ""
+		// ok, appid wasn't there, try with the package
+		info, ok = helpersInfo[app.Package]
+		if !ok {
+			return "", ""
+		}
 	}
 	if info.Exec != "" {
 		helperAppId = info.HelperId

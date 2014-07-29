@@ -242,7 +242,7 @@ func (s *helperSuite) TearDownTest(c *C) {
 }
 
 func (s *helperSuite) TestHelperBasic(c *C) {
-	c.Assert(s.createHelpersDatafile(`{"com.example.test_test-app_1": {"helper_id": "com.example.test_test-helper_1", "exec": "tsthlpr"}}`), IsNil)
+	c.Assert(s.createHelpersDatafile(`{"com.example.test": {"helper_id": "com.example.test_test-helper_1", "exec": "tsthlpr"}}`), IsNil)
 	app, err := ParseAppId("com.example.test_test-app_1")
 	c.Assert(err, IsNil)
 	hid, hex := app.Helper()
@@ -252,7 +252,7 @@ func (s *helperSuite) TestHelperBasic(c *C) {
 
 func (s *helperSuite) TestHelperFindsSpecific(c *C) {
 	fileContent := `{"com.example.test_test-other-app": {"exec": "aaaaaaa", "helper_id": "com.example.test_aaaa-helper_1"},
-    "com.example.test_test-app_1": {"exec": "tsthlpr", "helper_id": "com.example.test_test-helper_1"}}`
+    "com.example.test_test-app": {"exec": "tsthlpr", "helper_id": "com.example.test_test-helper_1"}}`
 	c.Assert(s.createHelpersDatafile(fileContent), IsNil)
 
 	app, err := ParseAppId("com.example.test_test-app_1")
@@ -331,7 +331,7 @@ func (s *helperSuite) TestHelperFromHookCanFail(c *C) {
 	c.Check(hex, Equals, "")
 }
 
-func (s *helperSuite) TestHelperFromHookCanFailInvalidJson(c *C) {
+func (s *helperSuite) TestHelperFromHookInvalidJson(c *C) {
 	c.Assert(s.createHookfile("com.example.test_aaaa-helper_1", `invalid json {"exec": "aaaaaaa", "app_id": "com.example.test_test-other-app"}`), IsNil)
 	app, err := ParseAppId("com.example.test_test-app_1")
 	c.Assert(err, IsNil)
