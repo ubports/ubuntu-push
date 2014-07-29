@@ -17,6 +17,7 @@
 package launch_helper
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -32,11 +33,22 @@ import (
 )
 
 type poolSuite struct {
-	log  *helpers.TestLogger
-	pool HelperPool
+	log          *helpers.TestLogger
+	pool         HelperPool
+	fakeLauncher *fakeHelperLauncher
 }
 
 var _ = Suite(&poolSuite{})
+
+func takeNext(ch chan *HelperResult, c *C) *HelperResult {
+	select {
+	case res := <-ch:
+		return res
+	case <-time.After(100 * time.Millisecond):
+		c.Fatal("timeout waiting for result")
+	}
+	return nil
+}
 
 type fakeHelperLauncher struct {
 	done  func(string)
@@ -44,6 +56,7 @@ type fakeHelperLauncher struct {
 	err   error
 	lhex  string
 	argCh chan [5]string
+	runid int
 }
 
 func (fhl *fakeHelperLauncher) InstallObserver(done func(string)) error {
@@ -67,7 +80,9 @@ func (fhl *fakeHelperLauncher) HelperInfo(app *click.AppId) (string, string) {
 
 func (fhl *fakeHelperLauncher) Launch(appId string, exec string, f1 string, f2 string) (string, error) {
 	fhl.argCh <- [5]string{"Launch", appId, exec, f1, f2}
-	return "0", fhl.err
+	runid := fmt.Sprintf("%d", fhl.runid)
+	fhl.runid++
+	return runid, fhl.err
 }
 
 func (fhl *fakeHelperLauncher) Stop(appId string, iid string) error {
@@ -75,12 +90,21 @@ func (fhl *fakeHelperLauncher) Stop(appId string, iid string) error {
 	return nil
 }
 
-var fakeLauncher *fakeHelperLauncher
+func (s *poolSuite) waitForArgs(c *C, method string) [5]string {
+	var args [5]string
+	select {
+	case args = <-s.fakeLauncher.argCh:
+	case <-time.After(2 * time.Second):
+		c.Fatal("didn't call " + method)
+	}
+	c.Assert(args[0], Equals, method)
+	return args
+}
 
 func (s *poolSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
-	fakeLauncher = &fakeHelperLauncher{argCh: make(chan [5]string, 10)}
-	s.pool = NewHelperPool(map[string]HelperLauncher{"fake": fakeLauncher}, s.log)
+	s.fakeLauncher = &fakeHelperLauncher{argCh: make(chan [5]string, 10)}
+	s.pool = NewHelperPool(map[string]HelperLauncher{"fake": s.fakeLauncher}, s.log)
 	xdgCacheHome = c.MkDir
 }
 
@@ -99,12 +123,12 @@ func (s *poolSuite) TestDefaultLaunchers(c *C) {
 
 // check that Stop (tries to) remove the observer
 func (s *poolSuite) TestStartStopWork(c *C) {
-	c.Check(fakeLauncher.obs, Equals, 0)
+	c.Check(s.fakeLauncher.obs, Equals, 0)
 	s.pool.Start()
-	c.Check(fakeLauncher.done, NotNil)
-	c.Check(fakeLauncher.obs, Equals, 1)
+	c.Check(s.fakeLauncher.done, NotNil)
+	c.Check(s.fakeLauncher.obs, Equals, 1)
 	s.pool.Stop()
-	c.Check(fakeLauncher.obs, Equals, 0)
+	c.Check(s.fakeLauncher.obs, Equals, 0)
 }
 
 func (s *poolSuite) TestRunLaunches(c *C) {
@@ -119,12 +143,8 @@ func (s *poolSuite) TestRunLaunches(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 	s.pool.Run("fake", &input)
-	select {
-	case arg := <-fakeLauncher.argCh:
-		c.Check(arg[:3], DeepEquals, []string{"Launch", helpId, "bar"})
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("didn't call Launch")
-	}
+	launchArgs := s.waitForArgs(c, "Launch")
+	c.Check(launchArgs[:3], DeepEquals, []string{"Launch", helpId, "bar"})
 	args := s.pool.(*kindHelperPool).peekId("fake:0", func(*HelperArgs) {})
 	c.Assert(args, NotNil)
 	args.Timer.Stop()
@@ -135,7 +155,7 @@ func (s *poolSuite) TestRunLaunches(c *C) {
 }
 
 func (s *poolSuite) TestRunLaunchesLegacyStyle(c *C) {
-	fakeLauncher.lhex = "lhex"
+	s.fakeLauncher.lhex = "lhex"
 	s.pool.Start()
 	defer s.pool.Stop()
 	appId := "_legacy"
@@ -146,12 +166,8 @@ func (s *poolSuite) TestRunLaunchesLegacyStyle(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 	s.pool.Run("fake", &input)
-	select {
-	case arg := <-fakeLauncher.argCh:
-		c.Check(arg[:3], DeepEquals, []string{"Launch", "", "lhex"})
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("didn't call Launch")
-	}
+	launchArgs := s.waitForArgs(c, "Launch")
+	c.Check(launchArgs[:3], DeepEquals, []string{"Launch", "", "lhex"})
 	args := s.pool.(*kindHelperPool).peekId("fake:0", func(*HelperArgs) {})
 	c.Assert(args, NotNil)
 	args.Timer.Stop()
@@ -170,12 +186,7 @@ func (s *poolSuite) TestGetOutputIfHelperLaunchFail(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 	s.pool.Run("not-there", &input)
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 	c.Check(res.Message, DeepEquals, input.Payload)
 	c.Check(res.Notification, IsNil)
 	c.Check(*res.Input, DeepEquals, input)
@@ -191,19 +202,14 @@ func (s *poolSuite) TestGetOutputIfHelperLaunchFail2(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 	s.pool.Run("fake", &input)
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 	c.Check(res.Message, DeepEquals, input.Payload)
 	c.Check(res.Notification, IsNil)
 	c.Check(*res.Input, DeepEquals, input)
 }
 
 func (s *poolSuite) TestRunCantLaunch(c *C) {
-	fakeLauncher.err = cual.ErrCantLaunch
+	s.fakeLauncher.err = cual.ErrCantLaunch
 	ch := s.pool.Start()
 	defer s.pool.Stop()
 	appId := "com.example.test_test-app"
@@ -215,18 +221,9 @@ func (s *poolSuite) TestRunCantLaunch(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 	s.pool.Run("fake", &input)
-	select {
-	case arg := <-fakeLauncher.argCh:
-		c.Check(arg[:3], DeepEquals, []string{"Launch", helpId, "bar"})
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("didn't call Launch")
-	}
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	launchArgs := s.waitForArgs(c, "Launch")
+	c.Check(launchArgs[:3], DeepEquals, []string{"Launch", helpId, "bar"})
+	res := takeNext(ch, c)
 	c.Check(res.Message, DeepEquals, input.Payload)
 	c.Check(s.log.Captured(), Equals, "DEBUG using helper com.example.test_test-app-helper (exec: bar) for app com.example.test_test-app\n"+"ERROR unable to launch helper com.example.test_test-app-helper: can't launch helper\n"+"ERROR unable to get helper output; putting payload into message\n")
 }
@@ -244,27 +241,14 @@ func (s *poolSuite) TestRunLaunchesAndTimeout(c *C) {
 		Payload:        []byte(`"hello"`),
 	}
 	s.pool.Run("fake", &input)
-	select {
-	case arg := <-fakeLauncher.argCh:
-		c.Check(arg[0], Equals, "Launch")
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("didn't call Launch")
-	}
-	select {
-	case arg := <-fakeLauncher.argCh:
-		c.Check(arg[:3], DeepEquals, []string{"Stop", helpId, "0"})
-	case <-time.After(2 * time.Second):
-		c.Fatal("didn't call Stop")
-	}
+	launchArgs := s.waitForArgs(c, "Launch")
+	c.Check(launchArgs[0], Equals, "Launch")
+	stopArgs := s.waitForArgs(c, "Stop")
+	c.Check(stopArgs[:3], DeepEquals, []string{"Stop", helpId, "0"})
 	// this will be invoked
-	go fakeLauncher.done("0")
+	go s.fakeLauncher.done("0")
 
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 	c.Check(res.Message, DeepEquals, input.Payload)
 }
 
@@ -294,19 +278,14 @@ func (s *poolSuite) TestOneDoneOnValid(c *C) {
 	f, err := os.Create(args.FileOut)
 	c.Assert(err, IsNil)
 	defer f.Close()
-	_, err = f.Write([]byte(`{"notification": {"sound": "hello"}}`))
+	_, err = f.Write([]byte(`{"notification": {"sound": "hello", "tag": "a-tag"}}`))
 	c.Assert(err, IsNil)
 
 	go pool.OneDone("l:1")
 
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 
-	expected := HelperOutput{Notification: &Notification{Sound: "hello"}}
+	expected := HelperOutput{Notification: &Notification{Sound: "hello", Tag: "a-tag"}}
 	c.Check(res.HelperOutput, DeepEquals, expected)
 	c.Check(pool.hmap, HasLen, 0)
 }
@@ -330,12 +309,7 @@ func (s *poolSuite) TestOneDoneOnBadFileOut(c *C) {
 
 	go pool.OneDone("l:1")
 
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 
 	expected := HelperOutput{Message: args.Input.Payload}
 	c.Check(res.HelperOutput, DeepEquals, expected)
@@ -368,12 +342,7 @@ func (s *poolSuite) TestOneDonwOnBadJSONOut(c *C) {
 
 	go pool.OneDone("l:1")
 
-	var res *HelperResult
-	select {
-	case res = <-ch:
-	case <-time.After(100 * time.Millisecond):
-		c.Fatal("timeout")
-	}
+	res := takeNext(ch, c)
 
 	expected := HelperOutput{Message: args.Input.Payload}
 	c.Check(res.HelperOutput, DeepEquals, expected)
@@ -437,4 +406,192 @@ func (s *poolSuite) TestGetTempDir(c *C) {
 	dname, err := GetTempDir("pkg.name")
 	c.Check(err, IsNil)
 	c.Check(dname, Equals, filepath.Join(tmpDir, "pkg.name"))
+}
+
+// checks that the a second helper run of an already-running helper
+// (for an app) goes to the backlog
+func (s *poolSuite) TestSecondRunSameAppToBacklog(c *C) {
+	ch := s.pool.Start()
+	defer s.pool.Stop()
+
+	app1 := clickhelp.MustParseAppId("com.example.test_test-app-1")
+	input1 := &HelperInput{
+		App:            app1,
+		NotificationId: "foo1",
+		Payload:        []byte(`"hello1"`),
+	}
+	app2 := clickhelp.MustParseAppId("com.example.test_test-app-1")
+	input2 := &HelperInput{
+		App:            app2,
+		NotificationId: "foo2",
+		Payload:        []byte(`"hello2"`),
+	}
+
+	c.Assert(app1.Base(), Equals, app2.Base())
+
+	s.pool.Run("fake", input1)
+	s.pool.Run("fake", input2)
+
+	s.waitForArgs(c, "Launch")
+	go s.fakeLauncher.done("0")
+	takeNext(ch, c)
+
+	// this is where we check that:
+	c.Check(s.log.Captured(), Matches, `(?ms).* helper input backlog has grown to 1 entries.$`)
+}
+
+// checks that the an Nth helper run goes to the backlog
+func (s *poolSuite) TestRunNthAppToBacklog(c *C) {
+	s.pool.(*kindHelperPool).maxNum = 2
+	ch := s.pool.Start()
+	defer s.pool.Stop()
+
+	app1 := clickhelp.MustParseAppId("com.example.test_test-app-1")
+	input1 := &HelperInput{
+		App:            app1,
+		NotificationId: "foo1",
+		Payload:        []byte(`"hello1"`),
+	}
+	app2 := clickhelp.MustParseAppId("com.example.test_test-app-2")
+	input2 := &HelperInput{
+		App:            app2,
+		NotificationId: "foo2",
+		Payload:        []byte(`"hello2"`),
+	}
+	app3 := clickhelp.MustParseAppId("com.example.test_test-app-3")
+	input3 := &HelperInput{
+		App:            app3,
+		NotificationId: "foo3",
+		Payload:        []byte(`"hello3"`),
+	}
+
+	s.pool.Run("fake", input1)
+	s.waitForArgs(c, "Launch")
+
+	s.pool.Run("fake", input2)
+	s.log.ResetCapture()
+	s.waitForArgs(c, "Launch")
+
+	s.pool.Run("fake", input3)
+
+	go s.fakeLauncher.done("0")
+	s.waitForArgs(c, "Launch")
+
+	res := takeNext(ch, c)
+	c.Assert(res, NotNil)
+	c.Assert(res.Input, NotNil)
+	c.Assert(res.Input.App, NotNil)
+	c.Assert(res.Input.App.Original(), Equals, "com.example.test_test-app-1")
+	go s.fakeLauncher.done("1")
+	go s.fakeLauncher.done("2")
+	takeNext(ch, c)
+	takeNext(ch, c)
+
+	// this is the crux: we're checking that the third Run() went to the backlog.
+	c.Check(s.log.Captured(), Matches,
+		`(?ms).* helper input backlog has grown to 1 entries\.$.*shrunk to 0 entries\.$`)
+}
+
+func (s *poolSuite) TestRunBacklogFailedContinuesDiffApp(c *C) {
+	s.pool.(*kindHelperPool).maxNum = 1
+	ch := s.pool.Start()
+	defer s.pool.Stop()
+
+	app1 := clickhelp.MustParseAppId("com.example.test_test-app-1")
+	input1 := &HelperInput{
+		App:            app1,
+		NotificationId: "foo1",
+		Payload:        []byte(`"hello1"`),
+	}
+	app2 := clickhelp.MustParseAppId("com.example.test_test-app-2")
+	input2 := &HelperInput{
+		App:            app2,
+		NotificationId: "foo2",
+		Payload:        []byte(`"hello2"`),
+	}
+	app3 := clickhelp.MustParseAppId("com.example.test_test-app-3")
+	input3 := &HelperInput{
+		App:            app3,
+		NotificationId: "foo3",
+		Payload:        []byte(`"hello3"`),
+	}
+	app4 := clickhelp.MustParseAppId("com.example.test_test-app-4")
+	input4 := &HelperInput{
+		App:            app4,
+		NotificationId: "foo4",
+		Payload:        []byte(`"hello4"`),
+	}
+
+	s.pool.Run("fake", input1)
+	s.waitForArgs(c, "Launch")
+	s.pool.Run("NOT-THERE", input2) // this will fail
+	s.pool.Run("fake", input3)
+	s.pool.Run("fake", input4)
+
+	go s.fakeLauncher.done("0")
+	// Everything up to here was just set-up.
+	//
+	// What we're checking for is that, if a helper launch fails, the
+	// next one in the backlog is picked up.
+	c.Assert(takeNext(ch, c).Input.App, Equals, app1)
+	c.Assert(takeNext(ch, c).Input.App, Equals, app2)
+	go s.fakeLauncher.done("2")
+	s.waitForArgs(c, "Launch")
+	c.Check(s.log.Captured(), Matches,
+		`(?ms).* helper input backlog has grown to 3 entries\.$.*shrunk to 1 entries\.$`)
+}
+
+func (s *poolSuite) TestBigBacklogShrinks(c *C) {
+	s.pool.(*kindHelperPool).maxNum = 1
+	ch := s.pool.Start()
+	defer s.pool.Stop()
+	numBad := 10
+
+	app := clickhelp.MustParseAppId("com.example.test_test-app")
+	s.pool.Run("fake", &HelperInput{App: app, NotificationId: "0", Payload: []byte(`""`)})
+
+	for i := 0; i < numBad; i++ {
+		s.pool.Run("NOT-THERE", &HelperInput{App: app})
+	}
+	s.pool.Run("fake", &HelperInput{App: app, NotificationId: "1", Payload: []byte(`""`)})
+	s.pool.Run("fake", &HelperInput{App: app, NotificationId: "2", Payload: []byte(`""`)})
+	s.waitForArgs(c, "Launch")
+	go s.fakeLauncher.done("0")
+	// now we should get the fake + all the bad ones
+	for i := 0; i < numBad+1; i++ {
+		takeNext(ch, c)
+	}
+	s.waitForArgs(c, "Launch")
+	go s.fakeLauncher.done("1")
+	takeNext(ch, c)
+	// so now there's one good one "running", and one more waiting.
+	c.Check(s.log.Captured(), Matches, `(?ms).* shrunk to 1 entries\.$`)
+	// and the shrinker shrunk
+	c.Check(s.log.Captured(), Matches, `(?ms).*copying backlog to avoid wasting too much space .*`)
+}
+
+func (s *poolSuite) TestBacklogShrinkerNilToNil(c *C) {
+	pool := s.pool.(*kindHelperPool)
+	c.Check(pool.shrinkBacklog(nil, 0), IsNil)
+}
+
+func (s *poolSuite) TestBacklogShrinkerEmptyToNil(c *C) {
+	pool := s.pool.(*kindHelperPool)
+	empty := []*HelperInput{nil, nil, nil}
+	c.Check(pool.shrinkBacklog(empty, 0), IsNil)
+}
+
+func (s *poolSuite) TestBacklogShrinkerFullUntouched(c *C) {
+	pool := s.pool.(*kindHelperPool)
+	input := &HelperInput{}
+	full := []*HelperInput{input, input, input}
+	c.Check(pool.shrinkBacklog(full, 3), DeepEquals, full)
+}
+
+func (s *poolSuite) TestBacklogShrinkerSparseShrunk(c *C) {
+	pool := s.pool.(*kindHelperPool)
+	input := &HelperInput{}
+	sparse := []*HelperInput{nil, input, nil, input, nil}
+	full := []*HelperInput{input, input}
+	c.Check(pool.shrinkBacklog(sparse, 2), DeepEquals, full)
 }

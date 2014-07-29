@@ -49,16 +49,37 @@ func New(endp bus.Endpoint, log logger.Logger) *EmblemCounter {
 
 // Look for an EmblemCounter section in a Notification and, if
 // present, presents it to the user.
-func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *launch_helper.Notification) {
-	if notification == nil || notification.EmblemCounter == nil {
-		ctr.log.Debugf("[%s] no notification or no EmblemCounter in the notification; doing nothing: %#v", nid, notification)
-		return
+func (ctr *EmblemCounter) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
+	if notification == nil {
+		panic("please check notification is not nil before calling present")
 	}
+
 	ec := notification.EmblemCounter
+
+	if ec == nil {
+		ctr.log.Debugf("[%s] notification has no EmblemCounter: %#v", nid, ec)
+		return false
+	}
 	ctr.log.Debugf("[%s] setting emblem counter for %s to %d (visible: %t)", nid, app.Base(), ec.Count, ec.Visible)
+	return ctr.SetCounter(app, ec.Count, ec.Visible)
+}
 
-	quoted := string(nih.Quote([]byte(app.Base())))
+// SetCounter sets an emblem counter on the launcher for app to count (if
+// visible is true), or clears it (if count is 0 or visible is false).
+func (ctr *EmblemCounter) SetCounter(app *click.AppId, count int32, visible bool) bool {
+	base := app.Base()
+	quoted := string(nih.Quote([]byte(base)))
 
-	ctr.bus.SetProperty("count", "/"+quoted, dbus.Variant{ec.Count})
-	ctr.bus.SetProperty("countVisible", "/"+quoted, dbus.Variant{ec.Visible})
+	err := ctr.bus.SetProperty("count", "/"+quoted, dbus.Variant{count})
+	if err != nil {
+		ctr.log.Errorf("call to set count failed: %v", err)
+		return false
+	}
+	err = ctr.bus.SetProperty("countVisible", "/"+quoted, dbus.Variant{visible})
+	if err != nil {
+		ctr.log.Errorf("call to set countVisible failed: %v", err)
+		return false
+	}
+
+	return true
 }

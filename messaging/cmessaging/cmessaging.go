@@ -25,11 +25,16 @@ package cmessaging
 void add_notification(const gchar* desktop_id, const gchar* notification_id,
           const gchar* icon_path, const gchar* summary, const gchar* body,
           gint64 timestamp, const gchar** actions, gpointer obj);
+
+void remove_notification(const gchar* desktop_id, const gchar* notification_id);
+
+gboolean notification_exists(const gchar* desktop_id, const gchar* notification_id);
 */
 import "C"
 import "unsafe"
 
 import (
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/messaging/reply"
 )
@@ -37,6 +42,9 @@ import (
 type Payload struct {
 	Ch      chan *reply.MMActionReply
 	Actions []string
+	App     *click.AppId
+	Tag     string
+	Gone    bool
 }
 
 func gchar(s string) *C.gchar {
@@ -56,7 +64,7 @@ func handleActivate(c_action *C.char, c_notification *C.char, obj unsafe.Pointer
 	if action == "" && len(payload.Actions) >= 2 {
 		action = payload.Actions[1]
 	}
-	mmar := &reply.MMActionReply{Notification: C.GoString(c_notification), Action: action}
+	mmar := &reply.MMActionReply{Notification: C.GoString(c_notification), Action: action, App: payload.App}
 	payload.Ch <- mmar
 }
 
@@ -79,6 +87,26 @@ func AddNotification(desktopId string, notificationId string, card *launch_helpe
 	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
 
 	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(payload))
+}
+
+func RemoveNotification(desktopId string, notificationId string) {
+	desktop_id := gchar(desktopId)
+	defer gfree(desktop_id)
+
+	notification_id := gchar(notificationId)
+	defer gfree(notification_id)
+
+	C.remove_notification(desktop_id, notification_id)
+}
+
+func NotificationExists(desktopId string, notificationId string) bool {
+	notification_id := gchar(notificationId)
+	defer gfree(notification_id)
+
+	desktop_id := gchar(desktopId)
+	defer gfree(desktop_id)
+
+	return C.notification_exists(desktop_id, notification_id) == C.TRUE
 }
 
 func init() {

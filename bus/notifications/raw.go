@@ -131,13 +131,17 @@ func (raw *RawNotifications) WatchActions() (<-chan *RawAction, error) {
 // If card.Actions has 1 action, it's an interactive notification.
 // If card.Actions has 2 actions, it will show as a snap decision.
 // If it has more actions, who knows (good luck).
-func (raw *RawNotifications) Present(app *click.AppId, nid string, notification *launch_helper.Notification) (uint32, error) {
-	if notification == nil || notification.Card == nil || !notification.Card.Popup || notification.Card.Summary == "" {
-		raw.log.Debugf("[%s] skipping notification: nil, or nil card, or not popup, or no summary: %#v", nid, notification)
-		return 0, nil
+func (raw *RawNotifications) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
+	if notification == nil {
+		panic("please check notification is not nil before calling present")
 	}
 
 	card := notification.Card
+
+	if card == nil || !card.Popup || card.Summary == "" {
+		raw.log.Debugf("[%s] notification has no popup card: %#v", nid, card)
+		return false
+	}
 
 	hints := make(map[string]*dbus.Variant)
 	hints["x-canonical-secondary-icon"] = &dbus.Variant{app.Icon()}
@@ -152,7 +156,8 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 			Action:   action,
 		})
 		if err != nil {
-			return 0, err
+			raw.log.Errorf("[%s] while marshaling %#v to json: %v", nid, action, err)
+			return false
 		}
 		actions[2*i] = string(act)
 		actions[2*i+1] = action
@@ -160,13 +165,22 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 	switch len(card.Actions) {
 	case 0:
 		// nothing
+	default:
+		raw.log.Errorf("[%s] don't know what to do with %d actions; ignoring the rest", nid, len(card.Actions))
+		actions = actions[:2]
+		fallthrough
 	case 1:
 		hints["x-canonical-switch-to-application"] = &dbus.Variant{"true"}
-	case 2:
-		hints["x-canonical-snap-decisions"] = &dbus.Variant{"true"}
-		hints["x-canonical-private-button-tint"] = &dbus.Variant{"true"}
-	default:
-		raw.log.Debugf("[%s] don't know what to do with %d actions; no hints set", nid, len(card.Actions))
 	}
-	return raw.Notify(appId, 0, card.Icon, card.Summary, card.Body, actions, hints, 30*1000)
+
+	raw.log.Debugf("[%s] creating popup (or snap decision) for %s (summary: %s)", nid, app.Base(), card.Summary)
+
+	_, err := raw.Notify(appId, 0, card.Icon, card.Summary, card.Body, actions, hints, 30*1000)
+
+	if err != nil {
+		raw.log.Errorf("[%s] call to Notify failed: %v", nid, err)
+		return false
+	}
+
+	return true
 }

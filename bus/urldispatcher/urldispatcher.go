@@ -19,6 +19,7 @@ package urldispatcher
 
 import (
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -32,7 +33,8 @@ var BusAddress bus.Address = bus.Address{
 // A URLDispatcher is a simple beast, with a single method that does what it
 // says on the box.
 type URLDispatcher interface {
-	DispatchURL(string) error
+	DispatchURL(string, *click.AppId) error
+	TestURL(*click.AppId, []string) bool
 }
 
 type urlDispatcher struct {
@@ -47,11 +49,28 @@ func New(endp bus.Endpoint, log logger.Logger) URLDispatcher {
 
 var _ URLDispatcher = &urlDispatcher{} // ensures it conforms
 
-func (ud *urlDispatcher) DispatchURL(url string) error {
+func (ud *urlDispatcher) DispatchURL(url string, app *click.AppId) error {
 	ud.log.Debugf("Dispatching %s", url)
-	err := ud.endp.Call("DispatchURL", bus.Args(url))
+	err := ud.endp.Call("DispatchURL", bus.Args(url, app.DispatchPackage()))
 	if err != nil {
 		ud.log.Errorf("Dispatch to %s failed with %s", url, err)
 	}
 	return err
+}
+
+func (ud *urlDispatcher) TestURL(app *click.AppId, urls []string) bool {
+	ud.log.Debugf("TestURL: %s", urls)
+	var appIds []string
+	err := ud.endp.Call("TestURL", bus.Args(urls), &appIds)
+	if err != nil {
+		ud.log.Errorf("TestURL for %s failed with %s", urls, err)
+		return false
+	}
+	for _, appId := range appIds {
+		if appId != app.Versioned() {
+			ud.log.Debugf("Notification skipped because of different appid for actions: %v - %s != %s", urls, appId, app.Versioned())
+			return false
+		}
+	}
+	return true
 }

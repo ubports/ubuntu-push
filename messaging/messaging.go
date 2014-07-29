@@ -21,6 +21,7 @@ package messaging
 import (
 	"encoding/json"
 	"sync"
+	"time"
 
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/click"
@@ -30,56 +31,166 @@ import (
 	"launchpad.net/ubuntu-push/messaging/reply"
 )
 
+var cleanupLoopDuration = 5 * time.Minute
+
 type MessagingMenu struct {
-	Log           logger.Logger
-	Ch            chan *reply.MMActionReply
-	notifications map[string]*cmessaging.Payload
-	lock          sync.RWMutex
+	Log               logger.Logger
+	Ch                chan *reply.MMActionReply
+	notifications     map[string]*cmessaging.Payload // keep a ref to the Payload used in the MMU callback
+	lock              sync.RWMutex
+	stopCleanupLoopCh chan bool
+	ticker            *time.Ticker
+	tickerCh          <-chan time.Time
 }
 
 // New returns a new MessagingMenu
 func New(log logger.Logger) *MessagingMenu {
-	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload)}
+	ticker := time.NewTicker(cleanupLoopDuration)
+	stopCh := make(chan bool)
+	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload), ticker: ticker, tickerCh: ticker.C, stopCleanupLoopCh: stopCh}
 }
 
 var cAddNotification = cmessaging.AddNotification
+var cRemoveNotification = cmessaging.RemoveNotification
+var cNotificationExists = cmessaging.NotificationExists
 
-func (mmu *MessagingMenu) addNotification(desktopId string, notificationId string, card *launch_helper.Card, actions []string) {
-	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions}
-	mmu.lock.Lock()
-	// XXX: only gets removed if the action is activated.
-	mmu.notifications[notificationId] = payload
-	mmu.lock.Unlock()
-	cAddNotification(desktopId, notificationId, card, payload)
+// GetCh returns the reply channel, exactly like mm.Ch.
+func (mmu *MessagingMenu) GetCh() chan *reply.MMActionReply {
+	return mmu.Ch
 }
 
-// RemoveNotification deletes the notification from internal map
-func (mmu *MessagingMenu) RemoveNotification(notificationId string) {
+func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
-	delete(mmu.notifications, notificationId)
+	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app, Tag: tag}
+	mmu.notifications[notificationId] = payload
+	cAddNotification(app.DesktopId(), notificationId, card, payload)
 }
 
-func (mmu *MessagingMenu) Present(app *click.AppId, notificationId string, notification *launch_helper.Notification) {
-	if notification == nil || notification.Card == nil || !notification.Card.Persist || notification.Card.Summary == "" {
-		mmu.Log.Debugf("[%s] no notification or notification has no persistable card: %#v", notificationId, notification)
-		return
+func (mmu *MessagingMenu) RemoveNotification(notificationId string, fromUI bool) {
+	mmu.lock.Lock()
+	defer mmu.lock.Unlock()
+	payload := mmu.notifications[notificationId]
+	delete(mmu.notifications, notificationId)
+	if payload != nil && payload.App != nil && fromUI {
+		cRemoveNotification(payload.App.DesktopId(), notificationId)
 	}
-	actions := make([]string, 2*len(notification.Card.Actions))
-	for i, action := range notification.Card.Actions {
+}
+
+// cleanupNotifications remove notifications that were cleared from the messaging menu
+func (mmu *MessagingMenu) cleanUpNotifications() {
+	mmu.lock.Lock()
+	defer mmu.lock.Unlock()
+	for nid, payload := range mmu.notifications {
+		if payload.Gone {
+			// sweep
+			delete(mmu.notifications, nid)
+			// don't check the mmu for this nid
+			continue
+		}
+		exists := cNotificationExists(payload.App.DesktopId(), nid)
+		if !exists {
+			// mark
+			payload.Gone = true
+		}
+	}
+}
+
+func (mmu *MessagingMenu) StartCleanupLoop() {
+	mmu.doStartCleanupLoop(mmu.cleanUpNotifications)
+}
+
+func (mmu *MessagingMenu) doStartCleanupLoop(cleanupFunc func()) {
+	go func() {
+		for {
+			select {
+			case <-mmu.tickerCh:
+				cleanupFunc()
+			case <-mmu.stopCleanupLoopCh:
+				mmu.ticker.Stop()
+				mmu.Log.Debugf("CleanupLoop stopped.")
+				return
+			}
+		}
+	}()
+}
+
+func (mmu *MessagingMenu) StopCleanupLoop() {
+	mmu.stopCleanupLoopCh <- true
+}
+
+func (mmu *MessagingMenu) Tags(app *click.AppId) []string {
+	orig := app.Original()
+	tags := []string(nil)
+	mmu.lock.RLock()
+	defer mmu.lock.RUnlock()
+	for _, payload := range mmu.notifications {
+		if payload.App.Original() == orig {
+			tags = append(tags, payload.Tag)
+		}
+	}
+	return tags
+}
+
+func (mmu *MessagingMenu) Clear(app *click.AppId, tags ...string) int {
+	orig := app.Original()
+	var nids []string
+
+	mmu.lock.RLock()
+	// O(n×m). Should be small n and m though.
+	for nid, payload := range mmu.notifications {
+		if payload.App.Original() == orig {
+			if len(tags) == 0 {
+				nids = append(nids, nid)
+			} else {
+				for _, tag := range tags {
+					if payload.Tag == tag {
+						nids = append(nids, nid)
+					}
+				}
+			}
+		}
+	}
+	mmu.lock.RUnlock()
+
+	for _, nid := range nids {
+		mmu.RemoveNotification(nid, true)
+	}
+
+	return len(nids)
+}
+
+func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
+	if notification == nil {
+		panic("please check notification is not nil before calling present")
+	}
+
+	card := notification.Card
+
+	if card == nil || !card.Persist || card.Summary == "" {
+		mmu.Log.Debugf("[%s] notification has no persistable card: %#v", nid, card)
+		return false
+	}
+
+	actions := make([]string, 2*len(card.Actions))
+	for i, action := range card.Actions {
 		act, err := json.Marshal(&notifications.RawAction{
 			App:      app,
-			Nid:      notificationId,
+			Nid:      nid,
 			ActionId: i,
 			Action:   action,
 		})
 		if err != nil {
 			mmu.Log.Errorf("Failed to build action: %s", action)
-			return
+			return false
 		}
 		actions[2*i] = string(act)
 		actions[2*i+1] = action
 	}
 
-	mmu.addNotification(app.DesktopId(), notificationId, notification.Card, actions)
+	mmu.Log.Debugf("[%s] creating notification centre entry for %s (summary: %s)", nid, app.Base(), card.Summary)
+
+	mmu.addNotification(app, nid, notification.Tag, card, actions)
+
+	return true
 }

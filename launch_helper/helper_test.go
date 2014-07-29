@@ -43,11 +43,11 @@ func (s *runnerSuite) SetUpTest(c *C) {
 }
 
 func (s *runnerSuite) TestTrivialPoolWorks(c *C) {
-	notif := &Notification{Sound: "42"}
+	notif := &Notification{Sound: "42", Tag: "foo"}
 
 	triv := NewTrivialHelperPool(s.testlog)
 	ch := triv.Start()
-	in := &HelperInput{App: s.app, Payload: []byte(`{"message": {"m":42}, "notification": {"sound": "42"}}`)}
+	in := &HelperInput{App: s.app, Payload: []byte(`{"message": {"m":42}, "notification": {"sound": "42", "tag": "foo"}}`)}
 	triv.Run("klick", in)
 	out := <-ch
 	c.Assert(out, NotNil)

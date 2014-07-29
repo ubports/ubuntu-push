@@ -45,6 +45,21 @@ func (ecs *ecSuite) SetUpTest(c *C) {
 	ecs.app = clickhelp.MustParseAppId("com.example.test_test-app_0")
 }
 
+// checks that SetCounter() actually calls SetProperty on the launcher
+func (ecs *ecSuite) TestSetCounterSetsTheCounter(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
+	quoted := string(nih.Quote([]byte(ecs.app.Base())))
+
+	ec := New(endp, ecs.log)
+	c.Check(ec.SetCounter(ecs.app, 42, true), Equals, true)
+	callArgs := testibus.GetCallArgs(endp)
+	c.Assert(callArgs, HasLen, 2)
+	c.Check(callArgs[0].Member, Equals, "::SetProperty")
+	c.Check(callArgs[1].Member, Equals, "::SetProperty")
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", "/" + quoted, dbus.Variant{Value: int32(42)}})
+	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", "/" + quoted, dbus.Variant{Value: true}})
+}
+
 // checks that Present() actually calls SetProperty on the launcher
 func (ecs *ecSuite) TestPresentPresents(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
@@ -52,7 +67,7 @@ func (ecs *ecSuite) TestPresentPresents(c *C) {
 
 	ec := New(endp, ecs.log)
 	notif := launch_helper.Notification{EmblemCounter: &launch_helper.EmblemCounter{Count: 42, Visible: true}}
-	ec.Present(ecs.app, "nid", &notif)
+	c.Check(ec.Present(ecs.app, "nid", &notif), Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 2)
 	c.Check(callArgs[0].Member, Equals, "::SetProperty")
@@ -67,20 +82,25 @@ func (ecs *ecSuite) TestSkipIfMissing(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 	ec := New(endp, ecs.log)
 
-	// nothing happens if nil Notification
-	ec.Present(ecs.app, "nid", nil)
-	c.Assert(testibus.GetCallArgs(endp), HasLen, 0)
-
 	// nothing happens if no EmblemCounter in Notification
-	ec.Present(ecs.app, "nid", &launch_helper.Notification{})
+	c.Check(ec.Present(ecs.app, "nid", &launch_helper.Notification{}), Equals, false)
 	c.Assert(testibus.GetCallArgs(endp), HasLen, 0)
 
 	// but an empty EmblemCounter is acted on
-	ec.Present(ecs.app, "nid", &launch_helper.Notification{EmblemCounter: &launch_helper.EmblemCounter{}})
+	c.Check(ec.Present(ecs.app, "nid", &launch_helper.Notification{EmblemCounter: &launch_helper.EmblemCounter{}}), Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 2)
 	c.Check(callArgs[0].Member, Equals, "::SetProperty")
 	c.Check(callArgs[1].Member, Equals, "::SetProperty")
 	c.Check(callArgs[0].Args, DeepEquals, []interface{}{"count", "/" + quoted, dbus.Variant{Value: int32(0)}})
 	c.Check(callArgs[1].Args, DeepEquals, []interface{}{"countVisible", "/" + quoted, dbus.Variant{Value: false}})
+}
+
+// check that Present() panics if the notification is nil
+func (ecs *ecSuite) TestPanicsIfNil(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
+	ec := New(endp, ecs.log)
+
+	// nothing happens if no EmblemCounter in Notification
+	c.Check(func() { ec.Present(ecs.app, "nid", nil) }, Panics, `please check notification is not nil before calling present`)
 }
