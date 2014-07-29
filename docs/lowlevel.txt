@@ -105,6 +105,8 @@ are valid. Keep in mind that while both versioned and unversioned APP_IDs are va
 which notifications are delivered to the application. Unversioned IDs mean the token will be the same after updates and the application
 will receive old notifications, while versioned IDs mean the app needs to explicitly ask to get older messages delivered.
 
+Register is idempotent, and calling it multiple times returns the same token.
+
 This token is later used by the application server to indicate the recipient of notifications.
 
 .. FIXME crosslink to server app
@@ -298,7 +300,7 @@ Here's a simple example::
 			}
 			"sound": "buzz.mp3",
 			"vibrate": {
-				"pattern": (200, 100),
+				"pattern": [200, 100],
 				"duration": 200,
 				"repeat": 2
 			}
