@@ -31,6 +31,7 @@ import (
 	"unsafe"
 
 	"launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/launch_helper/helper_finder"
 	"launchpad.net/ubuntu-push/logger"
 )
 
@@ -77,7 +78,7 @@ func (hs *helperState) RemoveObserver() error {
 }
 
 func (hs *helperState) HelperInfo(app *click.AppId) (string, string) {
-	return app.Helper()
+	return helper_finder.Helper(app, hs.log)
 }
 
 func (hs *helperState) Launch(appId, exec, f1, f2 string) (string, error) {

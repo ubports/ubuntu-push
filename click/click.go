@@ -22,13 +22,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"launchpad.net/go-xdg/v0"
 
@@ -45,8 +42,6 @@ type AppId struct {
 	original    string
 }
 
-var helpersDataPath = filepath.Join(xdg.Data.Home(), "ubuntu-push-client", "helpers_data.json")
-
 // from https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId
 // except the version is made optional
 var rxClick = regexp.MustCompile(`^([a-z0-9][a-z0-9+.-]+)_([a-zA-Z0-9+.-]+)(?:_([0-9][a-zA-Z0-9.+:~-]*))?$`)
@@ -58,14 +53,6 @@ var (
 	ErrInvalidAppId = errors.New("invalid application id")
 	ErrMissingAppId = errors.New("missing application id")
 )
-
-type helperValue struct {
-	HelperId string `json:"helper_id"`
-	Exec     string `json:"exec"`
-}
-
-var helpersInfo = make(map[string]helperValue)
-var helpersDataMtime time.Time
 
 func ParseAppId(id string) (*AppId, error) {
 	app := new(AppId)
@@ -128,86 +115,6 @@ func (app *AppId) Base() string {
 	} else {
 		return app.Application
 	}
-}
-
-type hookFile struct {
-	AppId string `json:"app_id"`
-	Exec  string `json:"exec"`
-}
-
-var hookPath = filepath.Join(xdg.Data.Home(), "ubuntu-push-client", "helpers")
-var hookExt = ".json"
-
-// Helper figures out the app id and executable of the untrusted
-// helper for this app.
-func (app *AppId) helperFromHookFile() (helperAppId string, helperExec string) {
-	// xxx: should probably have a cache of this
-	matches, err := filepath.Glob(filepath.Join(hookPath, app.Package+"_*"+hookExt))
-	if err != nil {
-		return "", ""
-	}
-	var v hookFile
-	for _, m := range matches {
-		abs, err := filepath.EvalSymlinks(m)
-		if err != nil {
-			continue
-		}
-		data, err := ioutil.ReadFile(abs)
-		if err != nil {
-			continue
-		}
-		err = json.Unmarshal(data, &v)
-		if err != nil {
-			continue
-		}
-		if v.Exec != "" && (v.AppId == "" || v.AppId == app.Base()) {
-			basename := filepath.Base(m)
-			helperAppId = basename[:len(basename)-len(hookExt)]
-			helperExec = filepath.Join(filepath.Dir(abs), v.Exec)
-			return helperAppId, helperExec
-		}
-	}
-	return "", ""
-}
-
-// Helper figures out the id and executable of the untrusted
-// helper for this app.
-func (app *AppId) Helper() (helperAppId string, helperExec string) {
-	if !app.Click {
-		return "", ""
-	}
-	fInfo, err := os.Stat(helpersDataPath)
-	if err != nil {
-		// cache file is missing, go via the slow route
-		return app.helperFromHookFile()
-	}
-
-	if helpersInfo == nil || fInfo.ModTime().After(helpersDataMtime) {
-		data, err := ioutil.ReadFile(helpersDataPath)
-		if err != nil {
-			return "", ""
-		}
-		err = json.Unmarshal(data, &helpersInfo)
-		if err != nil {
-			return "", ""
-		}
-		helpersDataMtime = fInfo.ModTime()
-	}
-	var info helperValue
-	info, ok := helpersInfo[app.Base()]
-	if !ok {
-		// ok, appid wasn't there, try with the package
-		info, ok = helpersInfo[app.Package]
-		if !ok {
-			return "", ""
-		}
-	}
-	if info.Exec != "" {
-		helperAppId = info.HelperId
-		helperExec = info.Exec
-		return helperAppId, helperExec
-	}
-	return "", ""
 }
 
 func (app *AppId) Versioned() string {
