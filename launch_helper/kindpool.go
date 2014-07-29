@@ -145,13 +145,29 @@ func (pool *kindHelperPool) loop() {
 					}
 				}
 			}
-			if backlogSz == 0 {
-				backlog = nil
-			}
+			backlog = pool.shrinkBacklog(backlog, backlogSz)
 			pool.log.Debugf("current helper input backlog has shrunk to %d entries.", backlogSz)
 		}
 	}
 }
+
+func (pool *kindHelperPool) shrinkBacklog(backlog []*HelperInput, backlogSz int) []*HelperInput {
+	if backlogSz == 0 {
+		return nil
+	}
+	if cap(backlog) < 2*backlogSz {
+		return backlog
+	}
+	pool.log.Debugf("copying backlog to avoid wasting too much space (%d/%d used)", backlogSz, cap(backlog))
+	clean := make([]*HelperInput, 0, backlogSz)
+	for _, bentry := range backlog {
+		if bentry != nil {
+			clean = append(clean, bentry)
+		}
+	}
+	return clean
+}
+
 func (pool *kindHelperPool) Stop() {
 	close(pool.chIn)
 	for kind, launcher := range pool.launchers {
