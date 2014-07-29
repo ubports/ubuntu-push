@@ -179,12 +179,11 @@ Example::
 	$ gdbus call --session --dest com.ubuntu.Postal --object-path /com/ubuntu/Postal/com_2eubuntu_2emusic \
 	--method com.ubuntu.Postal.PopAll com.ubuntu.music_music
 
-	(['{"message": "foobar", "notification":{"card": {"summary": "yes", "body": "hello", "popup": true, "persist": true}}}'],)
+	(['{"foo": "bar", ....}'],)
 
-The argument for the PopAll method is the APP_ID and it returns a list of strings, each string being the "message" element of a
-separate postal message received by the Ubuntu Push Client, either via `Post <#com-ubuntu-postal-post>`__ or from the
-Ubuntu Push service, after processing by a helper.
-
+The argument for the PopAll method is the APP_ID and it returns a list of strings, each string being a separate postal
+message, the "message" element of a helper's output fed from `Post <#com-ubuntu-postal-post>`__
+or from the Ubuntu Push service,
 
 Post Signal
 ~~~~~~~~~~~
@@ -270,13 +269,13 @@ helloHelper-apparmor.json must contain **only** the push-notification-client pol
 	}
 
 And helloHelper.json must have at least a exec key with the path to the helper executable relative to the json, and optionally
-an app_id key containing the short id of one of the apps in the package (in the format packagename_appname without a version)::
+an app_id key containing the short id of one of the apps in the package (in the format packagename_appname without a version).
+If the app_id is not specified, the helper will be used for all apps in the package::
 
 	{
 		"exec": "helloHelper",
 		"app_id": "com.ubuntu.developer.ralsina.hello_hello"
 	}
-
 
 .. note:: For deb packages, helpers should be installed into /usr/lib/ubuntu-push-client/legacy-helpers/ as part of the package.
 
@@ -290,6 +289,7 @@ Here's a simple example::
 	{
 		"message": "foobar",
 		"notification": {
+			"tag": "foo",
 			"card": {
 				"summary": "yes",
 				"body": "hello",
@@ -297,10 +297,9 @@ Here's a simple example::
 				"persist": true
 			}
 			"sound": "buzz.mp3",
-			"tag": "foo",
 			"vibrate": {
-				"duration": 200,
 				"pattern": (200, 100),
+				"duration": 200,
 				"repeat": 2
 			}
 			"emblem-counter": {
@@ -310,10 +309,12 @@ Here's a simple example::
 		}
 	}
 
+The notification can contain a **tag** field, which can later be used by the `persistent notification management API. <#persistent-notification-management>`__
+
 :message: (optional) A JSON object that is passed as-is to the application via PopAll.
 :notification: (optional) Describes the user-facing notifications triggered by this push message.
 
-The notification can contain one **card**. Each card describes a specific notification to be given to the user,
+The notification can contain a **card**. A card describes a specific notification to be given to the user,
 and has the following fields:
 
 :summary: (required) a title. The card will not be presented if this is missing.
@@ -321,7 +322,7 @@ and has the following fields:
 :actions: If empty (the default), a bubble notification is non-clickable.
           If you add a URL, then bubble notifications are clickable and launch that URL. One use for this is using a URL like
           ``appid://com.ubuntu.developer.ralsina.hello/hello/current-user-version`` which will switch to the app or launch
-          it if it's not running.
+          it if it's not running. See `URLDispatcher <https://wiki.ubuntu.com/URLDispatcher>`__ for more information.
 
 :icon: An icon relating to the event being notified. Defaults to empty (no icon);
        a secondary icon relating to the application will be shown as well, regardless of this field.
@@ -331,7 +332,7 @@ and has the following fields:
 
 .. note:: Keep in mind that the precise way in which each field is presented to the user depends on factors such as
           whether it's shown as a bubble or in the notification centre, or even the version of Ubuntu Touch the user
-          has on his device.
+          has on their device.
 
 The notification can contain a **sound** field. This is the path to a sound file. The user can disable it, so don't rely on it exclusively.
 Defaults to empty (no sound). This is a relative path, and will be looked up in (a) the application's .local/share/<pkgname>, and (b)
@@ -339,11 +340,9 @@ standard xdg dirs.
 
 The notification can contain a **vibrate** field, causing haptic feedback, that has the following content:
 
-:duration: duration in milliseconds
-:pattern: a list of integers describing a vibration pattern
-:repeat: number of times the pattern has to be repeated (defaults to 1, 0 is the same as 1)
-
-The notification can contain a **tag** field, which can later be used by the `persistent notification management API. <#persistent-notification-management>`__
+:pattern: a list of integers describing a vibration pattern.
+:duration: duration in milliseconds. Is equivalent to setting pattern to [duration], and overrides pattern.
+:repeat: number of times the pattern has to be repeated (defaults to 1, 0 is the same as 1).
 
 The notification can contain a **emblem-counter** field, with the following content:
 
