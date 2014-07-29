@@ -338,6 +338,7 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	c.Assert(svc.Start(), IsNil)
 
 	app := clickhelp.MustParseAppId(anAppId)
+	// these two, being for the same app, will be done sequentially.
 	svc.Post(app, "m1", json.RawMessage(`{"message":{"world":1}}`))
 	svc.Post(app, "m2", json.RawMessage(`{"message":{"moon":1}}`))
 	classicApp := clickhelp.MustParseAppId("_classic-app")
@@ -346,14 +347,15 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	if ps.fakeLauncher.done != nil {
 		// wait for the two posts to "launch"
 		takeNextBytes(ps.fakeLauncher.ch)
-		inputData := takeNextBytes(ps.fakeLauncher.ch)
 		takeNextBytes(fakeLauncher2.ch)
+		go ps.fakeLauncher.done("0") // OneDone
+		go fakeLauncher2.done("0")
+
+		inputData := takeNextBytes(ps.fakeLauncher.ch)
 
 		c.Check(string(inputData), Equals, `{"message":{"moon":1}}`)
 
-		go ps.fakeLauncher.done("0") // OneDone
 		go ps.fakeLauncher.done("1") // OneDone
-		go fakeLauncher2.done("0")
 	}
 
 	c.Check(takeNextBool(ch), Equals, false) // one,
@@ -718,7 +720,7 @@ func (ps *postalSuite) TestClearPersistent(c *C) {
 	icleared, err := svc.clearPersistent(aPackageOnBus, []interface{}{anAppId, "one", ""}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(icleared, HasLen, 1)
-	c.Check(icleared[0], Equals, 42)
+	c.Check(icleared[0], Equals, uint32(42))
 }
 
 func (ps *postalSuite) TestClearPersistentErrors(c *C) {

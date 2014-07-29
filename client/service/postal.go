@@ -263,7 +263,7 @@ func (svc *PostalService) clearPersistent(path string, args, _ []interface{}) ([
 		}
 		tags[i] = tag
 	}
-	return []interface{}{svc.messagingMenu.Clear(app, tags...)}, nil
+	return []interface{}{uint32(svc.messagingMenu.Clear(app, tags...))}, nil
 }
 
 func (svc *PostalService) setCounter(path string, args, _ []interface{}) ([]interface{}, error) {
