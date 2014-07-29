@@ -720,7 +720,7 @@ func (ps *postalSuite) TestClearPersistent(c *C) {
 	icleared, err := svc.clearPersistent(aPackageOnBus, []interface{}{anAppId, "one", ""}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(icleared, HasLen, 1)
-	c.Check(icleared[0], Equals, 42)
+	c.Check(icleared[0], Equals, uint32(42))
 }
 
 func (ps *postalSuite) TestClearPersistentErrors(c *C) {
