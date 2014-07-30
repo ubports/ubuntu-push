@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Collect helpers hook data into a single json file"""
+
+import argparse
+import json
+import os
+import sys
+import time
+
+import xdg.BaseDirectory
+
+
+hook_ext = '.json'
+
+
+def main(helpers_data_path=None, helpers_data_path_tmp=None, hooks_path=None):
+    helpers_data = {}
+    for hook_fname in os.listdir(hooks_path):
+        if not hook_fname.endswith(hook_ext):
+            continue
+        try:
+            with open(os.path.join(hooks_path, hook_fname), 'r') as fd:
+                data = json.load(fd)
+        except Exception:
+            continue
+        else:
+            helper_id = os.path.splitext(hook_fname)[0]
+            exec_path = data['exec']
+            if exec_path != "":
+                realpath = os.path.realpath(os.path.join(hooks_path,
+                                                         hook_fname))
+                exec_path = os.path.join(os.path.dirname(realpath), exec_path)
+            app_id = data.get('app_id', None)
+            if app_id is None:
+                # no app_id, use the package name from the helper_id
+                app_id = helper_id.split('_')[0]
+            elif app_id.count('_') >= 3:
+                # remove the version from the app_id
+                app_id = app_id.rsplit('_', 1)[0]
+            helpers_data[app_id] = {'exec': exec_path, 'helper_id': helper_id}
+
+    # write the collected data to a temp file and rename the original once
+    # everything is on disk
+    try:
+        tmp_filename = helpers_data_path_tmp % (time.time(),)
+        with open(tmp_filename, 'w') as dest:
+            json.dump(helpers_data, dest)
+            dest.flush()
+        os.rename(tmp_filename, helpers_data_path)
+    except Exception:
+        return 1
+    return 0
+
+if __name__ == "__main__":
+    xdg_data_home = xdg.BaseDirectory.xdg_data_home
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-d', '--data-home',
+                        help='The Path to the (xdg) data home',
+                        default=xdg_data_home)
+    args = parser.parse_args()
+    xdg_data_home = args.data_home
+    helpers_data_path = os.path.join(xdg_data_home, 'ubuntu-push-client',
+                                     'helpers_data.json')
+    helpers_data_path_tmp = os.path.join(xdg_data_home, 'ubuntu-push-client',
+                                         '.helpers_data_%s.tmp')
+    hooks_path = os.path.join(xdg_data_home, 'ubuntu-push-client', 'helpers')
+    sys.exit(main(helpers_data_path=helpers_data_path,
+                  helpers_data_path_tmp=helpers_data_path_tmp,
+                  hooks_path=hooks_path))
