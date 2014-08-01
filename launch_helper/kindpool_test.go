@@ -542,31 +542,28 @@ func (s *poolSuite) TestRunBacklogFailedContinuesDiffApp(c *C) {
 }
 
 func (s *poolSuite) TestBigBacklogShrinks(c *C) {
+	oldBufSz := InputBufferSize
+	InputBufferSize = 0
+	defer func() { InputBufferSize = oldBufSz }()
 	s.pool.(*kindHelperPool).maxNum = 1
 	ch := s.pool.Start()
 	defer s.pool.Stop()
-	numBad := 10
 
 	app := clickhelp.MustParseAppId("com.example.test_test-app")
 	s.pool.Run("fake", &HelperInput{App: app, NotificationId: "0", Payload: []byte(`""`)})
-
-	for i := 0; i < numBad; i++ {
-		s.pool.Run("NOT-THERE", &HelperInput{App: app})
-	}
 	s.pool.Run("fake", &HelperInput{App: app, NotificationId: "1", Payload: []byte(`""`)})
 	s.pool.Run("fake", &HelperInput{App: app, NotificationId: "2", Payload: []byte(`""`)})
 	s.waitForArgs(c, "Launch")
 	go s.fakeLauncher.done("0")
-	// now we should get the fake + all the bad ones
-	for i := 0; i < numBad+1; i++ {
-		takeNext(ch, c)
-	}
+	takeNext(ch, c)
+	// so now there's one done, one "running", and one more waiting.
+	// kicking it forward one more notch before checking the logs:
 	s.waitForArgs(c, "Launch")
 	go s.fakeLauncher.done("1")
 	takeNext(ch, c)
-	// so now there's one good one "running", and one more waiting.
+	// (two done, one "running")
 	c.Check(s.log.Captured(), Matches, `(?ms).* shrunk to 1 entries\.$`)
-	// and the shrinker shrunk
+	// and the backlog shrinker shrunk the backlog
 	c.Check(s.log.Captured(), Matches, `(?ms).*copying backlog to avoid wasting too much space .*`)
 }
 
