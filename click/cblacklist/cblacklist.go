@@ -26,8 +26,8 @@ package cblacklist
 #include <glib/gprintf.h>
 #include <gio/gio.h>
 
-#define BLACKLIST_CONFIG_SCHEMA_ID "com.ubuntu.touch.notifications"
-#define BLACKLIST_KEY "popup-blacklist"
+#define BLACKLIST_CONFIG_SCHEMA_ID "com.ubuntu.postal.notifications"
+#define BLACKLIST_KEY "blacklist"
 
 int is_blacklisted(const char *pkgname, const char *appname) {
     static GSettings *pushSettings = NULL;
