@@ -29,18 +29,7 @@ class TestPushClientUnicast(PushNotificationTestBase):
 
     DEFAULT_DISPLAY_MESSAGE = 'Look!'
 
-    scenarios = [('click_app_with_version',
-                  dict(app_name="com.ubuntu.calculator_calculator",
-                       appid=None, path=None,
-                       desktop_dir="~/.local/share/applications/",
-                       launcher_idx=4)),
-                 ('click_app',
-                  dict(app_name="com.ubuntu.calculator_calculator",
-                       appid="com.ubuntu.calculator_calculator",
-                       path="com_2eubuntu_2ecalculator",
-                       desktop_dir="~/.local/share/applications/",
-                       launcher_idx=4)),
-                 ('legacy_app',
+    scenarios = [('legacy_app',
                   dict(app_name="messaging-app",
                        appid="_messaging-app",
                        path="_",
@@ -67,16 +56,8 @@ class TestPushClientUnicast(PushNotificationTestBase):
                 return appid, path
         return self.appid, self.path
 
-    def test_unicast_push_notification_persistent(self):
-        """Send a persistent unicast push notification.
-
-        Notification should be displayed in the incoming indicator.
-
-        """
-        # Assumes greeter starts in locked state
-        self.unlock_greeter()
-        # send message
-        self.send_unicast_notification(persist=True)
+    def validate_mmu_notification(self):
+        # get the mmu notification and check the body and title.
         # swipe down and show the incomming page
         messaging = self.get_messaging_menu()
         # get the notification and check the body and title.
@@ -87,6 +68,18 @@ class TestPushClientUnicast(PushNotificationTestBase):
         self.assertEqual(body.text, 'A unicast message')
         title = hmh.select_single("Label", objectName='title')
         self.assertEqual(title.text, 'Look!')
+
+    def test_unicast_push_notification_persistent(self):
+        """Send a persistent unicast push notification.
+
+        Notification should be displayed in the incoming indicator.
+
+        """
+        # Assumes greeter starts in locked state
+        self.unlock_greeter()
+        # send message
+        self.send_unicast_notification(persist=True, popup=False)
+        self.validate_mmu_notification()
 
     def get_running_app_launcher_icon(self):
         launcher = self.main_window.get_launcher()
@@ -184,3 +177,21 @@ class TestPushClientUnicast(PushNotificationTestBase):
         # validate no notification is displayed
         self.validate_notification_not_displayed()
 
+
+class TestPushClientUnicastClick(TestPushClientUnicast):
+
+    use_trivial_helpers = True
+
+    scenarios = [('click_app_with_version',
+                  dict(app_name="com.ubuntu.calculator_calculator",
+                       appid=None, path=None,
+                       desktop_dir="~/.local/share/applications/",
+                       launcher_idx=5,
+                       use_trivial_helpers=True)),
+                 ('click_app',
+                  dict(app_name="com.ubuntu.calculator_calculator",
+                       appid="com.ubuntu.calculator_calculator",
+                       path="com_2eubuntu_2ecalculator",
+                       desktop_dir="~/.local/share/applications/",
+                       launcher_idx=5,
+                       use_trivial_helpers=True))]

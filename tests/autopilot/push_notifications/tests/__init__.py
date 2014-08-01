@@ -22,6 +22,7 @@
 import copy
 import datetime
 import time
+import subprocess
 
 import evdev
 
@@ -36,6 +37,7 @@ class PushNotificationTestBase(UnityTestCase):
     """
     Base class for push notification test cases
     """
+    use_trivial_helpers = False
 
     @classmethod
     def setUpClass(cls):
@@ -46,6 +48,7 @@ class PushNotificationTestBase(UnityTestCase):
         test_config = push_helper.PushClientConfig.read_config(
             push_config.get_config_file())
         push_client_controller = push_helper.PushClientController()
+        cls.enable_trivial_helpers(cls.use_trivial_helpers)
         push_client_controller.restart_push_client_using_config(test_config)
 
     @classmethod
@@ -56,6 +59,13 @@ class PushNotificationTestBase(UnityTestCase):
         """
         push_client_controller = push_helper.PushClientController()
         push_client_controller.restart_push_client_using_config(None)
+        if cls.use_trivial_helpers:
+            cls.enable_trivial_helpers(False)
+
+    @classmethod
+    def enable_trivial_helpers(cls, enable):
+        value = 'UBUNTU_PUSH_USE_TRIVIAL_HELPER="%d"' % int(enable)
+        subprocess.call(['initctl', 'set-env', '--global', value])
 
     def setUp(self):
         """
