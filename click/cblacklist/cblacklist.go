@@ -23,7 +23,6 @@ package cblacklist
 #cgo pkg-config: glib-2.0
 
 #include <stdlib.h>
-#include <glib/gprintf.h>
 #include <gio/gio.h>
 
 #define BLACKLIST_CONFIG_SCHEMA_ID "com.ubuntu.notifications.hub"
