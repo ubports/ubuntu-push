@@ -63,7 +63,7 @@ The PushClient Component
 
 Example::
 
-	import Ubuntu.PushNotifications 0.1
+    import Ubuntu.PushNotifications 0.1
 
     PushClient {
         id: pushClient
