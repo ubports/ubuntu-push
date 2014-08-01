@@ -73,7 +73,7 @@ it.
 Each Ubuntu Touch package has to use a separate object path for security reasons, that's why the object path includes QUOTED_PKGNAME.
 For example, in the case of the music application, the package name is ``com.ubuntu.music`` and QUOTED_PKGNAME is com_2eubuntu_2emusic.
 Everything that is not a letter or digit has to be quoted as _XX where XX are the hex digits of the character. In practice,
-this means replacing "." with "_2e" and "-" with "_2f"
+this means replacing "." with "_2e" and "-" with "_2d"
 
 .. note:: For applications that are not installed as part of click packages, the QUOTED_PKGNAME is "_" and the APP_ID when required is
           _PACKAGENAME.
