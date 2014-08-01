@@ -31,10 +31,10 @@ def cleanup_settings():
     for package in clickdb.get_packages(False):
         pkgnames.append(package.get_property('package'))
 
-    settings = Gio.Settings.new('com.ubuntu.touch.notifications')
+    settings = Gio.Settings.new('com.ubuntu.postal.notifications')
     goodapps = GLib.VariantBuilder.new(GLib.VariantType.new("a(ss)"))
 
-    for appname in settings.get_value('popup-blacklist').unpack():
+    for appname in settings.get_value('blacklist').unpack():
         if appname[0] in pkgnames:
             goodapps.add_value(tup2variant(appname))
         elif (appname[0] == appname[1]):
@@ -42,7 +42,7 @@ def cleanup_settings():
             if not appinfo is None:
                 goodapps.add_value(tup2variant(appname))
 
-    settings.set_value('popup-blacklist', goodapps.end())
+    settings.set_value('blacklist', goodapps.end())
 
 
 def collect_helpers(helpers_data_path, helpers_data_path_tmp, hooks_path):
@@ -85,7 +85,8 @@ def collect_helpers(helpers_data_path, helpers_data_path_tmp, hooks_path):
 
 
 def main(helpers_data_path=None, helpers_data_path_tmp=None, hooks_path=None):
-    collect_fail = collect_helpers(helpers_data_path, helpers_data_path_tmp, hooks_path)
+    collect_fail = collect_helpers(helpers_data_path, helpers_data_path_tmp,
+                                   hooks_path)
     clean_settings_fail = False
     try:
         cleanup_settings()
