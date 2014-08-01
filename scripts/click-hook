@@ -31,7 +31,7 @@ def cleanup_settings():
     for package in clickdb.get_packages(False):
         pkgnames.append(package.get_property('package'))
 
-    settings = Gio.Settings.new('com.ubuntu.postal.notifications')
+    settings = Gio.Settings.new('com.ubuntu.notifications.hub')
     goodapps = GLib.VariantBuilder.new(GLib.VariantType.new("a(ss)"))
 
     for appname in settings.get_value('blacklist').unpack():
