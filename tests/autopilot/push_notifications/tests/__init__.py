@@ -64,8 +64,12 @@ class PushNotificationTestBase(UnityTestCase):
 
     @classmethod
     def enable_trivial_helpers(cls, enable):
-        value = 'UBUNTU_PUSH_USE_TRIVIAL_HELPER="%d"' % int(enable)
-        subprocess.call(['initctl', 'set-env', '--global', value])
+        if enable:
+            value = 'UBUNTU_PUSH_USE_TRIVIAL_HELPER="%d"' % int(enable)
+            subprocess.call(['initctl', 'set-env', '--global', value])
+        else:
+            value = 'UBUNTU_PUSH_USE_TRIVIAL_HELPER'
+            subprocess.call(['initctl', 'unset-env', '--global', value])
 
     def setUp(self):
         """
