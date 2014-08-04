@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -42,9 +41,6 @@ type AppId struct {
 	Click       bool
 	original    string
 }
-
-var hookPath = filepath.Join(xdg.Data.Home(), "ubuntu-push-client", "helpers")
-var hookExt = ".json"
 
 // from https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId
 // except the version is made optional
@@ -119,46 +115,6 @@ func (app *AppId) Base() string {
 	} else {
 		return app.Application
 	}
-}
-
-type hookFile struct {
-	AppId string `json:"app_id"`
-	Exec  string `json:"exec"`
-}
-
-// Helper figures out the app id and executable of the untrusted
-// helper for this app.
-func (app *AppId) Helper() (helperAppId string, helperExec string) {
-	if !app.Click {
-		return "", ""
-	}
-	// xxx: should probably have a cache of this
-	matches, err := filepath.Glob(filepath.Join(hookPath, app.Package+"_*"+hookExt))
-	if err != nil {
-		return "", ""
-	}
-	var v hookFile
-	for _, m := range matches {
-		abs, err := filepath.EvalSymlinks(m)
-		if err != nil {
-			continue
-		}
-		data, err := ioutil.ReadFile(abs)
-		if err != nil {
-			continue
-		}
-		err = json.Unmarshal(data, &v)
-		if err != nil {
-			continue
-		}
-		if v.Exec != "" && (v.AppId == "" || v.AppId == app.Base()) {
-			basename := filepath.Base(m)
-			helperAppId = basename[:len(basename)-len(hookExt)]
-			helperExec = filepath.Join(filepath.Dir(abs), v.Exec)
-			return helperAppId, helperExec
-		}
-	}
-	return "", ""
 }
 
 func (app *AppId) Versioned() string {
