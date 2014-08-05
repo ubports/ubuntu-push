@@ -1,3 +1,26 @@
+ubuntu-push (0.60+14.10.20140804-0ubuntu1) utopic; urgency=medium
+
+  [ Guillermo Gonzalez ]
+  * Add click hook to collect helpers data on install/update/etc and
+    support to read the helper cached data, when available, and only
+    refresh it when it changes.
+  * Include notification settings cleanup in the click install hook, and
+    rename it to click-hook
+
+  [ John R. Lenton ]
+  * For the gsettings interface: Improve, add tests, make design-compliant.
+
+  [Roberto Alsina]
+  * Query gsettings as to whether a notification should be presented.
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 04 Aug 2014 15:38:34 +0000
+
+ubuntu-push (0.50+14.10.20140801-0ubuntu1) utopic; urgency=low
+
+  * New rebuild forced
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Fri, 01 Aug 2014 02:15:29 +0000
+
 ubuntu-push (0.50+14.10.20140729-0ubuntu1) utopic; urgency=medium
 
   [ Samuele Pedroni ]
