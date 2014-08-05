@@ -17,9 +17,11 @@
 package sounds
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"launchpad.net/go-xdg/v0"
 
@@ -69,9 +71,23 @@ func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_hel
 	return true
 }
 
+// Removes all cruft from path, ensures it's a "forward" path.
+func (snd *Sound) cleanPath(path string) (string, error) {
+	cleaned := filepath.Clean(path)
+	if strings.Contains(cleaned, "../") {
+		return "", errors.New("Path escaping xdg attempt")
+	}
+	return cleaned, nil
+}
+
 func (snd *Sound) findSoundFile(app *click.AppId, nid string, sound string) string {
 	// XXX also support legacy appIds?
 	// first, check package-specific
+	sound, err := snd.cleanPath(sound)
+	if err != nil {
+		// bad boy
+		return ""
+	}
 	absPath, err := snd.dataFind(filepath.Join(app.Package, sound))
 	if err == nil {
 		// ffffound
