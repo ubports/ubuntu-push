@@ -15,10 +15,8 @@
 */
 
 // Package testing implements a couple of Ids that are useful
-// for testing things that use whoopsie/identifier.
+// for testing things that use identifier.
 package testing
-
-import "errors"
 
 // SettableIdentifier is an Id that lets you set the value of the identifier.
 //
@@ -38,11 +36,6 @@ func (sid *SettableIdentifier) Set(value string) {
 	sid.value = value
 }
 
-// Generate does nothing.
-func (sid *SettableIdentifier) Generate() error {
-	return nil
-}
-
 // String returns the string you set.
 func (sid *SettableIdentifier) String() string {
 	return sid.value
@@ -54,11 +47,6 @@ type FailingIdentifier struct{}
 // Failing is the constructor for FailingIdentifier.
 func Failing() *FailingIdentifier {
 	return &FailingIdentifier{}
-}
-
-// Generate fails with an ubiquitous error.
-func (*FailingIdentifier) Generate() error {
-	return errors.New("lp0 on fire")
 }
 
 // String returns "<Failing>".
