@@ -123,7 +123,7 @@ The ``void clearPersistent(QStringList tags)`` method clears persistent notifica
 If no tag is given, match all.
 
 
-The ``void setCounter(int count, bool visible)`` method sets the counter in the application's icon to the given value.
+The ``count`` property sets the counter in the application's icon to the given value.
 
 
 Application Helpers
