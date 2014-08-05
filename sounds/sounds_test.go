@@ -111,6 +111,6 @@ func (ss *soundsSuite) TestGoodPathSucceeds(c *C) {
 	}
 
 	sound, err := s.cleanPath("foo/../bar")
-	c.Check(err, Nil)
+	c.Check(err, IsNil)
 	c.Check(sound, Equals, "bar")
 }
