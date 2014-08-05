@@ -89,7 +89,6 @@ func (snd *Sound) findSoundFile(app *click.AppId, nid string, sound string) stri
 		return ""
 	}
 	absPath, err := snd.dataFind(filepath.Join(app.Package))
-	absPath = filepath.Clean(absPath)
 	if err == nil {
 		// ffffound
 		return absPath
