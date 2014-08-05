@@ -88,3 +88,29 @@ func (ss *soundsSuite) TestPresentFails(c *C) {
 	s.dataDirs = func() []string { return []string{"", d} }
 	c.Check(s.Present(ss.app, "", &launch_helper.Notification{Sound: "hello"}), Equals, true)
 }
+
+func (ss *soundsSuite) TestBadPathFails(c *C) {
+	s := &Sound{
+		player:   "/",
+		log:      ss.log,
+		dataFind: func(string) (string, error) { return "", errors.New("nope") },
+		dataDirs: func() []string { return []string{""} },
+	}
+
+	sound, err := s.cleanPath("../../foo")
+	c.Check(err, NotNil)
+	c.Check(sound, Equals, "")
+}
+
+func (ss *soundsSuite) TestGoodPathSucceeds(c *C) {
+	s := &Sound{
+		player:   "/",
+		log:      ss.log,
+		dataFind: func(string) (string, error) { return "", errors.New("nope") },
+		dataDirs: func() []string { return []string{""} },
+	}
+
+	sound, err := s.cleanPath("foo/../bar")
+	c.Check(err, IsNil)
+	c.Check(sound, Equals, "bar")
+}

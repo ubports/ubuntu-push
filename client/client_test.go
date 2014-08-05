@@ -42,12 +42,12 @@ import (
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/identifier"
+	idtesting "launchpad.net/ubuntu-push/identifier/testing"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/util"
-	"launchpad.net/ubuntu-push/whoopsie/identifier"
-	idtesting "launchpad.net/ubuntu-push/whoopsie/identifier/testing"
 )
 
 func TestClient(t *testing.T) { TestingT(t) }
@@ -239,7 +239,8 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	c.Check(cli.idder, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	c.Assert(cli.idder, FitsTypeOf, identifier.New())
+	newIdder, err := identifier.New()
+	c.Assert(cli.idder, FitsTypeOf, newIdder)
 }
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
@@ -536,7 +537,7 @@ func (cs *clientSuite) TestStartPostalErrorsOnPostalStartError(c *C) {
 func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.idder = identifier.New()
+	cli.idder, _ = identifier.New()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), IsNil)
 	c.Check(cli.deviceId, HasLen, 40)
@@ -550,14 +551,14 @@ func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
 	c.Check(cli.getDeviceId(), NotNil)
 }
 
-func (cs *clientSuite) TestGetDeviceIdWhoopsieDoesTheUnexpected(c *C) {
+func (cs *clientSuite) TestGetDeviceIdIdentifierDoesTheUnexpected(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	settable := idtesting.Settable()
 	cli.idder = settable
 	settable.Set("not-hex")
 	c.Check(cli.deviceId, Equals, "")
-	c.Check(cli.getDeviceId(), ErrorMatches, "whoopsie id should be hex: .*")
+	c.Check(cli.getDeviceId(), ErrorMatches, "machine-id should be hex: .*")
 }
 
 /*****************************************************************
@@ -1111,7 +1112,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and now everthing is better! We have a config,
 	c.Check(string(cli.config.Addr), Equals, ":0")
 	// and a device id,
-	c.Check(cli.deviceId, HasLen, 40)
+	c.Check(cli.deviceId, HasLen, 32)
 	// and a session,
 	c.Check(cli.session, NotNil)
 	// and a bus,
