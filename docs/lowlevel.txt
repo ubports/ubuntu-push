@@ -297,7 +297,7 @@ Here's a simple example::
 				"body": "hello",
 				"popup": true,
 				"persist": true,
-                "timestamp": 1407160197
+				"timestamp": 1407160197
 			}
 			"sound": "buzz.mp3",
 			"vibrate": {
@@ -393,7 +393,7 @@ Here is an example of the POST body using all the fields::
 					"body": "hello",
 					"popup": true,
 					"persist": true,
-                    "timestamp": 1407160197
+					"timestamp": 1407160197
 				}
 				"sound": "buzz.mp3",
 				"tag": "foo",
