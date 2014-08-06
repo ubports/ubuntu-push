@@ -17,7 +17,6 @@
 package launch_helper
 
 import (
-	"encoding/json"
 	"time"
 
 	. "launchpad.net/gocheck"
@@ -27,14 +26,8 @@ type outSuite struct{}
 
 var _ = Suite(&outSuite{})
 
-func (*outSuite) TestUnmarshalCard(c *C) {
+func (*outSuite) TestCardGetTimestamp(c *C) {
 	t := time.Now().Add(-2 * time.Second)
-	var notif *Notification
-	err := json.Unmarshal([]byte(`{"card": {"summary": "hi"}}`), &notif)
-	c.Assert(err, IsNil)
-	c.Assert(notif, NotNil)
-	card := notif.Card
-	c.Assert(card, NotNil)
-	c.Check(card.Summary, Equals, "hi")
-	c.Check(time.Unix(int64(card.Timestamp), 0).After(t), Equals, true)
+	c.Check(time.Unix((&Card{}).GetTimestamp(), 0).After(t), Equals, true)
+	c.Check((&Card{Timestamp: 42}).GetTimestamp(), Equals, int64(42))
 }

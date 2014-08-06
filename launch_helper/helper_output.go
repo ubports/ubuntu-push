@@ -78,30 +78,10 @@ type HelperInput struct {
 	Payload        json.RawMessage
 }
 
-type rawnotif struct {
-	Card          *Card          `json:"card"`
-	Sound         string         `json:"sound"`
-	Vibrate       *Vibration     `json:"vibrate"`
-	EmblemCounter *EmblemCounter `json:"emblem-counter"`
-	Tag           string         `json:"tag,omitempty"`
-}
-
-func (n *Notification) UnmarshalJSON(b []byte) error {
-	var raw rawnotif
-	err := json.Unmarshal(b, &raw)
-	if err != nil {
-		return err
+func (card *Card) GetTimestamp() int64 {
+	if card.Timestamp == 0 {
+		return time.Now().Unix()
+	} else {
+		return int64(card.Timestamp)
 	}
-
-	n.Card = raw.Card
-	n.EmblemCounter = raw.EmblemCounter
-	n.Tag = raw.Tag
-	n.Sound = raw.Sound
-	n.Vibrate = raw.Vibrate
-
-	if n.Card != nil && n.Card.Timestamp == 0 {
-		n.Card.Timestamp = int(time.Now().Unix())
-	}
-
-	return nil
 }

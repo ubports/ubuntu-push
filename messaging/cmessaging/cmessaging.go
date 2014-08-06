@@ -84,7 +84,7 @@ func AddNotification(desktopId string, notificationId string, card *launch_helpe
 	body := gchar(card.Body)
 	defer gfree(body)
 
-	timestamp := (C.gint64)(int64(card.Timestamp) * 1000000)
+	timestamp := (C.gint64)(card.GetTimestamp() * 1000000)
 
 	C.add_notification(desktop_id, notification_id, icon_path, summary, body, timestamp, nil, (C.gpointer)(payload))
 }
