@@ -51,7 +51,7 @@ var rxLegacy = regexp.MustCompile(`^[^./][^/]*$`)
 
 var (
 	ErrInvalidAppId = errors.New("invalid application id")
-	ErrMissingAppId = errors.New("missing application id")
+	ErrMissingApp   = errors.New("application not installed")
 )
 
 func ParseAppId(id string) (*AppId, error) {
@@ -161,14 +161,14 @@ type InstalledChecker interface {
 
 // ParseAndVerifyAppId parses the given app id and checks if the
 // corresponding app is installed, returning the parsed id or
-// ErrInvalidAppId, or the parsed id and ErrMissingAppId respectively.
+// ErrInvalidAppId, or the parsed id and ErrMissingApp respectively.
 func ParseAndVerifyAppId(id string, installedChecker InstalledChecker) (*AppId, error) {
 	app, err := ParseAppId(id)
 	if err != nil {
 		return nil, err
 	}
 	if installedChecker != nil && !installedChecker.Installed(app, true) {
-		return app, ErrMissingAppId
+		return app, ErrMissingApp
 	}
 	return app, nil
 }

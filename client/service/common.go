@@ -118,7 +118,7 @@ func (svc *DBusService) grabDBusPackageAndAppId(path string, args []interface{},
 	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 	app, err = click.ParseAndVerifyAppId(id, svc.installedChecker)
 	if err != nil {
-		return nil, ErrBadAppId
+		return nil, err
 	}
 	if !app.InPackage(pkgname) {
 		return nil, ErrBadAppId

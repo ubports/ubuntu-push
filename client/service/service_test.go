@@ -28,6 +28,7 @@ import (
 
 	"launchpad.net/ubuntu-push/bus"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
 	helpers "launchpad.net/ubuntu-push/testing"
@@ -155,6 +156,10 @@ func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
 }
 
 func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
+	svc := new(PushService)
+	// fakeInstalledChecker returns false if the app id starts with an "x", true otherwise
+	svc.installedChecker = fakeInstalledChecker{}
+
 	for i, s := range []struct {
 		args []interface{}
 		errt error
@@ -162,14 +167,16 @@ func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
 		{nil, ErrBadArgCount},
 		{[]interface{}{}, ErrBadArgCount},
 		{[]interface{}{1}, ErrBadArgType},
-		{[]interface{}{"foo"}, ErrBadAppId},
+		{[]interface{}{"foo"}, click.ErrInvalidAppId},
+		{[]interface{}{"x" + anAppId}, click.ErrMissingApp},
+		{[]interface{}{"c" + anAppId}, ErrBadAppId},
 		{[]interface{}{"foo", "bar"}, ErrBadArgCount},
 	} {
-		reg, err := new(PushService).register("/bar", s.args, nil)
+		reg, err := svc.register("/bar", s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 
-		reg, err = new(PushService).unregister("/bar", s.args, nil)
+		reg, err = svc.unregister("/bar", s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
