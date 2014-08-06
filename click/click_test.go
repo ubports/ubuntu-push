@@ -178,7 +178,7 @@ func (s *clickSuite) TestParseAndVerifyAppId(c *C) {
 	c.Check(app.Application, Equals, "baz")
 
 	app, err = ParseAndVerifyAppId("_non-existent-app", u)
-	c.Assert(err, Equals, ErrMissingAppId)
+	c.Assert(err, Equals, ErrMissingApp)
 	c.Check(app, NotNil)
 	c.Check(app.Original(), Equals, "_non-existent-app")
 }
