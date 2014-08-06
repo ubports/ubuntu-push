@@ -24,12 +24,13 @@ import time
 from push_notifications.tests import PushNotificationTestBase
 
 
-class TestPushClientBroadcast(PushNotificationTestBase):
-    """
-    Test cases for broadcast push notifications
-    """
+DEFAULT_DISPLAY_MESSAGE = "There's an updated system image."
+MMU_BODY = "Tap to open the system updater."
+MMU_TITLE = DEFAULT_DISPLAY_MESSAGE
 
-    DEFAULT_DISPLAY_MESSAGE = 'There\'s an updated system image.'
+
+class TestPushClientBroadcast(PushNotificationTestBase):
+    """Test cases for broadcast push notifications"""
 
     def test_broadcast_push_notification_screen_off(self):
         """
@@ -45,8 +46,12 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         time.sleep(2)
         # Turn display on
         self.press_power_button()
-        self.validate_and_dismiss_broadcast_notification_dialog(
-            self.DEFAULT_DISPLAY_MESSAGE)
+        # Assumes greeter starts in locked state
+        self.unlock_greeter()
+        # check the bubble is there
+        self.validate_and_dismiss_notification_dialog(DEFAULT_DISPLAY_MESSAGE)
+        # clear the mmu
+        self.clear_mmu()
 
     def test_broadcast_push_notification_locked_greeter(self):
         """
@@ -54,10 +59,13 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         to the client and validate that a notification message is displayed
         whist the greeter screen is displayed
         """
-        # Assumes greeter starts in locked state
         self.send_push_broadcast_message()
-        self.validate_and_dismiss_broadcast_notification_dialog(
-            self.DEFAULT_DISPLAY_MESSAGE)
+        # Assumes greeter starts in locked state
+        self.unlock_greeter()
+        # check the bubble is there
+        self.validate_and_dismiss_notification_dialog(DEFAULT_DISPLAY_MESSAGE)
+        # clear the mmu
+        self.clear_mmu()
 
     def test_broadcast_push_notification(self):
         """
@@ -67,8 +75,40 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         self.send_push_broadcast_message()
-        self.validate_and_dismiss_broadcast_notification_dialog(
-            self.DEFAULT_DISPLAY_MESSAGE)
+        # check the bubble is there
+        self.validate_and_dismiss_notification_dialog(DEFAULT_DISPLAY_MESSAGE)
+        # clear the mmu
+        self.clear_mmu()
+
+    def test_broadcast_push_notification_is_persistent(self):
+        """
+        Positive test case to send a valid broadcast push notification
+        to the client and validate that a notification message is displayed
+        and includes a persitent mmu notification.
+        """
+        # Assumes greeter starts in locked state
+        self.unlock_greeter()
+        self.send_push_broadcast_message()
+        # check the bubble is there
+        self.validate_and_dismiss_notification_dialog(DEFAULT_DISPLAY_MESSAGE)
+        # check the mmu notification is there
+        self.validate_mmu_notification(MMU_BODY, MMU_TITLE)
+
+    def test_broadcast_push_notification_click_bubble_clears_mmu(self):
+        """
+        Positive test case to send a valid broadcast push notification
+        to the client and validate that a notification message is displayed
+        """
+        # Assumes greeter starts in locked state
+        self.unlock_greeter()
+        self.send_push_broadcast_message()
+        # check the bubble is there
+        self.validate_and_tap_notification_dialog(DEFAULT_DISPLAY_MESSAGE)
+        # swipe down and show the incomming page
+        messaging = self.get_messaging_menu()
+        emptyLabel = messaging.select_single('Label',
+                                             objectName='emptyLabel')
+        self.assertTrue(emptyLabel.visible)
 
     def test_broadcast_push_notification_on_connect(self):
         """
@@ -81,8 +121,10 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         self.push_client_controller.stop_push_client()
         self.send_push_broadcast_message()
         self.push_client_controller.start_push_client()
-        self.validate_and_dismiss_broadcast_notification_dialog(
-            self.DEFAULT_DISPLAY_MESSAGE)
+        # check the bubble is there
+        self.validate_and_dismiss_notification_dialog(DEFAULT_DISPLAY_MESSAGE)
+        # clear the mmu
+        self.clear_mmu()
 
     def test_expired_broadcast_push_notification(self):
         """

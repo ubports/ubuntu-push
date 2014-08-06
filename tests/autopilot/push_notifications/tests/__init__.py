@@ -37,7 +37,6 @@ class PushNotificationTestBase(UnityTestCase):
     """
     Base class for push notification test cases
     """
-    use_trivial_helpers = False
 
     @classmethod
     def setUpClass(cls):
@@ -48,28 +47,15 @@ class PushNotificationTestBase(UnityTestCase):
         test_config = push_helper.PushClientConfig.read_config(
             push_config.get_config_file())
         push_client_controller = push_helper.PushClientController()
-        cls.enable_trivial_helpers(cls.use_trivial_helpers)
         push_client_controller.restart_push_client_using_config(test_config)
 
     @classmethod
     def tearDownClass(cls):
         """
         Executed once after all tests have completed
-        Reset the push client to use the device's original config
         """
         push_client_controller = push_helper.PushClientController()
         push_client_controller.restart_push_client_using_config(None)
-        if cls.use_trivial_helpers:
-            cls.enable_trivial_helpers(False)
-
-    @classmethod
-    def enable_trivial_helpers(cls, enable):
-        if enable:
-            value = 'UBUNTU_PUSH_USE_TRIVIAL_HELPER="%d"' % int(enable)
-            subprocess.call(['initctl', 'set-env', '--global', value])
-        else:
-            value = 'UBUNTU_PUSH_USE_TRIVIAL_HELPER'
-            subprocess.call(['initctl', 'unset-env', '--global', value])
 
     def setUp(self):
         """
@@ -252,6 +238,22 @@ class PushNotificationTestBase(UnityTestCase):
         """
         self.validate_and_dismiss_notification_dialog(message, secondary_icon=False)
 
+    def validate_and_tap_notification_dialog(self, message,
+                                             secondary_icon=True):
+        """
+        Validate a notification dialog is displayed and dismiss it
+        :param message: expected message displayed in summary
+        """
+        # get the dialog
+        dialog, props = self.get_notification_dialog()
+        # validate dialog
+        self.assert_notification_dialog(
+            props, summary=message, secondary_icon=secondary_icon)
+        # tap the dialog
+        self.touch.tap_object(dialog)
+        # check the dialog is no longer displayed
+        self.validate_notification_not_displayed(wait=False)
+
     def wait_until_dialog_dismissed(self, dialog):
         """Wait for the dialog to dismiss automatically"""
         dialog_disappeared = False
@@ -284,7 +286,7 @@ class PushNotificationTestBase(UnityTestCase):
             self.wait_until_dialog_dismissed(dialog)
 
     # unicast messages
-    def send_unicast_notification(self, icon="messages-app",
+    def send_unicast_notification(self, icon="",
                                   body="A unicast message", summary="Look!",
                                   persist=False, popup=True, actions=[], emblem_counter={}):
         """Build and send a push unicast message.
@@ -323,3 +325,31 @@ class PushNotificationTestBase(UnityTestCase):
         indicator_page = self.main_window.open_indicator_page(
             "indicator-messages")
         return indicator_page
+
+    def validate_mmu_notification(self, body_text, title_text):
+        # get the mmu notification and check the body and title.
+        # swipe down and show the incomming page
+        messaging = self.get_messaging_menu()
+        # get the notification and check the body and title.
+        menuItem0 = messaging.select_single('QQuickLoader',
+                                            objectName='menuItem0')
+        hmh = menuItem0.select_single('HeroMessageHeader')
+        body = hmh.select_single("Label", objectName='body')
+        self.assertEqual(body.text, body_text)
+        title = hmh.select_single("Label", objectName='title')
+        self.assertEqual(title.text, title_text)
+        self.clear_mmu()
+
+    def clear_mmu(self):
+        # get the mmu notification and check the body and title.
+        messaging = self.get_messaging_menu()
+        # clear all notifications
+        clear_all = messaging.select_single('ButtonMenu',
+                                            objectName='indicator.remove-all')
+        emptyLabel = messaging.select_single('Label',
+                                             objectName='emptyLabel')
+        self.assertFalse(emptyLabel.visible)
+        self.touch.tap_object(clear_all)
+        emptyLabel = messaging.select_single('Label',
+                                             objectName='emptyLabel')
+        self.assertTrue(emptyLabel.visible)
