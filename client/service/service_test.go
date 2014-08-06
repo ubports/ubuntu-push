@@ -170,7 +170,7 @@ func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 
-		reg, err = svc.unregister("/bar", s.args, nil)
+		reg, err = new(PushService).unregister("/bar", s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
