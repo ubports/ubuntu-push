@@ -22,7 +22,6 @@
 import copy
 import datetime
 import time
-import subprocess
 
 import evdev
 
