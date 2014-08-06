@@ -156,10 +156,6 @@ func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
 }
 
 func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
-	svc := new(PushService)
-	// fakeInstalledChecker returns false if the app id starts with an "x", true otherwise
-	svc.installedChecker = fakeInstalledChecker{}
-
 	for i, s := range []struct {
 		args []interface{}
 		errt error
@@ -168,11 +164,9 @@ func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
 		{[]interface{}{}, ErrBadArgCount},
 		{[]interface{}{1}, ErrBadArgType},
 		{[]interface{}{"foo"}, click.ErrInvalidAppId},
-		{[]interface{}{"x" + anAppId}, click.ErrMissingApp},
-		{[]interface{}{"c" + anAppId}, ErrAppIdMismatch},
 		{[]interface{}{"foo", "bar"}, ErrBadArgCount},
 	} {
-		reg, err := svc.register("/bar", s.args, nil)
+		reg, err := new(PushService).register("/bar", s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 

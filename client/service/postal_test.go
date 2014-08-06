@@ -311,10 +311,6 @@ func (ps *postalSuite) TestPostHappyPath(c *C) {
 }
 
 func (ps *postalSuite) TestPostFailsIfBadArgs(c *C) {
-	svc := new(PostalService)
-	// fakeInstalledChecker returns false if the app id starts with an "x", true otherwise
-	svc.installedChecker = fakeInstalledChecker{}
-
 	for i, s := range []struct {
 		args []interface{}
 		errt error
@@ -327,10 +323,8 @@ func (ps *postalSuite) TestPostFailsIfBadArgs(c *C) {
 		{[]interface{}{1, "hello"}, ErrBadArgType},
 		{[]interface{}{1, 2, 3}, ErrBadArgCount},
 		{[]interface{}{"bar", "hello"}, click.ErrInvalidAppId},
-		{[]interface{}{"x" + anAppId, `""`}, click.ErrMissingApp},
-		{[]interface{}{"c" + anAppId, `""`}, ErrAppIdMismatch},
 	} {
-		reg, err := svc.post(aPackageOnBus, s.args, nil)
+		reg, err := new(PostalService).post(aPackageOnBus, s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
@@ -486,10 +480,6 @@ func (ps *postalSuite) TestNotificationsWorks(c *C) {
 }
 
 func (ps *postalSuite) TestNotificationsFailsIfBadArgs(c *C) {
-	svc := new(PostalService)
-	// fakeInstalledChecker returns false if the app id starts with an "x", true otherwise
-	svc.installedChecker = fakeInstalledChecker{}
-
 	for i, s := range []struct {
 		args []interface{}
 		errt error
@@ -498,10 +488,8 @@ func (ps *postalSuite) TestNotificationsFailsIfBadArgs(c *C) {
 		{[]interface{}{}, ErrBadArgCount},
 		{[]interface{}{1}, ErrBadArgType},
 		{[]interface{}{"potato"}, click.ErrInvalidAppId},
-		{[]interface{}{"x" + anAppId}, click.ErrMissingApp},
-		{[]interface{}{"c" + anAppId}, ErrAppIdMismatch},
 	} {
-		reg, err := svc.popAll(aPackageOnBus, s.args, nil)
+		reg, err := new(PostalService).popAll(aPackageOnBus, s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
@@ -721,10 +709,6 @@ func (ps *postalSuite) TestListPersistent(c *C) {
 }
 
 func (ps *postalSuite) TestListPersistentErrors(c *C) {
-	svc := new(PostalService)
-	// fakeInstalledChecker returns false if the app id starts with an "x", true otherwise
-	svc.installedChecker = fakeInstalledChecker{}
-
 	for i, s := range []struct {
 		args []interface{}
 		errt error
@@ -734,10 +718,8 @@ func (ps *postalSuite) TestListPersistentErrors(c *C) {
 		{[]interface{}{1}, ErrBadArgType},
 		{[]interface{}{anAppId, 2}, ErrBadArgCount},
 		{[]interface{}{"bar"}, click.ErrInvalidAppId},
-		{[]interface{}{"x" + anAppId}, click.ErrMissingApp},
-		{[]interface{}{"c" + anAppId}, ErrAppIdMismatch},
 	} {
-		reg, err := svc.listPersistent(aPackageOnBus, s.args, nil)
+		reg, err := new(PostalService).listPersistent(aPackageOnBus, s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
 		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
 	}
@@ -755,10 +737,6 @@ func (ps *postalSuite) TestClearPersistent(c *C) {
 }
 
 func (ps *postalSuite) TestClearPersistentErrors(c *C) {
-	svc := new(PostalService)
-	// fakeInstalledChecker returns false if the app id starts with an "x", true otherwise
-	svc.installedChecker = fakeInstalledChecker{}
-
 	for i, s := range []struct {
 		args []interface{}
 		err  error
@@ -766,12 +744,10 @@ func (ps *postalSuite) TestClearPersistentErrors(c *C) {
 		{[]interface{}{}, ErrBadArgCount},
 		{[]interface{}{42}, ErrBadArgType},
 		{[]interface{}{"xyzzy"}, click.ErrInvalidAppId},
-		{[]interface{}{"x" + anAppId}, click.ErrMissingApp},
-		{[]interface{}{"c" + anAppId}, ErrAppIdMismatch},
 		{[]interface{}{anAppId, 42}, ErrBadArgType},
 		{[]interface{}{anAppId, "", 42}, ErrBadArgType},
 	} {
-		_, err := svc.clearPersistent(aPackageOnBus, s.args, nil)
+		_, err := new(PostalService).clearPersistent(aPackageOnBus, s.args, nil)
 		c.Check(err, Equals, s.err, Commentf("iter %d", i))
 	}
 }
@@ -797,7 +773,7 @@ func (ps *postalSuite) TestSetCounter(c *C) {
 func (ps *postalSuite) TestSetCounterErrors(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.Start()
-	svc.installedChecker = fakeInstalledChecker{}
+
 	for i, s := range []struct {
 		args []interface{}
 		err  error
@@ -808,8 +784,6 @@ func (ps *postalSuite) TestSetCounterErrors(c *C) {
 		{[]interface{}{anAppId, int32(42)}, ErrBadArgCount},
 		{[]interface{}{anAppId, int32(42), true, "potato"}, ErrBadArgCount},
 		{[]interface{}{"xyzzy", int32(42), true}, click.ErrInvalidAppId},
-		{[]interface{}{"x" + anAppId, int32(42), true}, click.ErrMissingApp},
-		{[]interface{}{"c" + anAppId, int32(42), true}, ErrAppIdMismatch},
 		{[]interface{}{1234567, int32(42), true}, ErrBadArgType},
 		{[]interface{}{anAppId, "potatoe", true}, ErrBadArgType},
 		{[]interface{}{anAppId, int32(42), "ru"}, ErrBadArgType},
