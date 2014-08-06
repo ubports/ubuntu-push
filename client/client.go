@@ -293,7 +293,7 @@ func (client *PushClient) CheckForAddressee(notif *protocol.Notification) *click
 	switch err {
 	default:
 		client.log.Debugf("notification %#v for invalid app id %#v.", notif.MsgId, notif.AppId)
-	case click.ErrMissingAppId:
+	case click.ErrMissingApp:
 		client.log.Debugf("notification %#v for missing app id %#v.", notif.MsgId, notif.AppId)
 		client.unregisterCh <- parsed
 		parsed = nil

@@ -18,6 +18,8 @@ package service
 
 import (
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/click"
 )
 
 type commonSuite struct{}
@@ -35,10 +37,16 @@ func (cs *commonSuite) TestGrabDBusPackageAndAppIdWorks(c *C) {
 	c.Check(app.Original(), Equals, anAppId)
 }
 
+type fakeInstalledChecker struct{}
+
+func (fakeInstalledChecker) Installed(app *click.AppId, setVersion bool) bool {
+	return app.Original()[0] == 'c'
+}
+
 func (cs *commonSuite) TestGrabDBusPackageAndAppIdFails(c *C) {
 	svc := new(DBusService)
+	svc.installedChecker = fakeInstalledChecker{}
 	aDBusPath := "/com/ubuntu/Postal/com_2eexample_2etest"
-	aDBusPath2 := "/com/ubuntu/Postal/com_2efoo_2ebar"
 	aPackage := "com.example.test"
 	anAppId := aPackage + "_test"
 
@@ -52,8 +60,9 @@ func (cs *commonSuite) TestGrabDBusPackageAndAppIdFails(c *C) {
 		{aDBusPath, []interface{}{anAppId}, 1, ErrBadArgCount},
 		{aDBusPath, []interface{}{anAppId, anAppId}, 0, ErrBadArgCount},
 		{aDBusPath, []interface{}{1}, 0, ErrBadArgType},
-		{aDBusPath, []interface{}{aPackage}, 0, ErrBadAppId},
-		{aDBusPath2, []interface{}{anAppId}, 0, ErrBadAppId},
+		{aDBusPath, []interface{}{aPackage}, 0, click.ErrInvalidAppId},
+		{aDBusPath, []interface{}{"x" + anAppId}, 0, click.ErrMissingApp},
+		{aDBusPath, []interface{}{"c" + anAppId}, 0, ErrAppIdMismatch},
 	} {
 		comment := Commentf("iteration #%d", i)
 		app, err := svc.grabDBusPackageAndAppId(s.path, s.args, s.numExtra)

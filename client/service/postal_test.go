@@ -322,7 +322,7 @@ func (ps *postalSuite) TestPostFailsIfBadArgs(c *C) {
 		{[]interface{}{anAppId, "zoom"}, ErrBadJSON},
 		{[]interface{}{1, "hello"}, ErrBadArgType},
 		{[]interface{}{1, 2, 3}, ErrBadArgCount},
-		{[]interface{}{"bar", "hello"}, ErrBadAppId},
+		{[]interface{}{"bar", "hello"}, click.ErrInvalidAppId},
 	} {
 		reg, err := new(PostalService).post(aPackageOnBus, s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
@@ -487,7 +487,7 @@ func (ps *postalSuite) TestNotificationsFailsIfBadArgs(c *C) {
 		{nil, ErrBadArgCount},
 		{[]interface{}{}, ErrBadArgCount},
 		{[]interface{}{1}, ErrBadArgType},
-		{[]interface{}{"potato"}, ErrBadAppId},
+		{[]interface{}{"potato"}, click.ErrInvalidAppId},
 	} {
 		reg, err := new(PostalService).popAll(aPackageOnBus, s.args, nil)
 		c.Check(reg, IsNil, Commentf("iteration #%d", i))
@@ -709,13 +709,20 @@ func (ps *postalSuite) TestListPersistent(c *C) {
 }
 
 func (ps *postalSuite) TestListPersistentErrors(c *C) {
-	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
-	_, err := svc.listPersistent(aPackageOnBus, nil, nil)
-	c.Check(err, Equals, ErrBadArgCount)
-	_, err = svc.listPersistent(aPackageOnBus, []interface{}{42}, nil)
-	c.Check(err, Equals, ErrBadArgType)
-	_, err = svc.listPersistent(aPackageOnBus, []interface{}{"xyzzy"}, nil)
-	c.Check(err, Equals, ErrBadAppId)
+	for i, s := range []struct {
+		args []interface{}
+		errt error
+	}{
+		{nil, ErrBadArgCount},
+		{[]interface{}{}, ErrBadArgCount},
+		{[]interface{}{1}, ErrBadArgType},
+		{[]interface{}{anAppId, 2}, ErrBadArgCount},
+		{[]interface{}{"bar"}, click.ErrInvalidAppId},
+	} {
+		reg, err := new(PostalService).listPersistent(aPackageOnBus, s.args, nil)
+		c.Check(reg, IsNil, Commentf("iteration #%d", i))
+		c.Check(err, Equals, s.errt, Commentf("iteration #%d", i))
+	}
 }
 
 func (ps *postalSuite) TestClearPersistent(c *C) {
@@ -730,18 +737,17 @@ func (ps *postalSuite) TestClearPersistent(c *C) {
 }
 
 func (ps *postalSuite) TestClearPersistentErrors(c *C) {
-	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	for i, s := range []struct {
 		args []interface{}
 		err  error
 	}{
 		{[]interface{}{}, ErrBadArgCount},
 		{[]interface{}{42}, ErrBadArgType},
-		{[]interface{}{"xyzzy"}, ErrBadAppId},
+		{[]interface{}{"xyzzy"}, click.ErrInvalidAppId},
 		{[]interface{}{anAppId, 42}, ErrBadArgType},
 		{[]interface{}{anAppId, "", 42}, ErrBadArgType},
 	} {
-		_, err := svc.clearPersistent(aPackageOnBus, s.args, nil)
+		_, err := new(PostalService).clearPersistent(aPackageOnBus, s.args, nil)
 		c.Check(err, Equals, s.err, Commentf("iter %d", i))
 	}
 }
@@ -767,6 +773,7 @@ func (ps *postalSuite) TestSetCounter(c *C) {
 func (ps *postalSuite) TestSetCounterErrors(c *C) {
 	svc := ps.replaceBuses(NewPostalService(nil, ps.log))
 	svc.Start()
+
 	for i, s := range []struct {
 		args []interface{}
 		err  error
@@ -776,7 +783,7 @@ func (ps *postalSuite) TestSetCounterErrors(c *C) {
 		{[]interface{}{anAppId}, ErrBadArgCount},
 		{[]interface{}{anAppId, int32(42)}, ErrBadArgCount},
 		{[]interface{}{anAppId, int32(42), true, "potato"}, ErrBadArgCount},
-		{[]interface{}{"xyzzy", int32(42), true}, ErrBadAppId},
+		{[]interface{}{"xyzzy", int32(42), true}, click.ErrInvalidAppId},
 		{[]interface{}{1234567, int32(42), true}, ErrBadArgType},
 		{[]interface{}{anAppId, "potatoe", true}, ErrBadArgType},
 		{[]interface{}{anAppId, int32(42), "ru"}, ErrBadArgType},
