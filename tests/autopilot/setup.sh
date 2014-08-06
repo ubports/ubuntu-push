@@ -76,3 +76,5 @@ fi
 sed -i 's/127.0.0.1/0.0.0.0/g' ${ROOT_DIR}/sampleconfigs/dev.json
 # and start it
 cd ${ROOT_DIR}; make run-server-dev 
+# remove the trivial helper for the messaging-app
+adb -s ${DEVICE_ID} shell "rm /usr/lib/ubuntu-push-client/legacy-helpers/messaging-app"
