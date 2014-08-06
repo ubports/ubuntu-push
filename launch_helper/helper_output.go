@@ -18,13 +18,17 @@ package launch_helper
 
 import (
 	"encoding/json"
+	"time"
 
 	"launchpad.net/ubuntu-push/click"
 )
 
 // a Card is the usual “visual” presentation of a notification, used
 // for bubbles and the notification centre (neé messaging menu)
-type Card struct {
+type Card SCard
+
+// a SCard is public for documentation purposes only.
+type SCard struct {
 	Summary   string   `json:"summary"`   // required for the card to be presented
 	Body      string   `json:"body"`      // defaults to empty
 	Actions   []string `json:"actions"`   // if empty (default), bubble is non-clickable. More entries change it to be clickable and (for bubbles) snap-decisions.
@@ -75,4 +79,15 @@ type HelperInput struct {
 	App            *click.AppId
 	NotificationId string
 	Payload        json.RawMessage
+}
+
+func (c *Card) UnmarshalJSON(b []byte) error {
+	err := json.Unmarshal(b, (*SCard)(c))
+	if err != nil {
+		return err
+	}
+	if c.Timestamp == 0 {
+		c.Timestamp = int(time.Now().Unix())
+	}
+	return nil
 }
