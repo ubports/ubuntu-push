@@ -52,6 +52,7 @@ class PushNotificationTestBase(UnityTestCase):
     def tearDownClass(cls):
         """
         Executed once after all tests have completed
+        Reset the push client to use the device's original config
         """
         push_client_controller = push_helper.PushClientController()
         push_client_controller.restart_push_client_using_config(None)
