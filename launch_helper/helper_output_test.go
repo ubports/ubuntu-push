@@ -29,9 +29,12 @@ var _ = Suite(&outSuite{})
 
 func (*outSuite) TestUnmarshalCard(c *C) {
 	t := time.Now().Add(-2 * time.Second)
-	var card *Card
-	err := json.Unmarshal([]byte(`{"summary": "hi"}`), &card)
+	var notif *Notification
+	err := json.Unmarshal([]byte(`{"card": {"summary": "hi"}}`), &notif)
 	c.Assert(err, IsNil)
+	c.Assert(notif, NotNil)
+	card := notif.Card
+	c.Assert(card, NotNil)
 	c.Check(card.Summary, Equals, "hi")
 	c.Check(time.Unix(int64(card.Timestamp), 0).After(t), Equals, true)
 }

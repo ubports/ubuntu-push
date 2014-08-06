@@ -25,10 +25,7 @@ import (
 
 // a Card is the usual “visual” presentation of a notification, used
 // for bubbles and the notification centre (neé messaging menu)
-type Card SCard
-
-// a SCard is public for documentation purposes only.
-type SCard struct {
+type Card struct {
 	Summary   string   `json:"summary"`   // required for the card to be presented
 	Body      string   `json:"body"`      // defaults to empty
 	Actions   []string `json:"actions"`   // if empty (default), bubble is non-clickable. More entries change it to be clickable and (for bubbles) snap-decisions.
@@ -81,13 +78,30 @@ type HelperInput struct {
 	Payload        json.RawMessage
 }
 
-func (c *Card) UnmarshalJSON(b []byte) error {
-	err := json.Unmarshal(b, (*SCard)(c))
+type rawnotif struct {
+	Card          *Card          `json:"card"`
+	Sound         string         `json:"sound"`
+	Vibrate       *Vibration     `json:"vibrate"`
+	EmblemCounter *EmblemCounter `json:"emblem-counter"`
+	Tag           string         `json:"tag,omitempty"`
+}
+
+func (n *Notification) UnmarshalJSON(b []byte) error {
+	var raw rawnotif
+	err := json.Unmarshal(b, &raw)
 	if err != nil {
 		return err
 	}
-	if c.Timestamp == 0 {
-		c.Timestamp = int(time.Now().Unix())
+
+	n.Card = raw.Card
+	n.EmblemCounter = raw.EmblemCounter
+	n.Tag = raw.Tag
+	n.Sound = raw.Sound
+	n.Vibrate = raw.Vibrate
+
+	if n.Card != nil && n.Card.Timestamp == 0 {
+		n.Card.Timestamp = int(time.Now().Unix())
 	}
+
 	return nil
 }
