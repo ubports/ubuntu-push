@@ -62,7 +62,7 @@ func (cs *commonSuite) TestGrabDBusPackageAndAppIdFails(c *C) {
 		{aDBusPath, []interface{}{1}, 0, ErrBadArgType},
 		{aDBusPath, []interface{}{aPackage}, 0, click.ErrInvalidAppId},
 		{aDBusPath, []interface{}{"x" + anAppId}, 0, click.ErrMissingApp},
-		{aDBusPath, []interface{}{"c" + anAppId}, 0, ErrBadAppId},
+		{aDBusPath, []interface{}{"c" + anAppId}, 0, ErrAppIdMismatch},
 	} {
 		comment := Commentf("iteration #%d", i)
 		app, err := svc.grabDBusPackageAndAppId(s.path, s.args, s.numExtra)

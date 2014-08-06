@@ -169,7 +169,7 @@ func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
 		{[]interface{}{1}, ErrBadArgType},
 		{[]interface{}{"foo"}, click.ErrInvalidAppId},
 		{[]interface{}{"x" + anAppId}, click.ErrMissingApp},
-		{[]interface{}{"c" + anAppId}, ErrBadAppId},
+		{[]interface{}{"c" + anAppId}, ErrAppIdMismatch},
 		{[]interface{}{"foo", "bar"}, ErrBadArgCount},
 	} {
 		reg, err := svc.register("/bar", s.args, nil)
