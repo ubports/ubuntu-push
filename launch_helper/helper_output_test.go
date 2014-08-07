@@ -17,6 +17,7 @@
 package launch_helper
 
 import (
+	"encoding/json"
 	"time"
 
 	. "launchpad.net/gocheck"
@@ -28,6 +29,10 @@ var _ = Suite(&outSuite{})
 
 func (*outSuite) TestCardGetTimestamp(c *C) {
 	t := time.Now().Add(-2 * time.Second)
-	c.Check(time.Unix((&Card{}).GetTimestamp(), 0).After(t), Equals, true)
-	c.Check((&Card{Timestamp: 42}).GetTimestamp(), Equals, int64(42))
+	var card Card
+	err := json.Unmarshal([]byte(`{"timestamp": 12}`), &card)
+	c.Assert(err, IsNil)
+	c.Check(card, DeepEquals, Card{RawTimestamp: 12})
+	c.Check(time.Unix((&Card{}).Timestamp(), 0).After(t), Equals, true)
+	c.Check((&Card{RawTimestamp: 42}).Timestamp(), Equals, int64(42))
 }
