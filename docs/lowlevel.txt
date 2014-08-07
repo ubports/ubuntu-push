@@ -329,7 +329,7 @@ and has the following fields:
 
 :icon: An icon relating to the event being notified. Defaults to empty (no icon);
        a secondary icon relating to the application will be shown as well, regardless of this field.
-:timestamp: Seconds since the unix epoch, only used for persist (for now)
+:timestamp: Seconds since the unix epoch, only used for persist (for now). If zero or unset, defaults to current timestamp.
 :persist: Whether to show in notification centre; defaults to false
 :popup: Whether to show in a bubble. Users can disable this, and can easily miss them, so don't rely on it exclusively. Defaults to false.
 

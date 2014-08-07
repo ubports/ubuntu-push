@@ -18,6 +18,7 @@ package launch_helper
 
 import (
 	"encoding/json"
+	"time"
 
 	"launchpad.net/ubuntu-push/click"
 )
@@ -25,13 +26,13 @@ import (
 // a Card is the usual “visual” presentation of a notification, used
 // for bubbles and the notification centre (neé messaging menu)
 type Card struct {
-	Summary   string   `json:"summary"`   // required for the card to be presented
-	Body      string   `json:"body"`      // defaults to empty
-	Actions   []string `json:"actions"`   // if empty (default), bubble is non-clickable. More entries change it to be clickable and (for bubbles) snap-decisions.
-	Icon      string   `json:"icon"`      // an icon relating to the event being notified. Defaults to empty (no icon); a secondary icon relating to the application will be shown as well, irrespectively.
-	Timestamp int      `json:"timestamp"` // seconds since epoch, only used for persist (for now)
-	Persist   bool     `json:"persist"`   // whether to show in notification centre; defaults to false
-	Popup     bool     `json:"popup"`     // whether to show in a bubble. Users can disable this, and can easily miss them, so don't rely on it exclusively. Defaults to false.
+	Summary      string   `json:"summary"`   // required for the card to be presented
+	Body         string   `json:"body"`      // defaults to empty
+	Actions      []string `json:"actions"`   // if empty (default), bubble is non-clickable. More entries change it to be clickable and (for bubbles) snap-decisions.
+	Icon         string   `json:"icon"`      // an icon relating to the event being notified. Defaults to empty (no icon); a secondary icon relating to the application will be shown as well, irrespectively.
+	RawTimestamp int      `json:"timestamp"` // seconds since epoch, only used for persist (for now). Timestamp() returns this if non-zero, current timestamp otherwise.
+	Persist      bool     `json:"persist"`   // whether to show in notification centre; defaults to false
+	Popup        bool     `json:"popup"`     // whether to show in a bubble. Users can disable this, and can easily miss them, so don't rely on it exclusively. Defaults to false.
 }
 
 // an EmblemCounter puts a number on an emblem on an app's icon in the launcher
@@ -75,4 +76,14 @@ type HelperInput struct {
 	App            *click.AppId
 	NotificationId string
 	Payload        json.RawMessage
+}
+
+// Timestamp() returns RawTimestamp if non-zero. If it's zero, returns
+// the current time as second since epoch.
+func (card *Card) Timestamp() int64 {
+	if card.RawTimestamp == 0 {
+		return time.Now().Unix()
+	} else {
+		return int64(card.RawTimestamp)
+	}
 }
