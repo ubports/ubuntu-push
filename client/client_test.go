@@ -472,6 +472,31 @@ func (cs *clientSuite) TestDerivePushServiceSetupError(c *C) {
 }
 
 /*****************************************************************
+    derivePostalConfig tests
+******************************************************************/
+func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
+	cs.writeTestConfig(map[string]interface{}{})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	expected := &service.PostalServiceSetup{
+		InstalledChecker: cli.installedChecker,
+	}
+	// sanity check that we are looking at all fields
+	vExpected := reflect.ValueOf(expected).Elem()
+	nf := vExpected.NumField()
+	for i := 0; i < nf; i++ {
+		fv := vExpected.Field(i)
+		// field isn't empty/zero
+		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
+	}
+	// finally compare
+	setup, err := cli.derivePostalServiceSetup()
+	c.Assert(err, IsNil)
+	c.Check(setup, DeepEquals, expected)
+}
+
+/*****************************************************************
     startService tests
 ******************************************************************/
 
