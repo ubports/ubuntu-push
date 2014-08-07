@@ -36,3 +36,43 @@ func (*outSuite) TestCardGetTimestamp(c *C) {
 	c.Check(time.Unix((&Card{}).Timestamp(), 0).After(t), Equals, true)
 	c.Check((&Card{RawTimestamp: 42}).Timestamp(), Equals, int64(42))
 }
+
+func (*outSuite) TestBadVibeBegetsNilVibe(c *C) {
+	for _, s := range []string{
+		`{}`,
+		`{"vibrate": "foo"}`,
+		`{"vibrate": {}}`,
+		`{"vibrate": false}`,         // not bad, but rather pointless
+		`{"vibrate": {"repeat": 2}}`, // no pattern
+		`{"vibrate": {"repeat": "foo"}}`,
+		`{"vibrate": {"pattern": "foo"}}`,
+		`{"vibrate": {"pattern": ["foo"]}}`,
+		`{"vibrate": {"pattern": null}}`,
+		`{"vibrate": {"pattern": [0]}}`,
+		`{"vibrate": {"pattern": [-1]}}`,
+		`{"vibrate": {"pattern": [1], "repeat": -1}}`,
+	} {
+		var notif *Notification
+		err := json.Unmarshal([]byte(s), &notif)
+		c.Assert(err, IsNil)
+		c.Assert(notif, NotNil)
+		c.Check(notif.Vibration(), IsNil, Commentf("not nil Vibration() for: %s", s))
+		c.Check(notif.Vibration(), IsNil, Commentf("not nil second call to Vibration() for: %s", s))
+	}
+}
+
+func (*outSuite) TestGoodVibe(c *C) {
+	var notif *Notification
+	err := json.Unmarshal([]byte(`{"vibrate": {"pattern": [1,2,3], "repeat": 2}}`), &notif)
+	c.Assert(err, IsNil)
+	c.Assert(notif, NotNil)
+	c.Check(notif.Vibration(), DeepEquals, &Vibration{Pattern: []uint32{1, 2, 3}, Repeat: 2})
+}
+
+func (*outSuite) TestGoodSimpleVibe(c *C) {
+	var notif *Notification
+	err := json.Unmarshal([]byte(`{"vibrate": true}`), &notif)
+	c.Assert(err, IsNil)
+	c.Assert(notif, NotNil)
+	c.Check(notif.Vibration(), DeepEquals, &Vibration{Pattern: []uint32{100, 100}, Repeat: 3})
+}
