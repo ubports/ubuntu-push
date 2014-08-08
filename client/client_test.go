@@ -491,8 +491,7 @@ func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
 		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
 	}
 	// finally compare
-	setup, err := cli.derivePostalServiceSetup()
-	c.Assert(err, IsNil)
+	setup := cli.derivePostalServiceSetup()
 	c.Check(setup, DeepEquals, expected)
 }
 
