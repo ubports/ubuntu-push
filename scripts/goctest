@@ -1,0 +1,45 @@
+#!/usr/bin/python3
+# -*- python -*-
+# (c) 2014 John Lenton
+# MIT licensed.
+# from https://github.com/chipaca/goctest
+
+import re
+import signal
+import subprocess
+import sys
+
+ok_rx = re.compile(rb'^(PASS:?|ok\s+)')
+fail_rx = re.compile(rb'^(FAIL:?|OOPS:?)')
+panic_rx = re.compile(rb'^(PANIC:?|panic:?|\.\.\. Panic:?)')
+log_rx = re.compile(rb'^\[LOG\]|^\?\s+')
+
+class bcolors:
+    OK = b'\033[38;5;34m'
+    FAIL = b'\033[38;5;196m'
+    PANIC = b'\033[38;5;226m\033[48;5;88m'
+    OTHER = b'\033[38;5;241m'
+    WARNING = b'\033[38;5;226m'
+    ENDC = b'\033[0m'
+
+signal.signal(signal.SIGINT, lambda *_: None)
+
+if sys.stdout.isatty():
+    with subprocess.Popen(["go", "test"] + sys.argv[1:],
+                          bufsize=0,
+                          stderr=subprocess.STDOUT,
+                          stdout=subprocess.PIPE) as proc:
+        for line in proc.stdout:
+            if panic_rx.search(line) is not None:
+                line = panic_rx.sub(bcolors.PANIC + rb'\1' + bcolors.ENDC, line)
+            elif fail_rx.search(line) is not None:
+                line = fail_rx.sub(bcolors.FAIL + rb'\1' + bcolors.ENDC, line)
+            elif ok_rx.search(line) is not None:
+                line = ok_rx.sub(bcolors.OK + rb'\1' + bcolors.ENDC, line)
+            elif log_rx.search(line) is not None:
+                line = bcolors.OTHER + line + bcolors.ENDC
+
+            sys.stdout.write(line.decode("utf-8"))
+            sys.stdout.flush()
+else:
+    subprocess.Popen(["go", "test"] + sys.argv[1:])
