@@ -43,7 +43,7 @@ func (s *runnerSuite) SetUpTest(c *C) {
 }
 
 func (s *runnerSuite) TestTrivialPoolWorks(c *C) {
-	notif := &Notification{Sound: "42", Tag: "foo"}
+	notif := &Notification{RawSound: json.RawMessage(`"42"`), Tag: "foo"}
 
 	triv := NewTrivialHelperPool(s.testlog)
 	ch := triv.Start()

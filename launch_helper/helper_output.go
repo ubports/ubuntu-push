@@ -51,7 +51,7 @@ type Vibration struct {
 // a Notification can be any of the above
 type Notification struct {
 	Card          *Card           `json:"card"`           // defaults to nil (no card)
-	Sound         string          `json:"sound"`          // a sound file. Users can disable this, so don't rely on it exclusively. Defaults to empty (no sound).
+	RawSound      json.RawMessage `json:"sound"`          // a boolean, or the relative path to a sound file. Users can disable this, so don't rely on it exclusively. Defaults to empty (no sound).
 	RawVibration  json.RawMessage `json:"vibrate"`        // users can disable this, blah blah. Can be Vibration, or boolean. Defaults to null (no vibration)
 	EmblemCounter *EmblemCounter  `json:"emblem-counter"` // puts a counter on an emblem in the launcher. Defaults to nil (no change to emblem counter).
 	Tag           string          `json:"tag,omitempty"`  // tag used for Clear/ListPersistent.
@@ -97,8 +97,9 @@ func (notification *Notification) Vibration(fallback *Vibration) *Vibration {
 	if json.Unmarshal(notification.RawVibration, &b) == nil {
 		if !b {
 			return nil
+		} else {
+			return fallback
 		}
-		return fallback
 	}
 	if json.Unmarshal(notification.RawVibration, &vib) != nil {
 		return nil
@@ -108,4 +109,25 @@ func (notification *Notification) Vibration(fallback *Vibration) *Vibration {
 	}
 
 	return vib
+}
+
+func (notification *Notification) Sound(fallback string) string {
+	var b bool
+	var s string
+
+	if notification.RawSound == nil {
+		return ""
+	}
+	if json.Unmarshal(notification.RawSound, &b) == nil {
+		if !b {
+			return ""
+		} else {
+			return fallback
+		}
+	}
+	if json.Unmarshal(notification.RawSound, &s) != nil {
+		return ""
+	}
+
+	return s
 }

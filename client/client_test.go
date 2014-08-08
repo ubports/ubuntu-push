@@ -156,6 +156,7 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 	pem_file := helpers.SourceRelative("../server/acceptance/ssl/testing.cert")
 	cfgMap := map[string]interface{}{
 		"fallback_vibration":     &launch_helper.Vibration{Pattern: []uint32{1}},
+		"fallback_sound":         "sounds/ubuntu/notifications/Blip.ogg",
 		"connect_timeout":        "7ms",
 		"exchange_timeout":       "10ms",
 		"hosts_cache_expiry":     "1h",
@@ -484,6 +485,7 @@ func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
 	expected := &service.PostalServiceSetup{
 		InstalledChecker:  cli.installedChecker,
 		FallbackVibration: cli.config.FallbackVibration,
+		FallbackSound:     cli.config.FallbackSound,
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected).Elem()
