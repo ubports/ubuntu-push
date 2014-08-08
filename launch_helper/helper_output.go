@@ -50,11 +50,11 @@ type Vibration struct {
 
 // a Notification can be any of the above
 type Notification struct {
-	Card          *Card          `json:"card"`           // defaults to nil (no card)
-	Sound         string         `json:"sound"`          // a sound file. Users can disable this, so don't rely on it exclusively. Defaults to empty (no sound).
-	RawVibration  interface{}    `json:"vibrate"`        // users can disable this, blah blah. Defaults to null (no vibration)
-	EmblemCounter *EmblemCounter `json:"emblem-counter"` // puts a counter on an emblem in the launcher. Defaults to nil (no change to emblem counter).
-	Tag           string         `json:"tag,omitempty"`  // tag used for Clear/ListPersistent.
+	Card          *Card           `json:"card"`           // defaults to nil (no card)
+	Sound         string          `json:"sound"`          // a sound file. Users can disable this, so don't rely on it exclusively. Defaults to empty (no sound).
+	RawVibration  json.RawMessage `json:"vibrate"`        // users can disable this, blah blah. Defaults to null (no vibration)
+	EmblemCounter *EmblemCounter  `json:"emblem-counter"` // puts a counter on an emblem in the launcher. Defaults to nil (no change to emblem counter).
+	Tag           string          `json:"tag,omitempty"`  // tag used for Clear/ListPersistent.
 }
 
 // HelperOutput is the expected output of a helper
@@ -87,52 +87,21 @@ func (card *Card) Timestamp() int64 {
 	}
 }
 
-func (notification *Notification) Vibration() *Vibration {
-	rawvib := notification.RawVibration
+func (notification *Notification) Vibration(fallback *Vibration) *Vibration {
+	var b bool
 	var vib *Vibration
-
-Switch:
-	switch rawvib := rawvib.(type) {
-	case *Vibration:
-		return rawvib
-	case map[string]interface{}:
-		var repeat uint32 = 1
-		rep, ok := rawvib["repeat"]
-		if ok {
-			frep, ok := rep.(float64)
-			if !ok {
-				break Switch
-			}
-			if frep <= 0 {
-				break Switch
-			}
-			repeat = uint32(frep)
+	if json.Unmarshal(notification.RawVibration, &b) == nil {
+		if !b {
+			return nil
 		}
-		pat, ok := rawvib["pattern"]
-		if !ok {
-			break Switch
-		}
-		ipat, ok := pat.([]interface{})
-		if !ok {
-			break Switch
-		}
-		pattern := make([]uint32, len(ipat))
-		for i, v := range ipat {
-			f, ok := v.(float64)
-			if !ok {
-				break Switch
-			}
-			if f <= 0 {
-				break Switch
-			}
-			pattern[i] = uint32(f)
-		}
-		vib = &Vibration{Pattern: pattern, Repeat: repeat}
-	case bool:
-		if rawvib {
-			vib = &Vibration{Repeat: 3, Pattern: []uint32{100, 100}}
-		}
+		return fallback
 	}
-	notification.RawVibration = vib
+	if json.Unmarshal(notification.RawVibration, &vib) != nil {
+		return nil
+	}
+	if len(vib.Pattern) == 0 {
+		return nil
+	}
+
 	return vib
 }

@@ -48,7 +48,6 @@ func (*outSuite) TestBadVibeBegetsNilVibe(c *C) {
 		`{"vibrate": {"pattern": "foo"}}`,
 		`{"vibrate": {"pattern": ["foo"]}}`,
 		`{"vibrate": {"pattern": null}}`,
-		`{"vibrate": {"pattern": [0]}}`,
 		`{"vibrate": {"pattern": [-1]}}`,
 		`{"vibrate": {"pattern": [1], "repeat": -1}}`,
 	} {
@@ -56,8 +55,8 @@ func (*outSuite) TestBadVibeBegetsNilVibe(c *C) {
 		err := json.Unmarshal([]byte(s), &notif)
 		c.Assert(err, IsNil)
 		c.Assert(notif, NotNil)
-		c.Check(notif.Vibration(), IsNil, Commentf("not nil Vibration() for: %s", s))
-		c.Check(notif.Vibration(), IsNil, Commentf("not nil second call to Vibration() for: %s", s))
+		c.Check(notif.Vibration(nil), IsNil, Commentf("not nil Vibration() for: %s", s))
+		c.Check(notif.Vibration(nil), IsNil, Commentf("not nil second call to Vibration() for: %s", s))
 	}
 }
 
@@ -66,13 +65,14 @@ func (*outSuite) TestGoodVibe(c *C) {
 	err := json.Unmarshal([]byte(`{"vibrate": {"pattern": [1,2,3], "repeat": 2}}`), &notif)
 	c.Assert(err, IsNil)
 	c.Assert(notif, NotNil)
-	c.Check(notif.Vibration(), DeepEquals, &Vibration{Pattern: []uint32{1, 2, 3}, Repeat: 2})
+	c.Check(notif.Vibration(nil), DeepEquals, &Vibration{Pattern: []uint32{1, 2, 3}, Repeat: 2})
 }
 
 func (*outSuite) TestGoodSimpleVibe(c *C) {
 	var notif *Notification
+	fallback := &Vibration{Pattern: []uint32{100, 100}, Repeat: 3}
 	err := json.Unmarshal([]byte(`{"vibrate": true}`), &notif)
 	c.Assert(err, IsNil)
 	c.Assert(notif, NotNil)
-	c.Check(notif.Vibration(), DeepEquals, &Vibration{Pattern: []uint32{100, 100}, Repeat: 3})
+	c.Check(notif.Vibration(fallback), Equals, fallback)
 }

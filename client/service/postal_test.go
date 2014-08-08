@@ -518,13 +518,14 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc.URLDispatcherEndp = ps.urlDispBus
 	svc.WindowStackEndp = ps.winStackBus
 	svc.launchers = map[string]launch_helper.HelperLauncher{}
+	svc.fallbackVibration = &launch_helper.Vibration{Pattern: []uint32{1}}
 	c.Assert(svc.Start(), IsNil)
 
 	// Persist is false so we just check the log
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true, Persist: false}
-	vib := &launch_helper.Vibration{Pattern: []uint32{1}}
+	vib := json.RawMessage(`true`)
 	emb := &launch_helper.EmblemCounter{Count: 2, Visible: true}
-	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card, EmblemCounter: emb, Vibrate: vib}}
+	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card, EmblemCounter: emb, RawVibration: vib}}
 	b := svc.messageHandler(&click.AppId{}, "", output)
 	c.Assert(b, Equals, true)
 	args := testibus.GetCallArgs(endp)

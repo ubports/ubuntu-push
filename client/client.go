@@ -42,6 +42,7 @@ import (
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/identifier"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
@@ -67,6 +68,8 @@ type ClientConfig struct {
 	RegistrationURL string `json:"registration_url"`
 	// The logging level (one of "debug", "info", "error")
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
+	// fallback values for simplified notification usage
+	FallbackVibration *launch_helper.Vibration `json:"fallback_vibration"`
 }
 
 // PushService is the interface we use of service.PushService.
@@ -209,7 +212,8 @@ func (client *PushClient) derivePushServiceSetup() (*service.PushServiceSetup, e
 // derivePostalServiceSetup derives the service setup from the client configuration bits.
 func (client *PushClient) derivePostalServiceSetup() (*service.PostalServiceSetup, error) {
 	setup := &service.PostalServiceSetup{
-		InstalledChecker: client.installedChecker,
+		InstalledChecker:  client.installedChecker,
+		FallbackVibration: client.config.FallbackVibration,
 	}
 	return setup, nil
 }
