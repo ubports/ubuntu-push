@@ -33,12 +33,19 @@ import (
 type Sound struct {
 	player   string
 	log      logger.Logger
+	fallback string
 	dataDirs func() []string
 	dataFind func(string) (string, error)
 }
 
-func New(log logger.Logger) *Sound {
-	return &Sound{player: "paplay", log: log, dataDirs: xdg.Data.Dirs, dataFind: xdg.Data.Find}
+func New(log logger.Logger, fallback string) *Sound {
+	return &Sound{
+		player:   "paplay",
+		log:      log,
+		fallback: fallback,
+		dataDirs: xdg.Data.Dirs,
+		dataFind: xdg.Data.Find,
+	}
 }
 
 func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
@@ -46,13 +53,14 @@ func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_hel
 		panic("please check notification is not nil before calling present")
 	}
 
-	if notification.Sound == "" {
-		snd.log.Debugf("[%s] notification has no Sound: %#v", nid, notification.Sound)
+	sound := notification.Sound(snd.fallback)
+	if sound == "" {
+		snd.log.Debugf("[%s] notification has no Sound: %#v", nid, sound)
 		return false
 	}
-	absPath := snd.findSoundFile(app, nid, notification.Sound)
+	absPath := snd.findSoundFile(app, nid, sound)
 	if absPath == "" {
-		snd.log.Debugf("[%s] unable to find sound %s", nid, notification.Sound)
+		snd.log.Debugf("[%s] unable to find sound %s", nid, sound)
 		return false
 	}
 	snd.log.Debugf("[%s] playing sound %s using %s", nid, absPath, snd.player)

@@ -60,6 +60,7 @@ type notificationCentre interface {
 type PostalServiceSetup struct {
 	InstalledChecker  click.InstalledChecker
 	FallbackVibration *launch_helper.Vibration
+	FallbackSound     string
 }
 
 // PostalService is the dbus api
@@ -88,6 +89,7 @@ type PostalService struct {
 	windowStack   *windowstack.WindowStack
 	// fallback values for simplified notification usage
 	fallbackVibration *launch_helper.Vibration
+	fallbackSound     string
 }
 
 var (
@@ -111,6 +113,7 @@ func NewPostalService(setup *PostalServiceSetup, log logger.Logger) *PostalServi
 	if setup != nil {
 		svc.installedChecker = setup.InstalledChecker
 		svc.fallbackVibration = setup.FallbackVibration
+		svc.fallbackSound = setup.FallbackSound
 	}
 	svc.NotificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, log)
 	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
@@ -156,7 +159,7 @@ func (svc *PostalService) Start() error {
 	svc.notifications = notifications.Raw(svc.NotificationsEndp, svc.Log)
 	svc.emblemCounter = emblemcounter.New(svc.EmblemCounterEndp, svc.Log)
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log, svc.fallbackVibration)
-	svc.sound = sounds.New(svc.Log)
+	svc.sound = sounds.New(svc.Log, svc.fallbackSound)
 	svc.messagingMenu = messaging.New(svc.Log)
 	svc.Presenters = []Presenter{
 		svc.notifications,

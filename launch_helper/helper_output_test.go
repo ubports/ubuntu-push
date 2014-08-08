@@ -77,3 +77,16 @@ func (*outSuite) TestGoodSimpleVibe(c *C) {
 	c.Assert(notif, NotNil)
 	c.Check(notif.Vibration(fallback), Equals, fallback)
 }
+
+func (*outSuite) TesBadSoundBegetsNoSound(c *C) {
+	c.Check((&Notification{RawSound: json.RawMessage("foo")}).Sound("x"), Equals, "")
+}
+
+func (*outSuite) TestGoodSound(c *C) {
+	c.Check((&Notification{RawSound: json.RawMessage(`"foo"`)}).Sound("x"), Equals, "foo")
+}
+
+func (*outSuite) TestGoodSimpleSound(c *C) {
+	c.Check((&Notification{RawSound: json.RawMessage(`true`)}).Sound("x"), Equals, "x")
+	c.Check((&Notification{RawSound: json.RawMessage(`false`)}).Sound("x"), Equals, "")
+}

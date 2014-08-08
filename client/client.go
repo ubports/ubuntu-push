@@ -70,6 +70,7 @@ type ClientConfig struct {
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
 	// fallback values for simplified notification usage
 	FallbackVibration *launch_helper.Vibration `json:"fallback_vibration"`
+	FallbackSound     string                   `json:"fallback_sound"`
 }
 
 // PushService is the interface we use of service.PushService.
@@ -214,6 +215,7 @@ func (client *PushClient) derivePostalServiceSetup() (*service.PostalServiceSetu
 	setup := &service.PostalServiceSetup{
 		InstalledChecker:  client.installedChecker,
 		FallbackVibration: client.config.FallbackVibration,
+		FallbackSound:     client.config.FallbackSound,
 	}
 	return setup, nil
 }
