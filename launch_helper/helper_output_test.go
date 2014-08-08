@@ -38,6 +38,7 @@ func (*outSuite) TestCardGetTimestamp(c *C) {
 }
 
 func (*outSuite) TestBadVibeBegetsNilVibe(c *C) {
+	fbck := &Vibration{Repeat: 2}
 	for _, s := range []string{
 		`{}`,
 		`{"vibrate": "foo"}`,
@@ -55,8 +56,8 @@ func (*outSuite) TestBadVibeBegetsNilVibe(c *C) {
 		err := json.Unmarshal([]byte(s), &notif)
 		c.Assert(err, IsNil)
 		c.Assert(notif, NotNil)
-		c.Check(notif.Vibration(nil), IsNil, Commentf("not nil Vibration() for: %s", s))
-		c.Check(notif.Vibration(nil), IsNil, Commentf("not nil second call to Vibration() for: %s", s))
+		c.Check(notif.Vibration(fbck), IsNil, Commentf("not nil Vibration() for: %s", s))
+		c.Check(notif.Vibration(fbck), IsNil, Commentf("not nil second call to Vibration() for: %s", s))
 	}
 }
 
