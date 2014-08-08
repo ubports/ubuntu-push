@@ -41,5 +41,6 @@ if sys.stdout.isatty():
 
             sys.stdout.write(line.decode("utf-8"))
             sys.stdout.flush()
+        sys.exit(proc.wait())
 else:
-    subprocess.Popen(["go", "test"] + sys.argv[1:])
+    sys.exit(subprocess.call(["go", "test"] + sys.argv[1:]))
