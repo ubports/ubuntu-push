@@ -56,6 +56,11 @@ type notificationCentre interface {
 	Clear(*click.AppId, ...string) int
 }
 
+// PostalServiceSetup is a configuration object for the service
+type PostalServiceSetup struct {
+	InstalledChecker click.InstalledChecker
+}
+
 // PostalService is the dbus api
 type PostalService struct {
 	DBusService
@@ -96,11 +101,11 @@ var (
 )
 
 // NewPostalService() builds a new service and returns it.
-func NewPostalService(installedChecker click.InstalledChecker, log logger.Logger) *PostalService {
+func NewPostalService(setup *PostalServiceSetup, log logger.Logger) *PostalService {
 	var svc = &PostalService{}
 	svc.Log = log
 	svc.Bus = bus.SessionBus.Endpoint(PostalServiceBusAddress, log)
-	svc.installedChecker = installedChecker
+	svc.installedChecker = setup.InstalledChecker
 	svc.NotificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, log)
 	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
 	svc.HapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, log)

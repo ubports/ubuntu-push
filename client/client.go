@@ -206,6 +206,13 @@ func (client *PushClient) derivePushServiceSetup() (*service.PushServiceSetup, e
 	return setup, nil
 }
 
+// derivePostalServiceSetup derives the service setup from the client configuration bits.
+func (client *PushClient) derivePostalServiceSetup() *service.PostalServiceSetup {
+	return &service.PostalServiceSetup{
+		InstalledChecker: client.installedChecker,
+	}
+}
+
 // getAuthorization gets the authorization blob to send to the server
 func (client *PushClient) getAuthorization(url string) string {
 	client.log.Debugf("getting authorization for %s", url)
@@ -472,7 +479,8 @@ func (client *PushClient) startPushService() error {
 }
 
 func (client *PushClient) setupPostalService() error {
-	client.postalService = service.NewPostalService(client.installedChecker, client.log)
+	setup := client.derivePostalServiceSetup()
+	client.postalService = service.NewPostalService(setup, client.log)
 	return nil
 }
 
