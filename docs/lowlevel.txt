@@ -340,7 +340,7 @@ The notification can contain a **sound** field. This is the path to a sound file
 Defaults to empty (no sound). This is a relative path, and will be looked up in (a) the application's .local/share/<pkgname>, and (b)
 standard xdg dirs.
 
-The notification can contain a **vibrate** field, causing haptic feedback, that has the following content:
+The notification can contain a **vibrate** field, causing haptic feedback, which can be either a boolean (if true, vibrate a predetermined way) or an object that has the following content:
 
 :pattern: a list of integers describing a vibration pattern (duration of alternating vibration/no vibration times, in milliseconds).
 :repeat: number of times the pattern has to be repeated (defaults to 1, 0 is the same as 1).

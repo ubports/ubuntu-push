@@ -50,11 +50,11 @@ type Vibration struct {
 
 // a Notification can be any of the above
 type Notification struct {
-	Card          *Card          `json:"card"`           // defaults to nil (no card)
-	Sound         string         `json:"sound"`          // a sound file. Users can disable this, so don't rely on it exclusively. Defaults to empty (no sound).
-	Vibrate       *Vibration     `json:"vibrate"`        // users can disable this, blah blah. Defaults to null (no vibration)
-	EmblemCounter *EmblemCounter `json:"emblem-counter"` // puts a counter on an emblem in the launcher. Defaults to nil (no change to emblem counter).
-	Tag           string         `json:"tag,omitempty"`  // tag used for Clear/ListPersistent.
+	Card          *Card           `json:"card"`           // defaults to nil (no card)
+	Sound         string          `json:"sound"`          // a sound file. Users can disable this, so don't rely on it exclusively. Defaults to empty (no sound).
+	RawVibration  json.RawMessage `json:"vibrate"`        // users can disable this, blah blah. Can be Vibration, or boolean. Defaults to null (no vibration)
+	EmblemCounter *EmblemCounter  `json:"emblem-counter"` // puts a counter on an emblem in the launcher. Defaults to nil (no change to emblem counter).
+	Tag           string          `json:"tag,omitempty"`  // tag used for Clear/ListPersistent.
 }
 
 // HelperOutput is the expected output of a helper
@@ -85,4 +85,27 @@ func (card *Card) Timestamp() int64 {
 	} else {
 		return int64(card.RawTimestamp)
 	}
+}
+
+func (notification *Notification) Vibration(fallback *Vibration) *Vibration {
+	var b bool
+	var vib *Vibration
+
+	if notification.RawVibration == nil {
+		return nil
+	}
+	if json.Unmarshal(notification.RawVibration, &b) == nil {
+		if !b {
+			return nil
+		}
+		return fallback
+	}
+	if json.Unmarshal(notification.RawVibration, &vib) != nil {
+		return nil
+	}
+	if len(vib.Pattern) == 0 {
+		return nil
+	}
+
+	return vib
 }

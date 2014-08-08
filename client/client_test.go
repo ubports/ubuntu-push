@@ -44,6 +44,7 @@ import (
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/identifier"
 	idtesting "launchpad.net/ubuntu-push/identifier/testing"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -154,6 +155,7 @@ func (cs *clientSuite) TearDownSuite(c *C) {
 func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 	pem_file := helpers.SourceRelative("../server/acceptance/ssl/testing.cert")
 	cfgMap := map[string]interface{}{
+		"fallback_vibration":     &launch_helper.Vibration{Pattern: []uint32{1}},
 		"connect_timeout":        "7ms",
 		"exchange_timeout":       "10ms",
 		"hosts_cache_expiry":     "1h",
@@ -480,7 +482,8 @@ func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	expected := &service.PostalServiceSetup{
-		InstalledChecker: cli.installedChecker,
+		InstalledChecker:  cli.installedChecker,
+		FallbackVibration: cli.config.FallbackVibration,
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected).Elem()
