@@ -71,36 +71,6 @@ func (hs *hapticSuite) TestPresentDefaultsRepeatTo1(c *C) {
 	c.Check(callArgs[0].Args, DeepEquals, []interface{}{[]uint32{200, 100}, uint32(1)})
 }
 
-// check that Present() makes a Pattern of [Duration] if Duration is given
-func (hs *hapticSuite) TestPresentBuildsPatternWithDuration(c *C) {
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
-
-	ec := New(endp, hs.log)
-	// note: no Repeat, no Pattern, just Duration:
-	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Duration: 200}}
-	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
-	callArgs := testibus.GetCallArgs(endp)
-	c.Assert(callArgs, HasLen, 1)
-	c.Check(callArgs[0].Member, Equals, "VibratePattern")
-	// note: Pattern of [Duration], Repeat of 1:
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{[]uint32{200}, uint32(1)})
-}
-
-// check that Present() ignores Pattern and makes a Pattern of [Duration] if Duration is given
-func (hs *hapticSuite) TestPresentOverrides(c *C) {
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
-
-	ec := New(endp, hs.log)
-	// note: Duration given, as well as Pattern; Repeat given as 0:
-	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Duration: 200, Pattern: []uint32{500}, Repeat: 0}}
-	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
-	callArgs := testibus.GetCallArgs(endp)
-	c.Assert(callArgs, HasLen, 1)
-	c.Check(callArgs[0].Member, Equals, "VibratePattern")
-	// note: Pattern of [Duration], Repeat of 1:
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{[]uint32{200}, uint32(1)})
-}
-
 // check that Present() doesn't call VibratePattern if things are not right
 func (hs *hapticSuite) TestSkipIfMissing(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))

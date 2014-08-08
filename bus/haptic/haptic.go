@@ -50,16 +50,13 @@ func (haptic *Haptic) Present(_ *click.AppId, nid string, notification *launch_h
 	}
 
 	if notification.Vibrate == nil {
-		haptic.log.Debugf("[%s] notification has no Vibrate: %#v", nid, notification.Vibrate)
+		haptic.log.Debugf("[%s] notification has no Vibrate.", nid)
 		return false
 	}
 	pattern := notification.Vibrate.Pattern
 	repeat := notification.Vibrate.Repeat
 	if repeat == 0 {
 		repeat = 1
-	}
-	if notification.Vibrate.Duration != 0 {
-		pattern = []uint32{notification.Vibrate.Duration}
 	}
 	if len(pattern) == 0 {
 		haptic.log.Debugf("[%s] not enough information in the Vibrate to create a pattern", nid)

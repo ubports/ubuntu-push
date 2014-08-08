@@ -524,7 +524,7 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 
 	// Persist is false so we just check the log
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true, Persist: false}
-	vib := &launch_helper.Vibration{Duration: 500}
+	vib := &launch_helper.Vibration{Pattern: []uint32{1}}
 	emb := &launch_helper.EmblemCounter{Count: 2, Visible: true}
 	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card, EmblemCounter: emb, Vibrate: vib}}
 	b := svc.messageHandler(&click.AppId{}, "", output)

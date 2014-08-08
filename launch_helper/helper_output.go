@@ -44,9 +44,8 @@ type EmblemCounter struct {
 // a Vibration generates a vibration in the form of a Pattern set in
 // duration a pattern of on off states, repeated a number of times
 type Vibration struct {
-	Duration uint32   `json:"duration"` // if Duration is present and not 0, it's like a Pattern of [Duration]; otherwise, Pattern is used.
-	Pattern  []uint32 `json:"pattern"`
-	Repeat   uint32   `json:"repeat"` // defaults to 1. A value of zero is ignored (so it's like 1).
+	Pattern []uint32 `json:"pattern"`
+	Repeat  uint32   `json:"repeat"` // defaults to 1. A value of zero is ignored (so it's like 1).
 }
 
 // a Notification can be any of the above
