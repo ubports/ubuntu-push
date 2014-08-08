@@ -115,6 +115,9 @@ func (notification *Notification) Sound(fallback string) string {
 	var b bool
 	var s string
 
+	if notification.RawSound == nil {
+		return ""
+	}
 	if json.Unmarshal(notification.RawSound, &b) == nil {
 		if !b {
 			return ""
