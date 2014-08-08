@@ -110,11 +110,9 @@ func NewPostalService(setup *PostalServiceSetup, log logger.Logger) *PostalServi
 	var svc = &PostalService{}
 	svc.Log = log
 	svc.Bus = bus.SessionBus.Endpoint(PostalServiceBusAddress, log)
-	if setup != nil {
-		svc.installedChecker = setup.InstalledChecker
-		svc.fallbackVibration = setup.FallbackVibration
-		svc.fallbackSound = setup.FallbackSound
-	}
+	svc.installedChecker = setup.InstalledChecker
+	svc.fallbackVibration = setup.FallbackVibration
+	svc.fallbackSound = setup.FallbackSound
 	svc.NotificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, log)
 	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
 	svc.HapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, log)
