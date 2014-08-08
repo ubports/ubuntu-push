@@ -90,6 +90,10 @@ func (card *Card) Timestamp() int64 {
 func (notification *Notification) Vibration(fallback *Vibration) *Vibration {
 	var b bool
 	var vib *Vibration
+
+	if notification.RawVibration == nil {
+		return nil
+	}
 	if json.Unmarshal(notification.RawVibration, &b) == nil {
 		if !b {
 			return nil
