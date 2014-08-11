@@ -26,6 +26,7 @@ import time
 import evdev
 
 from autopilot.introspection import dbus
+from autopilot.exceptions import StateNotFoundError
 from push_notifications import config as push_config
 import push_notifications.helpers.push_notifications_helper as push_helper
 from testtools.matchers import Equals
@@ -338,14 +339,19 @@ class PushNotificationTestBase(UnityTestCase):
         self.assertEqual(body.text, body_text)
         title = hmh.select_single("Label", objectName='title')
         self.assertEqual(title.text, title_text)
-        self.clear_mmu()
+        self.clear_mmu(ignore_missing=False)
 
-    def clear_mmu(self):
+    def clear_mmu(self, ignore_missing=True):
         # get the mmu notification and check the body and title.
         messaging = self.get_messaging_menu()
         # clear all notifications
-        clear_all = messaging.select_single('ButtonMenu',
-                                            objectName='indicator.remove-all')
+        try:
+            clear_all = messaging.select_single(
+                'ButtonMenu', objectName='indicator.remove-all')
+        except StateNotFoundError:
+            if not ignore_missing:
+                raise
+            return
         emptyLabel = messaging.select_single('Label',
                                              objectName='emptyLabel')
         self.assertFalse(emptyLabel.visible)
