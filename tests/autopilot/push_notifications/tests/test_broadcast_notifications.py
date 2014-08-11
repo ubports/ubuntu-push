@@ -63,10 +63,10 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         whist the greeter screen is displayed
         """
         self.send_push_broadcast_message()
-        # Assumes greeter starts in locked state
-        self.unlock_greeter()
         # check the bubble is there
         self.validate_and_dismiss_notification_dialog(DEFAULT_DISPLAY_MESSAGE)
+        # Assumes greeter starts in locked state
+        self.unlock_greeter()
         # clear the mmu
         self.clear_mmu()
 
