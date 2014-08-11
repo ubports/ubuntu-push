@@ -28,31 +28,27 @@ type IdentifierSuite struct{}
 
 var _ = Suite(&IdentifierSuite{})
 
-// TestGenerate checks that Generate() does not fail, and returns a
-// 128-byte string.
-func (s *IdentifierSuite) TestGenerate(c *C) {
-	id := New()
+// TestNew checks that New does not fail, and returns a
+// 32-byte string.
+func (s *IdentifierSuite) TestNew(c *C) {
+	id, err := New()
+	c.Check(err, IsNil)
+	c.Check(id.String(), HasLen, 32)
+}
 
-	c.Check(id.Generate(), Equals, nil)
-	c.Check(id.String(), HasLen, 128)
+// TestNewFail checks that when we can't read the machine-id
+// file the error is propagated
+func (s *IdentifierSuite) TestNewFail(c *C) {
+	// replace the machine-id file path
+	machineIdPath = "/var/lib/dbus/no-such-file"
+	id, err := New()
+	c.Check(err, NotNil)
+	c.Check(err.Error(), Equals, "Failed to read the machine id: open /var/lib/dbus/no-such-file: no such file or directory")
+	c.Check(id.String(), HasLen, 0)
 }
 
 // TestIdentifierInterface checks that Identifier implements Id.
 func (s *IdentifierSuite) TestIdentifierInterface(c *C) {
-	_ = []Id{New()}
-}
-
-// TestFailure checks that Identifier survives whoopsie shenanigans
-func (s *IdentifierSuite) TestIdentifierSurvivesShenanigans(c *C) {
-	count := 0
-	// using _Ctype* as a workaround for gocheck also having a C
-	gen := func(csp **_Ctype_char, errp **_Ctype_GError) {
-		count++
-		if count > 3 {
-			generator(csp, errp)
-		}
-	}
-	id := &Identifier{generator: gen}
-	id.Generate()
-	c.Check(id.String(), HasLen, 128)
+	id, _ := New()
+	_ = []Id{id}
 }

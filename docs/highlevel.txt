@@ -6,11 +6,8 @@ Ubuntu Push Client Developer Guide
 Introduction
 ------------
 
-This document describes how to use the Ubuntu Push Client service from a platform integrator's point of view.
-Application developers are expected to use a much simpler API, in turn based on the lower-level API described here.
-
-The expected audience for this document is, therefore, either platform developers, or application developers who,
-for whatever reason, can't use or prefer not to use the available higher level APIs.
+This document describes how to use the Ubuntu Push Client service from the point of view of a developer writing
+a QML-based application.
 
 ---------
 
@@ -61,43 +58,27 @@ For the app developer, there are several components needed:
 In the following sections, we'll see how to implement all the client side parts. For the application server, see the
 `Ubuntu Push Server API section <#ubuntu-push-server-api>`__
 
-The PushNotifications Service
------------------------------
-
-:Service: com.ubuntu.PushNotifications
-:Object path: /com/ubuntu/PushNotifications/QUOTED_PKGNAME
-
-The PushNotifications service handles registering the device with the Ubuntu Push service to enable delivery of messages to
-it.
-
-Each Ubuntu Touch package has to use a separate object path for security reasons, that's why the object path includes QUOTED_PKGNAME.
-For example, in the case of the music application, the package name is ``com.ubuntu.music`` and QUOTED_PKGNAME is com_2eubuntu_2emusic.
-Everything that is not a letter or digit has to be quoted as _XX where XX are the hex digits of the character. In practice,
-this means replacing "." with "_2e" and "-" with "_2d"
-
-.. note:: For applications that are not installed as part of click packages, the QUOTED_PKGNAME is "_" and the APP_ID when required is
-          _PACKAGENAME.
-
-          For example, for ubuntu-system-settins:
-
-          * QUOTED_PKGNAME is _
-          * APP_ID is _ubuntu-system-settings
-
-
-com.ubuntu.PushNotifications.Register
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``string Register(string APP_ID)``
+The PushClient Component
+------------------------
 
 Example::
 
-	$ gdbus call --session --dest com.ubuntu.PushNotifications --object-path /com/ubuntu/PushNotifications/com_2eubuntu_2emusic \
-	--method com.ubuntu.PushNotifications.Register com.ubuntu.music_music
+    import Ubuntu.PushNotifications 0.1
 
-	('LeA4tRQG9hhEkuhngdouoA==',)
+    PushClient {
+        id: pushClient
+        Component.onCompleted: {
+            newNotifications.connect(messageList.handle_notifications)
+            error.connect(messageList.handle_error)
+        }
+        appId: "com.ubuntu.developer.push.hello_hello"
+    }
 
-The Register method takes as argument the APP_ID (in the example, com.ubuntu.music_music) and returns a token identifying the user
-and device. For this to succeed the user **must** have an Ubuntu One account configured in the device.
+Registration: the appId and token properties
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To register with the push system and start receiving notifications, set the ``appId`` property to your application's APP_ID,
+with or without version number. For this to succeed the user **must** have an Ubuntu One account configured in the device.
 
 The APP_ID is as described in the `ApplicationId documentation <https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId>`__
 except that the version is treated as optional. Therefore both ``com.ubuntu.music_music`` and ``com.ubuntu.music_music_1.3.496``
@@ -105,99 +86,27 @@ are valid. Keep in mind that while both versioned and unversioned APP_IDs are va
 which notifications are delivered to the application. Unversioned IDs mean the token will be the same after updates and the application
 will receive old notifications, while versioned IDs mean the app needs to explicitly ask to get older messages delivered.
 
-Register is idempotent, and calling it multiple times returns the same token.
+Setting the same appId more than once has no effect.
 
-This token is later used by the application server to indicate the recipient of notifications.
+After you are registered, if no error occurs, the PushClient will have a value set in its ``token`` property
+which uniquely identifies the user+device combination.
 
-.. FIXME crosslink to server app
+Receiving Notifications
+~~~~~~~~~~~~~~~~~~~~~~~
 
-.. note:: There is currently no way to send a push message to all of a user's devices. The application server has to send to
-          each registered device individually instead.
+When a notification is received by the Push Client, it will be delivered to your application's push helper, and then
+placed in your application's mailbox. At that point, the PushClient will emit the ``newNotifications(QStringList)`` signal
+containing your messages. You should probably connect to that signal and handle those messages.
 
-com.ubuntu.PushNotifications.Unregister
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Because of the application's lifecycle, there is no guarantee that it will be running when the signal is emitted. For that
+reason, apps should check for pending notifications whenever they are activated or started. To do that, use the
+``getNotifications()`` slot. Triggering that slot will fetch notifications and trigger the
+``newNotifications(QStringList)`` signal.
 
-``void Unregister(string APP_ID)``
+Error Handling
+~~~~~~~~~~~~~~
 
-Example::
-
-	$ gdbus call --session --dest com.ubuntu.PushNotifications --object-path /com/ubuntu/PushNotifications/com_2eubuntu_2emusic \
-	--method com.ubuntu.PushNotifications.Unregister com.ubuntu.music_music
-
-The Unregister method invalidates the token obtained via `Register <#com-ubuntu-pushnotifications-register>`_  therefore disabling
-reception of push messages.
-
-The method takes as argument the APP_ID (in the example, com.ubuntu.music_music) and returns nothing.
-
-The APP_ID is as described in the `ApplicationId documentation <https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId>`__
-except that the version is treated as optional. Therefore both ``com.ubuntu.music_music`` and ``com.ubuntu.music_music_1.3.496``
-are valid.
-
-The Postal Service
-------------------
-
-:Service: com.ubuntu.Postal
-:Object path: /com/ubuntu/Postal/QUOTED_PKGNAME
-
-The Postal service delivers the actual messages to the applications. After the application is registered, the push client will begin
-delivering messages to the device, which will then (possibly) cause specific notifications to be presented to the user (message bubbles,
-sounds, haptic feedbak, etc.) Regardless of whether the user acknowledges those notifications or not, the payload of the push message
-is put in the Postal service for the application to pick up.
-
-Because user response to notifications can cause application activation, apps should check the status of the Postal service every time
-the application activates.
-
-com.ubuntu.Postal.Post
-~~~~~~~~~~~~~~~~~~~~~~
-
-``void Post(string APP_ID, string message)``
-
-Example::
-
-	gdbus call --session --dest com.ubuntu.Postal --object-path /com/ubuntu/Postal/com_2eubuntu_2emusic \
-	--method com.ubuntu.Postal.Post com.ubuntu.music_music \
-	'"{\"message\": \"foobar\", \"notification\":{\"card\": {\"summary\": \"yes\", \"body\": \"hello\", \"popup\": true, \"persist\": true}}}"'
-
-
-The arguments for the Post method are APP_ID (in the example, com.ubuntu.music_music) and a JSON string
-`describing a push message. <#push-message-format>`__
-
-Depending on the contents of the push message it may trigger user-facing notifications, and will queue a
-message for the app to get via the `PopAll <#com-ubuntu-postal-popalls>`__ method.
-
-The APP_ID is as described in the `ApplicationId documentation <https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId>`__
-except that the version is treated as optional. Therefore both ``com.ubuntu.music_music`` and ``com.ubuntu.music_music_1.3.496``
-are valid.
-
-.. note:: Post is useful as a unified frontend for notifications in Ubuntu Touch, since it wraps and abstracts several different APIs.
-
-com.ubuntu.Postal.PopAll
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-``array{string} PopAll(string APP_ID)``
-
-Example::
-
-	$ gdbus call --session --dest com.ubuntu.Postal --object-path /com/ubuntu/Postal/com_2eubuntu_2emusic \
-	--method com.ubuntu.Postal.PopAll com.ubuntu.music_music
-
-	(['{"foo": "bar", ....}'],)
-
-The argument for the PopAll method is the APP_ID and it returns a list of strings, each string being a separate postal
-message, the "message" element of a helper's output fed from `Post <#com-ubuntu-postal-post>`__
-or from the Ubuntu Push service,
-
-Post Signal
-~~~~~~~~~~~
-
-``void Post(string APP_ID)``
-
-Every time a notification is posted, the postal service will emit the Post signal. Your app can connect to it to react to
-incoming notifications if it's running when they arrive. Remember that on Ubuntu Touch, the application lifecycle means
-it will often **not** be running when notifications arrive. If the application is in the foreground when a notification
-arrives, the notification **will not** be presented.
-
-The object path is similar to that of the Postal service methods, containing the QUOTED_PKGNAME.
+Whenever PushClient suffers an error, it will emit the ``error(QString)`` signal with the error message.
 
 Persistent Notification Management
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -207,17 +116,14 @@ allows the app to manage them without having to know the underlying details of t
 
 On each notification there's an optional ``tag`` field, used for this purpose.
 
-``array(string) ListPersistent(string APP_ID)``
+The ``persistent`` property of PushClient contains the list of the tags of notifications with the "persist" element set
+to true that are visible to the user right now.
 
-Returns a list of the tags of notifications with the "persist" element set to true that are visible to the user right now.
+The ``void clearPersistent(QStringList tags)`` method clears persistent notifications for that app marked by ``tags``.
+If no tag is given, match all.
 
-``void ClearPersistent(string APP_ID, [tag1, tag2,....])``
 
-Clears persistent notifications for that app by tag(s). If none given, match all.
-
-``void SetCounter(string APP_ID, int count int, bool visible)``
-
-Set the counter to the given values.
+The ``count`` property sets the counter in the application's icon to the given value.
 
 
 Application Helpers

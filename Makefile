@@ -13,6 +13,8 @@ GODEPS += launchpad.net/go-xdg/v0
 GODEPS += code.google.com/p/gosqlite/sqlite3
 GODEPS += code.google.com/p/go-uuid/uuid
 
+GOTEST := ./scripts/goctest
+
 TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
 TOBUILD = $(shell grep -lr '^package main')
 
@@ -40,10 +42,10 @@ dependencies.tsv:
 	$(GOPATH)/bin/godeps -t $(TOTEST) $(foreach i,$(TOBUILD),$(dir $(PROJECT)/$(i))) 2>/dev/null | cat > $@
 
 check:
-	go test $(TESTFLAGS) $(TOTEST)
+	$(GOTEST) $(TESTFLAGS) $(TOTEST)
 
 check-race:
-	go test $(TESTFLAGS) -race $(TOTEST)
+	$(GOTEST) $(TESTFLAGS) -race $(TOTEST)
 
 acceptance:
 	cd server/acceptance; ./acceptance.sh
@@ -83,14 +85,14 @@ distclean:
 	bzr clean-tree --verbose --ignored --force
 
 coverage-summary:
-	go test $(TESTFLAGS) -a -cover $(TOTEST)
+	$(GOTEST) $(TESTFLAGS) -a -cover $(TOTEST)
 
 coverage-html:
 	mkdir -p coverhtml
 	for pkg in $(TOTEST); do \
 		relname="$${pkg#$(PROJECT)/}" ; \
 		mkdir -p coverhtml/$$(dirname $${relname}) ; \
-		go test $(TESTFLAGS) -a -coverprofile=coverhtml/$${relname}.out $$pkg ; \
+		$(GOTEST) $(TESTFLAGS) -a -coverprofile=coverhtml/$${relname}.out $$pkg ; \
 		if [ -f coverhtml/$${relname}.out ] ; then \
 	           go tool cover -html=coverhtml/$${relname}.out -o coverhtml/$${relname}.html ; \
 	           go tool cover -func=coverhtml/$${relname}.out -o coverhtml/$${relname}.txt ; \

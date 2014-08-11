@@ -15,11 +15,11 @@ OPTIONS:
 EOF
 }
 
-while getopts "H:b:c:u" opt; do
+while getopts "H:b:d:u" opt; do
     case $opt in
         H) PUSH_SERVER=$OPTARG;;
         b) BRANCH_URL=$OPTARG;;
-        c) DEVICE_ID=$OPTARG;; 
+        d) DEVICE_ID=$OPTARG;; 
         u) APT_UPDATE="1";;
         *) usage
             exit 1
@@ -54,18 +54,28 @@ then
     adb -s ${DEVICE_ID} shell "touch autopilot-deps.ok"
 fi
 # fetch the code
-BASE_DIR="ubuntu-push/src/launchpad.net"
+BASE_DIR="/home/phablet/ubuntu-push/src/launchpad.net"
 BRANCH_DIR="$BASE_DIR/ubuntu-push"
 BRANCH_OK=$(adb -s ${DEVICE_ID} shell "su - phablet bash -c '[ ! -d "${BRANCH_DIR}/tests/autopilot" ] && echo 1 || echo 0'")
-if [[ "${BRANCH_OK:0:1}" == 1 ]] 
+if [[ "${BRANCH_OK:0:1}" == 1 ]] || [[ "${BRANCH_URL}" != "lp:ubuntu-push/automatic" ]]
 then
+    adb -s ${DEVICE_ID} shell "su - phablet bash -c 'rm -Rf ${BRANCH_DIR}'"
     echo "fetching code."
     adb -s ${DEVICE_ID} shell "su - phablet bash -c 'mkdir -p ${BASE_DIR}'"
     adb -s ${DEVICE_ID} shell "su - phablet bash -c 'bzr branch ${BRANCH_URL} ${BRANCH_DIR}'"
 fi
-adb -s ${DEVICE_ID} shell "su - phablet bash -c 'sed -i 's/192.168.1.3/${PUSH_SERVER}/' ${BRANCH_DIR}/tests/autopilot/push_notifications/config/push.conf'"
+adb -s ${DEVICE_ID} shell "su - phablet bash -c \"sed -i 's/addr =.*/addr = ${PUSH_SERVER}/' ${BRANCH_DIR}/tests/autopilot/push_notifications/config/push.conf\""
+
+# copy the trivial-helper.sh as the heper for the messaging-app (used in the tests)
+HELPER_OK=$(adb -s ${DEVICE_ID} shell "[ ! -f /usr/lib/ubuntu-push-client/legacy-helpers/messaging-app ] && echo 1 || echo 0")
+if [[ "${HELPER_OK:0:1}" == 1 ]] 
+then
+    adb -s ${DEVICE_ID} shell "cp ${BRANCH_DIR}/scripts/trivial-helper.sh /usr/lib/ubuntu-push-client/legacy-helpers/messaging-app"
+fi
 
 # change the local/dev server config, listen in all interfaces
 sed -i 's/127.0.0.1/0.0.0.0/g' ${ROOT_DIR}/sampleconfigs/dev.json
 # and start it
 cd ${ROOT_DIR}; make run-server-dev 
+# remove the trivial helper for the messaging-app
+adb -s ${DEVICE_ID} shell "rm /usr/lib/ubuntu-push-client/legacy-helpers/messaging-app"

@@ -41,10 +41,11 @@ import (
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/identifier"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
-	"launchpad.net/ubuntu-push/whoopsie/identifier"
 )
 
 // ClientConfig holds the client configuration
@@ -67,6 +68,9 @@ type ClientConfig struct {
 	RegistrationURL string `json:"registration_url"`
 	// The logging level (one of "debug", "info", "error")
 	LogLevel logger.ConfigLogLevel `json:"log_level"`
+	// fallback values for simplified notification usage
+	FallbackVibration *launch_helper.Vibration `json:"fallback_vibration"`
+	FallbackSound     string                   `json:"fallback_sound"`
 }
 
 // PushService is the interface we use of service.PushService.
@@ -152,7 +156,10 @@ func (client *PushClient) configure() error {
 	client.unregisterCh = make(chan *click.AppId, 10)
 
 	// overridden for testing
-	client.idder = identifier.New()
+	client.idder, err = identifier.New()
+	if err != nil {
+		return err
+	}
 	client.connectivityEndp = bus.SystemBus.Endpoint(networkmanager.BusAddress, client.log)
 	client.systemImageEndp = bus.SystemBus.Endpoint(systemimage.BusAddress, client.log)
 
@@ -203,6 +210,15 @@ func (client *PushClient) derivePushServiceSetup() (*service.PushServiceSetup, e
 	return setup, nil
 }
 
+// derivePostalServiceSetup derives the service setup from the client configuration bits.
+func (client *PushClient) derivePostalServiceSetup() *service.PostalServiceSetup {
+	return &service.PostalServiceSetup{
+		InstalledChecker:  client.installedChecker,
+		FallbackVibration: client.config.FallbackVibration,
+		FallbackSound:     client.config.FallbackSound,
+	}
+}
+
 // getAuthorization gets the authorization blob to send to the server
 func (client *PushClient) getAuthorization(url string) string {
 	client.log.Debugf("getting authorization for %s", url)
@@ -222,16 +238,12 @@ func (client *PushClient) getAuthorization(url string) string {
 	}
 }
 
-// getDeviceId gets the whoopsie identifier for the device
+// getDeviceId gets the identifier for the device
 func (client *PushClient) getDeviceId() error {
-	err := client.idder.Generate()
-	if err != nil {
-		return err
-	}
 	baseId := client.idder.String()
 	b, err := hex.DecodeString(baseId)
 	if err != nil {
-		return fmt.Errorf("whoopsie id should be hex: %v", err)
+		return fmt.Errorf("machine-id should be hex: %v", err)
 	}
 	h := sha256.Sum224(b)
 	client.deviceId = base64.StdEncoding.EncodeToString(h[:])
@@ -294,7 +306,7 @@ func (client *PushClient) CheckForAddressee(notif *protocol.Notification) *click
 	switch err {
 	default:
 		client.log.Debugf("notification %#v for invalid app id %#v.", notif.MsgId, notif.AppId)
-	case click.ErrMissingAppId:
+	case click.ErrMissingApp:
 		client.log.Debugf("notification %#v for missing app id %#v.", notif.MsgId, notif.AppId)
 		client.unregisterCh <- parsed
 		parsed = nil
@@ -473,7 +485,8 @@ func (client *PushClient) startPushService() error {
 }
 
 func (client *PushClient) setupPostalService() error {
-	client.postalService = service.NewPostalService(client.installedChecker, client.log)
+	setup := client.derivePostalServiceSetup()
+	client.postalService = service.NewPostalService(setup, client.log)
 	return nil
 }
 

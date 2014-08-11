@@ -17,6 +17,7 @@
 package launch_helper
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -285,7 +286,7 @@ func (s *poolSuite) TestOneDoneOnValid(c *C) {
 
 	res := takeNext(ch, c)
 
-	expected := HelperOutput{Notification: &Notification{Sound: "hello", Tag: "a-tag"}}
+	expected := HelperOutput{Notification: &Notification{RawSound: json.RawMessage(`"hello"`), Tag: "a-tag"}}
 	c.Check(res.HelperOutput, DeepEquals, expected)
 	c.Check(pool.hmap, HasLen, 0)
 }

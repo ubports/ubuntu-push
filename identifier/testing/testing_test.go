@@ -43,19 +43,6 @@ func (s *IdentifierSuite) TestSettableSets(c *C) {
 	c.Check(id.String(), Equals, "hello")
 }
 
-// TestSettableGenerateDoesNotFail tests that SettableIdentifier's Generate
-// does not fail.
-func (s *IdentifierSuite) TestSettableGenerateDoesNotFail(c *C) {
-	id := Settable()
-	c.Check(id.Generate(), Equals, nil)
-}
-
-// TestFailingFails tests that FailingIdentifier fails.
-func (s *IdentifierSuite) TestFailingFails(c *C) {
-	id := Failing()
-	c.Check(id.Generate(), Not(Equals), nil)
-}
-
 // TestFailingStringNotEmpty tests that FailingIdentifier still has a
 // non-empty string.
 func (s *IdentifierSuite) TestFailingStringNotEmpty(c *C) {

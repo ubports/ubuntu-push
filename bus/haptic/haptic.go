@@ -34,13 +34,14 @@ var BusAddress bus.Address = bus.Address{
 
 // Haptic encapsulates info needed to call out to usensord/haptic
 type Haptic struct {
-	bus bus.Endpoint
-	log logger.Logger
+	bus      bus.Endpoint
+	log      logger.Logger
+	fallback *launch_helper.Vibration
 }
 
 // New returns a new Haptic that'll use the provided bus.Endpoint
-func New(endp bus.Endpoint, log logger.Logger) *Haptic {
-	return &Haptic{endp, log}
+func New(endp bus.Endpoint, log logger.Logger, fallback *launch_helper.Vibration) *Haptic {
+	return &Haptic{endp, log, fallback}
 }
 
 // Present presents the notification via a vibrate pattern
@@ -49,17 +50,15 @@ func (haptic *Haptic) Present(_ *click.AppId, nid string, notification *launch_h
 		panic("please check notification is not nil before calling present")
 	}
 
-	if notification.Vibrate == nil {
-		haptic.log.Debugf("[%s] notification has no Vibrate: %#v", nid, notification.Vibrate)
+	vib := notification.Vibration(haptic.fallback)
+	if vib == nil {
+		haptic.log.Debugf("[%s] notification has no Vibrate.", nid)
 		return false
 	}
-	pattern := notification.Vibrate.Pattern
-	repeat := notification.Vibrate.Repeat
+	pattern := vib.Pattern
+	repeat := vib.Repeat
 	if repeat == 0 {
 		repeat = 1
-	}
-	if notification.Vibrate.Duration != 0 {
-		pattern = []uint32{notification.Vibrate.Duration}
 	}
 	if len(pattern) == 0 {
 		haptic.log.Debugf("[%s] not enough information in the Vibrate to create a pattern", nid)

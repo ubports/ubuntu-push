@@ -42,12 +42,13 @@ import (
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/identifier"
+	idtesting "launchpad.net/ubuntu-push/identifier/testing"
+	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
 	"launchpad.net/ubuntu-push/util"
-	"launchpad.net/ubuntu-push/whoopsie/identifier"
-	idtesting "launchpad.net/ubuntu-push/whoopsie/identifier/testing"
 )
 
 func TestClient(t *testing.T) { TestingT(t) }
@@ -154,6 +155,8 @@ func (cs *clientSuite) TearDownSuite(c *C) {
 func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 	pem_file := helpers.SourceRelative("../server/acceptance/ssl/testing.cert")
 	cfgMap := map[string]interface{}{
+		"fallback_vibration":     &launch_helper.Vibration{Pattern: []uint32{1}},
+		"fallback_sound":         "sounds/ubuntu/notifications/Blip.ogg",
 		"connect_timeout":        "7ms",
 		"exchange_timeout":       "10ms",
 		"hosts_cache_expiry":     "1h",
@@ -239,7 +242,8 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	c.Check(cli.idder, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	c.Assert(cli.idder, FitsTypeOf, identifier.New())
+	newIdder, err := identifier.New()
+	c.Assert(cli.idder, FitsTypeOf, newIdder)
 }
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
@@ -471,6 +475,32 @@ func (cs *clientSuite) TestDerivePushServiceSetupError(c *C) {
 }
 
 /*****************************************************************
+    derivePostalConfig tests
+******************************************************************/
+func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
+	cs.writeTestConfig(map[string]interface{}{})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	expected := &service.PostalServiceSetup{
+		InstalledChecker:  cli.installedChecker,
+		FallbackVibration: cli.config.FallbackVibration,
+		FallbackSound:     cli.config.FallbackSound,
+	}
+	// sanity check that we are looking at all fields
+	vExpected := reflect.ValueOf(expected).Elem()
+	nf := vExpected.NumField()
+	for i := 0; i < nf; i++ {
+		fv := vExpected.Field(i)
+		// field isn't empty/zero
+		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
+	}
+	// finally compare
+	setup := cli.derivePostalServiceSetup()
+	c.Check(setup, DeepEquals, expected)
+}
+
+/*****************************************************************
     startService tests
 ******************************************************************/
 
@@ -536,7 +566,7 @@ func (cs *clientSuite) TestStartPostalErrorsOnPostalStartError(c *C) {
 func (cs *clientSuite) TestGetDeviceIdWorks(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.idder = identifier.New()
+	cli.idder, _ = identifier.New()
 	c.Check(cli.deviceId, Equals, "")
 	c.Check(cli.getDeviceId(), IsNil)
 	c.Check(cli.deviceId, HasLen, 40)
@@ -550,14 +580,14 @@ func (cs *clientSuite) TestGetDeviceIdCanFail(c *C) {
 	c.Check(cli.getDeviceId(), NotNil)
 }
 
-func (cs *clientSuite) TestGetDeviceIdWhoopsieDoesTheUnexpected(c *C) {
+func (cs *clientSuite) TestGetDeviceIdIdentifierDoesTheUnexpected(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	settable := idtesting.Settable()
 	cli.idder = settable
 	settable.Set("not-hex")
 	c.Check(cli.deviceId, Equals, "")
-	c.Check(cli.getDeviceId(), ErrorMatches, "whoopsie id should be hex: .*")
+	c.Check(cli.getDeviceId(), ErrorMatches, "machine-id should be hex: .*")
 }
 
 /*****************************************************************
@@ -1111,7 +1141,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and now everthing is better! We have a config,
 	c.Check(string(cli.config.Addr), Equals, ":0")
 	// and a device id,
-	c.Check(cli.deviceId, HasLen, 40)
+	c.Check(cli.deviceId, HasLen, 32)
 	// and a session,
 	c.Check(cli.session, NotNil)
 	// and a bus,

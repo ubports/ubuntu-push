@@ -26,6 +26,7 @@ import time
 import evdev
 
 from autopilot.introspection import dbus
+from autopilot.exceptions import StateNotFoundError
 from push_notifications import config as push_config
 import push_notifications.helpers.push_notifications_helper as push_helper
 from testtools.matchers import Equals
@@ -238,6 +239,22 @@ class PushNotificationTestBase(UnityTestCase):
         """
         self.validate_and_dismiss_notification_dialog(message, secondary_icon=False)
 
+    def validate_and_tap_notification_dialog(self, message,
+                                             secondary_icon=True):
+        """
+        Validate a notification dialog is displayed and dismiss it
+        :param message: expected message displayed in summary
+        """
+        # get the dialog
+        dialog, props = self.get_notification_dialog()
+        # validate dialog
+        self.assert_notification_dialog(
+            props, summary=message, secondary_icon=secondary_icon)
+        # tap the dialog
+        self.touch.tap_object(dialog)
+        # check the dialog is no longer displayed
+        self.validate_notification_not_displayed(wait=False)
+
     def wait_until_dialog_dismissed(self, dialog):
         """Wait for the dialog to dismiss automatically"""
         dialog_disappeared = False
@@ -270,7 +287,7 @@ class PushNotificationTestBase(UnityTestCase):
             self.wait_until_dialog_dismissed(dialog)
 
     # unicast messages
-    def send_unicast_notification(self, icon="messages-app",
+    def send_unicast_notification(self, icon="",
                                   body="A unicast message", summary="Look!",
                                   persist=False, popup=True, actions=[], emblem_counter={}):
         """Build and send a push unicast message.
@@ -309,3 +326,36 @@ class PushNotificationTestBase(UnityTestCase):
         indicator_page = self.main_window.open_indicator_page(
             "indicator-messages")
         return indicator_page
+
+    def validate_mmu_notification(self, body_text, title_text):
+        # get the mmu notification and check the body and title.
+        # swipe down and show the incomming page
+        messaging = self.get_messaging_menu()
+        # get the notification and check the body and title.
+        menuItem0 = messaging.select_single('QQuickLoader',
+                                            objectName='menuItem0')
+        hmh = menuItem0.select_single('HeroMessageHeader')
+        body = hmh.select_single("Label", objectName='body')
+        self.assertEqual(body.text, body_text)
+        title = hmh.select_single("Label", objectName='title')
+        self.assertEqual(title.text, title_text)
+        self.clear_mmu(ignore_missing=False)
+
+    def clear_mmu(self, ignore_missing=True):
+        # get the mmu notification and check the body and title.
+        messaging = self.get_messaging_menu()
+        # clear all notifications
+        try:
+            clear_all = messaging.select_single(
+                'ButtonMenu', objectName='indicator.remove-all')
+        except StateNotFoundError:
+            if not ignore_missing:
+                raise
+            return
+        emptyLabel = messaging.select_single('Label',
+                                             objectName='emptyLabel')
+        self.assertFalse(emptyLabel.visible)
+        self.touch.tap_object(clear_all)
+        emptyLabel = messaging.select_single('Label',
+                                             objectName='emptyLabel')
+        self.assertTrue(emptyLabel.visible)
