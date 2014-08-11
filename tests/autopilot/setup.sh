@@ -57,8 +57,9 @@ fi
 BASE_DIR="/home/phablet/ubuntu-push/src/launchpad.net"
 BRANCH_DIR="$BASE_DIR/ubuntu-push"
 BRANCH_OK=$(adb -s ${DEVICE_ID} shell "su - phablet bash -c '[ ! -d "${BRANCH_DIR}/tests/autopilot" ] && echo 1 || echo 0'")
-if [[ "${BRANCH_OK:0:1}" == 1 ]] 
+if [[ "${BRANCH_OK:0:1}" == 1 ]] || [[ "${BRANCH_URL}" != "" ]]
 then
+    adb -s ${DEVICE_ID} shell "su - phablet bash -c 'rm -Rf ${BRANCH_DIR}'"
     echo "fetching code."
     adb -s ${DEVICE_ID} shell "su - phablet bash -c 'mkdir -p ${BASE_DIR}'"
     adb -s ${DEVICE_ID} shell "su - phablet bash -c 'bzr branch ${BRANCH_URL} ${BRANCH_DIR}'"
