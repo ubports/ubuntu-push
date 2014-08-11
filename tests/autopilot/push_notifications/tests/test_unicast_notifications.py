@@ -21,6 +21,9 @@
 
 import os
 
+from autopilot import platform
+from testtools import skipIf
+
 from push_notifications.tests import PushNotificationTestBase
 
 
@@ -30,21 +33,24 @@ class TestPushClientUnicast(PushNotificationTestBase):
     DEFAULT_DISPLAY_MESSAGE = 'Look!'
 
     scenarios = [('click_app_with_version',
-                  dict(app_name="com.ubuntu.calculator_calculator",
+                  dict(app_name="com.ubuntu.developer.webapps.webapp-twitter_webapp-twitter",
                        appid=None, path=None,
                        desktop_dir="~/.local/share/applications/",
-                       launcher_idx=4)),
+                       icon="twitter",
+                       launcher_idx=5)),
                  ('click_app',
-                  dict(app_name="com.ubuntu.calculator_calculator",
-                       appid="com.ubuntu.calculator_calculator",
-                       path="com_2eubuntu_2ecalculator",
+                  dict(app_name="com.ubuntu.developer.webapps.webapp-twitter_webapp-twitter",
+                       appid="com.ubuntu.developer.webapps.webapp-twitter_webapp-twitter",
+                       path="com_2eubuntu_2edeveloper_2ewebapps_2ewebapp_2dtwitter",
                        desktop_dir="~/.local/share/applications/",
-                       launcher_idx=4)),
+                       icon="twitter",
+                       launcher_idx=5)),
                  ('legacy_app',
                   dict(app_name="messaging-app",
                        appid="_messaging-app",
                        path="_",
                        desktop_dir="/usr/share/applications/",
+                       icon="messages-app",
                        launcher_idx=1))]
 
     def setUp(self):
@@ -63,10 +69,13 @@ class TestPushClientUnicast(PushNotificationTestBase):
                     fname.endswith(".desktop"):
                 # remove .desktop extension, only need the name.
                 appid = os.path.splitext(fname)[0]
-                path = appid.split("_")[0].replace(".", "_2e")
+                path = appid.split("_")[0]
+                path = path.replace(".", "_2e").replace("-", "_2d")
                 return appid, path
         return self.appid, self.path
 
+    @skipIf(platform.model() == 'X86 Emulator',
+            "Test not working in the emulator")
     def test_unicast_push_notification_persistent(self):
         """Send a persistent unicast push notification.
 
@@ -76,17 +85,9 @@ class TestPushClientUnicast(PushNotificationTestBase):
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         # send message
-        self.send_unicast_notification(persist=True)
-        # swipe down and show the incomming page
-        messaging = self.get_messaging_menu()
-        # get the notification and check the body and title.
-        menuItem0 = messaging.select_single('QQuickLoader',
-                                            objectName='menuItem0')
-        hmh = menuItem0.select_single('HeroMessageHeader')
-        body = hmh.select_single("Label", objectName='body')
-        self.assertEqual(body.text, 'A unicast message')
-        title = hmh.select_single("Label", objectName='title')
-        self.assertEqual(title.text, 'Look!')
+        self.send_unicast_notification(persist=True, popup=False,
+                                       icon=self.icon)
+        self.validate_mmu_notification("A unicast message", "Look!")
 
     def get_running_app_launcher_icon(self):
         launcher = self.main_window.get_launcher()
@@ -118,6 +119,7 @@ class TestPushClientUnicast(PushNotificationTestBase):
         # send message, only showing emblem counter
         emblem_counter = {'count': 42, 'visible': True}
         self.send_unicast_notification(persist=False, popup=False,
+                                       icon=self.icon,
                                        emblem_counter=emblem_counter)
         # show the dash and check the emblem count.
         self.main_window.show_dash_swiping()
@@ -131,14 +133,15 @@ class TestPushClientUnicast(PushNotificationTestBase):
         The notification should be displayed on top of the greeter.
         """
         # Assumes greeter starts in locked state
-        self.send_unicast_notification(summary="Locked greeter")
+        self.send_unicast_notification(summary="Locked greeter",
+                                       icon=self.icon)
         self.validate_and_dismiss_notification_dialog("Locked greeter")
 
     def test_unicast_push_notification(self):
         """Send a push notificationn and validate it's displayed."""
         # Assumes greeter starts in locked state
         self.unlock_greeter()
-        self.send_unicast_notification()
+        self.send_unicast_notification(icon=self.icon)
         self.validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
 
@@ -151,7 +154,7 @@ class TestPushClientUnicast(PushNotificationTestBase):
         # Assumes greeter starts in locked state
         self.unlock_greeter()
         self.push_client_controller.stop_push_client()
-        self.send_unicast_notification()
+        self.send_unicast_notification(icon=self.icon)
         self.push_client_controller.start_push_client()
         self.validate_and_dismiss_notification_dialog(
             self.DEFAULT_DISPLAY_MESSAGE)
