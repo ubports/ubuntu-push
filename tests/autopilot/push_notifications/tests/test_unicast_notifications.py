@@ -21,6 +21,9 @@
 
 import os
 
+from autopilot import platform
+from testtools import skipIf
+
 from push_notifications.tests import PushNotificationTestBase
 
 
@@ -71,6 +74,8 @@ class TestPushClientUnicast(PushNotificationTestBase):
                 return appid, path
         return self.appid, self.path
 
+    @skipIf(platform.model() == 'X86 Emulator',
+            "Test not working in the emulator")
     def test_unicast_push_notification_persistent(self):
         """Send a persistent unicast push notification.
 

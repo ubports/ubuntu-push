@@ -21,6 +21,9 @@
 
 import time
 
+from autopilot import platform
+from testtools import skipIf
+
 from push_notifications.tests import PushNotificationTestBase
 
 
@@ -80,6 +83,8 @@ class TestPushClientBroadcast(PushNotificationTestBase):
         # clear the mmu
         self.clear_mmu()
 
+    @skipIf(platform.model() == 'X86 Emulator',
+            "Test not working in the emulator")
     def test_broadcast_push_notification_is_persistent(self):
         """
         Positive test case to send a valid broadcast push notification
