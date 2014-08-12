@@ -143,6 +143,7 @@ func mkHandler(text string) http.HandlerFunc {
 
 func (cs *clientSuite) SetUpSuite(c *C) {
 	config.IgnoreParsedFlags = true // because configure() uses <flags>
+	newIdentifier = func() (identifier.Id, error) { return idtesting.Settable(), nil }
 	cs.timeouts = util.SwapTimeouts([]time.Duration{0})
 	cs.leveldbPath = ""
 }
@@ -150,6 +151,7 @@ func (cs *clientSuite) SetUpSuite(c *C) {
 func (cs *clientSuite) TearDownSuite(c *C) {
 	util.SwapTimeouts(cs.timeouts)
 	cs.timeouts = nil
+	newIdentifier = identifier.New
 }
 
 func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
@@ -242,8 +244,7 @@ func (cs *clientSuite) TestConfigureSetsUpIdder(c *C) {
 	c.Check(cli.idder, IsNil)
 	err := cli.configure()
 	c.Assert(err, IsNil)
-	newIdder, err := identifier.New()
-	c.Assert(cli.idder, FitsTypeOf, newIdder)
+	c.Assert(cli.idder, NotNil)
 }
 
 func (cs *clientSuite) TestConfigureSetsUpEndpoints(c *C) {
@@ -1114,7 +1115,6 @@ func (cs *clientSuite) hasDbus() bool {
 }
 
 func (cs *clientSuite) TestStart(c *C) {
-	c.Skip("no dbus")
 	if !cs.hasDbus() {
 		c.Skip("no dbus")
 	}

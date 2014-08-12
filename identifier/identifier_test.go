@@ -18,6 +18,7 @@ package identifier
 
 import (
 	. "launchpad.net/gocheck"
+	"os"
 	"testing"
 )
 
@@ -31,6 +32,10 @@ var _ = Suite(&IdentifierSuite{})
 // TestNew checks that New does not fail, and returns a
 // 32-byte string.
 func (s *IdentifierSuite) TestNew(c *C) {
+	_, err := os.Stat(machineIdPath)
+	if os.IsNotExist(err) {
+		c.Skip("no dbus machine id")
+	}
 	id, err := New()
 	c.Check(err, IsNil)
 	c.Check(id.String(), HasLen, 32)
