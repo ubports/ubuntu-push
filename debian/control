@@ -22,7 +22,7 @@ Build-Depends: debhelper (>= 9),
                libnih-dbus-dev,
                libclick-0.4-dev,
                cmake,
-               python3.4,
+               python3,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push
 Vcs-Bzr: lp:ubuntu-push

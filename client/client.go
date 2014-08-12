@@ -127,6 +127,8 @@ func NewPushClient(configPath string, leveldbPath string) *PushClient {
 	return client
 }
 
+var newIdentifier = identifier.New
+
 // configure loads its configuration, and sets it up.
 func (client *PushClient) configure() error {
 	_, err := os.Stat(client.configPath)
@@ -156,7 +158,7 @@ func (client *PushClient) configure() error {
 	client.unregisterCh = make(chan *click.AppId, 10)
 
 	// overridden for testing
-	client.idder, err = identifier.New()
+	client.idder, err = newIdentifier()
 	if err != nil {
 		return err
 	}
