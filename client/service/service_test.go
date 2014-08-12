@@ -28,6 +28,7 @@ import (
 
 	"launchpad.net/ubuntu-push/bus"
 	testibus "launchpad.net/ubuntu-push/bus/testing"
+	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/nih"
 	helpers "launchpad.net/ubuntu-push/testing"
@@ -162,7 +163,7 @@ func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
 		{nil, ErrBadArgCount},
 		{[]interface{}{}, ErrBadArgCount},
 		{[]interface{}{1}, ErrBadArgType},
-		{[]interface{}{"foo"}, ErrBadAppId},
+		{[]interface{}{"foo"}, click.ErrInvalidAppId},
 		{[]interface{}{"foo", "bar"}, ErrBadArgCount},
 	} {
 		reg, err := new(PushService).register("/bar", s.args, nil)

@@ -20,9 +20,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"os/exec"
+	"regexp"
 	"syscall"
 	"testing"
 	"time"
+	"unicode"
 
 	. "launchpad.net/gocheck"
 
@@ -37,7 +40,7 @@ type listenerSuite struct {
 
 var _ = Suite(&listenerSuite{})
 
-const NofileMax = 500
+const NofileMax = 20
 
 func (s *listenerSuite) SetUpSuite(*C) {
 	// make it easier to get a too many open files error
@@ -111,13 +114,19 @@ func (s *listenerSuite) TestHandleTemporary(c *C) {
 
 func testSession(conn net.Conn) error {
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(2 * time.Second))
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
 	var buf [1]byte
-	_, err := conn.Read(buf[:])
-	if err != nil {
-		return err
+	for {
+		_, err := conn.Read(buf[:])
+		if err != nil {
+			return err
+		}
+		// 1|2... send digit back
+		if unicode.IsDigit(rune(buf[0])) {
+			break
+		}
 	}
-	_, err = conn.Write(buf[:])
+	_, err := conn.Write(buf[:])
 	return err
 }
 
@@ -165,6 +174,18 @@ func (s *listenerSuite) TestDeviceAcceptLoop(c *C) {
 	c.Check(s.testlog.Captured(), Equals, "")
 }
 
+// waitForLogs waits for the logs captured in s.testlog to match reStr.
+func (s *listenerSuite) waitForLogs(c *C, reStr string) {
+	rx := regexp.MustCompile("^" + reStr + "$")
+	for i := 0; i < 100; i++ {
+		if rx.MatchString(s.testlog.Captured()) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	c.Check(s.testlog.Captured(), Matches, reStr)
+}
+
 func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
 	// ENFILE is not the temp network error we want to handle this way
 	// but is relatively easy to generate in a controlled way
@@ -177,20 +198,11 @@ func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
 		errCh <- lst.AcceptLoop(testSession, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
-	conns := make([]net.Conn, 0, NofileMax)
-	for i := 0; i < NofileMax; i++ {
-		var conn1 net.Conn
-		conn1, err = net.Dial("tcp", listenerAddr)
-		if err != nil {
-			break
-		}
-		defer conn1.Close()
-		conns = append(conns, conn1)
-	}
-	c.Assert(err, ErrorMatches, "*.too many open.*")
-	for _, conn := range conns {
-		conn.Close()
-	}
+	connectMany := helpers.ScriptAbsPath("connect-many.py")
+	cmd := exec.Command(connectMany, listenerAddr)
+	res, err := cmd.Output()
+	c.Assert(err, IsNil)
+	c.Assert(string(res), Matches, "(?s).*timed out.*")
 	conn2, err := testTlsDial(c, listenerAddr)
 	c.Assert(err, IsNil)
 	defer conn2.Close()
@@ -198,7 +210,7 @@ func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
 	testReadByte(c, conn2, '2')
 	lst.Close()
 	c.Check(<-errCh, ErrorMatches, ".*use of closed.*")
-	c.Check(s.testlog.Captured(), Matches, ".*device listener:.*accept.*too many open.*-- retrying\n")
+	s.waitForLogs(c, "(?ms).*device listener:.*accept.*too many open.*-- retrying")
 }
 
 func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
@@ -217,7 +229,7 @@ func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
 	c.Assert(err, Not(IsNil))
 	lst.Close()
 	c.Check(<-errCh, ErrorMatches, ".*use of closed.*")
-	c.Check(s.testlog.Captured(), Matches, "(?s)ERROR\\(PANIC\\) terminating device connection on: session crash:.*AcceptLoop.*")
+	s.waitForLogs(c, "(?s)ERROR\\(PANIC\\) terminating device connection on: session crash:.*AcceptLoop.*")
 }
 
 func (s *listenerSuite) TestForeignListener(c *C) {

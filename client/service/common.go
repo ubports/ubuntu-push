@@ -52,7 +52,7 @@ var (
 	ErrBadArgCount    = errors.New("wrong number of arguments")
 	ErrBadArgType     = errors.New("bad argument type")
 	ErrBadJSON        = errors.New("bad json data")
-	ErrBadAppId       = errors.New("package must be prefix of app id")
+	ErrAppIdMismatch  = errors.New("package must be prefix of app id")
 )
 
 // IsRunning() returns whether the service's state is StateRunning
@@ -118,10 +118,10 @@ func (svc *DBusService) grabDBusPackageAndAppId(path string, args []interface{},
 	pkgname := string(nih.Unquote([]byte(path[strings.LastIndex(path, "/")+1:])))
 	app, err = click.ParseAndVerifyAppId(id, svc.installedChecker)
 	if err != nil {
-		return nil, ErrBadAppId
+		return nil, err
 	}
 	if !app.InPackage(pkgname) {
-		return nil, ErrBadAppId
+		return nil, ErrAppIdMismatch
 	}
 	return
 }

@@ -17,6 +17,7 @@
 package haptic
 
 import (
+	"encoding/json"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -47,8 +48,8 @@ func (hs *hapticSuite) SetUpTest(c *C) {
 func (hs *hapticSuite) TestPresentPresents(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 
-	ec := New(endp, hs.log)
-	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Pattern: []uint32{200, 100}, Repeat: 2}}
+	ec := New(endp, hs.log, nil)
+	notif := launch_helper.Notification{RawVibration: json.RawMessage(`{"pattern": [200, 100], "repeat": 2}`)}
 	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 1)
@@ -60,9 +61,9 @@ func (hs *hapticSuite) TestPresentPresents(c *C) {
 func (hs *hapticSuite) TestPresentDefaultsRepeatTo1(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 
-	ec := New(endp, hs.log)
+	ec := New(endp, hs.log, nil)
 	// note: no Repeat:
-	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Pattern: []uint32{200, 100}}}
+	notif := launch_helper.Notification{RawVibration: json.RawMessage(`{"pattern": [200, 100]}`)}
 	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
 	callArgs := testibus.GetCallArgs(endp)
 	c.Assert(callArgs, HasLen, 1)
@@ -71,52 +72,40 @@ func (hs *hapticSuite) TestPresentDefaultsRepeatTo1(c *C) {
 	c.Check(callArgs[0].Args, DeepEquals, []interface{}{[]uint32{200, 100}, uint32(1)})
 }
 
-// check that Present() makes a Pattern of [Duration] if Duration is given
-func (hs *hapticSuite) TestPresentBuildsPatternWithDuration(c *C) {
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
-
-	ec := New(endp, hs.log)
-	// note: no Repeat, no Pattern, just Duration:
-	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Duration: 200}}
-	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
-	callArgs := testibus.GetCallArgs(endp)
-	c.Assert(callArgs, HasLen, 1)
-	c.Check(callArgs[0].Member, Equals, "VibratePattern")
-	// note: Pattern of [Duration], Repeat of 1:
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{[]uint32{200}, uint32(1)})
-}
-
-// check that Present() ignores Pattern and makes a Pattern of [Duration] if Duration is given
-func (hs *hapticSuite) TestPresentOverrides(c *C) {
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
-
-	ec := New(endp, hs.log)
-	// note: Duration given, as well as Pattern; Repeat given as 0:
-	notif := launch_helper.Notification{Vibrate: &launch_helper.Vibration{Duration: 200, Pattern: []uint32{500}, Repeat: 0}}
-	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
-	callArgs := testibus.GetCallArgs(endp)
-	c.Assert(callArgs, HasLen, 1)
-	c.Check(callArgs[0].Member, Equals, "VibratePattern")
-	// note: Pattern of [Duration], Repeat of 1:
-	c.Check(callArgs[0].Args, DeepEquals, []interface{}{[]uint32{200}, uint32(1)})
-}
-
 // check that Present() doesn't call VibratePattern if things are not right
 func (hs *hapticSuite) TestSkipIfMissing(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 
-	ec := New(endp, hs.log)
+	ec := New(endp, hs.log, nil)
 	// no Vibration in the notificaton
 	c.Check(ec.Present(hs.app, "", &launch_helper.Notification{}), Equals, false)
 	// empty Vibration
-	c.Check(ec.Present(hs.app, "", &launch_helper.Notification{Vibrate: &launch_helper.Vibration{}}), Equals, false)
+	c.Check(ec.Present(hs.app, "", &launch_helper.Notification{RawVibration: nil}), Equals, false)
+	// empty empty vibration
+	c.Check(ec.Present(hs.app, "", &launch_helper.Notification{RawVibration: json.RawMessage(`{}`)}), Equals, false)
 }
 
 // check that Present() panics if the notification is nil
 func (hs *hapticSuite) TestPanicsIfNil(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
 
-	ec := New(endp, hs.log)
+	ec := New(endp, hs.log, nil)
 	// no notification at all
 	c.Check(func() { ec.Present(hs.app, "", nil) }, Panics, `please check notification is not nil before calling present`)
+}
+
+// check that Present() uses the fallback if appropriate
+func (hs *hapticSuite) TestPresentPresentsFallback(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true))
+	fallback := &launch_helper.Vibration{Pattern: []uint32{200, 100}, Repeat: 2}
+
+	ec := New(endp, hs.log, fallback)
+	notif := launch_helper.Notification{RawVibration: json.RawMessage(`false`)}
+	c.Check(ec.Present(hs.app, "nid", &notif), Equals, false)
+	notif = launch_helper.Notification{RawVibration: json.RawMessage(`true`)}
+	c.Check(ec.Present(hs.app, "nid", &notif), Equals, true)
+	callArgs := testibus.GetCallArgs(endp)
+	c.Assert(callArgs, HasLen, 1)
+	c.Check(callArgs[0].Member, Equals, "VibratePattern")
+	c.Check(callArgs[0].Args, DeepEquals, []interface{}{[]uint32{200, 100}, uint32(2)})
 }

@@ -1,3 +1,25 @@
+ubuntu-push (0.61) UNRELEASED; urgency=medium
+
+  [ Guillermo Gonzalez ]
+  * Update autopilot tests to work with 0.50, fix setup.sh issues and add new tests for the broadcast notification changes.
+  * Replace whoopsie with /var/lib/dbus/machine-id to get the device ID.
+
+  [ John R. Lenton]
+  * Support simpler sounds API.
+  * Support simpler vibrations API.
+  * Remove Vibration's confusing and redundant Duration attribute.
+  * Change PostalService's New() to take a setup object.
+  * goctest.
+  * Make messaging menu entries show current time instead of epoch for timestamp of 0.
+  * Tweak the upstart script, start after unity.
+  * Correctly report invalid app ids, missing apps, and package/app id mismatches as separate errors over dbus.
+  
+  [Roberto Alsina]
+  * Check that sound paths don't go up into the tree.
+  * Initial draft of QML-based doc
+
+ -- Roberto Alsina <ralsina@yoga>  Mon, 11 Aug 2014 18:23:32 -0300
+
 ubuntu-push (0.60+14.10.20140804-0ubuntu1) utopic; urgency=medium
 
   [ Guillermo Gonzalez ]

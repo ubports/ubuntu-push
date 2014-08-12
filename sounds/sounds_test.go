@@ -17,6 +17,7 @@
 package sounds
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path"
@@ -45,9 +46,10 @@ func (ss *soundsSuite) SetUpTest(c *C) {
 }
 
 func (ss *soundsSuite) TestNew(c *C) {
-	s := New(ss.log)
+	s := New(ss.log, "foo")
 	c.Check(s.log, Equals, ss.log)
 	c.Check(s.player, Equals, "paplay")
+	c.Check(s.fallback, Equals, "foo")
 }
 
 func (ss *soundsSuite) TestPresent(c *C) {
@@ -57,8 +59,20 @@ func (ss *soundsSuite) TestPresent(c *C) {
 	}
 
 	c.Check(s.Present(ss.app, "",
-		&launch_helper.Notification{Sound: "hello"}), Equals, true)
+		&launch_helper.Notification{RawSound: json.RawMessage(`"hello"`)}), Equals, true)
 	c.Check(ss.log.Captured(), Matches, `(?sm).* playing sound com.example.test/hello using echo`)
+}
+
+func (ss *soundsSuite) TestPresentSimple(c *C) {
+	s := &Sound{
+		player: "echo", log: ss.log,
+		dataFind: func(s string) (string, error) { return s, nil },
+		fallback: "fallback",
+	}
+
+	c.Check(s.Present(ss.app, "",
+		&launch_helper.Notification{RawSound: json.RawMessage(`true`)}), Equals, true)
+	c.Check(ss.log.Captured(), Matches, `(?sm).* playing sound com.example.test/fallback using echo`)
 }
 
 func (ss *soundsSuite) TestPresentFails(c *C) {
@@ -74,10 +88,10 @@ func (ss *soundsSuite) TestPresentFails(c *C) {
 	// no Sound
 	c.Check(s.Present(ss.app, "", &launch_helper.Notification{}), Equals, false)
 	// bad player
-	c.Check(s.Present(ss.app, "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
+	c.Check(s.Present(ss.app, "", &launch_helper.Notification{RawSound: json.RawMessage(`"hello"`)}), Equals, false)
 	s.player = "echo"
 	// no file found
-	c.Check(s.Present(ss.app, "", &launch_helper.Notification{Sound: "hello"}), Equals, false)
+	c.Check(s.Present(ss.app, "", &launch_helper.Notification{RawSound: json.RawMessage(`"hello"`)}), Equals, false)
 
 	// and now, just to prove it would've worked,
 
@@ -86,5 +100,31 @@ func (ss *soundsSuite) TestPresentFails(c *C) {
 	c.Assert(err, IsNil)
 	f.Close()
 	s.dataDirs = func() []string { return []string{"", d} }
-	c.Check(s.Present(ss.app, "", &launch_helper.Notification{Sound: "hello"}), Equals, true)
+	c.Check(s.Present(ss.app, "", &launch_helper.Notification{RawSound: json.RawMessage(`"hello"`)}), Equals, true)
+}
+
+func (ss *soundsSuite) TestBadPathFails(c *C) {
+	s := &Sound{
+		player:   "/",
+		log:      ss.log,
+		dataFind: func(string) (string, error) { return "", errors.New("nope") },
+		dataDirs: func() []string { return []string{""} },
+	}
+
+	sound, err := s.cleanPath("../../foo")
+	c.Check(err, NotNil)
+	c.Check(sound, Equals, "")
+}
+
+func (ss *soundsSuite) TestGoodPathSucceeds(c *C) {
+	s := &Sound{
+		player:   "/",
+		log:      ss.log,
+		dataFind: func(string) (string, error) { return "", errors.New("nope") },
+		dataDirs: func() []string { return []string{""} },
+	}
+
+	sound, err := s.cleanPath("foo/../bar")
+	c.Check(err, IsNil)
+	c.Check(sound, Equals, "bar")
 }
