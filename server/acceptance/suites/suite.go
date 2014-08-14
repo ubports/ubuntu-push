@@ -18,13 +18,10 @@
 package suites
 
 import (
-	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
-	"net/http"
 	"os"
 	"runtime"
 	"time"
@@ -32,6 +29,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/server/acceptance"
+	"launchpad.net/ubuntu-push/server/acceptance/kit"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -84,14 +82,10 @@ type AcceptanceSuite struct {
 	StartServer func(c *C, s *AcceptanceSuite, handle *ServerHandle)
 	// populated by StartServer
 	ServerHandle
-	ServerAPIURL string
+	kit.APIClient // has ServerAPIURL
 	// KillGroup should be populated by StartServer with functions
 	// to kill the server process
 	KillGroup map[string]func(os.Signal)
-	// hook to adjust requests
-	MassageRequest func(req *http.Request, message interface{}) *http.Request
-	// other state
-	httpClient *http.Client
 }
 
 // Start a new server for each test.
@@ -101,39 +95,13 @@ func (s *AcceptanceSuite) SetUpTest(c *C) {
 	c.Assert(s.ServerHandle.ServerEvents, NotNil)
 	c.Assert(s.ServerHandle.ServerAddr, Not(Equals), "")
 	c.Assert(s.ServerAPIURL, Not(Equals), "")
-	s.httpClient = &http.Client{}
+	s.SetupClient()
 }
 
 func (s *AcceptanceSuite) TearDownTest(c *C) {
 	for _, f := range s.KillGroup {
 		f(os.Kill)
 	}
-}
-
-// Post a API request.
-func (s *AcceptanceSuite) PostRequest(path string, message interface{}) (string, error) {
-	packedMessage, err := json.Marshal(message)
-	if err != nil {
-		panic(err)
-	}
-	reader := bytes.NewReader(packedMessage)
-
-	url := s.ServerAPIURL + path
-	request, _ := http.NewRequest("POST", url, reader)
-	request.ContentLength = int64(reader.Len())
-	request.Header.Set("Content-Type", "application/json")
-
-	if s.MassageRequest != nil {
-		request = s.MassageRequest(request, message)
-	}
-
-	resp, err := s.httpClient.Do(request)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	return string(body), err
 }
 
 func testClientSession(addr string, deviceId, model, imageChannel string, reportPings bool) *acceptance.ClientSession {
