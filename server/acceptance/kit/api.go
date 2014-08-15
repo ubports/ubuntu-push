@@ -20,6 +20,7 @@ package kit
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 )
@@ -38,8 +39,10 @@ func (api *APIClient) SetupClient() {
 	api.httpClient = &http.Client{}
 }
 
+var ErrNOk = errors.New("not ok")
+
 // Post a API request.
-func (api *APIClient) PostRequest(path string, message interface{}) (string, error) {
+func (api *APIClient) PostRequest(path string, message interface{}) (map[string]interface{}, error) {
 	packedMessage, err := json.Marshal(message)
 	if err != nil {
 		panic(err)
@@ -57,9 +60,20 @@ func (api *APIClient) PostRequest(path string, message interface{}) (string, err
 
 	resp, err := api.httpClient.Do(request)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	return string(body), err
+	if err != nil {
+		return nil, err
+	}
+	var res map[string]interface{}
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		return nil, err
+	}
+	if ok, _ := res["ok"].(bool); !ok {
+		return res, ErrNOk
+	}
+	return res, nil
 }
