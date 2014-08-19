@@ -142,14 +142,14 @@ func (s *PdSuite) TestWatchWakeupsWorks(c *C) {
 	ch, err := pd.WatchWakeups()
 	c.Assert(err, IsNil)
 	select {
-	case w := <-ch:
-		c.Check(w, NotNil)
+	case b := <-ch:
+		c.Check(b, Equals, true)
 	case <-time.After(100 * time.Millisecond):
-		c.Error("timeout waiting for *Wakeup")
+		c.Error("timeout waiting for bool")
 	}
 	select {
-	case w := <-ch:
-		c.Check(w, IsNil)
+	case b := <-ch:
+		c.Check(b, Equals, false)
 	case <-time.After(100 * time.Millisecond):
 		c.Error("timeout waiting for close")
 	}

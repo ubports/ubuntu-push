@@ -32,13 +32,11 @@ var BusAddress bus.Address = bus.Address{
 	Name:      "com.canonical.powerd",
 }
 
-type Wakeup struct{}
-
 // Powerd exposes a subset of powerd
 type Powerd interface {
 	RequestWakeup(name string, wakeupTime time.Time) (string, error)
 	ClearWakeup(cookie string) error
-	WatchWakeups() (<-chan *Wakeup, error)
+	WatchWakeups() (<-chan bool, error)
 	RequestWakelock(name string) (string, error)
 	ClearWakelock(cookie string) error
 }
@@ -73,13 +71,13 @@ func (p *powerd) ClearWakeup(cookie string) error {
 	return p.endp.Call("clearWakeup", bus.Args(cookie))
 }
 
-func (p *powerd) WatchWakeups() (<-chan *Wakeup, error) {
+func (p *powerd) WatchWakeups() (<-chan bool, error) {
 	if p.endp == nil {
 		return nil, ErrUnconfigured
 	}
-	ch := make(chan *Wakeup)
+	ch := make(chan bool)
 	p.endp.WatchSignal("Wakeup", func(...interface{}) {
-		ch <- &Wakeup{}
+		ch <- true
 	}, func() { close(ch) })
 	return ch, nil
 }
