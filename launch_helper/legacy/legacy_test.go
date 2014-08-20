@@ -32,7 +32,7 @@ func takeNext(ch chan string, c *C) string {
 	select {
 	case s := <-ch:
 		return s
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		c.Fatal("timed out waiting for value")
 		return ""
 	}
