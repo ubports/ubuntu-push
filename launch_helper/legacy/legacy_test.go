@@ -113,6 +113,7 @@ func (ls *legacySuite) TestStop(c *C) {
 
 	exe := helpers.ScriptAbsPath("slow-helper.sh")
 	id, err := ls.lhl.Launch("", exe, "", "")
+	c.Assert(err, IsNil)
 
 	err = ls.lhl.Stop("", "===")
 	c.Check(err, NotNil) // not a valid id
