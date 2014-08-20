@@ -18,20 +18,23 @@
 package legacy
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 
 	"launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/logger"
 )
 
 type legacyHelperLauncher struct {
+	log logger.Logger
 	done func(string)
 }
 
-func New() *legacyHelperLauncher {
-	return new(legacyHelperLauncher)
+func New(log logger.Logger) *legacyHelperLauncher {
+	return &legacyHelperLauncher{log: log}
 }
 
 func (lhl *legacyHelperLauncher) InstallObserver(done func(string)) error {
@@ -50,9 +53,10 @@ func (*legacyHelperLauncher) RemoveObserver() error { return nil }
 func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, error) {
 	cmd := exec.Command(progname, f1, f2)
 	cmd.Stdin = nil
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 	err := cmd.Start()
 	if err != nil {
 		return "", err
@@ -63,7 +67,12 @@ func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, err
 	}
 	id := strconv.FormatInt((int64)(proc.Pid), 36)
 	go func() {
-		proc.Wait()
+		err = cmd.Wait()
+		if err != nil {
+			// Helper failed, log output
+			lhl.log.Errorf("Legacy helper failed. Stdout: %#v", stdout)
+			lhl.log.Errorf("Legacy helper failed. Stderr: %#v", stderr)
+		}
 		lhl.done(id)
 	}()
 
