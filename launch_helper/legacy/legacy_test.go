@@ -42,12 +42,14 @@ func Test(t *testing.T) { TestingT(t) }
 
 type legacySuite struct {
 	lhl *legacyHelperLauncher
+	log *helpers.TestLogger
 }
 
 var _ = Suite(&legacySuite{})
 
 func (ls *legacySuite) SetUpTest(c *C) {
-	ls.lhl = New()
+	ls.log := helpers.NewTestLogger(c, "info")
+	ls.lhl = New(ls.log)
 }
 
 func (ls *legacySuite) TestInstallObserver(c *C) {
