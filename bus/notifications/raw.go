@@ -144,7 +144,7 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 	}
 
 	hints := make(map[string]*dbus.Variant)
-	hints["x-canonical-secondary-icon"] = &dbus.Variant{app.Icon()}
+	hints["x-canonical-secondary-icon"] = &dbus.Variant{app.SymbolicIcon()}
 
 	appId := app.Original()
 	actions := make([]string, 2*len(card.Actions))
