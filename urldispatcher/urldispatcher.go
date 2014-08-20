@@ -41,9 +41,12 @@ func New(log logger.Logger) URLDispatcher {
 
 var _ URLDispatcher = &urlDispatcher{} // ensures it conforms
 
+var cDispatchURL = curldispatcher.DispatchURL
+var cTestURL = curldispatcher.TestURL
+
 func (ud *urlDispatcher) DispatchURL(url string, app *click.AppId) error {
 	ud.log.Debugf("Dispatching %s", url)
-	err := curldispatcher.DispatchURL(url, app.DispatchPackage())
+	err := cDispatchURL(url, app.DispatchPackage())
 	if err != nil {
 		ud.log.Errorf("Dispatch to %s failed with %s", url, err)
 	}
@@ -53,7 +56,7 @@ func (ud *urlDispatcher) DispatchURL(url string, app *click.AppId) error {
 func (ud *urlDispatcher) TestURL(app *click.AppId, urls []string) bool {
 	ud.log.Debugf("TestURL: %s", urls)
 	var appIds []string
-	appIds = curldispatcher.TestURL(urls)
+	appIds = cTestURL(urls)
 	for _, appId := range appIds {
 		if appId != app.Versioned() {
 			ud.log.Debugf("Notification skipped because of different appid for actions: %v - %s != %s", urls, appId, app.Versioned())

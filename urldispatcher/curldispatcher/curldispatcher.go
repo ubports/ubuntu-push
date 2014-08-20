@@ -56,11 +56,11 @@ func TestURL(urls []string) []string {
 	results := C.test_url((**C.gchar)(unsafe.Pointer(&c_urls[0])))
 	packages := make([]string, len(urls))
 	ptrSz := unsafe.Sizeof(unsafe.Pointer(nil))
-	for p := uintptr(unsafe.Pointer(results)) + ptrSz; getCharPtr(p) != nil; p += ptrSz {
+	i := 0
+	for p := uintptr(unsafe.Pointer(results)); getCharPtr(p) != nil; p += ptrSz {
 		pkg := C.GoString(getCharPtr(p))
-		if pkg != "" { // ignore empty results
-			packages = append(packages, pkg)
-		}
+		packages[i] = pkg
+		i += 1
 	}
 	return packages
 }
