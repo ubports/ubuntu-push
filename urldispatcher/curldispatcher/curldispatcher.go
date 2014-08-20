@@ -55,6 +55,10 @@ func TestURL(urls []string) []string {
 	}
 	results := C.test_url((**C.gchar)(unsafe.Pointer(&c_urls[0])))
 	packages := make([]string, len(urls))
+	// if there result is nil, just return empty []string
+	if results == nil {
+		return packages
+	}
 	ptrSz := unsafe.Sizeof(unsafe.Pointer(nil))
 	i := 0
 	for p := uintptr(unsafe.Pointer(results)); getCharPtr(p) != nil; p += ptrSz {
