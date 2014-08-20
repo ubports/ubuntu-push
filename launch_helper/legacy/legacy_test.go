@@ -48,7 +48,7 @@ type legacySuite struct {
 var _ = Suite(&legacySuite{})
 
 func (ls *legacySuite) SetUpTest(c *C) {
-	ls.log := helpers.NewTestLogger(c, "info")
+	ls.log = helpers.NewTestLogger(c, "info")
 	ls.lhl = New(ls.log)
 }
 
@@ -94,6 +94,17 @@ func (ls *legacySuite) TestLaunch(c *C) {
 func (ls *legacySuite) TestLaunchFails(c *C) {
 	_, err := ls.lhl.Launch("", "/does/not/exist", "", "")
 	c.Assert(err, NotNil)
+}
+
+func (ls *legacySuite) TestHelperFails(c *C) {
+	ch := make(chan string, 1)
+	c.Assert(ls.lhl.InstallObserver(func(id string) { ch <- id }), IsNil)
+
+	_, err := ls.lhl.Launch("", "/bin/false", "", "")
+	c.Assert(err, IsNil)
+
+	takeNext(ch, c)
+	c.Check(ls.log.Captured(), Matches, "(?s).*Legacy helper failed.*")
 }
 
 func (ls *legacySuite) TestStop(c *C) {

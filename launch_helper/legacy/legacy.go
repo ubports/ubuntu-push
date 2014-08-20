@@ -29,7 +29,7 @@ import (
 )
 
 type legacyHelperLauncher struct {
-	log logger.Logger
+	log  logger.Logger
 	done func(string)
 }
 
@@ -70,8 +70,8 @@ func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, err
 		err = cmd.Wait()
 		if err != nil {
 			// Helper failed, log output
-			lhl.log.Errorf("Legacy helper failed. Stdout: %#v", stdout)
-			lhl.log.Errorf("Legacy helper failed. Stderr: %#v", stderr)
+			lhl.log.Errorf("Legacy helper failed. Stdout: %s", stdout.String())
+			lhl.log.Errorf("Legacy helper failed. Stderr: %s", stderr.String())
 		}
 		lhl.done(id)
 	}()
