@@ -67,11 +67,13 @@ func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, err
 	}
 	id := strconv.FormatInt((int64)(proc.Pid), 36)
 	go func() {
-		err = cmd.Wait()
-		if err != nil {
+		state, p_err := proc.Wait()
+		if p_err != nil || !state.Success() {
 			// Helper failed, log output
+			// This is a data race, because I can't write to stdout outside this goroutine
+			// and then read it in here, because Buffer is not threadsafe
 			lhl.log.Errorf("Legacy helper failed. Stdout: %s", stdout.String())
-			lhl.log.Errorf("Legacy helper failed. Stderr: %s", stderr.String())
+// 			lhl.log.Errorf("Legacy helper failed. Stderr: %s", stderr)
 		}
 		lhl.done(id)
 	}()
