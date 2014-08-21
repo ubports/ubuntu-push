@@ -60,7 +60,7 @@ func (p *powerd) RequestWakeup(name string, wakeupTime time.Time) (string, error
 		return "", ErrUnconfigured
 	}
 	var res string
-	err := p.endp.Call("requestWakeup", bus.Args(name, wakeupTime.Unix()), &res)
+	err := p.endp.Call("requestWakeup", bus.Args(name, uint64(wakeupTime.Unix())), &res)
 	return res, err
 }
 
