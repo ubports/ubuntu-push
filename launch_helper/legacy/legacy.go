@@ -68,14 +68,17 @@ func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, err
 	id := strconv.FormatInt((int64)(proc.Pid), 36)
 	go func() {
 		state, p_err := proc.Wait()
+		lhl.log.Errorf("%v %v", state, p_err)
 		if p_err != nil || !state.Success() {
 			// Helper failed, log output
 			var data []byte
 			stdout_w.Close()
-			stdout_r.Read(data)
+			n1, out_err := stdout_r.Read(data)
+			lhl.log.Errorf("%v %v", n1, out_err)
 			lhl.log.Errorf("Legacy helper failed. Stdout: %s", data)
 			stderr_w.Close()
-			stderr_r.Read(data)
+			n2, err_err := stderr_r.Read(data)
+			lhl.log.Errorf("%v %v", n2, err_err)
 			lhl.log.Errorf("Legacy helper failed. Stderr: %s", data)
 		}
 		lhl.done(id)
