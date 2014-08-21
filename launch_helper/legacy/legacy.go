@@ -68,7 +68,7 @@ func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, err
 	id := strconv.FormatInt((int64)(proc.Pid), 36)
 	go func() {
 		state, p_err := proc.Wait()
-		if !state.Success() || p_err != nil || !state.Success() {
+		if p_err != nil || !state.Success() {
 			// Helper failed, log output
 			var data []byte
 			stdout_w.Close()
