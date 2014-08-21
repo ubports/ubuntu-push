@@ -30,21 +30,35 @@ import (
 	"launchpad.net/ubuntu-push/server/acceptance"
 )
 
-var (
-	insecureFlag    = flag.Bool("insecure", false, "disable checking of server certificate and hostname")
-	reportPingsFlag = flag.Bool("reportPings", true, "report each Ping from the server")
-	deviceModel     = flag.String("model", "?", "device image model")
-	imageChannel    = flag.String("imageChannel", "?", "image channel")
-)
-
 type Configuration struct {
 	// session configuration
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// server connection config
-	Target      string                    `json:"target"`
-	Addr        config.ConfigHostPort     `json:"addr"`
-	CertPEMFile string                    `json:"cert_pem_file"`
-	RunTimeout  config.ConfigTimeDuration `json:"run_timeout"`
+	Target      string                `json:"target"`
+	Addr        config.ConfigHostPort `json:"addr"`
+	CertPEMFile string                `json:"cert_pem_file"`
+	Insecure    bool                  `json:"insecure" help:"disable checking of server certificate and hostname"`
+	Domain      string                `json:"domain" help:"domain for tls connect"`
+	// run timeout
+	RunTimeout config.ConfigTimeDuration `json:"run_timeout"`
+	// flags
+	ReportPings  bool   `json:"reportPings" help:"report each Ping from the server"`
+	DeviceModel  string `json:"model" help:"device image model"`
+	ImageChannel string `json:"imageChannel" help:"image channel"`
+}
+
+func (cfg *Configuration) PickByTarget(what, productionValue, stagingValue string) (value string) {
+	switch cfg.Target {
+	case "production":
+		value = productionValue
+	case "staging":
+		value = stagingValue
+	case "":
+		log.Fatalf("either %s or target must be given", what)
+	default:
+		log.Fatalf("if specified target should be production|staging")
+	}
+	return
 }
 
 // Control.
@@ -55,12 +69,17 @@ var (
 		"addr":             ":0",
 		"exchange_timeout": "5s",
 		"cert_pem_file":    "",
+		"insecure":         false,
+		"domain":           "",
 		"run_timeout":      "0s",
+		"reportPings":      true,
+		"model":            "?",
+		"imageChannel":     "?",
 	}
 )
 
 // CliLoop parses command line arguments and runs a client loop.
-func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(*acceptance.ClientSession), auth func(string) string, waitFor func() string, onConnect func()) {
+func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(sess *acceptance.ClientSession, cfgDir string), auth func(string) string, waitFor func() string, onConnect func()) {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] <device id>\n", Name)
 		flag.PrintDefaults()
@@ -81,16 +100,8 @@ func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(*acceptance.
 	}
 	addr := ""
 	if cfg.Addr == ":0" {
-		switch cfg.Target {
-		case "production":
-			addr = "push-delivery.ubuntu.com:443"
-		case "staging":
-			addr = "push-delivery.staging.ubuntu.com:443"
-		case "":
-			log.Fatalf("either addr or target must be given")
-		default:
-			log.Fatalf("if specified target should be prodution|staging")
-		}
+		addr = cfg.PickByTarget("addr", "push-delivery.ubuntu.com:443",
+			"push-delivery.staging.ubuntu.com:443")
 	} else {
 		addr = cfg.Addr.HostPort()
 	}
@@ -99,19 +110,15 @@ func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(*acceptance.
 		ServerAddr:      addr,
 		DeviceId:        flag.Arg(0),
 		// flags
-		Model:        *deviceModel,
-		ImageChannel: *imageChannel,
-		ReportPings:  *reportPingsFlag,
-		Insecure:     *insecureFlag,
+		Model:        cfg.DeviceModel,
+		ImageChannel: cfg.ImageChannel,
+		ReportPings:  cfg.ReportPings,
 	}
-	onSetup(session)
-	if !*insecureFlag && cfg.CertPEMFile != "" {
-		cfgDir := filepath.Dir(flag.Lookup("cfg@").Value.String())
-		log.Printf("cert: %v relToDir: %v", cfg.CertPEMFile, cfgDir)
-		session.CertPEMBlock, err = config.LoadFile(cfg.CertPEMFile, cfgDir)
-		if err != nil {
-			log.Fatalf("reading CertPEMFile: %v", err)
-		}
+	cfgDir := filepath.Dir(flag.Lookup("cfg@").Value.String())
+	onSetup(session, cfgDir)
+	session.TLSConfig, err = MakeTLSConfig(cfg.Domain, cfg.Insecure, cfg.CertPEMFile, cfgDir)
+	if err != nil {
+		log.Fatalf("tls config: %v", err)
 	}
 	session.Auth = auth("https://push.ubuntu.com/")
 	var waitForRegexp *regexp.Regexp
