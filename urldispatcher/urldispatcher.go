@@ -23,8 +23,7 @@ import (
 	"launchpad.net/ubuntu-push/urldispatcher/curldispatcher"
 )
 
-// A URLDispatcher is a simple beast, with a single method that does what it
-// says on the box.
+// A URLDispatcher wrapper.
 type URLDispatcher interface {
 	DispatchURL(string, *click.AppId) error
 	TestURL(*click.AppId, []string) bool
