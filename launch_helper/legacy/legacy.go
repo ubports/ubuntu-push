@@ -76,7 +76,7 @@ func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, err
 			lhl.log.Errorf("Legacy helper failed. Stdout: %s", data)
 			stderr_w.Close()
 			stderr_r.Read(data)
- 			lhl.log.Errorf("Legacy helper failed. Stderr: %s", data)
+			lhl.log.Errorf("Legacy helper failed. Stderr: %s", data)
 		}
 		lhl.done(id)
 	}()
