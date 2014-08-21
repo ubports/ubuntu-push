@@ -72,7 +72,7 @@ type kindHelperPool struct {
 func DefaultLaunchers(log logger.Logger) map[string]HelperLauncher {
 	return map[string]HelperLauncher{
 		"click":  cual.New(log),
-		"legacy": legacy.New(),
+		"legacy": legacy.New(log),
 	}
 }
 

@@ -20,7 +20,6 @@ package suites
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"runtime"
@@ -95,7 +94,7 @@ func (s *AcceptanceSuite) SetUpTest(c *C) {
 	c.Assert(s.ServerHandle.ServerEvents, NotNil)
 	c.Assert(s.ServerHandle.ServerAddr, Not(Equals), "")
 	c.Assert(s.ServerAPIURL, Not(Equals), "")
-	s.SetupClient()
+	s.SetupClient(nil)
 }
 
 func (s *AcceptanceSuite) TearDownTest(c *C) {
@@ -105,18 +104,18 @@ func (s *AcceptanceSuite) TearDownTest(c *C) {
 }
 
 func testClientSession(addr string, deviceId, model, imageChannel string, reportPings bool) *acceptance.ClientSession {
-	certPEMBlock, err := ioutil.ReadFile(helpers.SourceRelative("../ssl/testing.cert"))
+	tlsConfig, err := kit.MakeTLSConfig("", false, helpers.SourceRelative("../ssl/testing.cert"), "")
 	if err != nil {
 		panic(fmt.Sprintf("could not read ssl/testing.cert: %v", err))
 	}
 	return &acceptance.ClientSession{
 		ExchangeTimeout: 100 * time.Millisecond,
 		ServerAddr:      addr,
-		CertPEMBlock:    certPEMBlock,
 		DeviceId:        deviceId,
 		Model:           model,
 		ImageChannel:    imageChannel,
 		ReportPings:     reportPings,
+		TLSConfig:       tlsConfig,
 	}
 }
 
