@@ -36,7 +36,7 @@ func main() {
 	kit.Defaults["auth_helper"] = ""
 	kit.Defaults["wait_for"] = ""
 	cfg := &configuration{}
-	kit.CliLoop(cfg, &cfg.Configuration, func(session *acceptance.ClientSession) {
+	kit.CliLoop(cfg, &cfg.Configuration, func(session *acceptance.ClientSession, cfgDir string) {
 		log.Printf("with: %#v", session)
 	}, func(url string) string {
 		if cfg.AuthHelper == "" {
