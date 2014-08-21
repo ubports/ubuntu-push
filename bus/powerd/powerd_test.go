@@ -50,7 +50,7 @@ func (s *PdSuite) TestRequestWakeupWorks(c *C) {
 	args := testibus.GetCallArgs(endp)
 	c.Assert(args, HasLen, 1)
 	c.Check(args[0].Member, Equals, "requestWakeup")
-	c.Check(args[0].Args, DeepEquals, []interface{}{"name", t.Unix()})
+	c.Check(args[0].Args, DeepEquals, []interface{}{"name", uint64(t.Unix())})
 }
 
 func (s *PdSuite) TestRequestWakeupUnconfigured(c *C) {
