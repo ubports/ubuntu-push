@@ -210,6 +210,19 @@ func (s *RawSuite) TestPresentTwoActions(c *C) {
 	c.Check(hints["x-canonical-secondary-icon"], NotNil)
 }
 
+func (s *RawSuite) TestPresentUsesSymbolic(c *C) {
+	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
+	raw := Raw(endp, s.log)
+	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{Card: &launch_helper.Card{Summary: "summary", Popup: true}})
+	c.Assert(worked, Equals, true)
+	callArgs := testibus.GetCallArgs(endp)
+	c.Assert(callArgs, HasLen, 1)
+	c.Assert(callArgs[0].Args, HasLen, 8)
+	hints, ok := callArgs[0].Args[6].(map[string]*dbus.Variant)
+	c.Assert(ok, Equals, true)
+	c.Check(hints["x-canonical-secondary-icon"].Value.(string), Equals, "-symbolic")
+}
+
 func (s *RawSuite) TestPresentNoNotificationPanics(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := Raw(endp, s.log)

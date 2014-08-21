@@ -143,7 +143,11 @@ func mkHandler(text string) http.HandlerFunc {
 
 func (cs *clientSuite) SetUpSuite(c *C) {
 	config.IgnoreParsedFlags = true // because configure() uses <flags>
-	newIdentifier = func() (identifier.Id, error) { return idtesting.Settable(), nil }
+	newIdentifier = func() (identifier.Id, error) {
+		id := idtesting.Settable()
+		id.Set("42") // must be hex of len 32
+		return id, nil
+	}
 	cs.timeouts = util.SwapTimeouts([]time.Duration{0})
 	cs.leveldbPath = ""
 }
@@ -1141,7 +1145,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and now everthing is better! We have a config,
 	c.Check(string(cli.config.Addr), Equals, ":0")
 	// and a device id,
-	c.Check(cli.deviceId, HasLen, 32)
+	c.Check(cli.deviceId, HasLen, 40)
 	// and a session,
 	c.Check(cli.session, NotNil)
 	// and a bus,
