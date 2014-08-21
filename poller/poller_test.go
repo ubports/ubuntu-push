@@ -109,4 +109,6 @@ func (s *PrSuite) TestStep(c *C) {
 	case <-time.After(time.Second):
 		c.Fatal("timeout waiting for step")
 	}
+	// check we cleared the old cookie
+	c.Check(s.myd.clearLockCookie, Equals, "old cookie")
 }
