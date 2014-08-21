@@ -379,8 +379,9 @@ func (s *poolSuite) TestCreateInputTempFile(c *C) {
 }
 
 func (s *poolSuite) TestGetTempFilename(c *C) {
+	tmpDir := c.MkDir()
 	GetTempDir = func(pkgName string) (string, error) {
-		return c.MkDir(), nil
+		return tmpDir, nil
 	}
 	// restore it when we are done
 	defer func() {

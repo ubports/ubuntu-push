@@ -19,6 +19,7 @@ package kit
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -35,8 +36,10 @@ type APIClient struct {
 }
 
 // SetupClient sets up the http client to make requests.
-func (api *APIClient) SetupClient() {
-	api.httpClient = &http.Client{}
+func (api *APIClient) SetupClient(tlsConfig *tls.Config) {
+	api.httpClient = &http.Client{
+		Transport: &http.Transport{TLSClientConfig: tlsConfig},
+	}
 }
 
 var ErrNOk = errors.New("not ok")
