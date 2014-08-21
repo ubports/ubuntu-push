@@ -45,6 +45,7 @@ import (
 	"launchpad.net/ubuntu-push/identifier"
 	idtesting "launchpad.net/ubuntu-push/identifier/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
+	"launchpad.net/ubuntu-push/poller"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -177,6 +178,11 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"session_url":      "xyzzy://",
 		"registration_url": "reg://",
 		"log_level":        "debug",
+		"poll_interval":    "5m",
+		"poll_settle":      "20ms",
+		"poll_net_wait":    "1m",
+		"poll_polld_wait":  "3m",
+		"poll_done_wait":   "5s",
 	}
 	for k, v := range overrides {
 		cfgMap[k] = v
@@ -502,6 +508,39 @@ func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
 	}
 	// finally compare
 	setup := cli.derivePostalServiceSetup()
+	c.Check(setup, DeepEquals, expected)
+}
+
+/*****************************************************************
+    derivePollerSetup tests
+******************************************************************/
+func (cs *clientSuite) TestDerivePollerSetup(c *C) {
+	cs.writeTestConfig(map[string]interface{}{})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.session = new(session.ClientSession)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	expected := &poller.PollerSetup{
+		Times: poller.Times{
+			AlarmInterval:      5 * time.Minute,
+			SessionStateSettle: 20 * time.Millisecond,
+			NetworkWait:        time.Minute,
+			PolldWait:          3 * time.Minute,
+			DoneWait:           5 * time.Second,
+		},
+		Log:                cli.log,
+		SessionStateGetter: cli.session,
+	}
+	// sanity check that we are looking at all fields
+	vExpected := reflect.ValueOf(expected).Elem()
+	nf := vExpected.NumField()
+	for i := 0; i < nf; i++ {
+		fv := vExpected.Field(i)
+		// field isn't empty/zero
+		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
+	}
+	// finally compare
+	setup := cli.derivePollerSetup()
 	c.Check(setup, DeepEquals, expected)
 }
 

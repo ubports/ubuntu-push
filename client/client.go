@@ -44,6 +44,7 @@ import (
 	"launchpad.net/ubuntu-push/identifier"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/poller"
 	"launchpad.net/ubuntu-push/protocol"
 	"launchpad.net/ubuntu-push/util"
 )
@@ -71,6 +72,12 @@ type ClientConfig struct {
 	// fallback values for simplified notification usage
 	FallbackVibration *launch_helper.Vibration `json:"fallback_vibration"`
 	FallbackSound     string                   `json:"fallback_sound"`
+	// times for the poller
+	PollInterval    config.ConfigTimeDuration `json:"poll_interval"`
+	PollSettle      config.ConfigTimeDuration `json:"poll_settle"`
+	PollNetworkWait config.ConfigTimeDuration `json:"poll_net_wait"`
+	PollPolldWait   config.ConfigTimeDuration `json:"poll_polld_wait"`
+	PollDoneWait    config.ConfigTimeDuration `json:"poll_done_wait"`
 }
 
 // PushService is the interface we use of service.PushService.
@@ -221,6 +228,21 @@ func (client *PushClient) derivePostalServiceSetup() *service.PostalServiceSetup
 	}
 }
 
+// derivePollerSetup derives the Poller setup from the client configuration bits.
+func (client *PushClient) derivePollerSetup() *poller.PollerSetup {
+	return &poller.PollerSetup{
+		Times: poller.Times{
+			AlarmInterval:      client.config.PollInterval.TimeDuration(),
+			SessionStateSettle: client.config.PollSettle.TimeDuration(),
+			NetworkWait:        client.config.PollNetworkWait.TimeDuration(),
+			PolldWait:          client.config.PollPolldWait.TimeDuration(),
+			DoneWait:           client.config.PollDoneWait.TimeDuration(),
+		},
+		Log:                client.log,
+		SessionStateGetter: client.session,
+	}
+}
+
 // getAuthorization gets the authorization blob to send to the server
 func (client *PushClient) getAuthorization(url string) string {
 	client.log.Debugf("getting authorization for %s", url)
@@ -280,6 +302,13 @@ func (client *PushClient) initSession() error {
 		return err
 	}
 	client.session = sess
+	p := poller.New(client.derivePollerSetup())
+	if err := p.Start(); err != nil {
+		return err
+	}
+	if err := p.Run(); err != nil {
+		return err
+	}
 	return nil
 }
 
