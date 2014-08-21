@@ -107,6 +107,18 @@ func (ls *legacySuite) TestHelperFails(c *C) {
 	c.Check(ls.log.Captured(), Matches, "(?s).*Legacy helper failed.*")
 }
 
+func (ls *legacySuite) TestHelperFailsLog(c *C) {
+	ch := make(chan string, 1)
+	c.Assert(ls.lhl.InstallObserver(func(id string) { ch <- id }), IsNil)
+
+	exe := helpers.ScriptAbsPath("noisy-helper.sh")
+	_, err := ls.lhl.Launch("", exe, "", "")
+	c.Assert(err, IsNil)
+
+	takeNext(ch, c)
+	c.Check(ls.log.Captured(), Matches, "(?s).*BOOM.*")
+}
+
 func (ls *legacySuite) TestStop(c *C) {
 	ch := make(chan string, 1)
 	c.Assert(ls.lhl.InstallObserver(func(id string) { ch <- id }), IsNil)
