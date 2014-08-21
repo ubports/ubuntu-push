@@ -18,7 +18,7 @@
 package legacy
 
 import (
-	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -53,10 +53,10 @@ func (*legacyHelperLauncher) RemoveObserver() error { return nil }
 func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, error) {
 	cmd := exec.Command(progname, f1, f2)
 	cmd.Stdin = nil
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	var stdout_r, stdout_w = io.Pipe()
+	var stderr_r, stderr_w = io.Pipe()
+	cmd.Stdout = stdout_w
+	cmd.Stderr = stderr_w
 	err := cmd.Start()
 	if err != nil {
 		return "", err
@@ -67,11 +67,16 @@ func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, err
 	}
 	id := strconv.FormatInt((int64)(proc.Pid), 36)
 	go func() {
-		err = cmd.Wait()
-		if err != nil {
+		state, p_err := proc.Wait()
+		if p_err != nil || !state.Success() {
 			// Helper failed, log output
-			lhl.log.Errorf("Legacy helper failed. Stdout: %s", stdout.String())
-			lhl.log.Errorf("Legacy helper failed. Stderr: %s", stderr.String())
+			var data []byte
+			stdout_w.Close()
+			stdout_r.Read(data)
+			lhl.log.Errorf("Legacy helper failed. Stdout: %s", data)
+			stderr_w.Close()
+			stderr_r.Read(data)
+			lhl.log.Errorf("Legacy helper failed. Stderr: %s", data)
 		}
 		lhl.done(id)
 	}()
