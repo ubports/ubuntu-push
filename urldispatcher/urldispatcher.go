@@ -57,6 +57,10 @@ func (ud *urlDispatcher) TestURL(app *click.AppId, urls []string) bool {
 	ud.log.Debugf("TestURL: %s", urls)
 	var appIds []string
 	appIds = cTestURL(urls)
+	if len(appIds) == 0 {
+		ud.log.Debugf("TestURL: invalid urls: %s - %s", urls, app.Versioned())
+		return false
+	}
 	for _, appId := range appIds {
 		if appId != app.Versioned() {
 			ud.log.Debugf("Notification skipped because of different appid for actions: %v - %s != %s", urls, appId, app.Versioned())
