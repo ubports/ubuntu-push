@@ -102,16 +102,22 @@ func (s *poolSuite) waitForArgs(c *C, method string) [5]string {
 	return args
 }
 
+func (s *poolSuite) SetUpSuite(c *C) {
+	xdgCacheHome = c.MkDir
+}
+
+func (s *poolSuite) TearDownSuite(c *C) {
+	xdgCacheHome = xdg.Cache.Home
+}
+
 func (s *poolSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
 	s.fakeLauncher = &fakeHelperLauncher{argCh: make(chan [5]string, 10)}
 	s.pool = NewHelperPool(map[string]HelperLauncher{"fake": s.fakeLauncher}, s.log)
-	xdgCacheHome = c.MkDir
 }
 
 func (s *poolSuite) TearDownTest(c *C) {
 	s.pool = nil
-	xdgCacheHome = xdg.Cache.Home
 }
 
 func (s *poolSuite) TestDefaultLaunchers(c *C) {
@@ -379,8 +385,9 @@ func (s *poolSuite) TestCreateInputTempFile(c *C) {
 }
 
 func (s *poolSuite) TestGetTempFilename(c *C) {
+	tmpDir := c.MkDir()
 	GetTempDir = func(pkgName string) (string, error) {
-		return c.MkDir(), nil
+		return tmpDir, nil
 	}
 	// restore it when we are done
 	defer func() {

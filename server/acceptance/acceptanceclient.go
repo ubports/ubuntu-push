@@ -19,9 +19,7 @@ package acceptance
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -40,35 +38,36 @@ type ClientSession struct {
 	ImageChannel    string
 	ServerAddr      string
 	ExchangeTimeout time.Duration
-	CertPEMBlock    []byte
 	ReportPings     bool
 	Levels          map[string]int64
-	Insecure        bool   // don't verify certs
+	TLSConfig       *tls.Config
 	Prefix          string // prefix for events
 	Auth            string
 	// connection
 	Connection net.Conn
 }
 
-// Dial connects to a server using the configuration in the ClientSession
-// and sets up the connection.
+// Dial connects to a server using the configuration in the
+// ClientSession and sets up the connection.
 func (sess *ClientSession) Dial() error {
 	conn, err := net.DialTimeout("tcp", sess.ServerAddr, sess.ExchangeTimeout)
 	if err != nil {
 		return err
 	}
-	tlsConfig := &tls.Config{}
-	if sess.CertPEMBlock != nil {
-		cp := x509.NewCertPool()
-		ok := cp.AppendCertsFromPEM(sess.CertPEMBlock)
-		if !ok {
-			return errors.New("dial: could not parse certificate")
-		}
-		tlsConfig.RootCAs = cp
-	}
-	tlsConfig.InsecureSkipVerify = sess.Insecure
-	sess.Connection = tls.Client(conn, tlsConfig)
+	sess.TLSWrapAndSet(conn)
 	return nil
+}
+
+// TLSWrapAndSet wraps a socket connection in tls and sets it as
+// session.Connection. For use instead of Dial().
+func (sess *ClientSession) TLSWrapAndSet(conn net.Conn) {
+	var tlsConfig *tls.Config
+	if sess.TLSConfig != nil {
+		tlsConfig = sess.TLSConfig
+	} else {
+		tlsConfig = &tls.Config{}
+	}
+	sess.Connection = tls.Client(conn, tlsConfig)
 }
 
 type serverMsg struct {

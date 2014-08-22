@@ -23,6 +23,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/server/acceptance/kit"
 	"launchpad.net/ubuntu-push/server/api"
 )
 
@@ -45,20 +46,15 @@ func (s *UnicastAcceptanceSuite) TestUnicastToConnected(c *C) {
 		DeviceId: "DEV1",
 		AppId:    "app1",
 	})
-	c.Assert(err, IsNil)
-	c.Assert(res, Matches, OK)
-	var reg map[string]interface{}
-	err = json.Unmarshal([]byte(res), &reg)
-	c.Assert(err, IsNil)
+	c.Assert(err, IsNil, Commentf("%v", res))
 	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth)
 	got, err := s.PostRequest("/notify", &api.Unicast{
-		Token:    reg["token"].(string),
+		Token:    res["token"].(string),
 		AppId:    "app1",
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 42}`),
 	})
-	c.Assert(err, IsNil)
-	c.Assert(got, Matches, OK)
+	c.Assert(err, IsNil, Commentf("%v", got))
 	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"a":42};`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
@@ -80,8 +76,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastCorrectDistribution(c *C) {
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"to": 1}`),
 	})
-	c.Assert(err, IsNil)
-	c.Assert(got, Matches, OK)
+	c.Assert(err, IsNil, Commentf("%v", got))
 	got, err = s.PostRequest("/notify", &api.Unicast{
 		UserId:   userId2,
 		DeviceId: "DEV2",
@@ -89,8 +84,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastCorrectDistribution(c *C) {
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"to": 2}`),
 	})
-	c.Assert(err, IsNil)
-	c.Assert(got, Matches, OK)
+	c.Assert(err, IsNil, Commentf("%v", got))
 	c.Check(NextEvent(events1, errCh1), Equals, `unicast app:app1 payload:{"to":1};`)
 	c.Check(NextEvent(events2, errCh2), Equals, `unicast app:app1 payload:{"to":2};`)
 	stop1()
@@ -111,8 +105,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastPending(c *C) {
 		ExpireOn: future,
 		Data:     json.RawMessage(`{"a": 42}`),
 	})
-	c.Assert(err, IsNil)
-	c.Assert(got, Matches, OK)
+	c.Assert(err, IsNil, Commentf("%v", got))
 
 	// get pending on connect
 	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth)
@@ -134,8 +127,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 			ExpireOn: future,
 			Data:     json.RawMessage(fmt.Sprintf(payloadFmt, i)),
 		})
-		c.Assert(err, IsNil)
-		c.Assert(got, Matches, OK)
+		c.Assert(err, IsNil, Commentf("%v", got))
 	}
 
 	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
@@ -168,8 +160,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastTooManyClearPending(c *C) {
 			ExpireOn: future,
 			Data:     json.RawMessage(fmt.Sprintf(payloadFmt, i)),
 		})
-		c.Assert(err, IsNil)
-		c.Assert(got, Matches, OK)
+		c.Assert(err, IsNil, Commentf("%v", got))
 	}
 
 	got, err := s.PostRequest("/notify", &api.Unicast{
@@ -179,8 +170,9 @@ func (s *UnicastAcceptanceSuite) TestUnicastTooManyClearPending(c *C) {
 		ExpireOn: future,
 		Data:     json.RawMessage(fmt.Sprintf(payloadFmt, MaxNotificationsPerApplication)),
 	})
-	c.Assert(err, IsNil)
-	c.Assert(got, Matches, `.*"error":"too-many-pending".*`)
+	c.Assert(err, Equals, kit.ErrNOk, Commentf("%v", got))
+	errorStr, _ := got["error"].(string)
+	c.Assert(errorStr, Equals, "too-many-pending")
 
 	// clear all pending
 	got, err = s.PostRequest("/notify", &api.Unicast{
@@ -191,8 +183,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastTooManyClearPending(c *C) {
 		Data:         json.RawMessage(fmt.Sprintf(payloadFmt, 1000)),
 		ClearPending: true,
 	})
-	c.Assert(err, IsNil)
-	c.Assert(got, Matches, OK)
+	c.Assert(err, IsNil, Commentf("%v", got))
 
 	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
 	// getting the 1 pending on connect
@@ -214,8 +205,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastReplaceTag(c *C) {
 		Data:       json.RawMessage(`{"m": 1}`),
 		ReplaceTag: "tagFoo",
 	})
-	c.Assert(err, IsNil)
-	c.Assert(got, Matches, OK)
+	c.Assert(err, IsNil, Commentf("%v", got))
 
 	// replace
 	got, err = s.PostRequest("/notify", &api.Unicast{
@@ -226,8 +216,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastReplaceTag(c *C) {
 		Data:       json.RawMessage(`{"m": 2}`),
 		ReplaceTag: "tagFoo",
 	})
-	c.Assert(err, IsNil)
-	c.Assert(got, Matches, OK)
+	c.Assert(err, IsNil, Commentf("%v", got))
 
 	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
 	// getting the 1 pending on connect
