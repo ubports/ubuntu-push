@@ -696,7 +696,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cs.log.ResetCapture()
 	cli.hasConnectivity = true
 	cli.handleErr(errors.New("bananas"))
@@ -729,7 +729,7 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	c.Assert(cli.hasConnectivity, Equals, false)
 	cli.handleConnState(true)
@@ -1001,7 +1001,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli.systemImageInfo = siInfoRes
 	cli.connCh = make(chan bool, 1)
 	cli.connCh <- true
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	ch := make(chan bool, 1)
 	go cli.doLoop(func(bool) { ch <- true }, nopBcast, nopUcast, nopError, nopUnregister)
@@ -1012,7 +1012,7 @@ func (cs *clientSuite) TestDoLoopBroadcast(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cli.session.BroadcastCh = make(chan *session.BroadcastNotification, 1)
 	cli.session.BroadcastCh <- &session.BroadcastNotification{}
 
@@ -1025,7 +1025,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cli.session.NotificationsCh = make(chan session.AddressedNotification, 1)
 	cli.session.NotificationsCh <- session.AddressedNotification{}
 
@@ -1038,7 +1038,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cli.session.ErrCh = make(chan error, 1)
 	cli.session.ErrCh <- nil
 
@@ -1051,7 +1051,7 @@ func (cs *clientSuite) TestDoLoopUnregister(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cli.unregisterCh = make(chan *click.AppId, 1)
 	cli.unregisterCh <- app1
 
@@ -1103,7 +1103,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.postalService = d
 	c.Assert(cli.startPostalService(), IsNil)
 
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	cli.session.BroadcastCh = make(chan *session.BroadcastNotification)
 	cli.session.ErrCh = make(chan error)
@@ -1204,13 +1204,13 @@ func (cs *clientSuite) TestStartCanFail(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (cs *clientSuite) TestInitSessionErr(c *C) {
+func (cs *clientSuite) TestinitSessionAndPollerErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	// change the cli.pem value so initSession fails
+	// change the cli.pem value so initSessionAndPoller fails
 	cli.pem = []byte("foo")
-	c.Assert(cli.initSession(), NotNil)
+	c.Assert(cli.initSessionAndPoller(), NotNil)
 }
 
 /*****************************************************************

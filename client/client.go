@@ -122,6 +122,7 @@ type PushClient struct {
 	unregisterCh       chan *click.AppId
 	trackAddressees    map[string]*click.AppId
 	installedChecker   click.InstalledChecker
+	poller             poller.Poller
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
@@ -288,8 +289,8 @@ func (client *PushClient) takeTheBus() error {
 	return err
 }
 
-// initSession creates the session object
-func (client *PushClient) initSession() error {
+// initSessionAndPoller creates the session and the poller objects
+func (client *PushClient) initSessionAndPoller() error {
 	info := map[string]interface{}{
 		"device":       client.systemImageInfo.Device,
 		"channel":      client.systemImageInfo.Channel,
@@ -302,11 +303,16 @@ func (client *PushClient) initSession() error {
 		return err
 	}
 	client.session = sess
-	p := poller.New(client.derivePollerSetup())
-	if err := p.Start(); err != nil {
+	client.poller = poller.New(client.derivePollerSetup())
+	return nil
+}
+
+// runPoller starts and runs the poller
+func (client *PushClient) runPoller() error {
+	if err := client.poller.Start(); err != nil {
 		return err
 	}
-	if err := p.Run(); err != nil {
+	if err := client.poller.Run(); err != nil {
 		return err
 	}
 	return nil
@@ -538,6 +544,7 @@ func (client *PushClient) Start() error {
 		client.startPushService,
 		client.startPostalService,
 		client.takeTheBus,
-		client.initSession,
+		client.initSessionAndPoller,
+		client.runPoller,
 	)
 }
