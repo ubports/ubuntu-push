@@ -45,6 +45,7 @@ import (
 	"launchpad.net/ubuntu-push/identifier"
 	idtesting "launchpad.net/ubuntu-push/identifier/testing"
 	"launchpad.net/ubuntu-push/launch_helper"
+	"launchpad.net/ubuntu-push/poller"
 	"launchpad.net/ubuntu-push/protocol"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/testing/condition"
@@ -143,7 +144,11 @@ func mkHandler(text string) http.HandlerFunc {
 
 func (cs *clientSuite) SetUpSuite(c *C) {
 	config.IgnoreParsedFlags = true // because configure() uses <flags>
-	newIdentifier = func() (identifier.Id, error) { return idtesting.Settable(), nil }
+	newIdentifier = func() (identifier.Id, error) {
+		id := idtesting.Settable()
+		id.Set("42") // must be hex of len 32
+		return id, nil
+	}
 	cs.timeouts = util.SwapTimeouts([]time.Duration{0})
 	cs.leveldbPath = ""
 }
@@ -173,6 +178,11 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"session_url":      "xyzzy://",
 		"registration_url": "reg://",
 		"log_level":        "debug",
+		"poll_interval":    "5m",
+		"poll_settle":      "20ms",
+		"poll_net_wait":    "1m",
+		"poll_polld_wait":  "3m",
+		"poll_done_wait":   "5s",
 	}
 	for k, v := range overrides {
 		cfgMap[k] = v
@@ -502,6 +512,39 @@ func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
 }
 
 /*****************************************************************
+    derivePollerSetup tests
+******************************************************************/
+func (cs *clientSuite) TestDerivePollerSetup(c *C) {
+	cs.writeTestConfig(map[string]interface{}{})
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.session = new(session.ClientSession)
+	err := cli.configure()
+	c.Assert(err, IsNil)
+	expected := &poller.PollerSetup{
+		Times: poller.Times{
+			AlarmInterval:      5 * time.Minute,
+			SessionStateSettle: 20 * time.Millisecond,
+			NetworkWait:        time.Minute,
+			PolldWait:          3 * time.Minute,
+			DoneWait:           5 * time.Second,
+		},
+		Log:                cli.log,
+		SessionStateGetter: cli.session,
+	}
+	// sanity check that we are looking at all fields
+	vExpected := reflect.ValueOf(expected).Elem()
+	nf := vExpected.NumField()
+	for i := 0; i < nf; i++ {
+		fv := vExpected.Field(i)
+		// field isn't empty/zero
+		c.Assert(fv.Interface(), Not(DeepEquals), reflect.Zero(fv.Type()).Interface(), Commentf("forgot about: %s", vExpected.Type().Field(i).Name))
+	}
+	// finally compare
+	setup := cli.derivePollerSetup()
+	c.Check(setup, DeepEquals, expected)
+}
+
+/*****************************************************************
     startService tests
 ******************************************************************/
 
@@ -653,7 +696,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cs.log.ResetCapture()
 	cli.hasConnectivity = true
 	cli.handleErr(errors.New("bananas"))
@@ -686,7 +729,7 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	c.Assert(cli.hasConnectivity, Equals, false)
 	cli.handleConnState(true)
@@ -958,7 +1001,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli.systemImageInfo = siInfoRes
 	cli.connCh = make(chan bool, 1)
 	cli.connCh <- true
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	ch := make(chan bool, 1)
 	go cli.doLoop(func(bool) { ch <- true }, nopBcast, nopUcast, nopError, nopUnregister)
@@ -969,7 +1012,7 @@ func (cs *clientSuite) TestDoLoopBroadcast(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cli.session.BroadcastCh = make(chan *session.BroadcastNotification, 1)
 	cli.session.BroadcastCh <- &session.BroadcastNotification{}
 
@@ -982,7 +1025,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cli.session.NotificationsCh = make(chan session.AddressedNotification, 1)
 	cli.session.NotificationsCh <- session.AddressedNotification{}
 
@@ -995,7 +1038,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cli.session.ErrCh = make(chan error, 1)
 	cli.session.ErrCh <- nil
 
@@ -1008,7 +1051,7 @@ func (cs *clientSuite) TestDoLoopUnregister(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cli.unregisterCh = make(chan *click.AppId, 1)
 	cli.unregisterCh <- app1
 
@@ -1060,7 +1103,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	cli.postalService = d
 	c.Assert(cli.startPostalService(), IsNil)
 
-	c.Assert(cli.initSession(), IsNil)
+	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	cli.session.BroadcastCh = make(chan *session.BroadcastNotification)
 	cli.session.ErrCh = make(chan error)
@@ -1141,7 +1184,7 @@ func (cs *clientSuite) TestStart(c *C) {
 	// and now everthing is better! We have a config,
 	c.Check(string(cli.config.Addr), Equals, ":0")
 	// and a device id,
-	c.Check(cli.deviceId, HasLen, 32)
+	c.Check(cli.deviceId, HasLen, 40)
 	// and a session,
 	c.Check(cli.session, NotNil)
 	// and a bus,
@@ -1161,13 +1204,13 @@ func (cs *clientSuite) TestStartCanFail(c *C) {
 	c.Check(err, NotNil)
 }
 
-func (cs *clientSuite) TestInitSessionErr(c *C) {
+func (cs *clientSuite) TestinitSessionAndPollerErr(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
-	// change the cli.pem value so initSession fails
+	// change the cli.pem value so initSessionAndPoller fails
 	cli.pem = []byte("foo")
-	c.Assert(cli.initSession(), NotNil)
+	c.Assert(cli.initSessionAndPoller(), NotNil)
 }
 
 /*****************************************************************

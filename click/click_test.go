@@ -182,3 +182,21 @@ func (s *clickSuite) TestParseAndVerifyAppId(c *C) {
 	c.Check(app, NotNil)
 	c.Check(app.Original(), Equals, "_non-existent-app")
 }
+
+func (s *clickSuite) TestSymbolicAppendsSymbolicIfIconIsName(c *C) {
+	symb := symbolic("foo")
+	c.Check(symb, Equals, "foo-symbolic")
+}
+
+func (s *clickSuite) TestSymbolicLeavesAloneIfIconIsPath(c *C) {
+	symb := symbolic("foo/bar")
+	c.Check(symb, Equals, "foo/bar")
+}
+
+func (s *clickSuite) TestSymbolicIconCallsSymbolic(c *C) {
+	symbolic = func(string) string { return "xyzzy" }
+	defer func() { symbolic = _symbolic }()
+	app, err := ParseAppId("_python3.4")
+	c.Assert(err, IsNil)
+	c.Check(app.SymbolicIcon(), Equals, "xyzzy")
+}

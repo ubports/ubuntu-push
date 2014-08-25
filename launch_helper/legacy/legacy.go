@@ -18,20 +18,23 @@
 package legacy
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 
 	"launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/logger"
 )
 
 type legacyHelperLauncher struct {
+	log  logger.Logger
 	done func(string)
 }
 
-func New() *legacyHelperLauncher {
-	return new(legacyHelperLauncher)
+func New(log logger.Logger) *legacyHelperLauncher {
+	return &legacyHelperLauncher{log: log}
 }
 
 func (lhl *legacyHelperLauncher) InstallObserver(done func(string)) error {
@@ -47,27 +50,42 @@ func (lhl *legacyHelperLauncher) HelperInfo(app *click.AppId) (string, string) {
 
 func (*legacyHelperLauncher) RemoveObserver() error { return nil }
 
-func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, error) {
-	cmd := exec.Command(progname, f1, f2)
-	cmd.Stdin = nil
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+type msg struct {
+	id  string
+	err error
+}
 
-	err := cmd.Start()
-	if err != nil {
-		return "", err
-	}
-	proc := cmd.Process
-	if proc == nil {
-		panic("cmd.Process is nil after successful cmd.Start()??")
-	}
-	id := strconv.FormatInt((int64)(proc.Pid), 36)
+func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, error) {
+	comm := make(chan msg)
+
 	go func() {
-		proc.Wait()
+		cmd := exec.Command(progname, f1, f2)
+		var stdout bytes.Buffer
+		cmd.Stdout = &stdout
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		err := cmd.Start()
+		if err != nil {
+			comm <- msg{"", err}
+			return
+		}
+		proc := cmd.Process
+		if proc == nil {
+			panic("cmd.Process is nil after successful cmd.Start()??")
+		}
+		id := strconv.FormatInt((int64)(proc.Pid), 36)
+		comm <- msg{id, nil}
+		p_err := cmd.Wait()
+		if p_err != nil {
+			// Helper failed or got killed, log output/errors
+			lhl.log.Errorf("Legacy helper failed: %v", p_err)
+			lhl.log.Errorf("Legacy helper failed. Stdout: %s", stdout)
+			lhl.log.Errorf("Legacy helper failed. Stderr: %s", stderr)
+		}
 		lhl.done(id)
 	}()
-
-	return id, nil
+	msg := <-comm
+	return msg.id, msg.err
 }
 
 func (lhl *legacyHelperLauncher) Stop(_, id string) error {

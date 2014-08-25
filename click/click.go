@@ -136,6 +136,19 @@ func (app *AppId) Icon() string {
 	return cappinfo.AppIconFromDesktopId(app.DesktopId())
 }
 
+func _symbolic(icon string) string {
+	if strings.ContainsRune(icon, '/') {
+		return icon
+	}
+	return icon + "-symbolic"
+}
+
+var symbolic = _symbolic
+
+func (app *AppId) SymbolicIcon() string {
+	return symbolic(app.Icon())
+}
+
 func (app *AppId) MarshalJSON() ([]byte, error) {
 	return json.Marshal(app.Original())
 }
