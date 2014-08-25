@@ -14,5 +14,10 @@
     "connectivity_check_md5": "4589f42e1546aa47ca181e5d949d310b",
     "log_level": "debug",
     "fallback_vibration": {"pattern": [100, 100], "repeat": 2},
-    "fallback_sound": "sounds/ubuntu/notifications/Slick.ogg"
+    "fallback_sound": "sounds/ubuntu/notifications/Slick.ogg",
+    "poll_interval": "5m",
+    "poll_settle":      "20ms",
+    "poll_net_wait":    "1m",
+    "poll_polld_wait":  "3m",
+    "poll_done_wait":   "5s"
 }
