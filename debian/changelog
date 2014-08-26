@@ -1,3 +1,18 @@
+ubuntu-push (0.62+14.10.20140825.1-0ubuntu1) utopic; urgency=medium
+
+  [ Samuele Pedroni ]
+  * Avoid rare race in kindpool_test.go
+
+  [ John R. Lenton]
+  * Interface with account-polld's dbus api.
+  * Powerd integration.
+  * Use symbolic icon for secondary icon in notification.
+
+  [Roberto Alsina]
+  * Log legacy helper failures.
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 25 Aug 2014 16:40:29 +0000
+
 ubuntu-push (0.61+14.10.20140812.4-0ubuntu1) utopic; urgency=medium
 
   [ Guillermo Gonzalez ]
@@ -13,7 +28,7 @@ ubuntu-push (0.61+14.10.20140812.4-0ubuntu1) utopic; urgency=medium
   * Make messaging menu entries show current time instead of epoch for timestamp of 0.
   * Tweak the upstart script, start after unity.
   * Correctly report invalid app ids, missing apps, and package/app id mismatches as separate errors over dbus.
-  
+
   [Roberto Alsina]
   * Check that sound paths don't go up into the tree.
   * Initial draft of QML-based doc
