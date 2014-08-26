@@ -680,19 +680,20 @@ func (s *msgSuite) TestHandlePingDoesNotClearsDelayOnError(c *C) {
 ****************************************************************/
 
 func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
-	msg := serverMsg{"broadcast",
-		protocol.BroadcastMsg{
-			Type:     "broadcast",
-			AppId:    "--ignored--",
-			ChanId:   "0",
-			TopLevel: 2,
-			Payloads: []json.RawMessage{
-				json.RawMessage(`{"img1/m1":[101,"tubular"]}`),
-				json.RawMessage("false"), // shouldn't happen but robust
-				json.RawMessage(`{"img1/m1":[102,"tubular"]}`),
-			},
-		}, protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	msg := new(serverMsg)
+	msg.Type = "broadcast"
+	msg.BroadcastMsg = protocol.BroadcastMsg{
+		Type:     "broadcast",
+		AppId:    "--ignored--",
+		ChanId:   "0",
+		TopLevel: 2,
+		Payloads: []json.RawMessage{
+			json.RawMessage(`{"img1/m1":[101,"tubular"]}`),
+			json.RawMessage("false"), // shouldn't happen but robust
+			json.RawMessage(`{"img1/m1":[102,"tubular"]}`),
+		},
+	}
+	go func() { s.errCh <- s.sess.handleBroadcast(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
@@ -715,15 +716,16 @@ func (s *msgSuite) TestHandleBroadcastWorks(c *C) {
 }
 
 func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
-	msg := serverMsg{"broadcast",
-		protocol.BroadcastMsg{
-			Type:     "broadcast",
-			AppId:    "APP",
-			ChanId:   "0",
-			TopLevel: 2,
-			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-		}, protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	msg := new(serverMsg)
+	msg.Type = "broadcast"
+	msg.BroadcastMsg = protocol.BroadcastMsg{
+		Type:     "broadcast",
+		AppId:    "APP",
+		ChanId:   "0",
+		TopLevel: 2,
+		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+	}
+	go func() { s.errCh <- s.sess.handleBroadcast(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	failure := errors.New("ACK ACK ACK")
 	s.upCh <- failure
@@ -732,15 +734,16 @@ func (s *msgSuite) TestHandleBroadcastBadAckWrite(c *C) {
 }
 
 func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
-	msg := serverMsg{"broadcast",
-		protocol.BroadcastMsg{
-			Type:     "broadcast",
-			AppId:    "APP",
-			ChanId:   "something awful",
-			TopLevel: 2,
-			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-		}, protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	msg := new(serverMsg)
+	msg.Type = "brodacast"
+	msg.BroadcastMsg = protocol.BroadcastMsg{
+		Type:     "broadcast",
+		AppId:    "APP",
+		ChanId:   "something awful",
+		TopLevel: 2,
+		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+	}
+	go func() { s.errCh <- s.sess.handleBroadcast(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, IsNil)
@@ -749,15 +752,16 @@ func (s *msgSuite) TestHandleBroadcastWrongChannel(c *C) {
 
 func (s *msgSuite) TestHandleBroadcastBrokenSeenState(c *C) {
 	s.sess.SeenState = &brokenSeenState{}
-	msg := serverMsg{"broadcast",
-		protocol.BroadcastMsg{
-			Type:     "broadcast",
-			AppId:    "--ignored--",
-			ChanId:   "0",
-			TopLevel: 2,
-			Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
-		}, protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	msg := new(serverMsg)
+	msg.Type = "broadcast"
+	msg.BroadcastMsg = protocol.BroadcastMsg{
+		Type:     "broadcast",
+		AppId:    "--ignored--",
+		ChanId:   "0",
+		TopLevel: 2,
+		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
+	}
+	go func() { s.errCh <- s.sess.handleBroadcast(msg) }()
 	s.upCh <- nil // ack ok
 	// start returns with error
 	c.Check(<-s.errCh, Not(Equals), nil)
@@ -772,9 +776,8 @@ func (s *msgSuite) TestHandleBroadcastBrokenSeenState(c *C) {
 func (s *msgSuite) TestHandleBroadcastClearsDelay(c *C) {
 	s.sess.setShouldDelay()
 
-	msg := serverMsg{"broadcast", protocol.BroadcastMsg{},
-		protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	msg := &serverMsg{Type: "broadcast"}
+	go func() { s.errCh <- s.sess.handleBroadcast(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, IsNil)
@@ -785,9 +788,8 @@ func (s *msgSuite) TestHandleBroadcastClearsDelay(c *C) {
 func (s *msgSuite) TestHandleBroadcastDoesNotClearDelayOnError(c *C) {
 	s.sess.setShouldDelay()
 
-	msg := serverMsg{"broadcast", protocol.BroadcastMsg{},
-		protocol.NotificationsMsg{}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleBroadcast(&msg) }()
+	msg := &serverMsg{Type: "broadcast"}
+	go func() { s.errCh <- s.sess.handleBroadcast(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- errors.New("bcast")
 	c.Check(<-s.errCh, NotNil)
@@ -835,12 +837,12 @@ func (s *msgSuite) TestHandleNotificationsWorks(c *C) {
 		MsgId:   "b",
 		Payload: json.RawMessage(`{"m": 2}`),
 	}
-	msg := serverMsg{"notifications",
-		protocol.BroadcastMsg{},
-		protocol.NotificationsMsg{
-			Notifications: []protocol.Notification{n1, n2},
-		}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	msg := new(serverMsg)
+	msg.Type = "notifications"
+	msg.NotificationsMsg = protocol.NotificationsMsg{
+		Notifications: []protocol.Notification{n1, n2},
+	}
+	go func() { s.errCh <- s.sess.handleNotifications(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
@@ -881,12 +883,12 @@ func (s *msgSuite) TestHandleNotificationsAddresseeCheck(c *C) {
 		MsgId:   "b",
 		Payload: json.RawMessage(`{"m": 2}`),
 	}
-	msg := serverMsg{"notifications",
-		protocol.BroadcastMsg{},
-		protocol.NotificationsMsg{
-			Notifications: []protocol.Notification{n1, n2},
-		}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	msg := new(serverMsg)
+	msg.Type = "notifications"
+	msg.NotificationsMsg = protocol.NotificationsMsg{
+		Notifications: []protocol.Notification{n1, n2},
+	}
+	go func() { s.errCh <- s.sess.handleNotifications(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
@@ -916,12 +918,12 @@ func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
 		MsgId:   "b",
 		Payload: json.RawMessage(`{"m": 2}`),
 	}
-	msg := serverMsg{"notifications",
-		protocol.BroadcastMsg{},
-		protocol.NotificationsMsg{
-			Notifications: []protocol.Notification{n1, n2},
-		}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	msg := new(serverMsg)
+	msg.Type = "notifications"
+	msg.NotificationsMsg = protocol.NotificationsMsg{
+		Notifications: []protocol.Notification{n1, n2},
+	}
+	go func() { s.errCh <- s.sess.handleNotifications(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
@@ -941,7 +943,7 @@ func (s *msgSuite) TestHandleNotificationsFiltersSeen(c *C) {
 	c.Check(ac.ops, HasLen, 3)
 
 	// second time they get ignored
-	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	go func() { s.errCh <- s.sess.handleNotifications(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	s.upCh <- nil // ack ok
 	c.Check(<-s.errCh, Equals, nil)
@@ -956,12 +958,12 @@ func (s *msgSuite) TestHandleNotificationsBadAckWrite(c *C) {
 		MsgId:   "a",
 		Payload: json.RawMessage(`{"m": 1}`),
 	}
-	msg := serverMsg{"notifications",
-		protocol.BroadcastMsg{},
-		protocol.NotificationsMsg{
-			Notifications: []protocol.Notification{n1},
-		}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	msg := new(serverMsg)
+	msg.Type = "notifications"
+	msg.NotificationsMsg = protocol.NotificationsMsg{
+		Notifications: []protocol.Notification{n1},
+	}
+	go func() { s.errCh <- s.sess.handleNotifications(msg) }()
 	c.Check(takeNext(s.downCh), Equals, protocol.AckMsg{"ack"})
 	failure := errors.New("ACK ACK ACK")
 	s.upCh <- failure
@@ -979,12 +981,12 @@ func (s *msgSuite) TestHandleNotificationsBrokenSeenState(c *C) {
 		MsgId:   "a",
 		Payload: json.RawMessage(`{"m": 1}`),
 	}
-	msg := serverMsg{"notifications",
-		protocol.BroadcastMsg{},
-		protocol.NotificationsMsg{
-			Notifications: []protocol.Notification{n1},
-		}, protocol.ConnBrokenMsg{}}
-	go func() { s.errCh <- s.sess.handleNotifications(&msg) }()
+	msg := new(serverMsg)
+	msg.Type = "notifications"
+	msg.NotificationsMsg = protocol.NotificationsMsg{
+		Notifications: []protocol.Notification{n1},
+	}
+	go func() { s.errCh <- s.sess.handleNotifications(msg) }()
 	s.upCh <- nil // ack ok
 	// start returns with error
 	c.Check(<-s.errCh, Not(Equals), nil)
@@ -1003,26 +1005,24 @@ func (s *msgSuite) TestHandleNotificationsBrokenSeenState(c *C) {
 ****************************************************************/
 
 func (s *msgSuite) TestHandleConnBrokenUnkwown(c *C) {
-	msg := serverMsg{"connbroken",
-		protocol.BroadcastMsg{}, protocol.NotificationsMsg{},
-		protocol.ConnBrokenMsg{
-			Reason: "REASON",
-		},
+	msg := new(serverMsg)
+	msg.Type = "connbroken"
+	msg.ConnBrokenMsg = protocol.ConnBrokenMsg{
+		Reason: "REASON",
 	}
-	go func() { s.errCh <- s.sess.handleConnBroken(&msg) }()
+	go func() { s.errCh <- s.sess.handleConnBroken(msg) }()
 	c.Check(<-s.errCh, ErrorMatches, "server broke connection: REASON")
 	c.Check(s.sess.State(), Equals, Error)
 }
 
 func (s *msgSuite) TestHandleConnBrokenHostMismatch(c *C) {
-	msg := serverMsg{"connbroken",
-		protocol.BroadcastMsg{}, protocol.NotificationsMsg{},
-		protocol.ConnBrokenMsg{
-			Reason: protocol.BrokenHostMismatch,
-		},
+	msg := new(serverMsg)
+	msg.Type = "connbroken"
+	msg.ConnBrokenMsg = protocol.ConnBrokenMsg{
+		Reason: protocol.BrokenHostMismatch,
 	}
 	s.sess.deliveryHosts = []string{"foo:443", "bar:443"}
-	go func() { s.errCh <- s.sess.handleConnBroken(&msg) }()
+	go func() { s.errCh <- s.sess.handleConnBroken(msg) }()
 	c.Check(<-s.errCh, ErrorMatches, "server broke connection: host-mismatch")
 	c.Check(s.sess.State(), Equals, Error)
 	// hosts were reset
