@@ -1113,6 +1113,20 @@ func (s *loopSuite) TestLoopNotifications(c *C) {
 	c.Check(<-s.errCh, Equals, failure)
 }
 
+func (s *loopSuite) TestLoopSetParams(c *C) {
+	c.Check(s.sess.State(), Equals, Running)
+	setParams := protocol.SetParamsMsg{
+		Type:      "setparams",
+		SetCookie: "COOKIE",
+	}
+	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
+	s.upCh <- setParams
+	failure := errors.New("fail")
+	s.upCh <- failure
+	c.Assert(<-s.errCh, Equals, failure)
+	c.Check(s.sess.getCookie(), Equals, "COOKIE")
+}
+
 func (s *loopSuite) TestLoopConnBroken(c *C) {
 	c.Check(s.sess.State(), Equals, Running)
 	broken := protocol.ConnBrokenMsg{
@@ -1302,6 +1316,7 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	sess, err := NewSession("", conf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	sess.Connection = &testConn{Name: "TestStartWorks"}
+	sess.setCookie("COOKIE")
 	errCh := make(chan error, 1)
 	upCh := make(chan interface{}, 5)
 	downCh := make(chan interface{}, 5)
@@ -1317,6 +1332,7 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	c.Check(ok, Equals, true)
 	c.Check(msg.DeviceId, Equals, "wah")
 	c.Check(msg.Authorization, Equals, "")
+	c.Check(msg.Cookie, Equals, "COOKIE")
 	c.Check(msg.Info, DeepEquals, info)
 	upCh <- nil // no error
 	upCh <- protocol.ConnAckMsg{

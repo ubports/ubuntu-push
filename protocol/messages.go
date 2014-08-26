@@ -32,6 +32,7 @@ type ConnectMsg struct {
 	ClientVer     string
 	DeviceId      string
 	Authorization string
+	Cookie        string
 	Info          map[string]interface{} `json:",omitempty"` // platform etc...
 	// maps channel ids (hex encoded UUIDs) to known client channel levels
 	Levels map[string]int64
@@ -102,6 +103,19 @@ func (m *ConnWarnMsg) OnewayContinue() bool {
 const (
 	WarnUnauthorized = "unauthorized"
 )
+
+// SETPARAMS message
+type SetParamsMsg struct {
+	Type      string `json:"T"`
+	SetCookie string
+}
+
+func (m *SetParamsMsg) Split() bool {
+	return true
+}
+func (m *SetParamsMsg) OnewayContinue() bool {
+	return true
+}
 
 // PING/PONG messages
 type PingPongMsg struct {
