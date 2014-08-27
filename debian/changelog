@@ -1,3 +1,10 @@
+ubuntu-push (0.63) UNRELEASED; urgency=medium
+
+  [ Samuele Pedroni ]
+  * Support taking a cookie from the server and sending it back on connect.
+
+ -- Roberto Alsina <ralsina@yoga>  Wed, 27 Aug 2014 13:26:19 -0300
+
 ubuntu-push (0.62+14.10.20140825.1-0ubuntu1) utopic; urgency=medium
 
   [ Samuele Pedroni ]
