@@ -37,15 +37,17 @@ type ServerHandle struct {
 	ServerAddr     string
 	ServerHTTPAddr string
 	ServerEvents   <-chan string
+	// last started session
+	LastSession *acceptance.ClientSession
 }
 
 // Start a client.
 func (h *ServerHandle) StartClient(c *C, devId string, levels map[string]int64) (events <-chan string, errorCh <-chan error, stop func()) {
-	return h.StartClientAuth(c, devId, levels, "")
+	return h.StartClientAuth(c, devId, levels, "", "")
 }
 
 // Start a client with auth.
-func (h *ServerHandle) StartClientAuth(c *C, devId string, levels map[string]int64, auth string) (events <-chan string, errorCh <-chan error, stop func()) {
+func (h *ServerHandle) StartClientAuth(c *C, devId string, levels map[string]int64, auth string, cookie string) (events <-chan string, errorCh <-chan error, stop func()) {
 	errCh := make(chan error, 1)
 	cliEvents := make(chan string, 10)
 	sess := testClientSession(h.ServerAddr, devId, "m1", "img1", false)
@@ -54,8 +56,13 @@ func (h *ServerHandle) StartClientAuth(c *C, devId string, levels map[string]int
 	if auth != "" {
 		sess.ExchangeTimeout = 5 * time.Second
 	}
+	if cookie != "" {
+		sess.SetCookie(cookie)
+		sess.ReportSetParams = true
+	}
 	err := sess.Dial()
 	c.Assert(err, IsNil)
+	h.LastSession = sess
 	clientShutdown := make(chan bool, 1) // abused as an atomic flag
 	intercept := func(ic *interceptingConn, op string, b []byte) (bool, int, error) {
 		// read after ack

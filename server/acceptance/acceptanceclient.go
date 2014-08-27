@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"launchpad.net/ubuntu-push/protocol"
@@ -43,8 +44,25 @@ type ClientSession struct {
 	TLSConfig       *tls.Config
 	Prefix          string // prefix for events
 	Auth            string
+	cookie          string
+	cookieLock      sync.RWMutex
+	ReportSetParams bool
 	// connection
 	Connection net.Conn
+}
+
+// GetCookie gets the current cookie.
+func (sess *ClientSession) GetCookie() string {
+	sess.cookieLock.RLock()
+	defer sess.cookieLock.RUnlock()
+	return sess.cookie
+}
+
+// SetCookie sets the current cookie.
+func (sess *ClientSession) SetCookie(cookie string) {
+	sess.cookieLock.Lock()
+	defer sess.cookieLock.Unlock()
+	sess.cookie = cookie
 }
 
 // Dial connects to a server using the configuration in the
@@ -75,6 +93,7 @@ type serverMsg struct {
 	protocol.BroadcastMsg
 	protocol.NotificationsMsg
 	protocol.ConnWarnMsg
+	protocol.SetParamsMsg
 }
 
 // Run the session with the server, emits a stream of events.
@@ -96,6 +115,7 @@ func (sess *ClientSession) Run(events chan<- string) error {
 			"channel": sess.ImageChannel,
 		},
 		Authorization: sess.Auth,
+		Cookie:        sess.GetCookie(),
 	})
 	if err != nil {
 		return err
@@ -156,6 +176,11 @@ func (sess *ClientSession) Run(events chan<- string) error {
 			events <- fmt.Sprintf("%sbroadcast chan:%v app:%v topLevel:%d payloads:%s", sess.Prefix, recv.ChanId, recv.AppId, recv.TopLevel, pack)
 		case "warn", "connwarn":
 			events <- fmt.Sprintf("%sconnwarn %s", sess.Prefix, recv.Reason)
+		case "setparams":
+			sess.SetCookie(recv.SetCookie)
+			if sess.ReportSetParams {
+				events <- sess.Prefix + "setparams"
+			}
 		}
 	}
 	return nil
