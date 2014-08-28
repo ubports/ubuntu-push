@@ -53,6 +53,7 @@ type serverMsg struct {
 	protocol.BroadcastMsg
 	protocol.NotificationsMsg
 	protocol.ConnBrokenMsg
+	protocol.SetParamsMsg
 }
 
 // parseServerAddrSpec recognizes whether spec is a HTTP URL to get
@@ -130,6 +131,7 @@ type ClientSession struct {
 	proto        protocol.Protocol
 	pingInterval time.Duration
 	retrier      util.AutoRedialer
+	cookie       string
 	// status
 	stateP          *uint32
 	ErrCh           chan error
@@ -231,6 +233,18 @@ func (sess *ClientSession) getConnection() net.Conn {
 	sess.connLock.RLock()
 	defer sess.connLock.RUnlock()
 	return sess.Connection
+}
+
+func (sess *ClientSession) setCookie(cookie string) {
+	sess.connLock.Lock()
+	defer sess.connLock.Unlock()
+	sess.cookie = cookie
+}
+
+func (sess *ClientSession) getCookie() string {
+	sess.connLock.RLock()
+	defer sess.connLock.RUnlock()
+	return sess.cookie
 }
 
 // getHosts sets deliveryHosts possibly querying a remote endpoint
@@ -470,6 +484,14 @@ func (sess *ClientSession) handleConnBroken(connBroken *serverMsg) error {
 	return err
 }
 
+// handle "setparams" messages
+func (sess *ClientSession) handleSetParams(setParams *serverMsg) error {
+	if setParams.SetCookie != "" {
+		sess.setCookie(setParams.SetCookie)
+	}
+	return nil
+}
+
 // loop runs the session with the server, emits a stream of events.
 func (sess *ClientSession) loop() error {
 	var err error
@@ -492,6 +514,8 @@ func (sess *ClientSession) loop() error {
 			err = sess.handleNotifications(&recv)
 		case "connbroken":
 			err = sess.handleConnBroken(&recv)
+		case "setparams":
+			err = sess.handleSetParams(&recv)
 		case "warn":
 			// XXX: current message "warn" should be "connwarn"
 			fallthrough
@@ -533,6 +557,7 @@ func (sess *ClientSession) start() error {
 		Type:          "connect",
 		DeviceId:      sess.DeviceId,
 		Authorization: sess.auth,
+		Cookie:        sess.getCookie(),
 		Levels:        levels,
 		Info:          sess.Info,
 	})
