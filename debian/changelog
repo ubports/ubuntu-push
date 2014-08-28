@@ -1,9 +1,9 @@
-ubuntu-push (0.63.1) UNRELEASED; urgency=medium
+ubuntu-push (0.63.1+14.10.20140828-0ubuntu1) utopic; urgency=medium
 
   [ Samuele Pedroni ]
   * Support taking a cookie from the server and sending it back on connect (feature was incomplete).
 
- -- Roberto Alsina <ralsina@yoga>  Thu, 28 Aug 2014 12:07:01 -0300
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Thu, 28 Aug 2014 19:15:56 +0000
 
 ubuntu-push (0.63+14.10.20140827-0ubuntu1) utopic; urgency=medium
 
