@@ -107,12 +107,27 @@ func (ls *legacySuite) TestHelperFails(c *C) {
 	c.Check(ls.log.Captured(), Matches, "(?s).*Legacy helper failed.*")
 }
 
+func (ls *legacySuite) TestHelperFailsLog(c *C) {
+	ch := make(chan string, 1)
+	c.Assert(ls.lhl.InstallObserver(func(id string) { ch <- id }), IsNil)
+
+	exe := helpers.ScriptAbsPath("noisy-helper.sh")
+	_, err := ls.lhl.Launch("", exe, "", "")
+	c.Assert(err, IsNil)
+
+	takeNext(ch, c)
+	c.Check(ls.log.Captured(), Matches, "(?s).*BOOM-1.*")
+	c.Check(ls.log.Captured(), Matches, "(?s).*BANG-1.*")
+	c.Check(ls.log.Captured(), Matches, "(?s).*BOOM-20.*")
+	c.Check(ls.log.Captured(), Matches, "(?s).*BANG-20.*")
+}
+
 func (ls *legacySuite) TestStop(c *C) {
 	ch := make(chan string, 1)
 	c.Assert(ls.lhl.InstallObserver(func(id string) { ch <- id }), IsNil)
 
-	exe := helpers.ScriptAbsPath("slow-helper.sh")
-	id, err := ls.lhl.Launch("", exe, "", "")
+	// 	exe := helpers.ScriptAbsPath("slow-helper.sh")
+	id, err := ls.lhl.Launch("", "/bin/sleep", "9", "1")
 	c.Assert(err, IsNil)
 
 	err = ls.lhl.Stop("", "===")

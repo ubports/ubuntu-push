@@ -1,3 +1,32 @@
+ubuntu-push (0.63.1+14.10.20140828-0ubuntu1) utopic; urgency=medium
+
+  [ Samuele Pedroni ]
+  * Support taking a cookie from the server and sending it back on connect (feature was incomplete).
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Thu, 28 Aug 2014 19:15:56 +0000
+
+ubuntu-push (0.63+14.10.20140827-0ubuntu1) utopic; urgency=medium
+
+  [ Samuele Pedroni ]
+  * Support taking a cookie from the server and sending it back on connect.
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Wed, 27 Aug 2014 18:47:25 +0000
+
+ubuntu-push (0.62+14.10.20140825.1-0ubuntu1) utopic; urgency=medium
+
+  [ Samuele Pedroni ]
+  * Avoid rare race in kindpool_test.go
+
+  [ John R. Lenton]
+  * Interface with account-polld's dbus api.
+  * Powerd integration.
+  * Use symbolic icon for secondary icon in notification.
+
+  [Roberto Alsina]
+  * Log legacy helper failures.
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 25 Aug 2014 16:40:29 +0000
+
 ubuntu-push (0.61+14.10.20140812.4-0ubuntu1) utopic; urgency=medium
 
   [ Guillermo Gonzalez ]
@@ -14,7 +43,7 @@ ubuntu-push (0.61+14.10.20140812.4-0ubuntu1) utopic; urgency=medium
   * Make messaging menu entries show current time instead of epoch for timestamp of 0.
   * Tweak the upstart script, start after unity.
   * Correctly report invalid app ids, missing apps, and package/app id mismatches as separate errors over dbus.
-  
+
   [Roberto Alsina]
   * Check that sound paths don't go up into the tree.
   * Initial draft of QML-based doc

@@ -118,6 +118,12 @@ func (s *messagesSuite) TestConnWarnMsg(c *C) {
 	c.Check(m.OnewayContinue(), Equals, true)
 }
 
+func (s *messagesSuite) TestSetParamsMsg(c *C) {
+	m := &SetParamsMsg{}
+	c.Check(m.Split(), Equals, true)
+	c.Check(m.OnewayContinue(), Equals, true)
+}
+
 func (s *messagesSuite) TestExtractPayloads(c *C) {
 	c.Check(ExtractPayloads(nil), IsNil)
 	p1 := json.RawMessage(`{"a":1}`)
