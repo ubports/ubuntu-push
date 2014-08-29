@@ -47,7 +47,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastToConnected(c *C) {
 		AppId:    "app1",
 	})
 	c.Assert(err, IsNil, Commentf("%v", res))
-	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth)
+	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth, "")
 	got, err := s.PostRequest("/notify", &api.Unicast{
 		Token:    res["token"].(string),
 		AppId:    "app1",
@@ -65,9 +65,9 @@ func (s *UnicastAcceptanceSuite) TestUnicastCorrectDistribution(c *C) {
 	userId1, auth1 := s.associatedAuth("DEV1")
 	userId2, auth2 := s.associatedAuth("DEV2")
 	// start 1st client
-	events1, errCh1, stop1 := s.StartClientAuth(c, "DEV1", nil, auth1)
+	events1, errCh1, stop1 := s.StartClientAuth(c, "DEV1", nil, auth1, "")
 	// start 2nd client
-	events2, errCh2, stop2 := s.StartClientAuth(c, "DEV2", nil, auth2)
+	events2, errCh2, stop2 := s.StartClientAuth(c, "DEV2", nil, auth2, "")
 	// unicast to one and the other
 	got, err := s.PostRequest("/notify", &api.Unicast{
 		UserId:   userId1,
@@ -108,7 +108,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastPending(c *C) {
 	c.Assert(err, IsNil, Commentf("%v", got))
 
 	// get pending on connect
-	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth)
+	events, errCh, stop := s.StartClientAuth(c, "DEV1", nil, auth, "")
 	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"a":42};`)
 	stop()
 	c.Assert(NextEvent(s.ServerEvents, nil), Matches, `.* ended with:.*EOF`)
@@ -130,7 +130,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastLargeNeedsSplitting(c *C) {
 		c.Assert(err, IsNil, Commentf("%v", got))
 	}
 
-	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
+	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth, "")
 	// getting pending on connect
 	n := 0
 	for {
@@ -185,7 +185,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastTooManyClearPending(c *C) {
 	})
 	c.Assert(err, IsNil, Commentf("%v", got))
 
-	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
+	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth, "")
 	// getting the 1 pending on connect
 	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"serial":1000};`)
 	stop()
@@ -218,7 +218,7 @@ func (s *UnicastAcceptanceSuite) TestUnicastReplaceTag(c *C) {
 	})
 	c.Assert(err, IsNil, Commentf("%v", got))
 
-	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth)
+	events, errCh, stop := s.StartClientAuth(c, "DEV2", nil, auth, "")
 	// getting the 1 pending on connect
 	c.Check(NextEvent(events, errCh), Equals, `unicast app:app1 payload:{"m":2};`)
 	stop()
