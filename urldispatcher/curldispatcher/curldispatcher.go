@@ -23,17 +23,13 @@ package curldispatcher
 #include <liburl-dispatcher-1/url-dispatcher.h>
 #include <glib.h>
 
-void dispatch_url(const gchar* url) {
-    url_dispatch_send(url, NULL, NULL);
-}
+void dispatch_url(const gchar* url, gpointer user_data);
 
-gchar** test_url(const gchar** urls) {
-    char** result = url_dispatch_url_appid(urls);
-    return result;
-}
+gchar** test_url(const gchar** urls);
 */
 import "C"
 import "unsafe"
+import "fmt"
 
 func gchar(s string) *C.gchar {
 	return (*C.gchar)(C.CString(s))
@@ -54,11 +50,11 @@ func TestURL(urls []string) []string {
 		defer gfree(c_urls[i])
 	}
 	results := C.test_url((**C.gchar)(unsafe.Pointer(&c_urls[0])))
-	packages := make([]string, len(urls))
 	// if there result is nil, just return empty []string
 	if results == nil {
-		return packages
+		return nil
 	}
+	packages := make([]string, len(urls))
 	ptrSz := unsafe.Sizeof(unsafe.Pointer(nil))
 	i := 0
 	for p := uintptr(unsafe.Pointer(results)); getCharPtr(p) != nil; p += ptrSz {
@@ -69,9 +65,31 @@ func TestURL(urls []string) []string {
 	return packages
 }
 
+type DispatchPayload struct {
+	doneCh chan bool
+}
+
 func DispatchURL(url string, appPackage string) error {
 	c_url := gchar(url)
 	defer gfree(c_url)
-	C.dispatch_url(c_url)
+	c_app_package := gchar(appPackage)
+	defer gfree(c_app_package)
+	doneCh := make(chan bool)
+	payload := DispatchPayload{doneCh: doneCh}
+	C.dispatch_url(c_url, (C.gpointer)(&payload))
+	success := <-doneCh
+	if !success {
+		return fmt.Errorf("Failed to DispatchURL: %s for %s", url, appPackage)
+	}
 	return nil
+}
+
+//export handleDispatchURLResult
+func handleDispatchURLResult(c_action *C.char, c_success C.gboolean, obj unsafe.Pointer) {
+	payload := (*DispatchPayload)(obj)
+	var success bool
+	if c_success == C.TRUE {
+		success = true
+	}
+	payload.doneCh <- success
 }
