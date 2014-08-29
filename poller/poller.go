@@ -147,8 +147,8 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 	_, err := p.powerd.RequestWakeup("ubuntu push client", t)
 	if err != nil {
 		p.log.Errorf("RequestWakeup got %v", err)
-        // Don't do this too quickly. Pretend we are just skipping one wakeup
-        time.Sleep(p.times.AlarmInterval)
+		// Don't do this too quickly. Pretend we are just skipping one wakeup
+		time.Sleep(p.times.AlarmInterval)
 		return lockCookie
 	}
 	p.log.Debugf("requested wakeup at %s", t)
