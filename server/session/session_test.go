@@ -647,7 +647,7 @@ func (s *sessionSuite) TestSessionLoopExchangeNextPing(c *C) {
 	effectiveOfPing := float64(interval) / float64(50*time.Millisecond)
 	comment := Commentf("effectiveOfPing=%f", effectiveOfPing)
 	c.Check(effectiveOfPing > 0.95, Equals, true, comment)
-	c.Check(effectiveOfPing < 1.15, Equals, true, comment)
+	c.Check(effectiveOfPing < 1.19, Equals, true, comment)
 	up <- nil // no write error
 	up <- io.EOF
 	err := <-errCh

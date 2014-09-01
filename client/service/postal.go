@@ -27,7 +27,6 @@ import (
 	"launchpad.net/ubuntu-push/bus/emblemcounter"
 	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/notifications"
-	"launchpad.net/ubuntu-push/bus/urldispatcher"
 	"launchpad.net/ubuntu-push/bus/windowstack"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/click/cblacklist"
@@ -37,6 +36,7 @@ import (
 	"launchpad.net/ubuntu-push/messaging/reply"
 	"launchpad.net/ubuntu-push/nih"
 	"launchpad.net/ubuntu-push/sounds"
+	"launchpad.net/ubuntu-push/urldispatcher"
 	"launchpad.net/ubuntu-push/util"
 )
 
@@ -76,7 +76,6 @@ type PostalService struct {
 	EmblemCounterEndp bus.Endpoint
 	HapticEndp        bus.Endpoint
 	NotificationsEndp bus.Endpoint
-	URLDispatcherEndp bus.Endpoint
 	WindowStackEndp   bus.Endpoint
 	// presenters:
 	Presenters    []Presenter
@@ -116,7 +115,6 @@ func NewPostalService(setup *PostalServiceSetup, log logger.Logger) *PostalServi
 	svc.NotificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, log)
 	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
 	svc.HapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, log)
-	svc.URLDispatcherEndp = bus.SessionBus.Endpoint(urldispatcher.BusAddress, log)
 	svc.WindowStackEndp = bus.SessionBus.Endpoint(windowstack.BusAddress, log)
 	svc.msgHandler = svc.messageHandler
 	svc.launchers = launch_helper.DefaultLaunchers(log)
@@ -153,7 +151,7 @@ func (svc *PostalService) Start() error {
 	if err != nil {
 		return err
 	}
-	svc.urlDispatcher = urldispatcher.New(svc.URLDispatcherEndp, svc.Log)
+	svc.urlDispatcher = urldispatcher.New(svc.Log)
 	svc.notifications = notifications.Raw(svc.NotificationsEndp, svc.Log)
 	svc.emblemCounter = emblemcounter.New(svc.EmblemCounterEndp, svc.Log)
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log, svc.fallbackVibration)
@@ -226,7 +224,6 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 		{"notifications", svc.NotificationsEndp},
 		{"emblemcounter", svc.EmblemCounterEndp},
 		{"haptic", svc.HapticEndp},
-		{"urldispatcher", svc.URLDispatcherEndp},
 		{"windowstack", svc.WindowStackEndp},
 	}
 	for _, endp := range endps {
