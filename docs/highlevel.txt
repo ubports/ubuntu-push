@@ -3,6 +3,8 @@ Ubuntu Push Client Developer Guide
 
 :Version: 0.50+
 
+.. contents::
+
 Introduction
 ------------
 
