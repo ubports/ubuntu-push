@@ -283,37 +283,27 @@ Ubuntu Push Server API
 The Ubuntu Push server is located at https://push.ubuntu.com and has a single endpoint: ``/notify``.
 To notify a user, your application has to do a POST with ``Content-type: application/json``.
 
+.. note:: The contents of the data field are arbitrary. They should be enough for your helper to build
+          a notification using it, and decide whether it should be displayed or not. Keep in mind
+          that this will be processed by more than one version of the helper, because the user may be using
+          an older version of your app.
+
 Here is an example of the POST body using all the fields::
 
-	{
-		"appid": "com.ubuntu.music_music",
-		"expire_on": "2014-10-08T14:48:00.000Z",
-		"token": "LeA4tRQG9hhEkuhngdouoA==",
-		"clear_pending": true,
-		"replace_tag": "tagname",
-		"data": {
-			"message": "foobar",
-			"notification": {
-				"card": {
-					"summary": "yes",
-					"body": "hello",
-					"popup": true,
-					"persist": true,
-					"timestamp": 1407160197
-				}
-				"sound": "buzz.mp3",
-				"tag": "foo",
-				"vibrate": {
-					"pattern": [200, 100],
-					"repeat": 2
-				}
-				"emblem-counter": {
-					"count": 12,
-					"visible": true
-				}
-			}
-		}
-	}
+    {
+        "appid": "com.ubuntu.music_music",
+        "expire_on": "2014-10-08T14:48:00.000Z",
+        "token": "LeA4tRQG9hhEkuhngdouoA==",
+        "clear_pending": true,
+        "replace_tag": "tagname",
+        "data": {
+            "id": "0x43578",
+            "timestamp": 1409583746,
+            "serial": 1254,
+            "sender": "Joe",
+            "snippet": "Hi there!"
+        }
+    }
 
 
 :appid: ID of the application that will receive the notification, as described in the client side documentation.
@@ -322,6 +312,3 @@ Here is an example of the POST body using all the fields::
 :clear_pending: Discards all previous pending notifications. Usually in response to getting a "too-many-pending" error.
 :replace_tag: If there's a pending notification with the same tag, delete it before queuing this new one.
 :data: A JSON object.
-
-In this example, data is `what a helper would output <#helper-output-format>`__ but that's not necessarily the case.
-The content of the data field will be passed to the helper application which **has** to produce output in that format.

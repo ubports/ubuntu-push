@@ -379,7 +379,8 @@ To notify a user, your application has to do a POST with ``Content-type: applica
 
 .. note:: The contents of the data field are arbitrary. They should be enough for your helper to build
           a notification using it, and decide whether it should be displayed or not. Keep in mind
-          that this will be processed by more than one version of the helper.
+          that this will be processed by more than one version of the helper, because the user may be using
+          an older version of your app.
 
 Here is an example of the POST body using all the fields::
 
