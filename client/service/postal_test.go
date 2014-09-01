@@ -628,9 +628,9 @@ func (ps *postalSuite) TestMessageHandlerInvalidAction(c *C) {
 	b := svc.messageHandler(appId, "", output)
 	c.Check(b, Equals, false)
 	fakeDisp.Lock.Lock()
+	defer fakeDisp.Lock.Unlock()
 	c.Assert(len(fakeDisp.DispatchCalls), Equals, 0)
 	c.Assert(len(fakeDisp.TestURLCalls), Equals, 1)
-	fakeDisp.Lock.Unlock()
 	c.Assert(fakeDisp.TestURLCalls[0][appId.DispatchPackage()], DeepEquals, []string{"notsupported://test-app"})
 }
 
@@ -655,11 +655,11 @@ func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	go svc.handleActions(aCh, rCh)
 	takeNextBool(bCh)
 	fakeDisp.Lock.Lock()
+	defer fakeDisp.Lock.Unlock()
 	c.Assert(len(fakeDisp.DispatchCalls), Equals, 1)
 	c.Assert(fakeDisp.DispatchCalls[0][0], Equals, "potato://")
 	c.Assert(fakeDisp.DispatchCalls[0][1], Equals, app.DispatchPackage())
 	c.Check(fmm.calls, DeepEquals, []string{"remove:xyzzy:true"})
-	fakeDisp.Lock.Unlock()
 }
 
 func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
@@ -681,10 +681,10 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	go svc.handleActions(aCh, rCh)
 	takeNextBool(bCh)
 	fakeDisp.Lock.Lock()
+	defer fakeDisp.Lock.Unlock()
 	c.Assert(len(fakeDisp.DispatchCalls), Equals, 1)
 	c.Assert(fakeDisp.DispatchCalls[0][0], Equals, "potato://")
 	c.Assert(fakeDisp.DispatchCalls[0][1], Equals, app.DispatchPackage())
-	fakeDisp.Lock.Unlock()
 }
 
 func (ps *postalSuite) TestValidateActions(c *C) {
