@@ -47,7 +47,7 @@ func (ud *urlDispatcher) DispatchURL(url string, app *click.AppId) error {
 	ud.log.Debugf("Dispatching %s", url)
 	err := cDispatchURL(url, app.DispatchPackage())
 	if err != nil {
-		ud.log.Errorf("Dispatch to %s failed with %s", url, err)
+		ud.log.Errorf("DispatchURL failed: %s", err)
 	}
 	return err
 }

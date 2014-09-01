@@ -87,7 +87,7 @@ func DispatchURL(url string, appPackage string) error {
 //export handleDispatchURLResult
 func handleDispatchURLResult(c_action *C.char, c_success C.gboolean, obj unsafe.Pointer) {
 	payload := (*DispatchPayload)(obj)
-	var success bool
+	success := false
 	if c_success == C.TRUE {
 		success = true
 	}
