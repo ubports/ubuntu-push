@@ -194,6 +194,8 @@ Helper Output Format
 
 Helpers output has two parts, the postal message (in the "message" key) and a notification to be presented to the user (in the "notification" key).
 
+.. note:: This format **will** change with future versions of the SDK. and it **may** be incompatible.
+
 Here's a simple example::
 
 	{
