@@ -68,12 +68,8 @@ func (cfg *testDevListenerCfg) Addr() string {
 	return cfg.addr
 }
 
-func (cfg *testDevListenerCfg) KeyPEMBlock() []byte {
-	return helpers.TestKeyPEMBlock
-}
-
-func (cfg *testDevListenerCfg) CertPEMBlock() []byte {
-	return helpers.TestCertPEMBlock
+func (cfg *testDevListenerCfg) TLSServerConfig() (*tls.Config, error) {
+	return helpers.TestTLSServerConfig, nil
 }
 
 func (s *listenerSuite) TestDeviceListen(c *C) {
@@ -132,7 +128,7 @@ func testSession(conn net.Conn) error {
 
 func testTlsDial(c *C, addr string) (net.Conn, error) {
 	cp := x509.NewCertPool()
-	ok := cp.AppendCertsFromPEM((&testDevListenerCfg{}).CertPEMBlock())
+	ok := cp.AppendCertsFromPEM(helpers.TestCertPEMBlock)
 	c.Assert(ok, Equals, true)
 	return tls.Dial("tcp", addr, &tls.Config{
 		RootCAs:    cp,

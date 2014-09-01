@@ -95,10 +95,12 @@ var testDevicesParsedConfig = DevicesParsedConfig{
 	ParsedBrokerQueueSize:  config.ConfigQueueSize(1000),
 	ParsedSessionQueueSize: config.ConfigQueueSize(10),
 	ParsedAddr:             "127.0.0.1:0",
-	ParsedKeyPEMFile:       "",
-	ParsedCertPEMFile:      "",
-	keyPEMBlock:            helpers.TestKeyPEMBlock,
-	certPEMBlock:           helpers.TestCertPEMBlock,
+	TLSParsedConfig: TLSParsedConfig{
+		ParsedKeyPEMFile:  "",
+		ParsedCertPEMFile: "",
+		keyPEMBlock:       helpers.TestKeyPEMBlock,
+		certPEMBlock:      helpers.TestCertPEMBlock,
+	},
 }
 
 func (s *runnerSuite) TestDevicesRunner(c *C) {

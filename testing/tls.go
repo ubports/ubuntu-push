@@ -16,6 +16,10 @@
 
 package testing
 
+import (
+	"crypto/tls"
+)
+
 // key&cert generated with go run /usr/lib/go/src/pkg/crypto/tls/generate_cert.go -ca -host push-delivery -rsa-bits 512 -duration 87600h
 var (
 	TestKeyPEMBlock = []byte(`-----BEGIN RSA PRIVATE KEY-----
@@ -39,3 +43,16 @@ DQEBBQNBABtWCdMFkhIO8+oM3vugOWle9WJZ1FCRWD+cMl76mI1lhmNF4lvEZG47
 xUjekA1+heU39WpOEzZSybrOdiEaGbI=
 -----END CERTIFICATE-----`)
 )
+
+// test tls server config
+var TestTLSServerConfig *tls.Config
+
+func init() {
+	cert, err := tls.X509KeyPair(TestCertPEMBlock, TestKeyPEMBlock)
+	if err != nil {
+		panic(err)
+	}
+	TestTLSServerConfig = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+}

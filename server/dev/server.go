@@ -64,7 +64,7 @@ func main() {
 	if err != nil {
 		server.BootLogFatalf("reading config: %v", err)
 	}
-	err = cfg.DevicesParsedConfig.FinishLoad(filepath.Dir(cfgFpaths[len(cfgFpaths)-1]))
+	err = cfg.DevicesParsedConfig.LoadPEMs(filepath.Dir(cfgFpaths[len(cfgFpaths)-1]))
 	if err != nil {
 		server.BootLogFatalf("reading config: %v", err)
 	}

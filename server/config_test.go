@@ -26,6 +26,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/config"
+	helpers "launchpad.net/ubuntu-push/testing"
 )
 
 type configSuite struct{}
@@ -52,22 +53,25 @@ func (s *configSuite) TestDevicesParsedConfig(c *C) {
 	c.Check(cfg.Addr(), Equals, "127.0.0.1:9999")
 }
 
-func (s *configSuite) TestDevicesParsedConfigLoadFinish(c *C) {
+func (s *configSuite) TestTLSParsedConfigLoadPEMs(c *C) {
 	tmpDir := c.MkDir()
-	cfg := &DevicesParsedConfig{
+	cfg := &TLSParsedConfig{
 		ParsedKeyPEMFile:  "key.key",
 		ParsedCertPEMFile: "cert.cert",
 	}
-	err := cfg.FinishLoad(tmpDir)
+	err := cfg.LoadPEMs(tmpDir)
 	c.Check(err, ErrorMatches, "reading key_pem_file:.*no such file.*")
-	err = ioutil.WriteFile(filepath.Join(tmpDir, "key.key"), []byte("KeY"), os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(tmpDir, "key.key"), helpers.TestKeyPEMBlock, os.ModePerm)
 	c.Assert(err, IsNil)
-	err = cfg.FinishLoad(tmpDir)
+	err = cfg.LoadPEMs(tmpDir)
 	c.Check(err, ErrorMatches, "reading cert_pem_file:.*no such file.*")
-	err = ioutil.WriteFile(filepath.Join(tmpDir, "cert.cert"), []byte("CeRt"), os.ModePerm)
+	err = ioutil.WriteFile(filepath.Join(tmpDir, "cert.cert"), helpers.TestCertPEMBlock, os.ModePerm)
 	c.Assert(err, IsNil)
-	err = cfg.FinishLoad(tmpDir)
+	err = cfg.LoadPEMs(tmpDir)
 	c.Assert(err, IsNil)
-	c.Check(string(cfg.KeyPEMBlock()), Equals, "KeY")
-	c.Check(string(cfg.CertPEMBlock()), Equals, "CeRt")
+	c.Check(cfg.keyPEMBlock, DeepEquals, helpers.TestKeyPEMBlock)
+	c.Check(cfg.certPEMBlock, DeepEquals, helpers.TestCertPEMBlock)
+	tlsCfg, err := cfg.TLSServerConfig()
+	c.Assert(err, IsNil)
+	c.Check(tlsCfg.Certificates, HasLen, 1)
 }
