@@ -134,7 +134,10 @@ func testTlsDial(c *C, addr string) (net.Conn, error) {
 	cp := x509.NewCertPool()
 	ok := cp.AppendCertsFromPEM((&testDevListenerCfg{}).CertPEMBlock())
 	c.Assert(ok, Equals, true)
-	return tls.Dial("tcp", addr, &tls.Config{RootCAs: cp})
+	return tls.Dial("tcp", addr, &tls.Config{
+		RootCAs:    cp,
+		ServerName: "push-delivery",
+	})
 }
 
 func testWriteByte(c *C, conn net.Conn, toWrite uint32) {

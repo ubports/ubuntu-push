@@ -111,7 +111,7 @@ func (s *AcceptanceSuite) TearDownTest(c *C) {
 }
 
 func testClientSession(addr string, deviceId, model, imageChannel string, reportPings bool) *acceptance.ClientSession {
-	tlsConfig, err := kit.MakeTLSConfig("", false, helpers.SourceRelative("../ssl/testing.cert"), "")
+	tlsConfig, err := kit.MakeTLSConfig("push-delivery", false, helpers.SourceRelative("../ssl/testing.cert"), "")
 	if err != nil {
 		panic(fmt.Sprintf("could not read ssl/testing.cert: %v", err))
 	}

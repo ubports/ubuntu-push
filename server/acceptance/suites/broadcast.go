@@ -261,7 +261,7 @@ func (s *BroadcastAcceptanceSuite) TestGetHosts(c *C) {
 	host, err := gh.Get()
 	c.Assert(err, IsNil)
 	expected := &gethosts.Host{
-		Domain: "localhost",
+		Domain: "push-delivery",
 		Hosts:  []string{s.ServerAddr},
 	}
 	c.Check(host, DeepEquals, expected)

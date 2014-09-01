@@ -1553,7 +1553,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	// advertise
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := json.Marshal(map[string]interface{}{
-			"domain": "localhost",
+			"domain": "push-delivery",
 			"hosts":  []string{"nowhere", lst.Addr().String()},
 		})
 		if err != nil {
