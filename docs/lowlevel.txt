@@ -205,8 +205,7 @@ Persistent Notification Management
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Some notifications are persistent, meaning that, after they are presented, they don't disappear automatically.
-For those notifications, this API allows the app to manage them without having to know the underlying details
-of the platform.
+For those notifications, this API allows the app to manage them.
 
 On each notification there's an optional ``tag`` field, used for this purpose.
 
