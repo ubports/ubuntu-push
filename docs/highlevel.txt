@@ -113,8 +113,8 @@ Whenever PushClient suffers an error, it will emit the ``error(QString)`` signal
 Persistent Notification Management
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Some notifications are persistent, meaning they don't disappear automatically. For those notifications, there is an API that
-allows the app to manage them without having to know the underlying details of the platform.
+Some notifications are persistent, meaning that, after they are presented, they don't disappear automatically.
+This API allows the app to manage that type of notifications.
 
 On each notification there's an optional ``tag`` field, used for this purpose.
 
@@ -194,7 +194,7 @@ Helper Output Format
 
 Helpers output has two parts, the postal message (in the "message" key) and a notification to be presented to the user (in the "notification" key).
 
-.. note:: This format **will** change with future versions of the SDK. and it **may** be incompatible.
+.. note:: This format **will** change with future versions of the SDK and it **may** be incompatible.
 
 Here's a simple example::
 
@@ -299,7 +299,7 @@ Here is an example of the POST body using all the fields::
         "clear_pending": true,
         "replace_tag": "tagname",
         "data": {
-            "id": "0x43578",
+            "id": 43578,
             "timestamp": 1409583746,
             "serial": 1254,
             "sender": "Joe",
