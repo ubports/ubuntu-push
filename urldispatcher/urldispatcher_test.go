@@ -17,11 +17,11 @@
 package urldispatcher
 
 import (
+	"errors"
+
 	. "launchpad.net/gocheck"
-	testibus "launchpad.net/ubuntu-push/bus/testing"
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	helpers "launchpad.net/ubuntu-push/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
 	"testing"
 )
 
@@ -29,49 +29,69 @@ import (
 func TestUrldispatcher(t *testing.T) { TestingT(t) }
 
 type UDSuite struct {
-	log *helpers.TestLogger
+	log          *helpers.TestLogger
+	cDispatchURL func(string, string) error
+	cTestURL     func([]string) []string
 }
 
 var _ = Suite(&UDSuite{})
 
 func (s *UDSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
+	s.cDispatchURL = cDispatchURL
+	s.cTestURL = cTestURL
+	// replace it with a always succeed version
+	cDispatchURL = func(url string, appId string) error {
+		return nil
+	}
+}
+
+func (s *UDSuite) TearDownTest(c *C) {
+	cDispatchURL = s.cDispatchURL
+	cTestURL = s.cTestURL
 }
 
 func (s *UDSuite) TestDispatchURLWorks(c *C) {
-	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{})
-	ud := New(endp, s.log)
+	ud := New(s.log)
 	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
 	err := ud.DispatchURL("this", appId)
 	c.Check(err, IsNil)
 }
 
 func (s *UDSuite) TestDispatchURLFailsIfCallFails(c *C) {
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
-	ud := New(endp, s.log)
+	cDispatchURL = func(url string, appId string) error {
+		return errors.New("fail!")
+	}
+	ud := New(s.log)
 	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
 	err := ud.DispatchURL("this", appId)
 	c.Check(err, NotNil)
 }
 
 func (s *UDSuite) TestTestURLWorks(c *C) {
-	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{[]string{"com.example.test_app_0.99"}})
-	ud := New(endp, s.log)
+	cTestURL = func(url []string) []string {
+		return []string{"com.example.test_app_0.99"}
+	}
+	ud := New(s.log)
 	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
 	c.Check(ud.TestURL(appId, []string{"this"}), Equals, true)
 	c.Check(s.log.Captured(), Matches, `(?sm).*TestURL: \[this\].*`)
 }
 
 func (s *UDSuite) TestTestURLFailsIfCallFails(c *C) {
-	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
-	ud := New(endp, s.log)
+	cTestURL = func(url []string) []string {
+		return []string{}
+	}
+	ud := New(s.log)
 	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
 	c.Check(ud.TestURL(appId, []string{"this"}), Equals, false)
 }
 
 func (s *UDSuite) TestTestURLMultipleURLs(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_app_0.99", "com.example.test_app_0.99"})
-	ud := New(endp, s.log)
+	cTestURL = func(url []string) []string {
+		return []string{"com.example.test_app_0.99", "com.example.test_app_0.99"}
+	}
+	ud := New(s.log)
 	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
 	urls := []string{"potato://test-app", "potato_a://foo"}
 	c.Check(ud.TestURL(appId, urls), Equals, true)
@@ -79,8 +99,10 @@ func (s *UDSuite) TestTestURLMultipleURLs(c *C) {
 }
 
 func (s *UDSuite) TestTestURLWrongApp(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app_0.1"})
-	ud := New(endp, s.log)
+	cTestURL = func(url []string) []string {
+		return []string{"com.example.test_test-app_0.1"}
+	}
+	ud := New(s.log)
 	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
 	urls := []string{"potato://test-app"}
 	c.Check(ud.TestURL(appId, urls), Equals, false)
@@ -88,8 +110,10 @@ func (s *UDSuite) TestTestURLWrongApp(c *C) {
 }
 
 func (s *UDSuite) TestTestURLOneWrongApp(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app_0", "com.example.test_test-app1"})
-	ud := New(endp, s.log)
+	cTestURL = func(url []string) []string {
+		return []string{"com.example.test_test-app_0", "com.example.test_test-app1"}
+	}
+	ud := New(s.log)
 	appId := clickhelp.MustParseAppId("com.example.test_test-app_0")
 	urls := []string{"potato://test-app", "potato_a://foo"}
 	c.Check(ud.TestURL(appId, urls), Equals, false)
@@ -97,17 +121,20 @@ func (s *UDSuite) TestTestURLOneWrongApp(c *C) {
 }
 
 func (s *UDSuite) TestTestURLInvalidURL(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false), []string{"com.example.test_test-app_0.1"})
-	ud := New(endp, s.log)
+	cTestURL = func(url []string) []string {
+		return []string{}
+	}
+	ud := New(s.log)
 	appId := clickhelp.MustParseAppId("com.example.test_app_0.2")
 	urls := []string{"notsupported://test-app"}
 	c.Check(ud.TestURL(appId, urls), Equals, false)
-	c.Check(s.log.Captured(), Matches, `(?sm).*TestURL for \[notsupported://test-app\] failed with no way.*`)
 }
 
 func (s *UDSuite) TestTestURLLegacyApp(c *C) {
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"ubuntu-system-settings"})
-	ud := New(endp, s.log)
+	cTestURL = func(url []string) []string {
+		return []string{"ubuntu-system-settings"}
+	}
+	ud := New(s.log)
 	appId := clickhelp.MustParseAppId("_ubuntu-system-settings")
 	urls := []string{"settings://test-app"}
 	c.Check(ud.TestURL(appId, urls), Equals, true)
