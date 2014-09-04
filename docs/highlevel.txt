@@ -70,7 +70,7 @@ Example::
     PushClient {
         id: pushClient
         Component.onCompleted: {
-            newNotifications.connect(messageList.handle_notifications)
+            notificationsChanged.connect(messageList.handle_notifications)
             error.connect(messageList.handle_error)
         }
         appId: "com.ubuntu.developer.push.hello_hello"
@@ -97,13 +97,13 @@ Receiving Notifications
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 When a notification is received by the Push Client, it will be delivered to your application's push helper, and then
-placed in your application's mailbox. At that point, the PushClient will emit the ``newNotifications(QStringList)`` signal
+placed in your application's mailbox. At that point, the PushClient will emit the ``notificationsChanged(QStringList)`` signal
 containing your messages. You should probably connect to that signal and handle those messages.
 
 Because of the application's lifecycle, there is no guarantee that it will be running when the signal is emitted. For that
 reason, apps should check for pending notifications whenever they are activated or started. To do that, use the
 ``getNotifications()`` slot. Triggering that slot will fetch notifications and trigger the
-``newNotifications(QStringList)`` signal.
+``notificationsChanged(QStringList)`` signal.
 
 Error Handling
 ~~~~~~~~~~~~~~
