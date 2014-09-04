@@ -28,8 +28,7 @@ type TLSParsedConfig struct {
 	ParsedKeyPEMFile  string `json:"key_pem_file"`
 	ParsedCertPEMFile string `json:"cert_pem_file"`
 	// private post-processed config
-	certPEMBlock []byte
-	keyPEMBlock  []byte
+	cert tls.Certificate
 }
 
 func (cfg *TLSParsedConfig) LoadPEMs(baseDir string) error {
@@ -41,19 +40,14 @@ func (cfg *TLSParsedConfig) LoadPEMs(baseDir string) error {
 	if err != nil {
 		return fmt.Errorf("reading cert_pem_file: %v", err)
 	}
-	cfg.keyPEMBlock = keyPEMBlock
-	cfg.certPEMBlock = certPEMBlock
-	return nil
+	cfg.cert, err = tls.X509KeyPair(certPEMBlock, keyPEMBlock)
+	return err
 }
 
-func (cfg *TLSParsedConfig) TLSServerConfig() (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(cfg.certPEMBlock, cfg.keyPEMBlock)
-	if err != nil {
-		return nil, err
-	}
+func (cfg *TLSParsedConfig) TLSServerConfig() *tls.Config {
 	tlsCfg := &tls.Config{
-		Certificates:           []tls.Certificate{cert},
+		Certificates:           []tls.Certificate{cfg.cert},
 		SessionTicketsDisabled: true,
 	}
-	return tlsCfg, nil
+	return tlsCfg
 }

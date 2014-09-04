@@ -68,8 +68,8 @@ func (cfg *testDevListenerCfg) Addr() string {
 	return cfg.addr
 }
 
-func (cfg *testDevListenerCfg) TLSServerConfig() (*tls.Config, error) {
-	return helpers.TestTLSServerConfig, nil
+func (cfg *testDevListenerCfg) TLSServerConfig() *tls.Config {
+	return helpers.TestTLSServerConfig
 }
 
 func (s *listenerSuite) TestDeviceListen(c *C) {

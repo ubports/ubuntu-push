@@ -69,9 +69,6 @@ func (s *configSuite) TestTLSParsedConfigLoadPEMs(c *C) {
 	c.Assert(err, IsNil)
 	err = cfg.LoadPEMs(tmpDir)
 	c.Assert(err, IsNil)
-	c.Check(cfg.keyPEMBlock, DeepEquals, helpers.TestKeyPEMBlock)
-	c.Check(cfg.certPEMBlock, DeepEquals, helpers.TestCertPEMBlock)
-	tlsCfg, err := cfg.TLSServerConfig()
-	c.Assert(err, IsNil)
+	tlsCfg := cfg.TLSServerConfig()
 	c.Check(tlsCfg.Certificates, HasLen, 1)
 }

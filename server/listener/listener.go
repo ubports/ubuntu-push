@@ -31,7 +31,7 @@ type DeviceListenerConfig interface {
 	// Addr to listen on.
 	Addr() string
 	// TLS config
-	TLSServerConfig() (*tls.Config, error)
+	TLSServerConfig() *tls.Config
 }
 
 // DeviceListener listens and setup sessions from device connections.
@@ -50,11 +50,8 @@ func DeviceListen(lst net.Listener, cfg DeviceListenerConfig) (*DeviceListener, 
 			return nil, err
 		}
 	}
-	tlsCfg, err := cfg.TLSServerConfig()
-	if err != nil {
-		return nil, err
-	}
-	return &DeviceListener{tls.NewListener(lst, tlsCfg)}, err
+	tlsCfg := cfg.TLSServerConfig()
+	return &DeviceListener{tls.NewListener(lst, tlsCfg)}, nil
 }
 
 // handleTemporary checks and handles if the error is just a temporary network

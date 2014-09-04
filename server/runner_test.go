@@ -91,6 +91,14 @@ func (s *runnerSuite) TestHTTPServeRunner(c *C) {
 	c.Check(<-errCh, Matches, "accepting http connections:.*closed.*")
 }
 
+func cert() tls.Certificate {
+	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
+	if err != nil {
+		panic(err)
+	}
+	return cert
+}
+
 var testDevicesParsedConfig = DevicesParsedConfig{
 	ParsedPingInterval:     config.ConfigTimeDuration{60 * time.Second},
 	ParsedExchangeTimeout:  config.ConfigTimeDuration{10 * time.Second},
@@ -100,8 +108,7 @@ var testDevicesParsedConfig = DevicesParsedConfig{
 	TLSParsedConfig: TLSParsedConfig{
 		ParsedKeyPEMFile:  "",
 		ParsedCertPEMFile: "",
-		keyPEMBlock:       helpers.TestKeyPEMBlock,
-		certPEMBlock:      helpers.TestCertPEMBlock,
+		cert:              cert(),
 	},
 }
 
