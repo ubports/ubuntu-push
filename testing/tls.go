@@ -45,7 +45,7 @@ xUjekA1+heU39WpOEzZSybrOdiEaGbI=
 -----END CERTIFICATE-----`)
 )
 
-// test tls server config
+// test tls server & client config
 var TestTLSServerConfig, TestTLSClientConfig *tls.Config
 
 func init() {
