@@ -18,6 +18,7 @@ package testing
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 )
 
 // key&cert generated with go run /usr/lib/go/src/pkg/crypto/tls/generate_cert.go -ca -host push-delivery -rsa-bits 512 -duration 87600h
@@ -45,7 +46,7 @@ xUjekA1+heU39WpOEzZSybrOdiEaGbI=
 )
 
 // test tls server config
-var TestTLSServerConfig *tls.Config
+var TestTLSServerConfig, TestTLSClientConfig *tls.Config
 
 func init() {
 	cert, err := tls.X509KeyPair(TestCertPEMBlock, TestKeyPEMBlock)
@@ -54,5 +55,14 @@ func init() {
 	}
 	TestTLSServerConfig = &tls.Config{
 		Certificates: []tls.Certificate{cert},
+	}
+	cp := x509.NewCertPool()
+	ok := cp.AppendCertsFromPEM(TestCertPEMBlock)
+	if !ok {
+		panic("failed to parse test cert")
+	}
+	TestTLSClientConfig = &tls.Config{
+		RootCAs:    cp,
+		ServerName: "push-delivery",
 	}
 }

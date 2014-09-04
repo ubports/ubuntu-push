@@ -18,7 +18,6 @@ package server
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -164,14 +163,10 @@ func (s *runnerSuite) TestHTTPServeRunnerTLS(c *C) {
 		}()
 		runner()
 	}()
-	cp := x509.NewCertPool()
-	ok := cp.AppendCertsFromPEM(helpers.TestCertPEMBlock)
-	c.Assert(ok, Equals, true)
 	cli := http.Client{
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{
-			RootCAs:    cp,
-			ServerName: "push-delivery",
-		}},
+		Transport: &http.Transport{
+			TLSClientConfig: helpers.TestTLSClientConfig,
+		},
 	}
 	resp, err := cli.Get(fmt.Sprintf("https://%s/", s.lst.Addr()))
 	c.Assert(err, IsNil)

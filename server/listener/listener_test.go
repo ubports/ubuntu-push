@@ -18,7 +18,6 @@ package listener
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"net"
 	"os/exec"
 	"regexp"
@@ -126,14 +125,8 @@ func testSession(conn net.Conn) error {
 	return err
 }
 
-func testTlsDial(c *C, addr string) (net.Conn, error) {
-	cp := x509.NewCertPool()
-	ok := cp.AppendCertsFromPEM(helpers.TestCertPEMBlock)
-	c.Assert(ok, Equals, true)
-	return tls.Dial("tcp", addr, &tls.Config{
-		RootCAs:    cp,
-		ServerName: "push-delivery",
-	})
+func testTlsDial(addr string) (net.Conn, error) {
+	return tls.Dial("tcp", addr, helpers.TestTLSClientConfig)
 }
 
 func testWriteByte(c *C, conn net.Conn, toWrite uint32) {
@@ -158,11 +151,11 @@ func (s *listenerSuite) TestDeviceAcceptLoop(c *C) {
 		errCh <- lst.AcceptLoop(testSession, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
-	conn1, err := testTlsDial(c, listenerAddr)
+	conn1, err := testTlsDial(listenerAddr)
 	c.Assert(err, IsNil)
 	defer conn1.Close()
 	testWriteByte(c, conn1, '1')
-	conn2, err := testTlsDial(c, listenerAddr)
+	conn2, err := testTlsDial(listenerAddr)
 	c.Assert(err, IsNil)
 	defer conn2.Close()
 	testWriteByte(c, conn2, '2')
@@ -202,7 +195,7 @@ func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
 	res, err := cmd.Output()
 	c.Assert(err, IsNil)
 	c.Assert(string(res), Matches, "(?s).*timed out.*")
-	conn2, err := testTlsDial(c, listenerAddr)
+	conn2, err := testTlsDial(listenerAddr)
 	c.Assert(err, IsNil)
 	defer conn2.Close()
 	testWriteByte(c, conn2, '2')
@@ -224,7 +217,7 @@ func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
 		}, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
-	_, err = testTlsDial(c, listenerAddr)
+	_, err = testTlsDial(listenerAddr)
 	c.Assert(err, Not(IsNil))
 	lst.Close()
 	c.Check(<-errCh, ErrorMatches, ".*use of closed.*")
@@ -243,7 +236,7 @@ func (s *listenerSuite) TestForeignListener(c *C) {
 	}()
 	listenerAddr := lst.Addr().String()
 	c.Check(listenerAddr, Equals, foreignLst.Addr().String())
-	conn1, err := testTlsDial(c, listenerAddr)
+	conn1, err := testTlsDial(listenerAddr)
 	c.Assert(err, IsNil)
 	defer conn1.Close()
 	testWriteByte(c, conn1, '1')
