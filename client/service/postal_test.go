@@ -18,11 +18,13 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"launchpad.net/go-dbus/v1"
@@ -131,6 +133,33 @@ func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 	return id, nil
 }
 
+type fakeUrlDispatcher struct {
+	DispatchCalls      [][]string
+	TestURLCalls       []map[string][]string
+	NextTestURLResult  bool
+	DispatchShouldFail bool
+	Lock               sync.Mutex
+}
+
+func (fud *fakeUrlDispatcher) DispatchURL(url string, app *click.AppId) error {
+	fud.Lock.Lock()
+	defer fud.Lock.Unlock()
+	fud.DispatchCalls = append(fud.DispatchCalls, []string{url, app.DispatchPackage()})
+	if fud.DispatchShouldFail {
+		return errors.New("fail!")
+	}
+	return nil
+}
+
+func (fud *fakeUrlDispatcher) TestURL(app *click.AppId, urls []string) bool {
+	fud.Lock.Lock()
+	defer fud.Lock.Unlock()
+	var args = make(map[string][]string, 1)
+	args[app.DispatchPackage()] = urls
+	fud.TestURLCalls = append(fud.TestURLCalls, args)
+	return fud.NextTestURLResult
+}
+
 type postalSuite struct {
 	log          *helpers.TestLogger
 	cfg          *PostalServiceSetup
@@ -138,7 +167,6 @@ type postalSuite struct {
 	notifBus     bus.Endpoint
 	counterBus   bus.Endpoint
 	hapticBus    bus.Endpoint
-	urlDispBus   bus.Endpoint
 	winStackBus  bus.Endpoint
 	fakeLauncher *fakeHelperLauncher
 	getTempDir   func(string) (string, error)
@@ -166,7 +194,6 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.notifBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.counterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
-	ps.urlDispBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
 	ps.fakeLauncher = &fakeHelperLauncher{ch: make(chan []byte)}
 	ps.blacklisted = false
@@ -199,7 +226,6 @@ func (ps *postalSuite) replaceBuses(pst *PostalService) *PostalService {
 	pst.NotificationsEndp = ps.notifBus
 	pst.EmblemCounterEndp = ps.counterBus
 	pst.HapticEndp = ps.hapticBus
-	pst.URLDispatcherEndp = ps.urlDispBus
 	pst.WindowStackEndp = ps.winStackBus
 	pst.launchers = map[string]launch_helper.HelperLauncher{}
 	return pst
@@ -517,7 +543,6 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc.EmblemCounterEndp = endp
 	svc.HapticEndp = endp
 	svc.NotificationsEndp = endp
-	svc.URLDispatcherEndp = ps.urlDispBus
 	svc.WindowStackEndp = ps.winStackBus
 	svc.launchers = map[string]launch_helper.HelperLauncher{}
 	svc.fallbackVibration = &launch_helper.Vibration{Pattern: []uint32{1}}
@@ -593,14 +618,20 @@ func (ps *postalSuite) TestMessageHandlerReportsButIgnoresNilNotifies(c *C) {
 
 func (ps *postalSuite) TestMessageHandlerInvalidAction(c *C) {
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false), []string{"com.example.test_test-app"})
-	svc.URLDispatcherEndp = endp
 	c.Assert(svc.Start(), IsNil)
+	fakeDisp := new(fakeUrlDispatcher)
+	svc.urlDispatcher = fakeDisp
+	fakeDisp.NextTestURLResult = false
 	card := launch_helper.Card{Actions: []string{"notsupported://test-app"}}
 	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: &card}}
-	b := svc.messageHandler(clickhelp.MustParseAppId("com.example.test_test-app_0"), "", output)
+	appId := clickhelp.MustParseAppId("com.example.test_test-app_0")
+	b := svc.messageHandler(appId, "", output)
 	c.Check(b, Equals, false)
-	c.Check(ps.log.Captured(), Matches, `(?sm).*TestURL for \[notsupported://test-app\] failed with no way.*`)
+	fakeDisp.Lock.Lock()
+	defer fakeDisp.Lock.Unlock()
+	c.Assert(len(fakeDisp.DispatchCalls), Equals, 0)
+	c.Assert(len(fakeDisp.TestURLCalls), Equals, 1)
+	c.Assert(fakeDisp.TestURLCalls[0][appId.DispatchPackage()], DeepEquals, []string{"notsupported://test-app"})
 }
 
 func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
@@ -608,6 +639,9 @@ func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	fmm := new(fakeMM)
 	app, _ := click.ParseAppId("com.example.test_test-app")
 	c.Assert(svc.Start(), IsNil)
+	fakeDisp := new(fakeUrlDispatcher)
+	svc.urlDispatcher = fakeDisp
+	fakeDisp.NextTestURLResult = true
 	svc.messagingMenu = fmm
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
@@ -620,18 +654,20 @@ func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	}()
 	go svc.handleActions(aCh, rCh)
 	takeNextBool(bCh)
-	args := testibus.GetCallArgs(ps.urlDispBus)
-	c.Assert(args, HasLen, 1)
-	c.Check(args[0].Member, Equals, "DispatchURL")
-	c.Assert(args[0].Args, HasLen, 2)
-	c.Assert(args[0].Args[0], Equals, "potato://")
-	c.Assert(args[0].Args[1], Equals, app.DispatchPackage())
+	fakeDisp.Lock.Lock()
+	defer fakeDisp.Lock.Unlock()
+	c.Assert(len(fakeDisp.DispatchCalls), Equals, 1)
+	c.Assert(fakeDisp.DispatchCalls[0][0], Equals, "potato://")
+	c.Assert(fakeDisp.DispatchCalls[0][1], Equals, app.DispatchPackage())
 	c.Check(fmm.calls, DeepEquals, []string{"remove:xyzzy:true"})
 }
 
 func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
 	c.Assert(svc.Start(), IsNil)
+	fakeDisp := new(fakeUrlDispatcher)
+	svc.urlDispatcher = fakeDisp
+	fakeDisp.NextTestURLResult = true
 	app, _ := click.ParseAppId("com.example.test_test-app")
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
@@ -644,21 +680,21 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	}()
 	go svc.handleActions(aCh, rCh)
 	takeNextBool(bCh)
-	args := testibus.GetCallArgs(ps.urlDispBus)
-	c.Assert(args, HasLen, 1)
-	c.Check(args[0].Member, Equals, "DispatchURL")
-	c.Assert(args[0].Args, HasLen, 2)
-	c.Assert(args[0].Args[0], Equals, "potato://")
-	c.Assert(args[0].Args[1], Equals, app.DispatchPackage())
+	fakeDisp.Lock.Lock()
+	defer fakeDisp.Lock.Unlock()
+	c.Assert(len(fakeDisp.DispatchCalls), Equals, 1)
+	c.Assert(fakeDisp.DispatchCalls[0][0], Equals, "potato://")
+	c.Assert(fakeDisp.DispatchCalls[0][1], Equals, app.DispatchPackage())
 }
 
 func (ps *postalSuite) TestValidateActions(c *C) {
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
-	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []string{"com.example.test_test-app_0"})
-	svc.URLDispatcherEndp = endp
 	c.Assert(svc.Start(), IsNil)
 	card := launch_helper.Card{Actions: []string{"potato://test-app"}}
 	notif := &launch_helper.Notification{Card: &card}
+	fakeDisp := new(fakeUrlDispatcher)
+	svc.urlDispatcher = fakeDisp
+	fakeDisp.NextTestURLResult = true
 	b := svc.validateActions(clickhelp.MustParseAppId("com.example.test_test-app_0"), notif)
 	c.Check(b, Equals, true)
 }

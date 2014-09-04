@@ -32,6 +32,7 @@ ubuntu-push (0.61+14.10.20140812.4-0ubuntu1) utopic; urgency=medium
   [ Guillermo Gonzalez ]
   * Update autopilot tests to work with 0.50, fix setup.sh issues and add new tests for the broadcast notification changes.
   * Replace whoopsie with /var/lib/dbus/machine-id to get the device ID.
+  * Switch from url-dispatcher DBus to liburl-dispatcher1 C API
 
   [ John R. Lenton]
   * Support simpler sounds API.
