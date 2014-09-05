@@ -18,8 +18,7 @@
 package accounts
 
 /*
-#cgo pkg-config: glib-2.0 libaccounts-glib
-#include <glib.h>
+#cgo pkg-config: libaccounts-glib
 
 void start();
 
