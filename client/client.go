@@ -32,6 +32,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"launchpad.net/ubuntu-push/accounts"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/connectivity"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
@@ -123,6 +124,7 @@ type PushClient struct {
 	trackAddressees    map[string]*click.AppId
 	installedChecker   click.InstalledChecker
 	poller             poller.Poller
+	accountsCh         <-chan accounts.Changed
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
@@ -175,6 +177,7 @@ func (client *PushClient) configure() error {
 
 	client.connCh = make(chan bool, 1)
 	client.sessionConnectedCh = make(chan uint32, 1)
+	client.accountsCh = accounts.Watch()
 
 	if client.config.CertPEMFile != "" {
 		client.pem, err = ioutil.ReadFile(client.config.CertPEMFile)
@@ -464,10 +467,19 @@ func (client *PushClient) handleUnicastNotification(anotif session.AddressedNoti
 	return nil
 }
 
+// handleAccountsChange deals with the user adding or removing (or
+// changing) the u1 account used to auth
+func (client *PushClient) handleAccountsChange() {
+	client.log.Infof("U1 account changed; restarting session")
+	client.session.Close()
+}
+
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId)) {
+func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId), accountshandler func()) {
 	for {
 		select {
+		case <-client.accountsCh:
+			accountshandler()
 		case state := <-client.connCh:
 			connhandler(state)
 		case bcast := <-client.session.BroadcastCh:
@@ -501,7 +513,9 @@ func (client *PushClient) Loop() {
 		client.handleBroadcastNotification,
 		client.handleUnicastNotification,
 		client.handleErr,
-		client.handleUnregister)
+		client.handleUnregister,
+		client.handleAccountsChange,
+	)
 }
 
 func (client *PushClient) setupPushService() error {

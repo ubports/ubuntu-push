@@ -32,6 +32,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/accounts"
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/systemimage"
@@ -994,6 +995,7 @@ var nopBcast = func(*session.BroadcastNotification) error { return nil }
 var nopUcast = func(session.AddressedNotification) error { return nil }
 var nopError = func(error) {}
 var nopUnregister = func(*click.AppId) {}
+var nopAcct = func() {}
 
 func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -1004,7 +1006,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) { ch <- true }, nopBcast, nopUcast, nopError, nopUnregister)
+	go cli.doLoop(func(bool) { ch <- true }, nopBcast, nopUcast, nopError, nopUnregister, nopAcct)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1017,7 +1019,7 @@ func (cs *clientSuite) TestDoLoopBroadcast(c *C) {
 	cli.session.BroadcastCh <- &session.BroadcastNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopError, nopUnregister)
+	go cli.doLoop(nopConn, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopError, nopUnregister, nopAcct)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1030,7 +1032,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.session.NotificationsCh <- session.AddressedNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopError, nopUnregister)
+	go cli.doLoop(nopConn, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopError, nopUnregister, nopAcct)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1043,7 +1045,7 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli.session.ErrCh <- nil
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, nopUcast, func(error) { ch <- true }, nopUnregister)
+	go cli.doLoop(nopConn, nopBcast, nopUcast, func(error) { ch <- true }, nopUnregister, nopAcct)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1056,7 +1058,21 @@ func (cs *clientSuite) TestDoLoopUnregister(c *C) {
 	cli.unregisterCh <- app1
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, nopUcast, nopError, func(app *click.AppId) { c.Check(app.Original(), Equals, appId1); ch <- true })
+	go cli.doLoop(nopConn, nopBcast, nopUcast, nopError, func(app *click.AppId) { c.Check(app.Original(), Equals, appId1); ch <- true }, nopAcct)
+	c.Check(takeNextBool(ch), Equals, true)
+}
+
+func (cs *clientSuite) TestDoLoopAcct(c *C) {
+	cli := NewPushClient(cs.configPath, cs.leveldbPath)
+	cli.log = cs.log
+	cli.systemImageInfo = siInfoRes
+	c.Assert(cli.initSessionAndPoller(), IsNil)
+	acctCh := make(chan accounts.Changed, 1)
+	acctCh <- accounts.Changed{}
+	cli.accountsCh = acctCh
+
+	ch := make(chan bool, 1)
+	go cli.doLoop(nopConn, nopBcast, nopUcast, nopError, nopUnregister, func() { ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 

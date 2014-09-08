@@ -1,0 +1,28 @@
+Example App for the QML notifications API. This is an example application
+showing how to use push notifications in Ubuntu Touch devices.
+
+= Running on Ubuntu Touch =
+
+Since push is currently only meant for Ubuntu Touch devices, this is meant
+to be used in the emulator or on a real device.
+
+* Open the example project in Ubuntu-SDK
+* Build a click file
+* Run in the emulator or device
+
+= Running on the desktop =
+
+This is more complicated but may be convenient while experimenting:
+
+* Install qtdeclarative5-ubuntu-push-notifications-plugin
+* Install ubuntu-push-client
+* Run ubuntu-push-client in trivial helper mode:
+
+	UBUNTU_PUSH_USE_TRIVIAL_HELPER=1 ./ubuntu-push-client
+
+* Build click package
+* Install in your desktop:
+
+	sudo click install --all-users com.ubuntu.developer.push.ubuntu-push-example_0.1_all.click
+
+* Run example app from the SDK using the "Desktop" kit

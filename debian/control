@@ -21,6 +21,7 @@ Build-Depends: debhelper (>= 9),
                libnih-dbus-dev,
                libclick-0.4-dev,
                liburl-dispatcher1-dev,
+               libaccounts-glib-dev,
                cmake,
                python3,
 Standards-Version: 3.9.5
