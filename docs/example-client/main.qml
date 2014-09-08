@@ -46,6 +46,7 @@ MainView {
         id: nickEdit
         focus: true
         placeholderText: "Your nickname"
+        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhPreferLowercase
         anchors.left: parent.left
         anchors.right: loginButton.left
         anchors.top: parent.top
@@ -85,6 +86,7 @@ MainView {
 
     TextField {
         id: messageEdit
+        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhPreferLowercase
         anchors.right: parent.right
         anchors.left: parent.left
         anchors.top: nickEdit.bottom
