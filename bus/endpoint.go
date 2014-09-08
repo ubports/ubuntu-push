@@ -19,9 +19,9 @@ package bus
 // Here we define the Endpoint, which represents the DBus connection itself.
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
-	"strings"
 
 	"launchpad.net/go-dbus/v1"
 
@@ -272,7 +272,8 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap, suffix string, extra ...
 					var san_rvals []string
 					for _, element := range rvals {
 						sane := fmt.Sprintf("%v", element)
-						if strings.HasSuffix(sane, "==") {
+						_, err := base64.StdEncoding.DecodeString(sane)
+						if err == nil {
 							sane = "LooksLikeAToken=="
 						}
 						san_rvals = append(san_rvals, sane)
