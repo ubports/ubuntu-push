@@ -1,3 +1,26 @@
+ubuntu-push (0.64+14.10.20140908-0ubuntu1) utopic; urgency=medium
+
+  [ Roberto Alsina ]
+  * Remove tokens from debug output
+  * Doc updates
+  * Included example code in docs directory
+
+  [ John R. Lenton]
+  * Use libaccounts to track changes to the u1 account used for auth; restart the session on change.
+  * Set the MEDIA_PROP env var to select the right media role for notification sounds
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 08 Sep 2014 18:05:11 +0000
+
+ubuntu-push (0.63.2+14.10.20140902.1-0ubuntu1) utopic; urgency=medium
+
+  [ Roberto Alsina ]
+  * Avoid busy-loop wben powerd doesn't respond.
+
+  [ Guillermo Gonzalez ]
+  * Replace DBus url-dispatcher API with liburl-dispatcher1 C API.
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Tue, 02 Sep 2014 17:28:19 +0000
+
 ubuntu-push (0.63.1+14.10.20140828-0ubuntu1) utopic; urgency=medium
 
   [ Samuele Pedroni ]
@@ -32,7 +55,6 @@ ubuntu-push (0.61+14.10.20140812.4-0ubuntu1) utopic; urgency=medium
   [ Guillermo Gonzalez ]
   * Update autopilot tests to work with 0.50, fix setup.sh issues and add new tests for the broadcast notification changes.
   * Replace whoopsie with /var/lib/dbus/machine-id to get the device ID.
-  * Switch from url-dispatcher DBus to liburl-dispatcher1 C API
 
   [ John R. Lenton]
   * Support simpler sounds API.
