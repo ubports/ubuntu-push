@@ -21,6 +21,7 @@ package bus
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"launchpad.net/go-dbus/v1"
 
@@ -268,7 +269,15 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap, suffix string, extra ...
 					reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
 					endp.log.Errorf("WatchMethod: %s(%v, %#v, %#v) failure: %#v", msg.Member, msg.Path, args, extra, err)
 				} else {
-					endp.log.Debugf("WatchMethod: %s(%v, %#v, %#v) success: %#v", msg.Member, msg.Path, args, extra, rvals)
+					var san_rvals []string
+					for _, element := range rvals {
+						sane := fmt.Sprintf("%v", element)
+						if strings.HasSuffix(sane, "==") {
+							sane = "LooksLikeAToken=="
+						}
+						san_rvals = append(san_rvals, sane)
+					}
+					endp.log.Debugf("WatchMethod: %s(%v, %#v, %#v) success: %#v", msg.Member, msg.Path, args, extra, san_rvals)
 					reply = dbus.NewMethodReturnMessage(msg)
 					err = reply.AppendArgs(rvals...)
 					if err != nil {
