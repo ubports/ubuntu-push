@@ -1,0 +1,46 @@
+Let's describe the push system by way of an example.
+
+Alice has written a chat application called Chatter. Using it, Bob can send messages to Carol and viceversa. Alice has a
+web application for it, so the way it works now is that Bob connects to the service, posts a message, and when Carol
+connects, she gets it. If Carol leaves the browser window open, it beeps when messages arrive.
+
+Now Alice wants to create an Ubuntu Touch app for Chatter, so she implements the same architecture using a client that
+does the same thing as the web browser. Sadly, since applications on Ubuntu Touch don't run continuously, messages are
+only delivered when Carol opens the app, and the user experience suffers.
+
+Using the Ubuntu Push Server, this problem is alleviated: the Chatter server will deliver the messages to the Ubuntu
+Push Server, which in turn will send it in an efficient manner to the Ubuntu Push Client running in Bob and Carol's
+devices. The user sees a notification (all without starting the app) and then can launch it if he's interested in
+reading messages at that point.
+
+Since the app is not started and messages are delivered oportunistically, this is both battery and bandwidth-efficient.
+
+.. figure:: push.svg
+
+The Ubuntu Push system provides:
+
+* A push server which receives **push messages** from the app servers, queues them and delivers them efficiently
+  to the devices.
+* A push client which receives those messages, queues messages to the app and displays notifications to the user
+
+The full lifecycle of a push message is:
+
+* Created in a application-specific server
+* Sent to the Ubuntu Push server, targeted at a user or user+device pair
+* Delivered to one or more Ubuntu devices
+* Passed through the application helper for processing
+* Notification displayed to the user (via different mechanisms)
+* Application Message queued for the app's use
+
+If the user interacts with the notification, the application is launched and should check its queue for messages
+it has to process.
+
+For the app developer, there are several components needed:
+
+* A server that sends the **push messages** to the Ubuntu Push server
+* Support in the client app for registering with the Ubuntu Push client
+* Support in the client app to react to **notifications** displayed to the user and process **application messages**
+* A helper program with application-specific knowledge that transforms **push messages** as needed.
+
+In the following sections, we'll see how to implement all the client side parts. For the application server, see the
+`Ubuntu Push Server API section <#ubuntu-push-server-api>`__

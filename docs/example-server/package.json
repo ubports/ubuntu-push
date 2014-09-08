@@ -1,0 +1,25 @@
+{
+  "name": "pushAppServer",
+  "version": "0.0.2",
+  "description": "Push Notifications App Server Example",
+  "main": "server.js",
+  "dependencies": {
+    "body-parser": "~1.4.3",
+    "express": "~4.4.5",
+    "mongodb": "~1.4.7",
+    "request": "~2.36.0"
+  },
+  "scripts": {
+    "test": "mocha --ui tdd",
+    "start": "PUSH_URL=http://localhost:8080 node server.js"
+  },
+  "author": "Canonical",
+  "license": "LGPL",
+  "directories": {
+    "test": "test"
+  },
+  "devDependencies": {
+    "mocha": "~1.20.1",
+    "supertest": "~0.13.0"
+  }
+}

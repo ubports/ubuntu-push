@@ -1,0 +1,19 @@
+{
+    "architecture": "all",
+    "description": "Example app for Ubuntu push notifications.",
+    "framework": "ubuntu-sdk-14.10-dev2",
+    "hooks": {
+        "hello": {
+            "apparmor": "hello.json",
+            "desktop": "hello.desktop"
+        },
+        "helloHelper": {
+            "apparmor": "helloHelper-apparmor.json",
+            "push-helper": "helloHelper.json"
+        }
+    },
+    "maintainer": "Roberto Alsina <roberto.alsina@canonical.com>",
+    "name": "com.ubuntu.developer.ralsina.hello",
+    "title": "ubuntu-push-example",
+    "version": "0.4"
+}

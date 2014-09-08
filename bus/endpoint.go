@@ -19,6 +19,7 @@ package bus
 // Here we define the Endpoint, which represents the DBus connection itself.
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -268,7 +269,16 @@ func (endp *endpoint) WatchMethod(dispatch DispatchMap, suffix string, extra ...
 					reply = dbus.NewErrorMessage(msg, err_iface, err.Error())
 					endp.log.Errorf("WatchMethod: %s(%v, %#v, %#v) failure: %#v", msg.Member, msg.Path, args, extra, err)
 				} else {
-					endp.log.Debugf("WatchMethod: %s(%v, %#v, %#v) success: %#v", msg.Member, msg.Path, args, extra, rvals)
+					var san_rvals []string
+					for _, element := range rvals {
+						sane := fmt.Sprintf("%v", element)
+						_, err := base64.StdEncoding.DecodeString(sane)
+						if err == nil {
+							sane = "LooksLikeAToken=="
+						}
+						san_rvals = append(san_rvals, sane)
+					}
+					endp.log.Debugf("WatchMethod: %s(%v, %#v, %#v) success: %#v", msg.Member, msg.Path, args, extra, san_rvals)
 					reply = dbus.NewMethodReturnMessage(msg)
 					err = reply.AppendArgs(rvals...)
 					if err != nil {
