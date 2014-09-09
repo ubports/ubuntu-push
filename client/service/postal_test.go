@@ -546,6 +546,7 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc.EmblemCounterEndp = endp
 	svc.HapticEndp = endp
 	svc.NotificationsEndp = endp
+	svc.UnityGreeterEndp = ps.unityGreeterBus
 	svc.WindowStackEndp = ps.winStackBus
 	svc.launchers = map[string]launch_helper.HelperLauncher{}
 	svc.fallbackVibration = &launch_helper.Vibration{Pattern: []uint32{1}}
