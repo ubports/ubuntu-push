@@ -420,6 +420,12 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 		// no need to log, (it's been logged already)
 		return false
 	}
+
+	if svc.unityGreeter.IsActive() {
+        // Screen is locked, ensure popup is false
+        svc.Log.Debugf("#v", output.Notification)
+	}
+
 	if !svc.windowStack.IsAppFocused(app) {
 		if isBlacklisted(app) {
 			svc.Log.Debugf("notification skipped (except emblem counter) because app is blacklisted")
