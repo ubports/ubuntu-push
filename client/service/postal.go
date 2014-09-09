@@ -27,7 +27,8 @@ import (
 	"launchpad.net/ubuntu-push/bus/emblemcounter"
 	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/notifications"
-	"launchpad.net/ubuntu-push/bus/windowstack"
+    "launchpad.net/ubuntu-push/bus/unitygreeter"
+    "launchpad.net/ubuntu-push/bus/windowstack"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/click/cblacklist"
 	"launchpad.net/ubuntu-push/launch_helper"
@@ -76,7 +77,8 @@ type PostalService struct {
 	EmblemCounterEndp bus.Endpoint
 	HapticEndp        bus.Endpoint
 	NotificationsEndp bus.Endpoint
-	WindowStackEndp   bus.Endpoint
+    UnityGreeterEndp   bus.Endpoint
+    WindowStackEndp   bus.Endpoint
 	// presenters:
 	Presenters    []Presenter
 	emblemCounter *emblemcounter.EmblemCounter
@@ -85,7 +87,8 @@ type PostalService struct {
 	sound         *sounds.Sound
 	// the url dispatcher, used for stuff.
 	urlDispatcher urldispatcher.URLDispatcher
-	windowStack   *windowstack.WindowStack
+    unityGreeter   *unitygreeter.UnityGreeter
+    windowStack   *windowstack.WindowStack
 	// fallback values for simplified notification usage
 	fallbackVibration *launch_helper.Vibration
 	fallbackSound     string
@@ -115,7 +118,8 @@ func NewPostalService(setup *PostalServiceSetup, log logger.Logger) *PostalServi
 	svc.NotificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, log)
 	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
 	svc.HapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, log)
-	svc.WindowStackEndp = bus.SessionBus.Endpoint(windowstack.BusAddress, log)
+    svc.UnityGreeterEndp = bus.SessionBus.Endpoint(unitygreeter.BusAddress, log)
+    svc.WindowStackEndp = bus.SessionBus.Endpoint(windowstack.BusAddress, log)
 	svc.msgHandler = svc.messageHandler
 	svc.launchers = launch_helper.DefaultLaunchers(log)
 	return svc
@@ -169,6 +173,7 @@ func (svc *PostalService) Start() error {
 	} else {
 		svc.HelperPool = launch_helper.NewHelperPool(svc.launchers, svc.Log)
 	}
+	svc.unityGreeter = unitygreeter.New(svc.UnityGreeterEndp, svc.Log)
 	svc.windowStack = windowstack.New(svc.WindowStackEndp, svc.Log)
 
 	go svc.consumeHelperResults(svc.HelperPool.Start())
@@ -224,7 +229,8 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 		{"notifications", svc.NotificationsEndp},
 		{"emblemcounter", svc.EmblemCounterEndp},
 		{"haptic", svc.HapticEndp},
-		{"windowstack", svc.WindowStackEndp},
+        {"unitygreeter", svc.UnityGreeterEndp},
+        {"windowstack", svc.WindowStackEndp},
 	}
 	for _, endp := range endps {
 		if endp.endp == nil {
