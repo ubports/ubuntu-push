@@ -43,11 +43,10 @@ func New(endp bus.Endpoint, log logger.Logger) *UnityGreeter {
 
 // GetUnityGreeter returns the window stack state
 func (greeter *UnityGreeter) IsActive() bool {
-    result := false
-	err := greeter.bus.Call("org.freedesktop.DBus.Properties.Get", bus.Args("com.canonical.UnityGreeter", "IsActive"), &result)
+	result, err := greeter.bus.GetProperty("IsActive")
 	if err != nil {
 		greeter.log.Errorf("GetUnityGreeter call returned %v", err)
-        result = false
+		return false
 	}
-	return result
+	return result.(bool)
 }
