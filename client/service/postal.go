@@ -421,9 +421,9 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 		return false
 	}
 
-	if svc.unityGreeter.IsActive() {
-		// Screen is locked, ensure popup is false
-		if output.Notification.Card != nil {
+	if output.Notification.Card != nil && output.Notification.Card.Popup {
+		if svc.unityGreeter.IsActive() {
+			// Screen is locked, ensure popup is false
 			output.Notification.Card.Popup = false
 		}
 	}
