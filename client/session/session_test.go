@@ -1489,14 +1489,7 @@ var (
 
 func (cs *clientSessionSuite) TestDialBadServerName(c *C) {
 	// a borked server name
-	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
-	c.Assert(err, IsNil)
-	tlsCfg := &tls.Config{
-		Certificates:           []tls.Certificate{cert},
-		SessionTicketsDisabled: true,
-	}
-
-	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
+	lst, err := tls.Listen("tcp", "localhost:0", helpers.TestTLSServerConfig)
 	c.Assert(err, IsNil)
 	// advertise
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1541,19 +1534,12 @@ func (cs *clientSessionSuite) TestDialBadServerName(c *C) {
 
 func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	// happy path thoughts
-	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
-	c.Assert(err, IsNil)
-	tlsCfg := &tls.Config{
-		Certificates:           []tls.Certificate{cert},
-		SessionTicketsDisabled: true,
-	}
-
-	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
+	lst, err := tls.Listen("tcp", "localhost:0", helpers.TestTLSServerConfig)
 	c.Assert(err, IsNil)
 	// advertise
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := json.Marshal(map[string]interface{}{
-			"domain": "localhost",
+			"domain": "push-delivery",
 			"hosts":  []string{"nowhere", lst.Addr().String()},
 		})
 		if err != nil {
@@ -1649,14 +1635,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 
 func (cs *clientSessionSuite) TestDialWorksDirect(c *C) {
 	// happy path thoughts
-	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
-	c.Assert(err, IsNil)
-	tlsCfg := &tls.Config{
-		Certificates:           []tls.Certificate{cert},
-		SessionTicketsDisabled: true,
-	}
-
-	lst, err := tls.Listen("tcp", "localhost:0", tlsCfg)
+	lst, err := tls.Listen("tcp", "localhost:0", helpers.TestTLSServerConfig)
 	c.Assert(err, IsNil)
 	sess, err := NewSession(lst.Addr().String(), dialTestConf, "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)

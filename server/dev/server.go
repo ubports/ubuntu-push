@@ -64,7 +64,7 @@ func main() {
 	if err != nil {
 		server.BootLogFatalf("reading config: %v", err)
 	}
-	err = cfg.DevicesParsedConfig.FinishLoad(filepath.Dir(cfgFpaths[len(cfgFpaths)-1]))
+	err = cfg.DevicesParsedConfig.LoadPEMs(filepath.Dir(cfgFpaths[len(cfgFpaths)-1]))
 	if err != nil {
 		server.BootLogFatalf("reading config: %v", err)
 	}
@@ -95,7 +95,7 @@ func main() {
 		})
 	})
 	handler := api.PanicTo500Handler(mux, logger)
-	go server.HTTPServeRunner(nil, handler, &cfg.HTTPServeParsedConfig)()
+	go server.HTTPServeRunner(nil, handler, &cfg.HTTPServeParsedConfig, nil)()
 	// listen for device connections
 	server.DevicesRunner(lst, func(conn net.Conn) error {
 		track := session.NewTracker(logger)

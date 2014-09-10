@@ -17,6 +17,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -68,7 +69,7 @@ func testHandle(w http.ResponseWriter, r *http.Request) {
 func (s *runnerSuite) TestHTTPServeRunner(c *C) {
 	errCh := make(chan interface{}, 1)
 	h := http.HandlerFunc(testHandle)
-	runner := HTTPServeRunner(nil, h, &testHTTPServeParsedConfig)
+	runner := HTTPServeRunner(nil, h, &testHTTPServeParsedConfig, nil)
 	c.Assert(s.lst, Not(IsNil))
 	defer s.lst.Close()
 	c.Check(s.kind, Equals, "http")
@@ -89,16 +90,25 @@ func (s *runnerSuite) TestHTTPServeRunner(c *C) {
 	c.Check(<-errCh, Matches, "accepting http connections:.*closed.*")
 }
 
+func cert() tls.Certificate {
+	cert, err := tls.X509KeyPair(helpers.TestCertPEMBlock, helpers.TestKeyPEMBlock)
+	if err != nil {
+		panic(err)
+	}
+	return cert
+}
+
 var testDevicesParsedConfig = DevicesParsedConfig{
 	ParsedPingInterval:     config.ConfigTimeDuration{60 * time.Second},
 	ParsedExchangeTimeout:  config.ConfigTimeDuration{10 * time.Second},
 	ParsedBrokerQueueSize:  config.ConfigQueueSize(1000),
 	ParsedSessionQueueSize: config.ConfigQueueSize(10),
 	ParsedAddr:             "127.0.0.1:0",
-	ParsedKeyPEMFile:       "",
-	ParsedCertPEMFile:      "",
-	keyPEMBlock:            helpers.TestKeyPEMBlock,
-	certPEMBlock:           helpers.TestCertPEMBlock,
+	TLSParsedConfig: TLSParsedConfig{
+		ParsedKeyPEMFile:  "",
+		ParsedCertPEMFile: "",
+		cert:              cert(),
+	},
 }
 
 func (s *runnerSuite) TestDevicesRunner(c *C) {
@@ -135,7 +145,36 @@ func (s *runnerSuite) TestHTTPServeRunnerAdoptListener(c *C) {
 	lst0, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, IsNil)
 	defer lst0.Close()
-	HTTPServeRunner(lst0, nil, &testHTTPServeParsedConfig)
+	HTTPServeRunner(lst0, nil, &testHTTPServeParsedConfig, nil)
 	c.Assert(s.lst, Equals, lst0)
 	c.Check(s.kind, Equals, "http")
+}
+
+func (s *runnerSuite) TestHTTPServeRunnerTLS(c *C) {
+	errCh := make(chan interface{}, 1)
+	h := http.HandlerFunc(testHandle)
+	runner := HTTPServeRunner(nil, h, &testHTTPServeParsedConfig, helpers.TestTLSServerConfig)
+	c.Assert(s.lst, Not(IsNil))
+	defer s.lst.Close()
+	c.Check(s.kind, Equals, "http")
+	go func() {
+		defer func() {
+			errCh <- recover()
+		}()
+		runner()
+	}()
+	cli := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: helpers.TestTLSClientConfig,
+		},
+	}
+	resp, err := cli.Get(fmt.Sprintf("https://%s/", s.lst.Addr()))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, 200)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, "yay!\n")
+	s.lst.Close()
+	c.Check(<-errCh, Matches, "accepting http connections:.*closed.*")
 }
