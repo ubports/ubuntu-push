@@ -225,6 +225,7 @@ MainView {
                     text: "Enable Notifications"
                     control: Switch {
                         id: annoyingSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -232,6 +233,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Switch {
                         id: popupSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -239,6 +241,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Switch {
                         id: persistSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -246,6 +249,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Switch {
                         id: soundSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -253,6 +257,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Switch {
                         id: vibrateSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -260,6 +265,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Slider {
                         id: counterSlider
+                        value: 42
                     }
                 }
             }
