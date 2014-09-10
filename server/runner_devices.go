@@ -17,7 +17,6 @@
 package server
 
 import (
-	"fmt"
 	"net"
 	"syscall"
 	"time"
@@ -36,26 +35,8 @@ type DevicesParsedConfig struct {
 	ParsedSessionQueueSize config.ConfigQueueSize `json:"session_queue_size"`
 	ParsedBrokerQueueSize  config.ConfigQueueSize `json:"broker_queue_size"`
 	// device listener configuration
-	ParsedAddr        config.ConfigHostPort `json:"addr"`
-	ParsedKeyPEMFile  string                `json:"key_pem_file"`
-	ParsedCertPEMFile string                `json:"cert_pem_file"`
-	// private post-processed config
-	certPEMBlock []byte
-	keyPEMBlock  []byte
-}
-
-func (cfg *DevicesParsedConfig) FinishLoad(baseDir string) error {
-	keyPEMBlock, err := config.LoadFile(cfg.ParsedKeyPEMFile, baseDir)
-	if err != nil {
-		return fmt.Errorf("reading key_pem_file: %v", err)
-	}
-	certPEMBlock, err := config.LoadFile(cfg.ParsedCertPEMFile, baseDir)
-	if err != nil {
-		return fmt.Errorf("reading cert_pem_file: %v", err)
-	}
-	cfg.keyPEMBlock = keyPEMBlock
-	cfg.certPEMBlock = certPEMBlock
-	return nil
+	ParsedAddr config.ConfigHostPort `json:"addr"`
+	TLSParsedConfig
 }
 
 func (cfg *DevicesParsedConfig) PingInterval() time.Duration {
@@ -76,14 +57,6 @@ func (cfg *DevicesParsedConfig) BrokerQueueSize() uint {
 
 func (cfg *DevicesParsedConfig) Addr() string {
 	return cfg.ParsedAddr.HostPort()
-}
-
-func (cfg *DevicesParsedConfig) KeyPEMBlock() []byte {
-	return cfg.keyPEMBlock
-}
-
-func (cfg *DevicesParsedConfig) CertPEMBlock() []byte {
-	return cfg.certPEMBlock
 }
 
 // DevicesRunner returns a function to accept device connections.

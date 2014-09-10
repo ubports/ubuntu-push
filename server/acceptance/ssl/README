@@ -3,6 +3,6 @@ testing.key/testing.cert
 
 Generated with:
 
-  go run /usr/lib/go/src/pkg/crypto/tls/generate_cert.go -ca -host localhost -rsa-bits 512 -duration 87600h
+  go run /usr/lib/go/src/pkg/crypto/tls/generate_cert.go -ca -host push-delivery -rsa-bits 512 -duration 87600h
 
 and then renamed.

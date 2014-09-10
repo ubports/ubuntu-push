@@ -17,6 +17,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"net"
 	"net/http"
 
@@ -32,7 +33,8 @@ type HTTPServeParsedConfig struct {
 
 // HTTPServeRunner returns a function to serve HTTP requests.
 // If httpLst is not nil it will be used as the underlying listener.
-func HTTPServeRunner(httpLst net.Listener, h http.Handler, parsedCfg *HTTPServeParsedConfig) func() {
+// If tlsCfg is not nit server over TLS with the config.
+func HTTPServeRunner(httpLst net.Listener, h http.Handler, parsedCfg *HTTPServeParsedConfig, tlsCfg *tls.Config) func() {
 	if httpLst == nil {
 		var err error
 		httpLst, err = net.Listen("tcp", parsedCfg.ParsedHTTPAddr.HostPort())
@@ -45,6 +47,9 @@ func HTTPServeRunner(httpLst net.Listener, h http.Handler, parsedCfg *HTTPServeP
 		Handler:      h,
 		ReadTimeout:  parsedCfg.ParsedHTTPReadTimeout.TimeDuration(),
 		WriteTimeout: parsedCfg.ParsedHTTPWriteTimeout.TimeDuration(),
+	}
+	if tlsCfg != nil {
+		httpLst = tls.NewListener(httpLst, tlsCfg)
 	}
 	return func() {
 		err := srv.Serve(httpLst)

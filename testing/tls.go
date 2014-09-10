@@ -16,26 +16,53 @@
 
 package testing
 
-// key&cert generated with go run /usr/lib/go/src/pkg/crypto/tls/generate_cert.go -ca -host localhost -rsa-bits 512 -duration 87600h
+import (
+	"crypto/tls"
+	"crypto/x509"
+)
+
+// key&cert generated with go run /usr/lib/go/src/pkg/crypto/tls/generate_cert.go -ca -host push-delivery -rsa-bits 512 -duration 87600h
 var (
 	TestKeyPEMBlock = []byte(`-----BEGIN RSA PRIVATE KEY-----
-MIIBPAIBAAJBAPw+niki17X2qALE2A2AzE1q5dvK9CI4OduRtT9IgbFLC6psqAT2
-1NA+QbY17nWSSpyP65zkMkwKXrbDzstwLPkCAwEAAQJAKwXbIBULScP6QA6m8xam
-wgWbkvN41GVWqPafPV32kPBvKwSc+M1e+JR7g3/xPZE7TCELcfYi4yXEHZZI3Pbh
-oQIhAP/UsgJbsfH1GFv8Y8qGl5l/kmwwkwHhuKvEC87Yur9FAiEA/GlQv3ZfaXnT
-lcCFT0aL02O0RDiRYyMUG/JAZQJs6CUCIQCHO5SZYIUwxIGK5mCNxxXOAzyQSiD7
-hqkKywf+4FvfDQIhALa0TLyqJFom0t7c4iIGAIRc8UlIYQSPiajI64+x9775AiEA
-0v4fgSK/Rq059zW1753JjuB6aR0Uh+3RqJII4dUR1Wg=
+MIIBOgIBAAJBANRU+pZKMNHpMvg549meJ060xQ4HCjrfVq+AeIER9W1pkaknDj8c
+hwOWKHTeztcPF/LHVpKPabn+fSNbFlq+SzcCAwEAAQJBAIOO+4xu/3yv/rKqO7C0
+Oyqa+pVMa1w60R0AfqmKFQTqiTgevM77uqjpW1+t0hpK20nyj6MUIPaL+9kZgp7t
+mnECIQDqw79PXSzudf10XGy9ve5bRazINHxQYgJ7FvlTT6JhdQIhAOeJxq9zcKni
+69ueO1ualz0hn8w6uHPsG9FlZ8C+7Jh7AiAWJgebjjfZ+4nA+6NKt2uQct9dOA5u
+awC+6ij1ojK4rQIgNEqAbcWDj0qpe8sLms+aEntSjJxCZiPP0IW3XeeApZsCIDwo
+x+YyxXQWJlf9L5TNYPRo+KFEdk3Cew0lv6QNs+xe
 -----END RSA PRIVATE KEY-----`)
 
 	TestCertPEMBlock = []byte(`-----BEGIN CERTIFICATE-----
 MIIBYzCCAQ+gAwIBAgIBADALBgkqhkiG9w0BAQUwEjEQMA4GA1UEChMHQWNtZSBD
-bzAeFw0xMzEyMTkyMDU1NDNaFw0yMzEyMTcyMDU1NDNaMBIxEDAOBgNVBAoTB0Fj
-bWUgQ28wWjALBgkqhkiG9w0BAQEDSwAwSAJBAPw+niki17X2qALE2A2AzE1q5dvK
-9CI4OduRtT9IgbFLC6psqAT21NA+QbY17nWSSpyP65zkMkwKXrbDzstwLPkCAwEA
-AaNUMFIwDgYDVR0PAQH/BAQDAgCkMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8GA1Ud
-EwEB/wQFMAMBAf8wGgYDVR0RBBMwEYIJbG9jYWxob3N0hwR/AAABMAsGCSqGSIb3
-DQEBBQNBAFqiVI+Km2XPSO+pxITaPvhmuzg+XG3l1+2di3gL+HlDobocjBqRctRU
-YySO32W07acjGJmCHUKpCJuq9X8hpmk=
+bzAeFw0xNDA4MjkxMjQyMDFaFw0yNDA4MjYxMjQyMDFaMBIxEDAOBgNVBAoTB0Fj
+bWUgQ28wXDANBgkqhkiG9w0BAQEFAANLADBIAkEA1FT6lkow0eky+Dnj2Z4nTrTF
+DgcKOt9Wr4B4gRH1bWmRqScOPxyHA5YodN7O1w8X8sdWko9puf59I1sWWr5LNwID
+AQABo1IwUDAOBgNVHQ8BAf8EBAMCAKQwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDwYD
+VR0TAQH/BAUwAwEB/zAYBgNVHREEETAPgg1wdXNoLWRlbGl2ZXJ5MAsGCSqGSIb3
+DQEBBQNBABtWCdMFkhIO8+oM3vugOWle9WJZ1FCRWD+cMl76mI1lhmNF4lvEZG47
+xUjekA1+heU39WpOEzZSybrOdiEaGbI=
 -----END CERTIFICATE-----`)
 )
+
+// test tls server & client config
+var TestTLSServerConfig, TestTLSClientConfig *tls.Config
+
+func init() {
+	cert, err := tls.X509KeyPair(TestCertPEMBlock, TestKeyPEMBlock)
+	if err != nil {
+		panic(err)
+	}
+	TestTLSServerConfig = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+	cp := x509.NewCertPool()
+	ok := cp.AppendCertsFromPEM(TestCertPEMBlock)
+	if !ok {
+		panic("failed to parse test cert")
+	}
+	TestTLSClientConfig = &tls.Config{
+		RootCAs:    cp,
+		ServerName: "push-delivery",
+	}
+}
