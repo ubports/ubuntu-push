@@ -46,6 +46,7 @@ MainView {
         id: nickEdit
         focus: true
         placeholderText: "Your nickname"
+        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhPreferLowercase
         anchors.left: parent.left
         anchors.right: loginButton.left
         anchors.top: parent.top
@@ -85,6 +86,7 @@ MainView {
 
     TextField {
         id: messageEdit
+        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhPreferLowercase
         anchors.right: parent.right
         anchors.left: parent.left
         anchors.top: nickEdit.bottom
@@ -223,6 +225,7 @@ MainView {
                     text: "Enable Notifications"
                     control: Switch {
                         id: annoyingSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -230,6 +233,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Switch {
                         id: popupSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -237,6 +241,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Switch {
                         id: persistSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -244,6 +249,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Switch {
                         id: soundSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -251,6 +257,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Switch {
                         id: vibrateSwitch
+                        checked: true
                     }
                 }
                 ListItem.Standard {
@@ -258,6 +265,7 @@ MainView {
                     enabled: annoyingSwitch.checked
                     control: Slider {
                         id: counterSlider
+                        value: 42
                     }
                 }
             }

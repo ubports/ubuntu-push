@@ -161,17 +161,18 @@ func (fud *fakeUrlDispatcher) TestURL(app *click.AppId, urls []string) bool {
 }
 
 type postalSuite struct {
-	log          *helpers.TestLogger
-	cfg          *PostalServiceSetup
-	bus          bus.Endpoint
-	notifBus     bus.Endpoint
-	counterBus   bus.Endpoint
-	hapticBus    bus.Endpoint
-	winStackBus  bus.Endpoint
-	fakeLauncher *fakeHelperLauncher
-	getTempDir   func(string) (string, error)
-	oldIsBlisted func(*click.AppId) bool
-	blacklisted  bool
+	log             *helpers.TestLogger
+	cfg             *PostalServiceSetup
+	bus             bus.Endpoint
+	notifBus        bus.Endpoint
+	counterBus      bus.Endpoint
+	hapticBus       bus.Endpoint
+	unityGreeterBus bus.Endpoint
+	winStackBus     bus.Endpoint
+	fakeLauncher    *fakeHelperLauncher
+	getTempDir      func(string) (string, error)
+	oldIsBlisted    func(*click.AppId) bool
+	blacklisted     bool
 }
 
 type ualPostalSuite struct {
@@ -194,6 +195,7 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.notifBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.counterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	ps.unityGreeterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), false)
 	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
 	ps.fakeLauncher = &fakeHelperLauncher{ch: make(chan []byte)}
 	ps.blacklisted = false
@@ -226,6 +228,7 @@ func (ps *postalSuite) replaceBuses(pst *PostalService) *PostalService {
 	pst.NotificationsEndp = ps.notifBus
 	pst.EmblemCounterEndp = ps.counterBus
 	pst.HapticEndp = ps.hapticBus
+	pst.UnityGreeterEndp = ps.unityGreeterBus
 	pst.WindowStackEndp = ps.winStackBus
 	pst.launchers = map[string]launch_helper.HelperLauncher{}
 	return pst
@@ -543,6 +546,7 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc.EmblemCounterEndp = endp
 	svc.HapticEndp = endp
 	svc.NotificationsEndp = endp
+	svc.UnityGreeterEndp = ps.unityGreeterBus
 	svc.WindowStackEndp = ps.winStackBus
 	svc.launchers = map[string]launch_helper.HelperLauncher{}
 	svc.fallbackVibration = &launch_helper.Vibration{Pattern: []uint32{1}}

@@ -30,10 +30,8 @@ import (
 type DeviceListenerConfig interface {
 	// Addr to listen on.
 	Addr() string
-	// TLS key
-	KeyPEMBlock() []byte
-	// TLS cert
-	CertPEMBlock() []byte
+	// TLS config
+	TLSServerConfig() *tls.Config
 }
 
 // DeviceListener listens and setup sessions from device connections.
@@ -52,15 +50,8 @@ func DeviceListen(lst net.Listener, cfg DeviceListenerConfig) (*DeviceListener, 
 			return nil, err
 		}
 	}
-	cert, err := tls.X509KeyPair(cfg.CertPEMBlock(), cfg.KeyPEMBlock())
-	if err != nil {
-		return nil, err
-	}
-	tlsCfg := &tls.Config{
-		Certificates:           []tls.Certificate{cert},
-		SessionTicketsDisabled: true,
-	}
-	return &DeviceListener{tls.NewListener(lst, tlsCfg)}, err
+	tlsCfg := cfg.TLSServerConfig()
+	return &DeviceListener{tls.NewListener(lst, tlsCfg)}, nil
 }
 
 // handleTemporary checks and handles if the error is just a temporary network
