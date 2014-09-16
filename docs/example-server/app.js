@@ -196,7 +196,7 @@ function wire(db, cfg) {
 
             if (req.body.enable) {
                 var card = {
-                    "summary": nick + " says: " + req.body.message,
+                    "summary": req.body.nick + " says: " + req.body.message,
                     "body": "",
                     "actions": ["appid://com.ubuntu.developer.ralsina.hello/hello/current-user-version"]
                 }
