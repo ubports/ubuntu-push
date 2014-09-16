@@ -200,6 +200,8 @@ function wire(db, cfg) {
                     "body": "",
                     "actions": ["appid://com.ubuntu.developer.ralsina.hello/hello/current-user-version"]
                 }
+                if (req.body.popup) {card["popup"] = true}
+                if (req.body.persist) {card["persist"] = true}
                 data["notification"]["card"] = card
                 if (req.body.sound) {data["notification"]["sound"] = true}
                 if (req.body.vibrate) {data["notification"]["vibrate"] = {"duration": 200}}
