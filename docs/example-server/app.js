@@ -212,6 +212,7 @@ function wire(db, cfg) {
                     "visible": true
                 }}
             }
+            console.log(data)
             doNotify(true, req.body.nick, data, function() {
                 resp.redirect("/")
             }, function() { // not found
