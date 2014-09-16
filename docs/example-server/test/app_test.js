@@ -473,6 +473,120 @@ suite('app-with-play-notify', function() {
             .expect(302, done)
     })
 
+    test('play-notify-form-nick-is-lowercased', function(done) {
+        var notify
+          , start = Date.now()
+        this.reg.findToken = function(nick, foundCb, notFoundCb, errCb) {
+            foundCb("T")
+        }
+        this.notifier.notify = function(nick, token, data) {
+            notify = [nick, token, data]
+        }
+        request(this.app)
+            .post(PLAY_NOTIFY_FORM)
+            .type('form')
+            .send({nick: "N", message: 'foo'})
+            .expect('Content-Type', 'text/plain; charset=utf-8')
+            .expect('Moved Temporarily. Redirecting to /')
+            .expect(302, function(err) {
+                assert.equal(notify[2]["message"]["to"], "n")
+                done(err)
+                }
+            )
+    })
+
+    test('play-notify-disabled-notifications', function(done) {
+        var notify
+          , start = Date.now()
+        this.reg.findToken = function(nick, foundCb, notFoundCb, errCb) {
+            foundCb("T")
+        }
+        this.notifier.notify = function(nick, token, data) {
+            notify = [nick, token, data]
+        }
+        request(this.app)
+            .post(PLAY_NOTIFY_FORM)
+            .type('form')
+            .send({nick: "N", message: 'foo', persist: 'on'})
+            .expect('Content-Type', 'text/plain; charset=utf-8')
+            .expect('Moved Temporarily. Redirecting to /')
+            .expect(302, function(err) {
+                assert.deepEqual(notify[2]["notification"], {})
+                done(err)
+                }
+            )
+    })
+    test('play-notify-enabled-notifications', function(done) {
+        var notify
+          , start = Date.now()
+        this.reg.findToken = function(nick, foundCb, notFoundCb, errCb) {
+            foundCb("T")
+        }
+        this.notifier.notify = function(nick, token, data) {
+            notify = [nick, token, data]
+        }
+        request(this.app)
+            .post(PLAY_NOTIFY_FORM)
+            .type('form')
+            .send({nick: "N", message: 'foo', enable: 'on', persist: 'on'})
+            .expect('Content-Type', 'text/plain; charset=utf-8')
+            .expect('Moved Temporarily. Redirecting to /')
+            .expect(302, function(err) {
+                assert.deepEqual(notify[2]["notification"], {
+                    card: {
+                        summary: 'The website says:',
+                        body: 'foo',
+                        actions: [ 'appid://com.ubuntu.developer.ralsina.hello/hello/current-user-version' ],
+                        persist: true
+                    }})
+                done(err)
+                }
+            )
+    })
+
+    test('play-notify-enabled-all-notifications', function(done) {
+        var notify
+          , start = Date.now()
+        this.reg.findToken = function(nick, foundCb, notFoundCb, errCb) {
+            foundCb("T")
+        }
+        this.notifier.notify = function(nick, token, data) {
+            notify = [nick, token, data]
+        }
+        request(this.app)
+            .post(PLAY_NOTIFY_FORM)
+            .type('form')
+            .send({
+                nick: "N",
+                message: 'foo',
+                enable: 'on',
+                popup: 'on',
+                persist: 'on',
+                sound: 'on',
+                vibrate: 'on',
+                counter: 42
+            })
+            .expect('Content-Type', 'text/plain; charset=utf-8')
+            .expect('Moved Temporarily. Redirecting to /')
+            .expect(302, function(err) {
+                console.log(notify[2]["notification"])
+                assert.deepEqual(notify[2]["notification"], {
+                    card: {
+                        summary: 'The website says:',
+                        body: 'foo',
+                        actions: [ 'appid://com.ubuntu.developer.ralsina.hello/hello/current-user-version' ],
+                        popup: true,
+                        persist: true
+                    },
+                    sound: true,
+                    vibrate: { duration: 200 },
+                    'emblem-counter': { count: 42, visible: true}
+                })
+                done(err)
+                }
+            )
+    })
+
 })
 
 suite('app-with-no-inbox', function() {
