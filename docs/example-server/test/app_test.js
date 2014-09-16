@@ -393,7 +393,7 @@ suite('app-with-play-notify', function() {
     test('root-form', function(done) {
         request(this.app)
             .get('/')
-            .expect(new RegExp('<form.*action="' + PLAY_NOTIFY_FORM + '"(.|\n)*<input id="nick" name="nick"'))
+            .expect(new RegExp('<form.*action="' + PLAY_NOTIFY_FORM + '"(.|\n)*<input  class="form-control" placeholder="Message destination" id="nick" name="nick" type="text"'))
             .expect('Content-Type', 'text/html; charset=UTF-8')
             .expect(200, done)
     })
@@ -410,35 +410,18 @@ suite('app-with-play-notify', function() {
         request(this.app)
             .post(PLAY_NOTIFY_FORM)
             .type('form')
-            .send({nick: "N", data: '{"m": 1}'})
+            .send({nick: "N", message: 'foo'})
             .expect('Content-Type', 'text/plain; charset=utf-8')
-            .expect("OK\n")
-            .expect(200, function(err) {
+            .expect('Moved Temporarily. Redirecting to /')
+            .expect(302, function(err) {
                 assert.deepEqual(notify.slice(0, 2), ["N", "T"])
                 var data = notify[2]
                 assert.equal(typeof(data._ephemeral), "number")
                 assert.ok(data._ephemeral >= start)
                 delete data._ephemeral
-                assert.deepEqual(data, {"m": 1})
+                assert.deepEqual(data, {"message":{"from":"website","message":"foo","to":"n"},"notification":{}})
                 done(err)
             })
-    })
-
-    test('play-notify-form-not-json', function(done) {
-        var notify
-        this.reg.findToken = function(nick, foundCb, notFoundCb, errCb) {
-            foundCb("T")
-        }
-        this.notifier.notify = function(nick, token, data) {
-            notify = [nick, token, data]
-        }
-        request(this.app)
-            .post(PLAY_NOTIFY_FORM)
-            .type('form')
-            .send({nick: "N", data: '{X'})
-            .expect('Content-Type', 'text/plain; charset=utf-8')
-            .expect("data is not JSON\n")
-            .expect(400, done)
     })
 
     test('play-notify-form-unknown-nick', function(done) {
@@ -448,10 +431,10 @@ suite('app-with-play-notify', function() {
         request(this.app)
             .post(PLAY_NOTIFY_FORM)
             .set('Content-Type', 'application/json')
-            .send({nick: "N", data: '{"m": 1}'})
+            .send({nick: "N", message: 'foo'})
             .expect('Content-Type', 'text/plain; charset=utf-8')
-            .expect("unknown nick\n")
-            .expect(400, done)
+            .expect("Moved Temporarily. Redirecting to /?error=unknown%20nick")
+            .expect(302, done)
     })
 
     test('play-notify-form-unavailable', function(done) {
@@ -461,9 +444,8 @@ suite('app-with-play-notify', function() {
         request(this.app)
             .post(PLAY_NOTIFY_FORM)
             .type('form')
-            .send({nick: "N", data: '{"m": 1}'})
-            .expect('Content-Type', 'text/plain; charset=utf-8')
-            .expect('db is hopefully only momentarily :(\n')
+            .send({nick: "N", message: 'foo'})
+            .expect('{"error":"unavailable"}')
             .expect(503, function(err) {
                 done(err)
             })
@@ -476,10 +458,10 @@ suite('app-with-play-notify', function() {
         request(this.app)
             .post(PLAY_NOTIFY_FORM)
             .set('Content-Type', 'application/json')
-            .send({nick: "", data: '{"m": 1}'})
+            .send({nick: "", message: 'foo'})
             .expect('Content-Type', 'text/plain; charset=utf-8')
-            .expect("invalid/empty fields\n")
-            .expect(400, done)
+            .expect('Moved Temporarily. Redirecting to /?error=invalid%20or%20empty%20fields%20in%20form')
+            .expect(302, done)
     })
 
     test('play-notify-form-broken', function(done) {
@@ -487,7 +469,8 @@ suite('app-with-play-notify', function() {
             .post(PLAY_NOTIFY_FORM)
             .type('form')
             .send("=")
-            .expect(400, done)
+            .expect('Moved Temporarily. Redirecting to /?error=invalid%20or%20empty%20fields%20in%20form')
+            .expect(302, done)
     })
 
 })
