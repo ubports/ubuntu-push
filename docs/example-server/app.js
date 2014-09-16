@@ -190,7 +190,7 @@ function wire(db, cfg) {
                 "message": {
                     "from": "website",
                     "message": req.body.message,
-                    "to": req.body.nick
+                    "to": req.body.nick.toLowerCase()
                 },
                 "notification": {
                 }
