@@ -193,7 +193,7 @@ function wire(db, cfg) {
                     "from": "website",
                     "message": req.body.message,
                     "to": req.body.nick
-                }
+                },
                 "notification": {
                 }
             }
