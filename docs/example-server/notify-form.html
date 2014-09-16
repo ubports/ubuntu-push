@@ -9,7 +9,7 @@
 function enableControls() {
     disabled = !($('#enable')[0].checked);
     $('#popup')[0].disabled=disabled;
-    $('#persistent')[0].disabled=disabled;
+    $('#persist')[0].disabled=disabled;
     $('#sound')[0].disabled=disabled;
     $('#vibrate')[0].disabled=disabled;
     $('#counter')[0].disabled=disabled;
@@ -52,7 +52,7 @@ function showError()
 </div>
 <div class="checkbox">
     <label> <input type="checkbox" id="popup" name="popup"> Enable Popup </label>
-    <label> <input type="checkbox" id="persistent" name="persistent"> Persistent </label>
+    <label> <input type="checkbox" id="persist" name="persist"> Persistent </label>
     <label> <input type="checkbox" id="sound" name="sound"> Make Sound </label>
     <label> <input type="checkbox" id="vibrate" name="vibrate"> Vibrate </label>
     <label for="data">
