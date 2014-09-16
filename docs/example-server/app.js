@@ -182,10 +182,9 @@ function wire(db, cfg) {
     */
     if (cfg.play_notify_form) {
         app.post("/play-notify-form", function(req, resp) {
-            resp.type('text/plain')
             console.log(req.body)
             if (!req.body.message||!req.body.nick) {
-                resp.send(400, "invalid/empty fields in form\n")
+                resp.redirect("/?error=invalid or empty fields in form")
                 return
             }
             var data = {
@@ -215,9 +214,9 @@ function wire(db, cfg) {
                 }}
             }
             doNotify(true, req.body.nick, data, function() {
-                resp.send(200, 'OK\n')
+                resp.redirect("/")
             }, function() { // not found
-                resp.send(400, "unknown nick\n")
+                resp.redirect("/?error=unknown nick")
             }, resp)
         })
     }

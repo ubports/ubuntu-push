@@ -13,7 +13,23 @@ function enableControls() {
     $('#sound')[0].disabled=disabled;
     $('#vibrate')[0].disabled=disabled;
     $('#counter')[0].disabled=disabled;
+};
+
+function showError()
+{
+    var vars = [], hash;
+    var hashes = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&');
+    for(var i = 0; i < hashes.length; i++)
+    {
+        hash = hashes[i].split('=');
+        vars.push(hash[0]);
+        vars[hash[0]] = decodeURIComponent(hash[1]);
+    }
+    if (vars["error"]) {
+        $("<div class='alert alert-danger' role='alert'>" + vars["error"] + "</div>").insertAfter ($("h1"))
+    }
 }
+
 </script>
 <title>Send a notification</title>
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
@@ -47,5 +63,8 @@ function enableControls() {
 </fieldset>
 </form>
 </div>
+<script>
+    showError();
+</script>
 </body>
 </html>
