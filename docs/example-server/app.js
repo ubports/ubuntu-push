@@ -198,8 +198,8 @@ function wire(db, cfg) {
 
             if (req.body.enable) {
                 var card = {
-                    "summary": "The website says: " + req.body.message,
-                    "body": "",
+                    "summary": "The website says:",
+                    "body": req.body.message,
                     "actions": ["appid://com.ubuntu.developer.ralsina.hello/hello/current-user-version"]
                 }
                 if (req.body.popup) {card["popup"] = true}
