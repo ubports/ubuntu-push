@@ -51,12 +51,12 @@ function showError()
     <label> <input type="checkbox" id="enable" name="enable" onclick='enableControls()' checked=true> Enable Notifications </label>
 </div>
 <div class="checkbox">
-    <label> <input type="checkbox" id="popup" name="popup"> Enable Popup </label>
-    <label> <input type="checkbox" id="persist" name="persist"> Persistent </label>
-    <label> <input type="checkbox" id="sound" name="sound"> Make Sound </label>
-    <label> <input type="checkbox" id="vibrate" name="vibrate"> Vibrate </label>
+    <label> <input type="checkbox" id="popup" name="popup" checked=true> Enable Popup </label>
+    <label> <input type="checkbox" id="persist" name="persist" checked=true> Persistent </label>
+    <label> <input type="checkbox" id="sound" name="sound" checked=true> Make Sound </label>
+    <label> <input type="checkbox" id="vibrate" name="vibrate" checked=true> Vibrate </label>
     <label for="data">
-    <input class="form-control" placeholder="Set Counter" id="counter" name="counter" type="number" autofocus>
+    <input class="form-control" placeholder="Set Counter" id="counter" name="counter" type="number" value=42 autofocus>
     </label>
 </div>
     <button type="submit" class="btn btn-primary" value="notify">Submit</button>
