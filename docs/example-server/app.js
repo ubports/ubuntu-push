@@ -182,7 +182,6 @@ function wire(db, cfg) {
     */
     if (cfg.play_notify_form) {
         app.post("/play-notify-form", function(req, resp) {
-            console.log(req.body)
             if (!req.body.message||!req.body.nick) {
                 resp.redirect("/?error=invalid or empty fields in form")
                 return
@@ -199,7 +198,7 @@ function wire(db, cfg) {
 
             if (req.body.enable) {
                 var card = {
-                    "summary": req.body.nick + " says: " + req.body.message,
+                    "summary": "The website says: " + req.body.message,
                     "body": "",
                     "actions": ["appid://com.ubuntu.developer.ralsina.hello/hello/current-user-version"]
                 }
