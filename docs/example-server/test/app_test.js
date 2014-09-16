@@ -569,7 +569,6 @@ suite('app-with-play-notify', function() {
             .expect('Content-Type', 'text/plain; charset=utf-8')
             .expect('Moved Temporarily. Redirecting to /')
             .expect(302, function(err) {
-                console.log(notify[2]["notification"])
                 assert.deepEqual(notify[2]["notification"], {
                     card: {
                         summary: 'The website says:',
