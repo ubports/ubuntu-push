@@ -189,7 +189,10 @@ function wire(db, cfg) {
                 return
             }
             var data = {
-                "message": req.body.message,
+                "message": {
+                    "from": "website",
+                    "message": req.body.message,
+                    "to": req.body.nick
                 "notification": {
                 }
             }
