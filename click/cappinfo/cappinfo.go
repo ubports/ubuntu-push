@@ -37,6 +37,26 @@ gchar* app_icon_filename_from_desktop_id (gchar* desktop_id) {
    g_free (desktop_id);
    return filename;
 }
+
+gchar* app_symbolic_icon_from_desktop_id (gchar* desktop_id) {
+    gchar* x_symbolic_icon;
+    GIcon* symbolic_icon;
+    GDesktopAppInfo* app_info = g_desktop_app_info_new (desktop_id);
+    if (app_info != NULL) {
+        if((x_symbolic_icon = g_desktop_app_info_get_string(app_info, "X-Ubuntu-SymbolicIcon"))) {
+            GFile *file;
+            file = g_file_new_for_path(x_symbolic_icon);
+            symbolic_icon = g_file_icon_new (file);
+            g_object_unref (file);
+            g_free(x_symbolic_icon);
+            g_object_unref (app_info);
+            return g_icon_to_string(symbolic_icon);
+        }
+        g_object_unref (app_info);
+    }
+    g_free (desktop_id);
+    return NULL;
+}
 */
 import "C"
 
@@ -45,3 +65,14 @@ func AppIconFromDesktopId(desktopId string) string {
 	defer C.g_free((C.gpointer)(name))
 	return C.GoString((*C.char)(name))
 }
+
+func appSymbolicIconFromDesktopId(desktopId string) string {
+	name := C.app_symbolic_icon_from_desktop_id((*C.gchar)(C.CString(desktopId)))
+	if name == nil {
+		return ""
+	}
+	defer C.g_free((C.gpointer)(name))
+	return C.GoString((*C.char)(name))
+}
+
+var AppSymbolicIconFromDesktopId = appSymbolicIconFromDesktopId
