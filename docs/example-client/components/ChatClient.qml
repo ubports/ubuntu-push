@@ -60,8 +60,8 @@ Item {
         if (options["enabled"]) {
             data["data"]["notification"] = {
                 "card": {
-                    "summary": nick + " says: " + message["message"],
-                    "body": "",
+                    "summary": nick + " says:",
+                    "body": message["message"],
                     "popup": options["popup"],
                     "persist": options["persist"],
                     "actions": ["appid://com.ubuntu.developer.ralsina.hello/hello/current-user-version"]
