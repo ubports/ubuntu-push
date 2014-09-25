@@ -26,11 +26,16 @@ import (
 	"launchpad.net/ubuntu-push/server/store"
 )
 
+type SessionTracker interface {
+	// SessionId
+	SessionId() string
+}
+
 // Broker is responsible for registring sessions and delivering messages
 // through them.
 type Broker interface {
 	// Register the session.
-	Register(connMsg *protocol.ConnectMsg, sessionId string) (BrokerSession, error)
+	Register(connMsg *protocol.ConnectMsg, track SessionTracker) (BrokerSession, error)
 	// Unregister the session.
 	Unregister(BrokerSession)
 }
