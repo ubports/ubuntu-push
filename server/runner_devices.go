@@ -62,7 +62,7 @@ func (cfg *DevicesParsedConfig) Addr() string {
 // DevicesRunner returns a function to accept device connections.
 // If adoptLst is not nil it will be used as the underlying listener, instead
 // of creating one, wrapped in a TLS layer.
-func DevicesRunner(adoptLst net.Listener, session func(net.Conn) error, logger logger.Logger, parsedCfg *DevicesParsedConfig) func() {
+func DevicesRunner(adoptLst net.Listener, session func(net.Conn) error, logger logger.Logger, resource listener.SessionResourceManager, parsedCfg *DevicesParsedConfig) func() {
 	BootLogger.Debugf("PingInterval: %s, ExchangeTimeout %s", parsedCfg.PingInterval(), parsedCfg.ExchangeTimeout())
 	var rlim syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlim)
@@ -76,7 +76,7 @@ func DevicesRunner(adoptLst net.Listener, session func(net.Conn) error, logger l
 	}
 	BootLogListener("devices", lst)
 	return func() {
-		err = lst.AcceptLoop(session, logger)
+		err = lst.AcceptLoop(session, resource, logger)
 		if err != nil {
 			BootLogFatalf("accepting device connections: %v", err)
 		}
