@@ -27,6 +27,7 @@ import (
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/config"
+	"launchpad.net/ubuntu-push/server/listener"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
 
@@ -111,6 +112,8 @@ var testDevicesParsedConfig = DevicesParsedConfig{
 	},
 }
 
+var resource = &listener.NopSessionResourceManager{}
+
 func (s *runnerSuite) TestDevicesRunner(c *C) {
 	prevBootLogger := BootLogger
 	testlog := helpers.NewTestLogger(c, "debug")
@@ -118,7 +121,7 @@ func (s *runnerSuite) TestDevicesRunner(c *C) {
 	defer func() {
 		BootLogger = prevBootLogger
 	}()
-	runner := DevicesRunner(nil, func(conn net.Conn) error { return nil }, BootLogger, &testDevicesParsedConfig)
+	runner := DevicesRunner(nil, func(conn net.Conn) error { return nil }, BootLogger, resource, &testDevicesParsedConfig)
 	c.Assert(s.lst, Not(IsNil))
 	s.lst.Close()
 	c.Check(s.kind, Equals, "devices")
@@ -135,7 +138,7 @@ func (s *runnerSuite) TestDevicesRunnerAdoptListener(c *C) {
 	lst0, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, IsNil)
 	defer lst0.Close()
-	DevicesRunner(lst0, func(conn net.Conn) error { return nil }, BootLogger, &testDevicesParsedConfig)
+	DevicesRunner(lst0, func(conn net.Conn) error { return nil }, BootLogger, resource, &testDevicesParsedConfig)
 	c.Assert(s.lst, Not(IsNil))
 	c.Check(s.lst.Addr().String(), Equals, lst0.Addr().String())
 	s.lst.Close()
