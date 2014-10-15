@@ -39,7 +39,7 @@ def cleanup_settings():
         if appname[0] in pkgnames:
             goodapps.add_value(tup2variant(appname))
         elif (appname[0] == ""):
-            appinfo = Gio.DesktopAppInfo.new(appname[0] + ".desktop")
+            appinfo = Gio.DesktopAppInfo.new(appname[1] + ".desktop")
             if not appinfo is None:
                 goodapps.add_value(tup2variant(appname))
 
