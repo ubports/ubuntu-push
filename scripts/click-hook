@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# -*- python -*-
 """Collect helpers hook data into a single json file"""
 
 import argparse
@@ -37,7 +38,7 @@ def cleanup_settings():
     for appname in settings.get_value('blacklist').unpack():
         if appname[0] in pkgnames:
             goodapps.add_value(tup2variant(appname))
-        elif (appname[0] == appname[1]):
+        elif (appname[0] == ""):
             appinfo = Gio.DesktopAppInfo.new(appname[0] + ".desktop")
             if not appinfo is None:
                 goodapps.add_value(tup2variant(appname))
