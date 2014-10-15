@@ -25,25 +25,30 @@ def tup2variant(tup):
 
 
 def cleanup_settings():
+    settings = Gio.Settings.new('com.ubuntu.notifications.hub')
+    blacklist = settings.get_value('blacklist').unpack()
+    if not blacklist:
+        return
+
     clickdb = Click.DB.new()
     clickdb.read()
 
-    pkgnames = []
+    pkgnames = set()
     for package in clickdb.get_packages(False):
-        pkgnames.append(package.get_property('package'))
+        pkgnames.add(package.get_property('package'))
 
-    settings = Gio.Settings.new('com.ubuntu.notifications.hub')
     goodapps = GLib.VariantBuilder.new(GLib.VariantType.new("a(ss)"))
 
-    for appname in settings.get_value('blacklist').unpack():
-        if appname[0] in pkgnames:
-            goodapps.add_value(tup2variant(appname))
-        elif (appname[0] == ""):
-            appinfo = Gio.DesktopAppInfo.new(appname[1] + ".desktop")
-            if not appinfo is None:
-                goodapps.add_value(tup2variant(appname))
+    dirty = False
 
-    settings.set_value('blacklist', goodapps.end())
+    for appname in blacklist:
+        if appname[0] not in pkgnames and Gio.DesktopAppInfo.new(appname[1] + ".desktop") is None:
+            dirty = True
+        else:
+            goodapps.add_value(tup2variant(appname))
+
+    if dirty:
+        settings.set_value('blacklist', goodapps.end())
 
 
 def collect_helpers(helpers_data_path, helpers_data_path_tmp, hooks_path):
