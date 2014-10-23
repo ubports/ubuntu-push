@@ -12,4 +12,4 @@ libubuntu-app-launch2-dev
 libclick-0.4-dev
 liburl-dispatcher1-dev
 libaccounts-glib-dev
-ubuntu-system-settings
+system-image-dbus
