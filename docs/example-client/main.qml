@@ -61,7 +61,6 @@ MainView {
 
     ChatClient {
         id: chatClient
-        onRegisteredChanged: {parent.state = "registered"}
         onError: {messageList.handle_error(msg)}
         token: pushClient.token
     }
