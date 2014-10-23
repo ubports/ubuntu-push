@@ -247,6 +247,12 @@ func (sess *ClientSession) getCookie() string {
 	return sess.cookie
 }
 
+func (sess *ClientSession) ClearCookie() {
+	sess.connLock.Lock()
+	defer sess.connLock.Unlock()
+	sess.cookie = ""
+}
+
 // getHosts sets deliveryHosts possibly querying a remote endpoint
 func (sess *ClientSession) getHosts() error {
 	if sess.getHost != nil {
