@@ -77,7 +77,6 @@ MainView {
 
     TextField {
         id: nickEdit
-        focus: true
         placeholderText: "Your nickname"
         inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhPreferLowercase
         anchors.left: parent.left
@@ -91,7 +90,6 @@ MainView {
 
     Button {
         id: loginButton
-        text: chatClient.rgistered? "Logout": "Login"
         anchors.top: nickEdit.top
         anchors.right: parent.right
         anchors.rightMargin: units.gu(.5)
@@ -114,7 +112,6 @@ MainView {
         anchors.rightMargin: units.gu(.5)
         anchors.leftMargin: units.gu(.5)
         placeholderText: "Your message"
-        enabled: false
         onAccepted: {
             console.log("sending " + text)
             var idx = text.indexOf(":")
