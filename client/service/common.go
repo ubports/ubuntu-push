@@ -63,7 +63,7 @@ func (svc *DBusService) IsRunning() bool {
 }
 
 // Start() dials the bus, grab the name, and listens for method calls.
-func (svc *DBusService) Start(dispatchMap bus.DispatchMap, busAddr bus.Address) error {
+func (svc *DBusService) Start(dispatchMap bus.DispatchMap, busAddr bus.Address, init func() error) error {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
 	if svc.state != StateUnknown {
@@ -89,6 +89,11 @@ func (svc *DBusService) Start(dispatchMap bus.DispatchMap, busAddr bus.Address) 
 			}
 		}
 	}()
+	if init != nil {
+		if err = init(); err != nil {
+			return err
+		}
+	}
 	svc.Bus.WatchMethod(dispatchMap, "/*", svc)
 	svc.state = StateRunning
 	return nil
