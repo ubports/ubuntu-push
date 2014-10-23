@@ -40,6 +40,7 @@ MainView {
             name: "push-token-not-registered"
             when: ((pushClient.token != "") && (chatClient.registered == false))
             PropertyChanges { target: nickEdit; readOnly: false}
+            PropertyChanges { target: nickEdit; text: ""}
             PropertyChanges { target: nickEdit; focus: true}
             PropertyChanges { target: messageEdit; enabled: false}
             PropertyChanges { target: loginButton; enabled: true}
