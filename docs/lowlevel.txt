@@ -118,7 +118,7 @@ Example::
 
 
 The arguments for the Post method are APP_ID (in the example, com.ubuntu.music_music) and a JSON string
-`describing a push message. <#push-message-format>`__
+`describing a push message. <#helper-output-format>`__
 
 Depending on the contents of the push message it may trigger user-facing notifications, and will queue a
 message for the app to get via the `PopAll <#com-ubuntu-postal-popalls>`__ method.

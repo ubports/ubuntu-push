@@ -146,6 +146,10 @@ func _symbolic(icon string) string {
 var symbolic = _symbolic
 
 func (app *AppId) SymbolicIcon() string {
+	symbolicIcon := cappinfo.AppSymbolicIconFromDesktopId(app.DesktopId())
+	if symbolicIcon != "" {
+		return symbolicIcon
+	}
 	return symbolic(app.Icon())
 }
 

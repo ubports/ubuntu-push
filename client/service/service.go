@@ -89,7 +89,7 @@ func (svc *PushService) Start() error {
 	return svc.DBusService.Start(bus.DispatchMap{
 		"Register":   svc.register,
 		"Unregister": svc.unregister,
-	}, PushServiceBusAddress)
+	}, PushServiceBusAddress, nil)
 }
 
 var (

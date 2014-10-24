@@ -471,6 +471,7 @@ func (client *PushClient) handleUnicastNotification(anotif session.AddressedNoti
 // changing) the u1 account used to auth
 func (client *PushClient) handleAccountsChange() {
 	client.log.Infof("U1 account changed; restarting session")
+	client.session.ClearCookie()
 	client.session.Close()
 }
 

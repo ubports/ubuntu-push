@@ -32,9 +32,19 @@ type commonBrokerSuite struct {
 	testsuite.CommonBrokerSuite
 }
 
+// trivial session tracker
+type testTracker string
+
+func (t testTracker) SessionId() string {
+	return string(t)
+}
+
 var _ = Suite(&commonBrokerSuite{testsuite.CommonBrokerSuite{
 	MakeBroker: func(sto store.PendingStore, cfg broker.BrokerConfig, log logger.Logger) testsuite.FullBroker {
 		return NewSimpleBroker(sto, cfg, log)
+	},
+	MakeTracker: func(sessionId string) broker.SessionTracker {
+		return testTracker(sessionId)
 	},
 	RevealSession: func(b broker.Broker, deviceId string) broker.BrokerSession {
 		return b.(*SimpleBroker).registry[deviceId]

@@ -67,10 +67,20 @@ func handleTemporary(err error) bool {
 	return false
 }
 
+// SessionResourceManager allows to limit resource usage tracking connections.
+type SessionResourceManager interface {
+	ConsumeConn()
+}
+
+// NOP SessionResourceManager.
+type NopSessionResourceManager struct{}
+
+func (r *NopSessionResourceManager) ConsumeConn() {}
+
 // AcceptLoop accepts connections and starts sessions for them.
-func (dl *DeviceListener) AcceptLoop(session func(net.Conn) error, logger logger.Logger) error {
+func (dl *DeviceListener) AcceptLoop(session func(net.Conn) error, resource SessionResourceManager, logger logger.Logger) error {
 	for {
-		// xxx enforce a connection limit
+		resource.ConsumeConn()
 		conn, err := dl.Listener.Accept()
 		if err != nil {
 			if handleTemporary(err) {

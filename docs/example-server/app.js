@@ -182,22 +182,40 @@ function wire(db, cfg) {
     */
     if (cfg.play_notify_form) {
         app.post("/play-notify-form", function(req, resp) {
-            resp.type('text/plain')
-            if (!req.body.data||!req.body.nick) {
-                resp.send(400, "invalid/empty fields\n")
+            if (!req.body.message||!req.body.nick) {
+                resp.redirect("/?error=invalid or empty fields in form")
                 return
             }
-            var data
-            try {
-                data = JSON.parse(req.body.data)
-            } catch(e) {
-                resp.send(400, "data is not JSON\n")
-                return
+            var data = {
+                "message": {
+                    "from": "website",
+                    "message": req.body.message,
+                    "to": req.body.nick.toLowerCase()
+                },
+                "notification": {
+                }
+            }
+
+            if (req.body.enable) {
+                var card = {
+                    "summary": "The website says:",
+                    "body": req.body.message,
+                    "actions": ["appid://com.ubuntu.developer.ralsina.hello/hello/current-user-version"]
+                }
+                if (req.body.popup) {card["popup"] = true}
+                if (req.body.persist) {card["persist"] = true}
+                data["notification"]["card"] = card
+                if (req.body.sound) {data["notification"]["sound"] = true}
+                if (req.body.vibrate) {data["notification"]["vibrate"] = {"duration": 200}}
+                if (req.body.counter) {data["notification"]["emblem-counter"] = {
+                    "count": Math.floor(req.body.counter),
+                    "visible": true
+                }}
             }
             doNotify(true, req.body.nick, data, function() {
-                resp.send(200, 'OK\n')
+                resp.redirect("/")
             }, function() { // not found
-                resp.send(400, "unknown nick\n")
+                resp.redirect("/?error=unknown nick")
             }, resp)
         })
     }

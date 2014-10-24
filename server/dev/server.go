@@ -29,6 +29,7 @@ import (
 	"launchpad.net/ubuntu-push/server"
 	"launchpad.net/ubuntu-push/server/api"
 	"launchpad.net/ubuntu-push/server/broker/simple"
+	"launchpad.net/ubuntu-push/server/listener"
 	"launchpad.net/ubuntu-push/server/session"
 	"launchpad.net/ubuntu-push/server/store"
 )
@@ -97,8 +98,9 @@ func main() {
 	handler := api.PanicTo500Handler(mux, logger)
 	go server.HTTPServeRunner(nil, handler, &cfg.HTTPServeParsedConfig, nil)()
 	// listen for device connections
+	resource := &listener.NopSessionResourceManager{}
 	server.DevicesRunner(lst, func(conn net.Conn) error {
 		track := session.NewTracker(logger)
 		return session.Session(conn, broker, cfg, track)
-	}, logger, &cfg.DevicesParsedConfig)()
+	}, logger, resource, &cfg.DevicesParsedConfig)()
 }

@@ -1687,3 +1687,17 @@ func (cs *clientSessionSuite) TestRedialDelay(c *C) {
 	// and redialJitter got called every time shouldDelay was true
 	c.Check(n, Equals, 4)
 }
+
+/****************************************************************
+  ClearCookie() tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestClearCookie(c *C) {
+	sess, err := NewSession("foo:443", dummyConf, "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	c.Check(sess.getCookie(), Equals, "")
+	sess.setCookie("COOKIE")
+	c.Check(sess.getCookie(), Equals, "COOKIE")
+	sess.ClearCookie()
+	c.Check(sess.getCookie(), Equals, "")
+}
