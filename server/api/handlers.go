@@ -98,6 +98,12 @@ var (
 		"Wrong request method, should be POST",
 		nil,
 	}
+	ErrWrongRequestMethodGET = &APIError{
+		http.StatusMethodNotAllowed,
+		invalidRequest,
+		"Wrong request method, should be GET",
+		nil,
+	}
 	ErrMalformedJSONObject = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
@@ -120,6 +126,12 @@ var (
 		http.StatusBadRequest,
 		invalidRequest,
 		"Missing data field",
+		nil,
+	}
+	ErrMissingUserId = &APIError{
+		http.StatusBadRequest,
+		invalidRequest,
+		"Missing userId field",
 		nil,
 	}
 	ErrDataTooLarge = &APIError{
