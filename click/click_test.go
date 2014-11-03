@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/click/cappinfo"
 )
 
 func TestClick(t *testing.T) { TestingT(t) }
@@ -199,4 +201,16 @@ func (s *clickSuite) TestSymbolicIconCallsSymbolic(c *C) {
 	app, err := ParseAppId("_python3.4")
 	c.Assert(err, IsNil)
 	c.Check(app.SymbolicIcon(), Equals, "xyzzy")
+}
+
+func (s *clickSuite) TestSymbolicFromDesktopFile(c *C) {
+	orig := cappinfo.AppSymbolicIconFromDesktopId
+	cappinfo.AppSymbolicIconFromDesktopId = func(desktopId string) string {
+		return "/foo/symbolic"
+	}
+	defer func() {
+		cappinfo.AppSymbolicIconFromDesktopId = orig
+	}()
+	app, _ := ParseAppId("com.ubuntu.clock_clock_1.2")
+	c.Check(app.SymbolicIcon(), Equals, "/foo/symbolic")
 }

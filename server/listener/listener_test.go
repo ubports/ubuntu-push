@@ -142,21 +142,44 @@ func testReadByte(c *C, conn net.Conn, expected uint32) {
 	c.Check(buf[0], Equals, byte(expected))
 }
 
+type testSessionResourceManager struct {
+	event chan string
+}
+
+func (r *testSessionResourceManager) ConsumeConn() {
+	r.event <- "consume"
+}
+
+// takeNext takes a string from given channel with a 5s timeout
+func takeNext(ch <-chan string) string {
+	select {
+	case <-time.After(5 * time.Second):
+		panic("test protocol exchange stuck: too long waiting")
+	case v := <-ch:
+		return v
+	}
+}
+
 func (s *listenerSuite) TestDeviceAcceptLoop(c *C) {
 	lst, err := DeviceListen(nil, &testDevListenerCfg{"127.0.0.1:0"})
 	c.Check(err, IsNil)
 	defer lst.Close()
 	errCh := make(chan error)
+	rEvent := make(chan string)
+	resource := &testSessionResourceManager{rEvent}
 	go func() {
-		errCh <- lst.AcceptLoop(testSession, s.testlog)
+		errCh <- lst.AcceptLoop(testSession, resource, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
+	c.Check(takeNext(rEvent), Equals, "consume")
 	conn1, err := testTlsDial(listenerAddr)
 	c.Assert(err, IsNil)
+	c.Check(takeNext(rEvent), Equals, "consume")
 	defer conn1.Close()
 	testWriteByte(c, conn1, '1')
 	conn2, err := testTlsDial(listenerAddr)
 	c.Assert(err, IsNil)
+	c.Check(takeNext(rEvent), Equals, "consume")
 	defer conn2.Close()
 	testWriteByte(c, conn2, '2')
 	testReadByte(c, conn1, '1')
@@ -186,8 +209,9 @@ func (s *listenerSuite) TestDeviceAcceptLoopTemporaryError(c *C) {
 	c.Check(err, IsNil)
 	defer lst.Close()
 	errCh := make(chan error)
+	resource := &NopSessionResourceManager{}
 	go func() {
-		errCh <- lst.AcceptLoop(testSession, s.testlog)
+		errCh <- lst.AcceptLoop(testSession, resource, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
 	connectMany := helpers.ScriptAbsPath("connect-many.py")
@@ -210,11 +234,12 @@ func (s *listenerSuite) TestDeviceAcceptLoopPanic(c *C) {
 	c.Check(err, IsNil)
 	defer lst.Close()
 	errCh := make(chan error)
+	resource := &NopSessionResourceManager{}
 	go func() {
 		errCh <- lst.AcceptLoop(func(conn net.Conn) error {
 			defer conn.Close()
 			panic("session crash")
-		}, s.testlog)
+		}, resource, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
 	_, err = testTlsDial(listenerAddr)
@@ -231,8 +256,9 @@ func (s *listenerSuite) TestForeignListener(c *C) {
 	c.Check(err, IsNil)
 	defer lst.Close()
 	errCh := make(chan error)
+	resource := &NopSessionResourceManager{}
 	go func() {
-		errCh <- lst.AcceptLoop(testSession, s.testlog)
+		errCh <- lst.AcceptLoop(testSession, resource, s.testlog)
 	}()
 	listenerAddr := lst.Addr().String()
 	c.Check(listenerAddr, Equals, foreignLst.Addr().String())

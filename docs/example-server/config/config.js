@@ -11,5 +11,5 @@ module.exports = config = {
     ,"happy_retry_secs": 5
     ,"expire_mins": 120
     ,"no_inbox": true
-    ,"play_notify_form": false
+    ,"play_notify_form": true
 }

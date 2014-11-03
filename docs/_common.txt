@@ -39,9 +39,10 @@ Helpers need to be added to the click package manifest::
 
 Here, we created a helloHelper entry in hooks that has an apparmor profile and an additional JSON file for the push-helper hook.
 
-helloHelper-apparmor.json must contain **only** the push-notification-client policy group::
+helloHelper-apparmor.json must contain **only** the push-notification-client policy group and the ubuntu-push-helper template::
 
     {
+        "template": "ubuntu-push-helper",
         "policy_groups": [
             "push-notification-client"
         ],

@@ -130,7 +130,8 @@ func newTestBroker() *testBroker {
 	return &testBroker{registration: make(chan interface{}, 2)}
 }
 
-func (tb *testBroker) Register(connect *protocol.ConnectMsg, sessionId string) (broker.BrokerSession, error) {
+func (tb *testBroker) Register(connect *protocol.ConnectMsg, track broker.SessionTracker) (broker.BrokerSession, error) {
+	sessionId := track.SessionId()
 	tb.registration <- fmt.Sprintf("register %s %s", connect.DeviceId, sessionId)
 	return &testing.TestBrokerSession{DeviceId: connect.DeviceId}, tb.err
 }
@@ -148,7 +149,7 @@ func (s *sessionSuite) TestSessionStart(c *C) {
 	brkr := newTestBroker()
 	go func() {
 		var err error
-		sess, err = sessionStart(tp, brkr, cfg10msPingInterval5msExchangeTout, "s1")
+		sess, err = sessionStart(tp, brkr, cfg10msPingInterval5msExchangeTout, &tracker{sessionId: "s1"})
 		errCh <- err
 	}()
 	c.Check(takeNext(down), Equals, "deadline 5ms")
@@ -175,7 +176,7 @@ func (s *sessionSuite) TestSessionRegisterError(c *C) {
 	brkr.err = errRegister
 	go func() {
 		var err error
-		sess, err = sessionStart(tp, brkr, cfg10msPingInterval5msExchangeTout, "s2")
+		sess, err = sessionStart(tp, brkr, cfg10msPingInterval5msExchangeTout, &tracker{sessionId: "s2"})
 		errCh <- err
 	}()
 	up <- protocol.ConnectMsg{Type: "connect", ClientVer: "1", DeviceId: "dev-1"}
@@ -190,7 +191,7 @@ func (s *sessionSuite) TestSessionStartReadError(c *C) {
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	up <- io.ErrUnexpectedEOF
-	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout, "s3")
+	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout, &tracker{sessionId: "s3"})
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
 }
 
@@ -200,7 +201,7 @@ func (s *sessionSuite) TestSessionStartWriteError(c *C) {
 	tp := &testProtocol{up, down}
 	up <- protocol.ConnectMsg{Type: "connect"}
 	up <- io.ErrUnexpectedEOF
-	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout, "s4")
+	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout, &tracker{sessionId: "s4"})
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
 	// sanity
 	c.Check(takeNext(down), Matches, "deadline.*")
@@ -212,7 +213,7 @@ func (s *sessionSuite) TestSessionStartMismatch(c *C) {
 	down := make(chan interface{}, 5)
 	tp := &testProtocol{up, down}
 	up <- protocol.ConnectMsg{Type: "what"}
-	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout, "s5")
+	_, err := sessionStart(tp, nil, cfg10msPingInterval5msExchangeTout, &tracker{sessionId: "s5"})
 	c.Check(err, DeepEquals, &broker.ErrAbort{"expected CONNECT message"})
 }
 
