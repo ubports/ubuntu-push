@@ -128,12 +128,6 @@ var (
 		"Missing data field",
 		nil,
 	}
-	ErrMissingUserId = &APIError{
-		http.StatusBadRequest,
-		invalidRequest,
-		"Missing userId field",
-		nil,
-	}
 	ErrDataTooLarge = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
