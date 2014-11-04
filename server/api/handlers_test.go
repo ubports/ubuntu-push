@@ -362,7 +362,7 @@ func (s *handlersSuite) TestDoUnicast(c *C) {
 	}
 	sto := store.NewInMemoryPendingStore()
 	bsend := &checkBrokerSending{store: sto}
-	ctx := &context{testStoreAccess(nil), bsend, nil}
+	ctx := &context{testStoreAccess(nil), bsend, s.testlog}
 	payload := json.RawMessage(`{"a": 1}`)
 	res, apiErr := doUnicast(ctx, sto, &Unicast{
 		UserId:   "user1",
@@ -487,7 +487,7 @@ func (s *handlersSuite) TestDoUnicastWithScrub(c *C) {
 	sto.AppendToUnicastChannel(chanId, "app1", n, "m4", expire)
 
 	bsend := &checkBrokerSending{store: sto}
-	ctx := &context{testStoreAccess(nil), bsend, nil}
+	ctx := &context{testStoreAccess(nil), bsend, s.testlog}
 	payload := json.RawMessage(`{"a": 1}`)
 	res, apiErr := doUnicast(ctx, sto, &Unicast{
 		UserId:   "user1",
@@ -528,7 +528,7 @@ func (s *handlersSuite) TestDoUnicastWithReplaceTag(c *C) {
 	sto.AppendToUnicastChannel(chanId, "app1", n, "m1", expire)
 
 	bsend := &checkBrokerSending{store: sto}
-	ctx := &context{testStoreAccess(nil), bsend, nil}
+	ctx := &context{testStoreAccess(nil), bsend, s.testlog}
 	payload := json.RawMessage(`{"a": 1}`)
 	res, apiErr := doUnicast(ctx, sto, &Unicast{
 		UserId:     "user1",
@@ -634,7 +634,7 @@ func (s *handlersSuite) TestDoUnicastClearPending(c *C) {
 	sto.AppendToUnicastChannel(chanId, "app1", n, "m4", expire)
 
 	bsend := &checkBrokerSending{store: sto}
-	ctx := &context{testStoreAccess(nil), bsend, nil}
+	ctx := &context{testStoreAccess(nil), bsend, s.testlog}
 	payload := json.RawMessage(`{"a": 1}`)
 	res, apiErr := doUnicast(ctx, sto, &Unicast{
 		UserId:       "user1",
@@ -965,7 +965,7 @@ func (s *handlersSuite) TestRespondsUnicast(c *C) {
 		return sto, nil
 	})
 	bsend := testBrokerSending{make(chan store.InternalChannelId, 1)}
-	testServer := httptest.NewServer(MakeHandlersMux(storage, bsend, nil))
+	testServer := httptest.NewServer(MakeHandlersMux(storage, bsend, s.testlog))
 	defer testServer.Close()
 
 	payload := json.RawMessage(`{"foo":"bar"}`)
@@ -1049,7 +1049,7 @@ func (s *handlersSuite) TestRespondsToRegisterAndUnicast(c *C) {
 		return sto, nil
 	})
 	bsend := testBrokerSending{make(chan store.InternalChannelId, 1)}
-	testServer := httptest.NewServer(MakeHandlersMux(storage, bsend, nil))
+	testServer := httptest.NewServer(MakeHandlersMux(storage, bsend, s.testlog))
 	defer testServer.Close()
 
 	request := newPostRequest("/register", &Registration{
