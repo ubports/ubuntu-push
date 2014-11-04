@@ -98,6 +98,12 @@ var (
 		"Wrong request method, should be POST",
 		nil,
 	}
+	ErrWrongRequestMethodGET = &APIError{
+		http.StatusMethodNotAllowed,
+		invalidRequest,
+		"Wrong request method, should be GET",
+		nil,
+	}
 	ErrMalformedJSONObject = &APIError{
 		http.StatusBadRequest,
 		invalidRequest,
