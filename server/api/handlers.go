@@ -500,6 +500,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 	if ucast.ClearPending {
 		scrubCriteria = []string{ucast.AppId}
 	} else if forApp >= ctx.storage.GetMaxNotificationsPerApplication() {
+		ctx.logger.Debugf("notify: %v %v too many pending", ucast.AppId, chanId)
 		return nil, apiErrorWithExtra(ErrTooManyPendingNotifications,
 			&last.Payload)
 	} else if replaceable > 0 {
