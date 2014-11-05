@@ -12,7 +12,7 @@
     "recheck_timeout": "10m",
     "connectivity_check_url": "http://start.ubuntu.com/connectivity-check.html",
     "connectivity_check_md5": "4589f42e1546aa47ca181e5d949d310b",
-    "log_level": "debug",
+    "log_level": "info",
     "fallback_vibration": {"pattern": [100, 100], "repeat": 2},
     "fallback_sound": "sounds/ubuntu/notifications/Slick.ogg",
     "poll_interval": "5m",
