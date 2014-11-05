@@ -294,12 +294,13 @@ func (pool *kindHelperPool) OneDone(uid string) {
 	}
 	payload, err := ioutil.ReadFile(args.FileOut)
 	if err != nil {
-		pool.log.Errorf("unable to read output from helper: %v", err)
+		pool.log.Errorf("unable to read output from %v helper: %v", args.AppId, err)
 	} else {
+		pool.log.Infof("%v helper output: %#v", args.AppId, payload)
 		res := &HelperResult{Input: args.Input}
 		err = json.Unmarshal(payload, &res.HelperOutput)
 		if err != nil {
-			pool.log.Debugf("failed to parse HelperOutput from helper output: %v", err)
+			pool.log.Errorf("failed to parse HelperOutput from %v helper output: %v", args.AppId, err)
 		} else {
 			pool.chOut <- res
 		}

@@ -55,7 +55,7 @@ type msg struct {
 	err error
 }
 
-func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, error) {
+func (lhl *legacyHelperLauncher) Launch(appId, progname, f1, f2 string) (string, error) {
 	comm := make(chan msg)
 
 	go func() {
@@ -78,9 +78,8 @@ func (lhl *legacyHelperLauncher) Launch(_, progname, f1, f2 string) (string, err
 		p_err := cmd.Wait()
 		if p_err != nil {
 			// Helper failed or got killed, log output/errors
-			lhl.log.Errorf("Legacy helper failed: %v", p_err)
-			lhl.log.Errorf("Legacy helper failed. Stdout: %s", stdout)
-			lhl.log.Errorf("Legacy helper failed. Stderr: %s", stderr)
+			lhl.log.Errorf("Legacy helper failed: appId: %v, helper: %v, pid: %v, error: %v, stdout: %#v, stderr: %#v.",
+				appId, progname, id, p_err, stdout.String(), stderr.String())
 		}
 		lhl.done(id)
 	}()
