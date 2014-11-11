@@ -240,6 +240,23 @@ func (ss *serviceSuite) TestManageRegFailsOnNoServer(c *C) {
 	c.Check(err, ErrorMatches, "unable to request registration: .*")
 }
 
+func (ss *serviceSuite) TestManageRegFailsOn401(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Unauthorized", 401)
+	}))
+	defer ts.Close()
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL(ts.URL),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
+	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
+	c.Check(err, Equals, ErrBadAuth)
+	c.Check(reg, IsNil)
+}
+
 func (ss *serviceSuite) TestManageRegFailsOn40x(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "I'm a teapot", 418)
