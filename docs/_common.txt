@@ -185,3 +185,46 @@ Here is an example of the POST body using all the fields::
 :clear_pending: Discards all previous pending notifications. Usually in response to getting a "too-many-pending" error.
 :replace_tag: If there's a pending notification with the same tag, delete it before queuing this new one.
 :data: A JSON object.
+
+Limitations of the Server API
+-----------------------------
+
+The push notification infrastructure is meant to help ensuring timely
+delivery of application notifications if the device is online or
+timely informing the device user about application notifications that
+were pending when the device comes back online. This in the face of
+applications not being allowed to be running all the time, and
+avoiding the resource cost of many applications all polling different services
+frequently.
+
+The push notification infrastructure is architected to guarantee at
+least best-effort with respect to these goals and beyond it, on the
+other end applications should not expect to be able to use and only
+rely on the push notification infrastructure to store application
+messages if they want ensure all their notification or messages are
+delivered, the infrastructure is not intended to be the only long term
+"inbox" storage for an application.
+
+To preserve overall throughput the infrastructure imposes some limits
+on applications:
+
+ * message data payload is limited to 2K
+
+ * when inserted all messages need to specify an expiration date after
+  which they can be dropped and not delivered
+
+ * an application is limited in the number of messages per token
+  (application/user/device combination) that can be undelivered/pending at the
+  same time (100 currently)
+
+replace_tag can be used to implement notifications for which the newest
+one replace the previous one if pending.
+
+clear_pending can be used to be deal with a pending message limit
+reached, possibly substituting the current undelivered messages with a
+more generic one.
+
+Applications using the push notification HTTP API should be robust
+against receiving 503 errors, retrying after waiting with increasing
+back-off. Later rate limits (signaled with the 429 status) may also come
+into play.
