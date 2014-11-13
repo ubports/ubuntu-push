@@ -211,11 +211,11 @@ on applications:
  * message data payload is limited to 2K
 
  * when inserted all messages need to specify an expiration date after
-  which they can be dropped and not delivered
+   which they can be dropped and not delivered
 
  * an application is limited in the number of messages per token
-  (application/user/device combination) that can be undelivered/pending at the
-  same time (100 currently)
+   (application/user/device combination) that can be undelivered/pending at the
+   same time (100 currently)
 
 replace_tag can be used to implement notifications for which the newest
 one replace the previous one if pending.
