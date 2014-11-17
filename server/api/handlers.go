@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -274,7 +275,7 @@ func checkRequestAsPost(request *http.Request, maxBodySize int64) *APIError {
 	if err := checkContentLength(request, maxBodySize); err != nil {
 		return err
 	}
-	if request.Header.Get("Content-Type") != JSONMediaType {
+	if !strings.Contains(request.Header.Get("Content-Type"), JSONMediaType) {
 		return ErrWrongContentType
 	}
 	return nil
