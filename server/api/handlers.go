@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"time"
 
@@ -274,7 +275,8 @@ func checkRequestAsPost(request *http.Request, maxBodySize int64) *APIError {
 	if err := checkContentLength(request, maxBodySize); err != nil {
 		return err
 	}
-	if request.Header.Get("Content-Type") != JSONMediaType {
+	mediaType, _, err := mime.ParseMediaType(request.Header.Get("Content-Type"))
+	if err != nil || mediaType != JSONMediaType {
 		return ErrWrongContentType
 	}
 	return nil

@@ -933,6 +933,22 @@ func (s *handlersSuite) TestCannotBroadcastNonJSONMessages(c *C) {
 	checkError(c, response, ErrWrongContentType)
 }
 
+func (s *handlersSuite) TestContentTypeWithCharset(c *C) {
+	testServer := httptest.NewServer(&JSONPostHandler{})
+	defer testServer.Close()
+
+	dataString := `{"foo":"bar"}`
+
+	request := newPostRequest("/", &Broadcast{
+		Channel:  "some-channel",
+		ExpireOn: future,
+		Data:     json.RawMessage([]byte(dataString)),
+	}, testServer)
+	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	result := checkRequestAsPost(request, 1024)
+	c.Assert(result, IsNil)
+}
+
 func (s *handlersSuite) TestCannotBroadcastNonPostMessages(c *C) {
 	testServer := httptest.NewServer(&JSONPostHandler{})
 	defer testServer.Close()
