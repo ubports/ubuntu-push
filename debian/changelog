@@ -1,3 +1,30 @@
+ubuntu-push (0.65+15.04.20141103-0ubuntu1) vivid; urgency=medium
+
+  [ John R. Lenton ]
+  * Make the common service Start(..) method take init, so we can listen for methods once everything is set up and not before.
+
+  [ Roberto Alsina ]
+  * Documentation fixes
+
+  [ Guillermo Gonzalez ]
+  * Fix click hook for legacy apps
+  * Add ClearCookie method to the session and call it from handleAccountsChange.
+  * click.AppId.SymbolicIcon() now tries to use X-Ubuntu-SymbolicIcon and then fallback to icon+"-symbolic"
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 03 Nov 2014 13:36:11 +0000
+
+ubuntu-push (0.64.1+14.10.20141023.2~rtm-0ubuntu1) 14.09; urgency=low
+
+  [ John R. Lenton ]
+  * make the common service Start(..) method take init, so we can listen
+    for methods once everything is set up and not before. (LP: #1383867)
+
+  [ Guillermo Gonzalez ]
+  * Add ClearCookie method to the session and call it from
+    handleAccountsChange.
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Thu, 23 Oct 2014 20:17:12 +0000
+
 ubuntu-push (0.64.1+14.10.20140910-0ubuntu1) utopic; urgency=medium
 
   [ Roberto Alsina ]
