@@ -176,6 +176,8 @@ func (sess *ClientSession) Run(events chan<- string) error {
 			events <- fmt.Sprintf("%sbroadcast chan:%v app:%v topLevel:%d payloads:%s", sess.Prefix, recv.ChanId, recv.AppId, recv.TopLevel, pack)
 		case "warn", "connwarn":
 			events <- fmt.Sprintf("%sconnwarn %s", sess.Prefix, recv.Reason)
+		case "connbroken":
+			events <- fmt.Sprintf("%sconnbroken %s", sess.Prefix, recv.Reason)
 		case "setparams":
 			sess.SetCookie(recv.SetCookie)
 			if sess.ReportSetParams {
