@@ -127,6 +127,11 @@ func RunAndObserve(c *C, cmdName string, arg ...string) (<-chan string, func(os.
 				c.Log(info)
 				continue
 			}
+			if strings.HasPrefix(info, "DEBUG ") && !strings.HasPrefix(info, "DEBUG session(") {
+				// skip non session DEBUG logs
+				c.Log(info)
+				continue
+			}
 			logs <- info
 		}
 	}()
@@ -136,16 +141,12 @@ func RunAndObserve(c *C, cmdName string, arg ...string) (<-chan string, func(os.
 const (
 	DevListeningOnPat  = "INFO listening for devices on "
 	HTTPListeningOnPat = "INFO listening for http on "
-	debugPrefix        = "DEBUG "
 )
 
-// ExtractListeningAddr goes over logs ignoring DEBUG lines
-// until a line starting with pat and returns the rest of that line.
+// ExtractListeningAddr goes over logs until a line starting with pat
+// and returns the rest of that line.
 func ExtractListeningAddr(c *C, logs <-chan string, pat string) string {
 	for line := range logs {
-		if strings.HasPrefix(line, debugPrefix) {
-			continue
-		}
 		if !strings.HasPrefix(line, pat) {
 			c.Fatalf("matching %v: %v", pat, line)
 		}

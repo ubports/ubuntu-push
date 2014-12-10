@@ -430,7 +430,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		return err
 	}
 	sess.clearShouldDelay()
-	sess.Log.Debugf("broadcast chan:%v app:%v topLevel:%d payloads:%s",
+	sess.Log.Infof("broadcast chan:%v app:%v topLevel:%d payloads:%s",
 		bcast.ChanId, bcast.AppId, bcast.TopLevel, bcast.Payloads)
 	if bcast.ChanId == protocol.SystemChannelId {
 		// the system channel id, the only one we care about for now
@@ -438,7 +438,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 		sess.BroadcastCh <- sess.decodeBroadcast(bcast)
 		sess.Log.Debugf("sent bcast over")
 	} else {
-		sess.Log.Debugf("what is this weird channel, %#v?", bcast.ChanId)
+		sess.Log.Errorf("what is this weird channel, %#v?", bcast.ChanId)
 	}
 	return nil
 }
@@ -468,7 +468,7 @@ func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
 		if to == nil {
 			continue
 		}
-		sess.Log.Debugf("unicast app:%v msg:%s payload:%s",
+		sess.Log.Infof("unicast app:%v msg:%s payload:%s",
 			notif.AppId, notif.MsgId, notif.Payload)
 		sess.Log.Debugf("sending ucast over")
 		sess.NotificationsCh <- AddressedNotification{to, notif}

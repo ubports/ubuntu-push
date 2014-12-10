@@ -19,6 +19,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -179,7 +180,8 @@ func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
 func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, 256)
-		n, e := r.Body.Read(buf)
+		n := r.ContentLength
+		_, e := io.ReadFull(r.Body, buf[:n])
 		c.Assert(e, IsNil)
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
@@ -240,6 +242,23 @@ func (ss *serviceSuite) TestManageRegFailsOnNoServer(c *C) {
 	c.Check(err, ErrorMatches, "unable to request registration: .*")
 }
 
+func (ss *serviceSuite) TestManageRegFailsOn401(c *C) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Unauthorized", 401)
+	}))
+	defer ts.Close()
+	setup := &PushServiceSetup{
+		DeviceId:   "fake-device-id",
+		RegURL:     helpers.ParseURL(ts.URL),
+		AuthGetter: func(string) string { return "tok" },
+	}
+	svc := NewPushService(setup, ss.log)
+	svc.Bus = ss.bus
+	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
+	c.Check(err, Equals, ErrBadAuth)
+	c.Check(reg, IsNil)
+}
+
 func (ss *serviceSuite) TestManageRegFailsOn40x(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "I'm a teapot", 418)
@@ -277,7 +296,8 @@ func (ss *serviceSuite) TestManageRegFailsOn50x(c *C) {
 func (ss *serviceSuite) TestManageRegFailsOnBadJSON(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, 256)
-		n, e := r.Body.Read(buf)
+		n := r.ContentLength
+		_, e := io.ReadFull(r.Body, buf[:n])
 		c.Assert(e, IsNil)
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
@@ -303,7 +323,8 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSON(c *C) {
 func (ss *serviceSuite) TestManageRegFailsOnBadJSONDocument(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, 256)
-		n, e := r.Body.Read(buf)
+		n := r.ContentLength
+		_, e := io.ReadFull(r.Body, buf[:n])
 		c.Assert(e, IsNil)
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
@@ -329,7 +350,8 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSONDocument(c *C) {
 func (ss *serviceSuite) TestDBusUnregisterWorks(c *C) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, 256)
-		n, e := r.Body.Read(buf)
+		n := r.ContentLength
+		_, e := io.ReadFull(r.Body, buf[:n])
 		c.Assert(e, IsNil)
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
@@ -356,7 +378,8 @@ func (ss *serviceSuite) TestUnregistrationWorks(c *C) {
 	invoked := make(chan bool, 1)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, 256)
-		n, e := r.Body.Read(buf)
+		n := r.ContentLength
+		_, e := io.ReadFull(r.Body, buf[:n])
 		c.Assert(e, IsNil)
 		req := registrationRequest{}
 		c.Assert(json.Unmarshal(buf[:n], &req), IsNil)
