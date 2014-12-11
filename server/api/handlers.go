@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"time"
 
@@ -96,6 +97,12 @@ var (
 		http.StatusMethodNotAllowed,
 		invalidRequest,
 		"Wrong request method, should be POST",
+		nil,
+	}
+	ErrWrongRequestMethodGET = &APIError{
+		http.StatusMethodNotAllowed,
+		invalidRequest,
+		"Wrong request method, should be GET",
 		nil,
 	}
 	ErrMalformedJSONObject = &APIError{
@@ -268,7 +275,8 @@ func checkRequestAsPost(request *http.Request, maxBodySize int64) *APIError {
 	if err := checkContentLength(request, maxBodySize); err != nil {
 		return err
 	}
-	if request.Header.Get("Content-Type") != JSONMediaType {
+	mediaType, _, err := mime.ParseMediaType(request.Header.Get("Content-Type"))
+	if err != nil || mediaType != JSONMediaType {
 		return ErrWrongContentType
 	}
 	return nil
@@ -452,14 +460,17 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 	if err != nil {
 		switch err {
 		case store.ErrUnknownToken:
+			ctx.logger.Debugf("notify: %v %v unknown", ucast.AppId, ucast.Token)
 			return nil, ErrUnknownToken
 		case store.ErrUnauthorized:
+			ctx.logger.Debugf("notify: %v %v unauthorized", ucast.AppId, ucast.Token)
 			return nil, ErrUnauthorized
 		default:
 			ctx.logger.Errorf("could not resolve token: %v", err)
 			return nil, ErrCouldNotResolveToken
 		}
 	}
+	ctx.logger.Debugf("notify: %v %v -> %v", ucast.AppId, ucast.Token, chanId)
 
 	_, notifs, meta, err := sto.GetChannelUnfiltered(chanId)
 	if err != nil {
@@ -491,6 +502,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 	if ucast.ClearPending {
 		scrubCriteria = []string{ucast.AppId}
 	} else if forApp >= ctx.storage.GetMaxNotificationsPerApplication() {
+		ctx.logger.Debugf("notify: %v %v too many pending", ucast.AppId, chanId)
 		return nil, apiErrorWithExtra(ErrTooManyPendingNotifications,
 			&last.Payload)
 	} else if replaceable > 0 {
@@ -518,6 +530,8 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 	}
 
 	ctx.broker.Unicast(chanId)
+
+	ctx.logger.Debugf("notify: ok %v %v id:%v clear:%v replace:%v expired:%v", ucast.AppId, chanId, msgId, ucast.ClearPending, replaceable, expired)
 	return nil, nil
 }
 

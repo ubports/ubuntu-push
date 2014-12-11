@@ -66,12 +66,12 @@ var testBrokerConfig = &testing.TestBrokerConfig{10, 5}
 
 func (s *CommonBrokerSuite) TestSanity(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	c.Check(s.RevealSession(b, "FOO"), IsNil)
 }
 
 func (s *CommonBrokerSuite) TestStartStop(c *C) {
-	b := s.MakeBroker(nil, testBrokerConfig, nil)
+	b := s.MakeBroker(nil, testBrokerConfig, s.testlog)
 	b.Start()
 	c.Check(b.Running(), Equals, true)
 	b.Start()
@@ -82,7 +82,7 @@ func (s *CommonBrokerSuite) TestStartStop(c *C) {
 
 func (s *CommonBrokerSuite) TestRegistration(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	sess, err := b.Register(&protocol.ConnectMsg{
@@ -112,7 +112,7 @@ func (s *CommonBrokerSuite) TestRegistration(c *C) {
 
 func (s *CommonBrokerSuite) TestRegistrationBrokenLevels(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	_, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1", Levels: map[string]int64{"z": 5}}, s.MakeTracker("s1"))
@@ -121,7 +121,7 @@ func (s *CommonBrokerSuite) TestRegistrationBrokenLevels(c *C) {
 
 func (s *CommonBrokerSuite) TestRegistrationInfoErrors(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	info := map[string]interface{}{
@@ -140,7 +140,7 @@ func (s *CommonBrokerSuite) TestRegistrationFeedPending(c *C) {
 	notification1 := json.RawMessage(`{"m": "M"}`)
 	muchLater := time.Now().Add(10 * time.Minute)
 	sto.AppendToChannel(store.SystemInternalChannelId, notification1, muchLater)
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	sess, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, s.MakeTracker("s1"))
@@ -166,7 +166,7 @@ func clearOfPending(c *C, sess broker.BrokerSession) {
 
 func (s *CommonBrokerSuite) TestRegistrationLastWins(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, s.MakeTracker("s1"))
@@ -197,7 +197,7 @@ func (s *CommonBrokerSuite) TestBroadcast(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M"}`)
 	decoded1 := map[string]interface{}{"m": "M"}
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev-1"}, s.MakeTracker("s1"))
@@ -278,7 +278,7 @@ func (s *CommonBrokerSuite) TestUnicast(c *C) {
 	notification2 := json.RawMessage(`{"m": "M2"}`)
 	chanId1 := store.UnicastInternalChannelId("dev1", "dev1")
 	chanId2 := store.UnicastInternalChannelId("dev2", "dev2")
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev1"}, s.MakeTracker("s1"))
@@ -312,7 +312,7 @@ func (s *CommonBrokerSuite) TestGetAndDrop(c *C) {
 	sto := store.NewInMemoryPendingStore()
 	notification1 := json.RawMessage(`{"m": "M1"}`)
 	chanId1 := store.UnicastInternalChannelId("dev3", "dev3")
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev3"}, s.MakeTracker("s1"))
@@ -354,7 +354,7 @@ func (s *CommonBrokerSuite) TestGetAndDropErrors(c *C) {
 
 func (s *CommonBrokerSuite) TestSessionFeed(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := s.MakeBroker(sto, testBrokerConfig, nil)
+	b := s.MakeBroker(sto, testBrokerConfig, s.testlog)
 	b.Start()
 	defer b.Stop()
 	sess1, err := b.Register(&protocol.ConnectMsg{Type: "connect", DeviceId: "dev3"}, s.MakeTracker("s1"))

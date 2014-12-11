@@ -26,9 +26,42 @@ MainView {
         property alias nickEnabled: nickEdit.enabled
     }
 
+    states: [
+        State {
+            name: "no-push-token"
+            when: (pushClient.token == "")
+            PropertyChanges { target: nickEdit; readOnly: true}
+            PropertyChanges { target: nickEdit; focus: true}
+            PropertyChanges { target: messageEdit; enabled: false}
+            PropertyChanges { target: loginButton; enabled: false}
+            PropertyChanges { target: loginButton; text: "Login"}
+        },
+        State {
+            name: "push-token-not-registered"
+            when: ((pushClient.token != "") && (chatClient.registered == false))
+            PropertyChanges { target: nickEdit; readOnly: false}
+            PropertyChanges { target: nickEdit; text: ""}
+            PropertyChanges { target: nickEdit; focus: true}
+            PropertyChanges { target: messageEdit; enabled: false}
+            PropertyChanges { target: loginButton; enabled: true}
+            PropertyChanges { target: loginButton; text: "Login"}
+        },
+        State {
+            name: "registered"
+            when: ((pushClient.token != "") && (chatClient.registered == true))
+            PropertyChanges { target: nickEdit; readOnly: true}
+            PropertyChanges { target: nickEdit; text: "Your nick is " + chatClient.nick}
+            PropertyChanges { target: messageEdit; focus: true}
+            PropertyChanges { target: messageEdit; enabled: true}
+            PropertyChanges { target: loginButton; enabled: true}
+            PropertyChanges { target: loginButton; text: "Logout"}
+        }
+    ]
+
+    state: "no-push-token"
+
     ChatClient {
         id: chatClient
-        onRegisteredChanged: {nickEdit.registered()}
         onError: {messageList.handle_error(msg)}
         token: pushClient.token
     }
@@ -44,7 +77,6 @@ MainView {
 
     TextField {
         id: nickEdit
-        focus: true
         placeholderText: "Your nickname"
         inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhPreferLowercase
         anchors.left: parent.left
@@ -53,31 +85,17 @@ MainView {
         anchors.leftMargin: units.gu(.5)
         anchors.rightMargin: units.gu(1)
         anchors.topMargin: units.gu(.5)
-        function registered() {
-            readOnly = true
-            text = "Your nick is " + chatClient.nick
-            messageEdit.focus = true
-            messageEdit.enabled = true
-            loginButton.text = "Logout"
-        }
         onAccepted: { loginButton.clicked() }
     }
 
     Button {
         id: loginButton
-        text: chatClient.rgistered? "Logout": "Login"
         anchors.top: nickEdit.top
         anchors.right: parent.right
         anchors.rightMargin: units.gu(.5)
         onClicked: {
             if (chatClient.nick) { // logout
                 chatClient.nick = ""
-                text = "Login"
-                nickEdit.enabled = true
-                nickEdit.readOnly = false
-                nickEdit.text = ""
-                nickEdit.focus = true
-                messageEdit.enabled = false
             } else { // login
                 chatClient.nick = nickEdit.text
             }
@@ -94,7 +112,6 @@ MainView {
         anchors.rightMargin: units.gu(.5)
         anchors.leftMargin: units.gu(.5)
         placeholderText: "Your message"
-        enabled: false
         onAccepted: {
             console.log("sending " + text)
             var idx = text.indexOf(":")

@@ -57,6 +57,8 @@ Example::
 The Register method takes as argument the APP_ID (in the example, com.ubuntu.music_music) and returns a token identifying the user
 and device. For this to succeed the user **must** have an Ubuntu One account configured in the device.
 
+In the case the Register method returns a "bad auth" error, the application should inform the user to generate new Ubuntu One tokens.
+
 The APP_ID is as described in the `ApplicationId documentation <https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId>`__
 except that the version is treated as optional. Therefore both ``com.ubuntu.music_music`` and ``com.ubuntu.music_music_1.3.496``
 are valid. Keep in mind that while both versioned and unversioned APP_IDs are valid, they are still different and will affect

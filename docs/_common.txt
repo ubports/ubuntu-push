@@ -7,47 +7,22 @@ the postal service (see `Helper Output Format <#helper-output-format>`__).
 The helper receives two arguments ``infile`` and ``outfile``. The message is delivered via ``infile`` and the transformed
 version is placed in ``outfile``.
 
-This is the simplest possible useful helper, which simply passes the message through unchanged::
+This is the simplest possible useful helper, which simply passes the message through unchanged:
 
-    #!/usr/bin/python3
+.. include:: example-client/helloHelper
+   :literal:
 
-    import sys
-    f1, f2 = sys.argv[1:3]
-    open(f2, "w").write(open(f1).read())
+Helpers need to be added to the click package manifest:
 
-Helpers need to be added to the click package manifest::
-
-    {
-        "name": "com.ubuntu.developer.ralsina.hello",
-        "description": "description of hello",
-        "framework": "ubuntu-sdk-14.10-qml-dev2",
-        "architecture": "all",
-        "title": "hello",
-        "hooks": {
-            "hello": {
-                "apparmor": "hello.json",
-                "desktop": "hello.desktop"
-            },
-            "helloHelper": {
-                "apparmor": "helloHelper-apparmor.json",
-                "push-helper": "helloHelper.json"
-            }
-        },
-        "version": "0.2",
-        "maintainer": "Roberto Alsina <roberto.alsina@canonical.com>"
-    }
+.. include:: example-client/manifest.json
+   :literal:
 
 Here, we created a helloHelper entry in hooks that has an apparmor profile and an additional JSON file for the push-helper hook.
 
-helloHelper-apparmor.json must contain **only** the push-notification-client policy group and the ubuntu-push-helper template::
+helloHelper-apparmor.json must contain **only** the push-notification-client policy group and the ubuntu-push-helper template:
 
-    {
-        "template": "ubuntu-push-helper",
-        "policy_groups": [
-            "push-notification-client"
-        ],
-        "policy_version": 1.2
-    }
+.. include:: example-client/helloHelper-apparmor.json
+   :literal:
 
 And helloHelper.json must have at least a exec key with the path to the helper executable relative to the json, and optionally
 an app_id key containing the short id of one of the apps in the package (in the format packagename_appname without a version).
@@ -139,15 +114,10 @@ The notification can contain a **emblem-counter** field, with the following cont
 Security
 ~~~~~~~~
 
-To use the push API, applications need to request permission in their security profile, using something like this::
+To use the push API, applications need to request permission in their security profile, using something like this:
 
-    {
-        "policy_groups": [
-            "networking",
-            "push-notification-client"
-        ],
-        "policy_version": 1.2
-    }
+.. include:: example-client/hello.json
+   :literal:
 
 
 Ubuntu Push Server API
@@ -185,3 +155,46 @@ Here is an example of the POST body using all the fields::
 :clear_pending: Discards all previous pending notifications. Usually in response to getting a "too-many-pending" error.
 :replace_tag: If there's a pending notification with the same tag, delete it before queuing this new one.
 :data: A JSON object.
+
+Limitations of the Server API
+-----------------------------
+
+The push notification infrastructure is meant to help ensuring timely
+delivery of application notifications if the device is online or
+timely informing the device user about application notifications that
+were pending when the device comes back online. This in the face of
+applications not being allowed to be running all the time, and
+avoiding the resource cost of many applications all polling different services
+frequently.
+
+The push notification infrastructure is architected to guarantee at
+least best-effort with respect to these goals and beyond it, on the
+other end applications should not expect to be able to use and only
+rely on the push notification infrastructure to store application
+messages if they want ensure all their notification or messages are
+delivered, the infrastructure is not intended to be the only long term
+"inbox" storage for an application.
+
+To preserve overall throughput the infrastructure imposes some limits
+on applications:
+
+ * message data payload is limited to 2K
+
+ * when inserted all messages need to specify an expiration date after
+   which they can be dropped and not delivered
+
+ * an application is limited in the number of messages per token
+   (application/user/device combination) that can be undelivered/pending at the
+   same time (100 currently)
+
+replace_tag can be used to implement notifications for which the newest
+one replace the previous one if pending.
+
+clear_pending can be used to be deal with a pending message limit
+reached, possibly substituting the current undelivered messages with a
+more generic one.
+
+Applications using the push notification HTTP API should be robust
+against receiving 503 errors, retrying after waiting with increasing
+back-off. Later rate limits (signaled with the 429 status) may also come
+into play.

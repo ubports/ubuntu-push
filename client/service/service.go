@@ -140,6 +140,8 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 		case resp.StatusCode >= http.StatusInternalServerError:
 			// XXX retry on 503
 			return nil, ErrBadServer
+		case resp.StatusCode == http.StatusUnauthorized:
+			return nil, ErrBadAuth
 		default:
 			return nil, ErrBadRequest
 		}

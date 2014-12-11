@@ -18,6 +18,7 @@ package listener
 
 import (
 	"crypto/tls"
+	"io"
 	"net"
 	"os/exec"
 	"regexp"
@@ -112,7 +113,7 @@ func testSession(conn net.Conn) error {
 	conn.SetDeadline(time.Now().Add(10 * time.Second))
 	var buf [1]byte
 	for {
-		_, err := conn.Read(buf[:])
+		_, err := io.ReadFull(conn, buf[:])
 		if err != nil {
 			return err
 		}
@@ -137,7 +138,7 @@ func testWriteByte(c *C, conn net.Conn, toWrite uint32) {
 
 func testReadByte(c *C, conn net.Conn, expected uint32) {
 	var buf [1]byte
-	_, err := conn.Read(buf[:])
+	_, err := io.ReadFull(conn, buf[:])
 	c.Check(err, IsNil)
 	c.Check(buf[0], Equals, byte(expected))
 }
