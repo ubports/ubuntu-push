@@ -17,6 +17,7 @@
 package messaging
 
 import (
+	"sort"
 	"time"
 
 	. "launchpad.net/gocheck"
@@ -121,6 +122,12 @@ func (ms *MessagingSuite) TestPresentWithActions(c *C) {
 	c.Check(payload.Actions[1], Equals, "action-1")
 }
 
+func (msg *MessagingSuite) checkTags(c *C, got, expected []string) {
+	sort.Strings(got)
+	sort.Strings(expected)
+	c.Check(got, DeepEquals, expected)
+}
+
 func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 	mmu := New(ms.log)
 	f := func(s string) *launch_helper.Notification {
@@ -130,15 +137,15 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 
 	c.Check(mmu.Tags(ms.app), IsNil)
 	c.Assert(mmu.Present(ms.app, "notif1", f("one")), Equals, true)
-	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one"})
+	ms.checkTags(c, mmu.Tags(ms.app), []string{"one"})
 	c.Assert(mmu.Present(ms.app, "notif2", f("")), Equals, true)
-	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one", ""})
+	ms.checkTags(c, mmu.Tags(ms.app), []string{"one", ""})
 	// and an empty notification doesn't count
 	c.Assert(mmu.Present(ms.app, "notif3", &launch_helper.Notification{Tag: "X"}), Equals, false)
-	c.Check(mmu.Tags(ms.app), DeepEquals, []string{"one", ""})
+	ms.checkTags(c, mmu.Tags(ms.app), []string{"one", ""})
 	// and they go away if we remove one
 	mmu.RemoveNotification("notif1", false)
-	c.Check(mmu.Tags(ms.app), DeepEquals, []string{""})
+	ms.checkTags(c, mmu.Tags(ms.app), []string{""})
 	mmu.RemoveNotification("notif2", false)
 	c.Check(mmu.Tags(ms.app), IsNil)
 }
@@ -169,9 +176,9 @@ func (ms *MessagingSuite) TestClearClears(c *C) {
 	//   app 1: "one", "two", "";
 	//   app 2: "one", "two";
 	//   app 3: "one", ""
-	c.Assert(mm.Tags(app1), DeepEquals, []string{"one", "two", ""})
-	c.Assert(mm.Tags(app2), DeepEquals, []string{"one", "two"})
-	c.Assert(mm.Tags(app3), DeepEquals, []string{"one", ""})
+	ms.checkTags(c, mm.Tags(app1), []string{"one", "two", ""})
+	ms.checkTags(c, mm.Tags(app2), []string{"one", "two"})
+	ms.checkTags(c, mm.Tags(app3), []string{"one", ""})
 
 	// clearing a non-existent tag does nothing
 	c.Check(mm.Clear(app1, "foo"), Equals, 0)
