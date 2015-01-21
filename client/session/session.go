@@ -234,6 +234,7 @@ func (sess *ClientSession) State() ClientSessionState {
 }
 
 func (sess *ClientSession) setState(state ClientSessionState) {
+	sess.Log.Debugf("session.setState: %s -> %s", ClientSessionState(atomic.LoadUint32(sess.stateP)), state)
 	atomic.StoreUint32(sess.stateP, uint32(state))
 }
 
@@ -385,6 +386,7 @@ func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 			sess.Log.Debugf("session autoredialer skipping retry: retrier has been set to nil.")
 			return
 		}
+		sess.Log.Debugf("session autoredialier launching Redial goroutine")
 		doneCh <- retrier.Redial()
 	}()
 }
