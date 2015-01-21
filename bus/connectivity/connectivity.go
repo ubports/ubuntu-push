@@ -121,11 +121,11 @@ Loop:
 			cs.webgetCh = nil
 			cs.timer.Reset(stabilizingTimeout)
 			if cs.lastSent == true {
-				log.Debugf("Connectivity: PrimaryConnection changed. lastSent: %v, sending 'disconnected'.", cs.lastSent)
+				log.Debugf("connectivity: PrimaryConnection changed. lastSent: %v, sending 'disconnected'.", cs.lastSent)
 				cs.lastSent = false
 				break Loop
 			} else {
-				log.Debugf("Connectivity: PrimaryConnection changed. lastSent: %v, Ignoring.", cs.lastSent)
+				log.Debugf("connectivity: PrimaryConnection changed. lastSent: %v, Ignoring.", cs.lastSent)
 			}
 
 		case v, ok := <-cs.networkStateCh:
@@ -141,29 +141,29 @@ Loop:
 			if v != networkmanager.Connecting && lastState != v {
 				cs.timer.Reset(stabilizingTimeout)
 				if cs.lastSent == true {
-					log.Debugf("Connectivity: %s -> %s. lastSent: %v, sending 'disconnected'", lastState, v, cs.lastSent)
+					log.Debugf("connectivity: %s -> %s. lastSent: %v, sending 'disconnected'", lastState, v, cs.lastSent)
 					cs.lastSent = false
 					break Loop
 				} else {
-					log.Debugf("Connectivity: %s -> %s. lastSent: %v, Ignoring.", lastState, v, cs.lastSent)
+					log.Debugf("connectivity: %s -> %s. lastSent: %v, Ignoring.", lastState, v, cs.lastSent)
 				}
 			} else {
-				log.Debugf("Connectivity: %s -> %s. lastSent: %v, Ignoring.", lastState, v, cs.lastSent)
+				log.Debugf("connectivity: %s -> %s. lastSent: %v, Ignoring.", lastState, v, cs.lastSent)
 			}
 
 		case <-cs.timer.C:
 			if cs.currentState == networkmanager.ConnectedGlobal {
-				log.Debugf("Connectivity: timer signal, state: ConnectedGlobal, checking...")
+				log.Debugf("connectivity: timer signal, state: ConnectedGlobal, checking...")
 				cs.webgetCh = make(chan bool)
 				go cs.webget(cs.webgetCh)
 			}
 
 		case connected := <-cs.webgetCh:
 			cs.timer.Reset(recheckTimeout)
-			log.Debugf("Connectivity: connection check says: %t", connected)
+			log.Debugf("connectivity: connection check says: %t", connected)
 			cs.webgetCh = nil
 			if connected && cs.lastSent == false {
-				log.Debugf("Connectivity: connection check ok, lastSent: %v, sending 'connected'.", cs.lastSent)
+				log.Debugf("connectivity: connection check ok, lastSent: %v, sending 'connected'.", cs.lastSent)
 				cs.lastSent = true
 				break Loop
 			}
