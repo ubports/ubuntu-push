@@ -34,7 +34,7 @@ func installSigQuitHandler() {
 		signal.Notify(sigs, syscall.SIGQUIT)
 		buf := make([]byte, 1<<20)
 		for {
-			_ = <-sigs
+			<-sigs
 			runtime.Stack(buf, true)
 			log.Printf("=== received SIGQUIT ===\n*** goroutine dump...\n%s\n*** end\n", buf)
 		}
