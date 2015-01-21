@@ -508,6 +508,7 @@ func (sess *ClientSession) loop() error {
 		sess.proto.SetDeadline(time.Now().Add(deadAfter))
 		err = sess.proto.ReadMessage(&recv)
 		if err != nil {
+			sess.Log.Debugf("session aborting with error on read.")
 			sess.setState(Error)
 			return err
 		}
@@ -529,6 +530,7 @@ func (sess *ClientSession) loop() error {
 			sess.Log.Errorf("server sent warning: %s", recv.Reason)
 		}
 		if err != nil {
+			sess.Log.Debugf("session aborting with error from handler.")
 			return err
 		}
 	}

@@ -82,7 +82,7 @@ func (cs *connectedState) start() networkmanager.State {
 		// Get the current state.
 		initial = nm.GetState()
 		if initial == networkmanager.Unknown {
-			cs.log.Debugf("Failed to get state.")
+			cs.log.Debugf("failed to get state.")
 			goto Continue
 		}
 		cs.log.Debugf("got initial state of %s", initial)
@@ -178,7 +178,7 @@ func ConnectedState(endp bus.Endpoint, config ConnectivityConfig, log logger.Log
 	}
 
 Start:
-	log.Infof("Sending initial 'disconnected'.")
+	log.Debugf("Sending initial 'disconnected'.")
 	out <- false
 	cs.lastSent = false
 	cs.currentState = cs.start()

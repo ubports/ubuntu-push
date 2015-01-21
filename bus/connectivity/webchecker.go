@@ -64,7 +64,7 @@ var _ Webchecker = &webchecker{}
 func (wb *webchecker) Webcheck(ch chan<- bool) {
 	response, err := wb.cli.Get(wb.url)
 	if err != nil {
-		wb.log.Errorf("While GETting %s: %v", wb.url, err)
+		wb.log.Errorf("while GETting %s: %v", wb.url, err)
 		ch <- false
 		return
 	}
@@ -72,17 +72,17 @@ func (wb *webchecker) Webcheck(ch chan<- bool) {
 	hash := md5.New()
 	_, err = io.CopyN(hash, response.Body, 1024)
 	if err != io.EOF {
-		wb.log.Errorf("Reading %s, expecting EOF, got: %v",
+		wb.log.Errorf("reading %s, expecting EOF, got: %v",
 			wb.url, err)
 		ch <- false
 		return
 	}
 	sum := fmt.Sprintf("%x", hash.Sum(nil))
 	if sum == wb.target {
-		wb.log.Infof("Connectivity check passed.")
+		wb.log.Infof("connectivity check passed.")
 		ch <- true
 	} else {
-		wb.log.Infof("Connectivity check failed: content mismatch.")
+		wb.log.Infof("connectivity check failed: content mismatch.")
 		ch <- false
 	}
 }

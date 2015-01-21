@@ -167,7 +167,7 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		// the channel will produce a true for every
 		// wakeup, not only the one we asked for
 		now := time.Now()
-		p.log.Debugf("got woken up; time is %s", now)
+		p.log.Debugf("got woken up; time is %s (𝛥: %s)", now, now.Sub(t))
 		if !now.Before(t) {
 			break
 		}

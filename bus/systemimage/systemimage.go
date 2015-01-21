@@ -57,7 +57,7 @@ func New(endp bus.Endpoint, log logger.Logger) SystemImage {
 var _ SystemImage = &systemImage{} // ensures it conforms
 
 func (si *systemImage) Info() (*InfoResult, error) {
-	si.log.Debugf("Invoking Info")
+	si.log.Debugf("invoking Info")
 	res := &InfoResult{}
 	err := si.endp.Call("Info", bus.Args(), &res.BuildNumber, &res.Device, &res.Channel, &res.LastUpdate, &res.VersionDetail)
 	if err != nil {
