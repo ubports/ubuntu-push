@@ -217,20 +217,22 @@ func (s *ConnSuite) TestSteps(c *C) {
 	f, e := cs.connectedStateStep()
 	c.Check(e, IsNil)
 	c.Check(f, Equals, true)
-	ch <- networkmanager.ConnectedGlobal // a ConnectedGlobal when connected signals trouble
-	f, e = cs.connectedStateStep()
-	c.Check(e, IsNil)
-	c.Check(f, Equals, false) // so we assume a disconnect happened
-	f, e = cs.connectedStateStep()
-	c.Check(e, IsNil)
-	c.Check(f, Equals, true) // and if the web check works, go back to connected
-
-	// same scenario, but with failing web check
-	webget_p = condition.Fail2Work(1)
+	ch <- networkmanager.Disconnected
 	ch <- networkmanager.ConnectedGlobal
 	f, e = cs.connectedStateStep()
 	c.Check(e, IsNil)
-	c.Check(f, Equals, false) // first false is from assuming a Connected signals trouble
+	c.Check(f, Equals, false)
+	f, e = cs.connectedStateStep()
+	c.Check(e, IsNil)
+	c.Check(f, Equals, true)
+
+	// same scenario, but with failing web check
+	webget_p = condition.Fail2Work(1)
+	ch <- networkmanager.Disconnected
+	ch <- networkmanager.ConnectedGlobal
+	f, e = cs.connectedStateStep()
+	c.Check(e, IsNil)
+	c.Check(f, Equals, false) // first false is from the Disconnected
 
 	// the next call to Step will time out
 	_ch := make(chan bool, 1)
@@ -284,7 +286,6 @@ func (s *ConnSuite) TestRun(c *C) {
 
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal),
-		uint32(networkmanager.ConnectedGlobal),
 		uint32(networkmanager.Disconnected),
 	)
 
@@ -303,8 +304,6 @@ func (s *ConnSuite) TestRun(c *C) {
 	}{
 		{false, "first state is always false", 0},
 		{true, "then it should be true as per ConnectedGlobal above", 0},
-		{false, "then, false (upon receiving the next ConnectedGlobal)", 2},
-		{true, "then it should be true (webcheck passed)", 0},
 		{false, "then it should be false (Disconnected)", 2},
 		{false, "then it should be false again because it's restarted", 2},
 	}

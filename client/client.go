@@ -381,10 +381,9 @@ func (client *PushClient) handleConnState(hasConnectivity bool) {
 		return
 	}
 	client.hasConnectivity = hasConnectivity
+	client.session.Close()
 	if hasConnectivity {
 		client.session.AutoRedial(client.sessionConnectedCh)
-	} else {
-		client.session.Close()
 	}
 }
 

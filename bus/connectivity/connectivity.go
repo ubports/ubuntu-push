@@ -132,13 +132,17 @@ Loop:
 				return false, errors.New("got not-OK from StateChanged watch")
 			}
 			cs.webgetCh = nil
-			cs.currentState = v
-			cs.timer.Reset(stabilizingTimeout)
-			log.Debugf("State changed to %s. Assuming disconnect.", v)
-			if cs.lastSent == true {
-				log.Infof("Sending 'disconnected'.")
-				cs.lastSent = false
-				break Loop
+			if v != networkmanager.Connecting && cs.currentState != v {
+				cs.currentState = v
+				cs.timer.Reset(stabilizingTimeout)
+				log.Debugf("State changed to %s. Assuming disconnect.", v)
+				if cs.lastSent == true {
+					log.Debugf("sending 'disconnected'.")
+					cs.lastSent = false
+					break Loop
+				}
+			} else {
+				log.Debugf("got State of %s, current is %s, ignoring.", v, cs.currentState)
 			}
 
 		case <-cs.timer.C:

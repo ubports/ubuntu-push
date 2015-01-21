@@ -74,7 +74,21 @@ const (
 	Connected
 	Started
 	Running
+	Unknown
 )
+
+func (s ClientSessionState) String() string {
+	if s >= Unknown {
+		return fmt.Sprintf("??? (%d)", s)
+	}
+	return [Unknown]string{
+		"Error",
+		"Disconnected",
+		"Connected",
+		"Started",
+		"Running",
+	}[s]
+}
 
 type hostGetter interface {
 	Get() (*gethosts.Host, error)
@@ -360,15 +374,26 @@ func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 		sess.setShouldDelay()
 	}
 	time.Sleep(sess.redialDelay(sess))
+	if sess.retrier != nil {
+		panic("session AutoRedial: unexpected non-nil retrier.")
+	}
 	sess.retrier = util.NewAutoRedialer(sess)
 	sess.lastAutoRedial = time.Now()
-	go func() { doneCh <- sess.retrier.Redial() }()
+	go func() {
+		retrier := sess.retrier
+		if sess.retrier == nil {
+			sess.Log.Debugf("session autoredialer skipping retry: retrier has been set to nil.")
+			return
+		}
+		doneCh <- retrier.Redial()
+	}()
 }
 
 func (sess *ClientSession) Close() {
 	sess.stopRedial()
 	sess.doClose()
 }
+
 func (sess *ClientSession) doClose() {
 	sess.connLock.Lock()
 	defer sess.connLock.Unlock()
