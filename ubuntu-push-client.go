@@ -18,13 +18,31 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"runtime"
+	"syscall"
 
 	"launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/client"
 )
 
+func installSigQuitHandler() {
+	go func() {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGQUIT)
+		buf := make([]byte, 1<<20)
+		for {
+			_ = <-sigs
+			runtime.Stack(buf, true)
+			log.Printf("=== received SIGQUIT ===\n*** goroutine dump...\n%s\n*** end\n", buf)
+		}
+	}()
+}
+
 func main() {
+	installSigQuitHandler()
 	cfgFname, err := xdg.Config.Find("ubuntu-push-client/config.json")
 	if err != nil {
 		log.Fatalf("unable to find a configuration file: %v", err)
