@@ -143,17 +143,17 @@ Loop:
 
 		case <-cs.timer.C:
 			if cs.currentState == networkmanager.ConnectedGlobal {
-				log.Debugf("May be connected; checking...")
+				log.Debugf("may be connected; checking...")
 				cs.webgetCh = make(chan bool)
 				go cs.webget(cs.webgetCh)
 			}
 
 		case connected := <-cs.webgetCh:
 			cs.timer.Reset(recheckTimeout)
-			log.Debugf("Connection check says: %t", connected)
+			log.Debugf("connection check says: %t", connected)
 			cs.webgetCh = nil
 			if connected && cs.lastSent == false {
-				log.Infof("Sending 'connected'.")
+				log.Debugf("sending 'connected'.")
 				cs.lastSent = true
 				break Loop
 			}
