@@ -178,7 +178,7 @@ func ConnectedState(endp bus.Endpoint, config ConnectivityConfig, log logger.Log
 	}
 
 Start:
-	log.Debugf("Sending initial 'disconnected'.")
+	log.Debugf("sending initial 'disconnected'.")
 	out <- false
 	cs.lastSent = false
 	cs.currentState = cs.start()
