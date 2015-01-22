@@ -145,6 +145,7 @@ type ClientSession struct {
 	proto        protocol.Protocol
 	pingInterval time.Duration
 	retrier      util.AutoRedialer
+	retrierLock  sync.Mutex
 	cookie       string
 	// status
 	stateP          *uint32
@@ -362,6 +363,8 @@ func (sess *ClientSession) connect() error {
 }
 
 func (sess *ClientSession) stopRedial() {
+	sess.retrierLock.Lock()
+	defer sess.retrierLock.Unlock()
 	if sess.retrier != nil {
 		sess.retrier.Stop()
 		sess.retrier = nil
@@ -374,14 +377,18 @@ func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 		sess.setShouldDelay()
 	}
 	time.Sleep(sess.redialDelay(sess))
+	sess.retrierLock.Lock()
+	defer sess.retrierLock.Unlock()
 	if sess.retrier != nil {
 		panic("session AutoRedial: unexpected non-nil retrier.")
 	}
 	sess.retrier = util.NewAutoRedialer(sess)
 	sess.lastAutoRedial = time.Now()
 	go func() {
+		sess.retrierLock.Lock()
 		retrier := sess.retrier
-		if sess.retrier == nil {
+		sess.retrierLock.Unlock()
+		if retrier == nil {
 			sess.Log.Debugf("session autoredialer skipping retry: retrier has been set to nil.")
 			return
 		}
