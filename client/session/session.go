@@ -74,7 +74,21 @@ const (
 	Connected
 	Started
 	Running
+	Unknown
 )
+
+func (s ClientSessionState) String() string {
+	if s >= Unknown {
+		return fmt.Sprintf("??? (%d)", s)
+	}
+	return [Unknown]string{
+		"Error",
+		"Disconnected",
+		"Connected",
+		"Started",
+		"Running",
+	}[s]
+}
 
 type hostGetter interface {
 	Get() (*gethosts.Host, error)
@@ -131,6 +145,7 @@ type ClientSession struct {
 	proto        protocol.Protocol
 	pingInterval time.Duration
 	retrier      util.AutoRedialer
+	retrierLock  sync.Mutex
 	cookie       string
 	// status
 	stateP          *uint32
@@ -348,6 +363,8 @@ func (sess *ClientSession) connect() error {
 }
 
 func (sess *ClientSession) stopRedial() {
+	sess.retrierLock.Lock()
+	defer sess.retrierLock.Unlock()
 	if sess.retrier != nil {
 		sess.retrier.Stop()
 		sess.retrier = nil
@@ -360,15 +377,30 @@ func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 		sess.setShouldDelay()
 	}
 	time.Sleep(sess.redialDelay(sess))
+	sess.retrierLock.Lock()
+	defer sess.retrierLock.Unlock()
+	if sess.retrier != nil {
+		panic("session AutoRedial: unexpected non-nil retrier.")
+	}
 	sess.retrier = util.NewAutoRedialer(sess)
 	sess.lastAutoRedial = time.Now()
-	go func() { doneCh <- sess.retrier.Redial() }()
+	go func() {
+		sess.retrierLock.Lock()
+		retrier := sess.retrier
+		sess.retrierLock.Unlock()
+		if retrier == nil {
+			sess.Log.Debugf("session autoredialer skipping retry: retrier has been set to nil.")
+			return
+		}
+		doneCh <- retrier.Redial()
+	}()
 }
 
 func (sess *ClientSession) Close() {
 	sess.stopRedial()
 	sess.doClose()
 }
+
 func (sess *ClientSession) doClose() {
 	sess.connLock.Lock()
 	defer sess.connLock.Unlock()
@@ -593,7 +625,7 @@ func (sess *ClientSession) start() error {
 	}
 	sess.proto = proto
 	sess.pingInterval = pingInterval
-	sess.Log.Debugf("Connected %v.", conn.RemoteAddr())
+	sess.Log.Debugf("connected %v.", conn.RemoteAddr())
 	sess.started() // deals with choosing which host to retry with as well
 	return nil
 }

@@ -78,7 +78,7 @@ func (lhl *legacyHelperLauncher) Launch(appId, progname, f1, f2 string) (string,
 		p_err := cmd.Wait()
 		if p_err != nil {
 			// Helper failed or got killed, log output/errors
-			lhl.log.Errorf("Legacy helper failed: appId: %v, helper: %v, pid: %v, error: %v, stdout: %#v, stderr: %#v.",
+			lhl.log.Errorf("legacy helper failed: appId: %v, helper: %v, pid: %v, error: %v, stdout: %#v, stderr: %#v.",
 				appId, progname, id, p_err, stdout.String(), stderr.String())
 		}
 		lhl.done(id)

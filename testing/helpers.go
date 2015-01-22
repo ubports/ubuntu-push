@@ -118,7 +118,7 @@ func SourceRelative(relativePath string) string {
 
 		idx := strings.LastIndex(dir, sep)
 		if idx == -1 {
-			panic(fmt.Errorf("Unable to find %s in %#v", sep, dir))
+			panic(fmt.Errorf("unable to find %s in %#v", sep, dir))
 		}
 		idx += len(sep)
 

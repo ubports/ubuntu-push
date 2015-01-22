@@ -181,7 +181,7 @@ func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *la
 			Action:   action,
 		})
 		if err != nil {
-			mmu.Log.Errorf("Failed to build action: %s", action)
+			mmu.Log.Errorf("failed to build action: %s", action)
 			return false
 		}
 		actions[2*i] = string(act)
