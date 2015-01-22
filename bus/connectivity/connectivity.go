@@ -82,7 +82,7 @@ func (cs *connectedState) start() networkmanager.State {
 		// Get the current state.
 		initial = nm.GetState()
 		if initial == networkmanager.Unknown {
-			cs.log.Debugf("Failed to get state.")
+			cs.log.Debugf("failed to get state.")
 			goto Continue
 		}
 		cs.log.Debugf("got initial state of %s", initial)
@@ -143,17 +143,17 @@ Loop:
 
 		case <-cs.timer.C:
 			if cs.currentState == networkmanager.ConnectedGlobal {
-				log.Debugf("May be connected; checking...")
+				log.Debugf("may be connected; checking...")
 				cs.webgetCh = make(chan bool)
 				go cs.webget(cs.webgetCh)
 			}
 
 		case connected := <-cs.webgetCh:
 			cs.timer.Reset(recheckTimeout)
-			log.Debugf("Connection check says: %t", connected)
+			log.Debugf("connection check says: %t", connected)
 			cs.webgetCh = nil
 			if connected && cs.lastSent == false {
-				log.Infof("Sending 'connected'.")
+				log.Debugf("sending 'connected'.")
 				cs.lastSent = true
 				break Loop
 			}
@@ -178,7 +178,7 @@ func ConnectedState(endp bus.Endpoint, config ConnectivityConfig, log logger.Log
 	}
 
 Start:
-	log.Infof("Sending initial 'disconnected'.")
+	log.Debugf("Sending initial 'disconnected'.")
 	out <- false
 	cs.lastSent = false
 	cs.currentState = cs.start()

@@ -296,7 +296,7 @@ func (pool *kindHelperPool) OneDone(uid string) {
 	if err != nil {
 		pool.log.Errorf("unable to read output from %v helper: %v", args.AppId, err)
 	} else {
-		pool.log.Infof("%v helper output: %#v", args.AppId, payload)
+		pool.log.Infof("%v helper output: %s", args.AppId, payload)
 		res := &HelperResult{Input: args.Input}
 		err = json.Unmarshal(payload, &res.HelperOutput)
 		if err != nil {

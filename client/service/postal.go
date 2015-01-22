@@ -244,7 +244,6 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 	for _, endp := range endps {
 		go func(name string, endp bus.Endpoint) {
 			util.NewAutoRedialer(endp).Redial()
-			svc.Log.Debugf("%s dialed in", name)
 			wg.Done()
 		}(endp.name, endp.endp)
 	}

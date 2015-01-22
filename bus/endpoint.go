@@ -110,7 +110,7 @@ func (endp *endpoint) Dial() error {
 			return errors.New(msg)
 		}
 	}
-	endp.log.Infof("%#v dialed in.", name)
+	endp.log.Debugf("%#v dialed in.", name)
 	endp.bus = bus
 	endp.proxy = bus.Object(name, dbus.ObjectPath(endp.addr.Path))
 	return nil
