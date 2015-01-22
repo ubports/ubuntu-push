@@ -79,7 +79,7 @@ func DispatchURL(url string, appPackage string) error {
 	C.dispatch_url(c_url, (C.gpointer)(&payload))
 	success := <-doneCh
 	if !success {
-		return fmt.Errorf("Failed to DispatchURL: %s for %s", url, appPackage)
+		return fmt.Errorf("failed to DispatchURL: %s for %s", url, appPackage)
 	}
 	return nil
 }

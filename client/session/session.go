@@ -618,7 +618,7 @@ func (sess *ClientSession) start() error {
 	}
 	sess.proto = proto
 	sess.pingInterval = pingInterval
-	sess.Log.Debugf("Connected %v.", conn.RemoteAddr())
+	sess.Log.Debugf("connected %v.", conn.RemoteAddr())
 	sess.started() // deals with choosing which host to retry with as well
 	return nil
 }

@@ -135,7 +135,7 @@ Loop:
 			if v != networkmanager.Connecting && cs.currentState != v {
 				cs.currentState = v
 				cs.timer.Reset(stabilizingTimeout)
-				log.Debugf("State changed to %s. Assuming disconnect.", v)
+				log.Debugf("state changed to %s. Assuming disconnect.", v)
 				if cs.lastSent == true {
 					log.Debugf("sending 'disconnected'.")
 					cs.lastSent = false
@@ -182,7 +182,7 @@ func ConnectedState(endp bus.Endpoint, config ConnectivityConfig, log logger.Log
 	}
 
 Start:
-	log.Debugf("Sending initial 'disconnected'.")
+	log.Debugf("sending initial 'disconnected'.")
 	out <- false
 	cs.lastSent = false
 	cs.currentState = cs.start()

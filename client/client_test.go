@@ -1135,7 +1135,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	// sessionConnectedCh to nothing in particular, but it'll help sync this test
 	cli.sessionConnectedCh <- 42
 	tick()
-	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
+	c.Check(cs.log.Captured(), Matches, "(?msi).*Session connected after 42 attempts$")
 
 	// loop() should have connected:
 	//  * connCh to the connectivity checker

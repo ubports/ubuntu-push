@@ -1480,7 +1480,7 @@ func (cs *clientSessionSuite) TestDialPanics(c *C) {
 }
 
 var (
-	dialTestTimeout = 100 * time.Millisecond
+	dialTestTimeout = 300 * time.Millisecond
 	dialTestConf    = ClientSessionConfig{
 		ExchangeTimeout: dialTestTimeout,
 		PEM:             helpers.TestCertPEMBlock,
@@ -1584,7 +1584,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 
 	// 2. "connect" (but on the fake protcol above! woo)
 
-	c.Check(takeNext(downCh), Equals, "deadline 100ms")
+	c.Check(takeNext(downCh), Equals, fmt.Sprintf("deadline %v", dialTestTimeout))
 	_, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	upCh <- nil // no error
@@ -1597,7 +1597,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	// 3. "loop"
 
 	// ping works,
-	c.Check(takeNext(downCh), Equals, "deadline 110ms")
+	c.Check(takeNext(downCh), Equals, fmt.Sprintf("deadline %v", dialTestTimeout+10*time.Millisecond))
 	upCh <- protocol.PingPongMsg{Type: "ping"}
 	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "pong"})
 	upCh <- nil
@@ -1613,7 +1613,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 		TopLevel: 2,
 		Payloads: []json.RawMessage{json.RawMessage(`{"b":1}`)},
 	}
-	c.Check(takeNext(downCh), Equals, "deadline 110ms")
+	c.Check(takeNext(downCh), Equals, fmt.Sprintf("deadline %v", dialTestTimeout+10*time.Millisecond))
 	upCh <- b
 	c.Check(takeNext(downCh), Equals, protocol.AckMsg{"ack"})
 	upCh <- nil
@@ -1625,7 +1625,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	c.Check(levels, DeepEquals, map[string]int64{"0": 2})
 
 	// and ping still work even after that.
-	c.Check(takeNext(downCh), Equals, "deadline 110ms")
+	c.Check(takeNext(downCh), Equals, fmt.Sprintf("deadline %v", dialTestTimeout+10*time.Millisecond))
 	upCh <- protocol.PingPongMsg{Type: "ping"}
 	c.Check(takeNext(downCh), Equals, protocol.PingPongMsg{Type: "pong"})
 	failure := errors.New("pongs")
