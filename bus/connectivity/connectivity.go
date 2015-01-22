@@ -134,9 +134,9 @@ Loop:
 			cs.webgetCh = nil
 			cs.currentState = v
 			cs.timer.Reset(stabilizingTimeout)
-			log.Debugf("State changed to %s. Assuming disconnect.", v)
+			log.Debugf("state changed to %s. Assuming disconnect.", v)
 			if cs.lastSent == true {
-				log.Infof("Sending 'disconnected'.")
+				log.Infof("sending 'disconnected'.")
 				cs.lastSent = false
 				break Loop
 			}

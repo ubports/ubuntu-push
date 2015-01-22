@@ -119,7 +119,7 @@ func (raw *RawNotifications) WatchActions() (<-chan *RawAction, error) {
 			ch <- action
 		}, func() { close(ch) })
 	if err != nil {
-		raw.log.Debugf("Failed to set up the watch: %s", err)
+		raw.log.Debugf("failed to set up the watch: %s", err)
 		return nil, err
 	}
 	return ch, nil

@@ -149,14 +149,14 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 	// errors below here Can't Happen (tm).
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		svc.Log.Errorf("Reading response body: %v", err)
+		svc.Log.Errorf("during ReadAll() of response body: %v", err)
 		return nil, err
 	}
 
 	var reply registrationReply
 	err = json.Unmarshal(body, &reply)
 	if err != nil {
-		svc.Log.Errorf("Unmarshalling response body: %v", err)
+		svc.Log.Errorf("during Unmarshal of response body: %v", err)
 		return nil, fmt.Errorf("unable to unmarshal register response: %v", err)
 	}
 
@@ -181,7 +181,7 @@ func (svc *PushService) register(path string, args, _ []interface{}) ([]interfac
 	}
 
 	if !reply.Ok || reply.Token == "" {
-		svc.Log.Errorf("Unexpected response: %#v", reply)
+		svc.Log.Errorf("unexpected response: %#v", reply)
 		return nil, ErrBadToken
 	}
 
