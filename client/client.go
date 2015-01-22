@@ -376,6 +376,7 @@ func (client *PushClient) handleUnregister(app *click.AppId) {
 
 // handleConnState deals with connectivity events
 func (client *PushClient) handleConnState(hasConnectivity bool) {
+	client.log.Debugf("handleConnState: %v", hasConnectivity)
 	if client.hasConnectivity == hasConnectivity {
 		// nothing to do!
 		return
