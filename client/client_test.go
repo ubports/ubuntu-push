@@ -179,6 +179,7 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"session_url":      "xyzzy://",
 		"registration_url": "reg://",
 		"log_level":        "debug",
+		"log_line_no":      true,
 		"poll_interval":    "5m",
 		"poll_settle":      "20ms",
 		"poll_net_wait":    "1m",

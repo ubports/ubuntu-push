@@ -30,7 +30,7 @@ func bootLogListener(kind string, lst net.Listener) {
 }
 
 var (
-	BootLogger = logger.NewSimpleLogger(os.Stderr, "debug")
+	BootLogger = logger.NewSimpleLogger(os.Stderr, "debug", true)
 	// Boot logging helpers through BootLogger.
 	BootLogListener func(kind string, lst net.Listener) = bootLogListener
 	BootLogFatalf                                       = BootLogger.Fatalf

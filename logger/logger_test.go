@@ -37,7 +37,7 @@ var _ = Suite(&loggerSuite{})
 
 func (s *loggerSuite) TestErrorf(c *C) {
 	buf := &bytes.Buffer{}
-	logger := NewSimpleLogger(buf, "error")
+	logger := NewSimpleLogger(buf, "error", false)
 	logger.Errorf("%v %d", "error", 1)
 	c.Check(buf.String(), Matches, ".* ERROR error 1\n")
 }
@@ -51,7 +51,7 @@ func (s *loggerSuite) TestFatalf(c *C) {
 		exitCode = code
 	}
 	buf := &bytes.Buffer{}
-	logger := NewSimpleLogger(buf, "error")
+	logger := NewSimpleLogger(buf, "error", false)
 	logger.Fatalf("%v %v", "error", "fatal")
 	c.Check(buf.String(), Matches, ".* ERROR error fatal\n")
 	c.Check(exitCode, Equals, 1)
@@ -59,42 +59,42 @@ func (s *loggerSuite) TestFatalf(c *C) {
 
 func (s *loggerSuite) TestInfof(c *C) {
 	buf := &bytes.Buffer{}
-	logger := NewSimpleLogger(buf, "info")
+	logger := NewSimpleLogger(buf, "info", false)
 	logger.Infof("%v %d", "info", 1)
 	c.Check(buf.String(), Matches, ".* INFO info 1\n")
 }
 
 func (s *loggerSuite) TestDebugf(c *C) {
 	buf := &bytes.Buffer{}
-	logger := NewSimpleLogger(buf, "debug")
+	logger := NewSimpleLogger(buf, "debug", false)
 	logger.Debugf("%v %d", "debug", 1)
 	c.Check(buf.String(), Matches, `.* DEBUG debug 1\n`)
 }
 
 func (s *loggerSuite) TestFormat(c *C) {
 	buf := &bytes.Buffer{}
-	logger := NewSimpleLogger(buf, "error")
+	logger := NewSimpleLogger(buf, "error", false)
 	logger.Errorf("%v %d", "error", 2)
 	c.Check(buf.String(), Matches, `.* .*\.\d+ ERROR error 2\n`)
 }
 
 func (s *loggerSuite) TestLevel(c *C) {
 	buf := &bytes.Buffer{}
-	logger := NewSimpleLogger(buf, "error")
+	logger := NewSimpleLogger(buf, "error", false)
 	logger.Errorf("%s%d", "e", 3)
 	logger.Infof("%s%d", "i", 3)
 	logger.Debugf("%s%d", "d", 3)
 	c.Check(buf.String(), Matches, `.* ERROR e3\n`)
 
 	buf.Reset()
-	logger = NewSimpleLogger(buf, "info")
+	logger = NewSimpleLogger(buf, "info", false)
 	logger.Errorf("%s%d", "e", 4)
 	logger.Debugf("%s%d", "d", 4)
 	logger.Infof("%s%d", "i", 4)
 	c.Check(buf.String(), Matches, `.* ERROR e4\n.* INFO i4\n`)
 
 	buf.Reset()
-	logger = NewSimpleLogger(buf, "debug")
+	logger = NewSimpleLogger(buf, "debug", false)
 	logger.Errorf("%s%d", "e", 5)
 	logger.Debugf("%s%d", "d", 5)
 	logger.Infof("%s%d", "i", 5)
@@ -115,7 +115,7 @@ func panicAndRecover(logger Logger, n int, doPanic bool, line *int, ok *bool) {
 
 func (s *loggerSuite) TestPanicStackfPanicScenario(c *C) {
 	buf := &bytes.Buffer{}
-	logger := NewSimpleLogger(buf, "error")
+	logger := NewSimpleLogger(buf, "error", false)
 	var line int
 	var ok bool
 	panicAndRecover(logger, 6, true, &line, &ok)
@@ -125,7 +125,7 @@ func (s *loggerSuite) TestPanicStackfPanicScenario(c *C) {
 
 func (s *loggerSuite) TestPanicStackfNoPanicScenario(c *C) {
 	buf := &bytes.Buffer{}
-	logger := NewSimpleLogger(buf, "error")
+	logger := NewSimpleLogger(buf, "error", false)
 	var line int
 	var ok bool
 	panicAndRecover(logger, 6, false, &line, &ok)
@@ -162,4 +162,15 @@ func (s *loggerSuite) TestReadConfigLogLevelErrors(c *C) {
 	}
 	checkError(`{"lvl": 1}`, "lvl:.*type string")
 	checkError(`{"lvl": "foo"}`, "lvl: not a log level: foo")
+}
+
+func (s *loggerSuite) TestConfigLogLineNo(c *C) {
+	buf := &bytes.Buffer{}
+	logger := NewSimpleLogger(buf, "error", true)
+	logger.Output(1, "foobaz")
+	c.Check(buf.String(), Matches, ".* .* logger_test.go:[0-9]+: foobaz\n")
+
+	logger = NewSimpleLogger(buf, "error", false)
+	logger.Output(1, "foobaz")
+	c.Check(buf.String(), Matches, ".* .* logger_test.go:[0-9]+: foobaz\n"+".* .* foobaz\n")
 }
