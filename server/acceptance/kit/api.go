@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -83,7 +82,7 @@ func (api *APIClient) PostRequest(path string, message interface{}) (map[string]
 	var res map[string]interface{}
 	err = json.Unmarshal(body, &res)
 	if err != nil {
-		return nil, &APIError{fmt.Sprintf("%s", err), body}
+		return nil, &APIError{err.Error(), body}
 	}
 	if ok, _ := res["ok"].(bool); !ok {
 		return res, ErrNOk
