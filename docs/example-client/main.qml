@@ -71,8 +71,12 @@ MainView {
         Component.onCompleted: {
             notificationsChanged.connect(messageList.handle_notifications)
             error.connect(messageList.handle_error)
+            onTokenChanged: {
+                console.log("foooooo")
+            }
         }
         appId: "com.ubuntu.developer.ralsina.hello_hello"
+
     }
 
     TextField {
@@ -227,7 +231,7 @@ MainView {
             right: parent.right
             bottom: parent.bottom
         }
-        height: item1.height * 7
+        height: item1.height * 9
         UbuntuShape {
             anchors.fill: parent
             color: Theme.palette.normal.overlay
@@ -284,6 +288,14 @@ MainView {
                         id: counterSlider
                         value: 42
                     }
+                }
+                Button {
+                    text: "Set Counter Via Plugin"
+                    onClicked: { pushClient.count = counterSlider.value; }
+                }
+                Button {
+                    text: "Clear Persistent Notifications"
+                    onClicked: { pushClient.clearPersistent([]); }
                 }
             }
         }
