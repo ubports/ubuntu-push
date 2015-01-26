@@ -69,8 +69,7 @@ type ClientConfig struct {
 	SessionURL      string `json:"session_url"`
 	RegistrationURL string `json:"registration_url"`
 	// The logging level (one of "debug", "info", "error")
-	LogLevel  logger.ConfigLogLevel `json:"log_level"`
-	LogLineNo bool                  `json:"log_line_no"`
+	LogLevel logger.ConfigLogLevel `json:"log_level"`
 	// fallback values for simplified notification usage
 	FallbackVibration *launch_helper.Vibration `json:"fallback_vibration"`
 	FallbackSound     string                   `json:"fallback_sound"`
@@ -157,7 +156,7 @@ func (client *PushClient) configure() error {
 	}
 
 	// later, we'll be specifying more logging options in the config file
-	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel.Level(), client.config.LogLineNo)
+	client.log = logger.NewSimpleLogger(os.Stderr, client.config.LogLevel.Level())
 
 	clickUser, err := click.User()
 	if err != nil {

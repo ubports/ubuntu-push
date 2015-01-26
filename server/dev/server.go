@@ -69,7 +69,7 @@ func main() {
 	if err != nil {
 		server.BootLogFatalf("reading config: %v", err)
 	}
-	logger := logger.NewSimpleLogger(os.Stderr, "debug", true)
+	logger := logger.NewSimpleLogger(os.Stderr, "debug")
 	// setup a pending store and start the broker
 	sto := store.NewInMemoryPendingStore()
 	broker := simple.NewSimpleBroker(sto, cfg, logger)

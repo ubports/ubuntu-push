@@ -81,9 +81,9 @@ func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger
 // NewSimpleLogger creates a logger logging only up to the given
 // level. The level can be, in order: "error", "info", "debug". It takes an
 // io.Writer.
-func NewSimpleLogger(w io.Writer, level string, logLineNo bool) Logger {
+func NewSimpleLogger(w io.Writer, level string) Logger {
 	flags := log.Ldate | log.Ltime | log.Lmicroseconds
-	if logLineNo {
+	if levelToNLevel[level] == lDebug {
 		flags = flags | log.Lshortfile
 	}
 	return NewSimpleLoggerFromMinimalLogger(
