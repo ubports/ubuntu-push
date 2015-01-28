@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"regexp"
 	"runtime"
@@ -108,7 +109,7 @@ func (s *AcceptanceSuite) SetUpTest(c *C) {
 	c.Assert(s.ServerHandle.ServerEvents, NotNil)
 	c.Assert(s.ServerHandle.ServerAddr, Not(Equals), "")
 	c.Assert(s.ServerAPIURL, Not(Equals), "")
-	s.SetupClient(nil)
+	s.SetupClient(nil, false, http.DefaultMaxIdleConnsPerHost)
 }
 
 func (s *AcceptanceSuite) TearDownTest(c *C) {
