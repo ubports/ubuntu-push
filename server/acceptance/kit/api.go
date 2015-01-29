@@ -45,9 +45,11 @@ func (e *APIError) Error() string {
 }
 
 // SetupClient sets up the http client to make requests.
-func (api *APIClient) SetupClient(tlsConfig *tls.Config) {
+func (api *APIClient) SetupClient(tlsConfig *tls.Config, disableKeepAlives bool, maxIdleConnsPerHost int) {
 	api.httpClient = &http.Client{
-		Transport: &http.Transport{TLSClientConfig: tlsConfig},
+		Transport: &http.Transport{TLSClientConfig: tlsConfig,
+			DisableKeepAlives:   disableKeepAlives,
+			MaxIdleConnsPerHost: maxIdleConnsPerHost},
 	}
 }
 
