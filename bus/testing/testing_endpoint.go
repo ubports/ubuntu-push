@@ -89,7 +89,11 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 				ticker := tc.watchTicker
 				tc.watchLck.RUnlock()
 				if ticker != nil {
-					<-ticker
+					_, ok := <-ticker
+					if !ok {
+						// bail out
+						return
+					}
 				} else {
 					time.Sleep(10 * time.Millisecond)
 				}
