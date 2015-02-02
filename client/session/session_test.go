@@ -162,6 +162,7 @@ type brokenSeenState struct{}
 
 func (*brokenSeenState) SetLevel(string, int64) error            { return errors.New("broken.") }
 func (*brokenSeenState) GetAllLevels() (map[string]int64, error) { return nil, errors.New("broken.") }
+func (*brokenSeenState) Close()                                  {}
 func (*brokenSeenState) FilterBySeen([]protocol.Notification) ([]protocol.Notification, error) {
 	return nil, errors.New("broken.")
 }
