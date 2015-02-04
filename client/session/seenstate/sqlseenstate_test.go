@@ -112,6 +112,15 @@ func (s *sqlsSuite) TestFilterBySeenCanFail(c *C) {
 	c.Check(err, ErrorMatches, "cannot insert .*")
 }
 
+func (s *sqlsSuite) TestClose(c *C) {
+	dir := c.MkDir()
+	filename := dir + "test.db"
+	sqls, err := NewSqliteSeenState(filename)
+	c.Check(err, IsNil)
+	c.Assert(sqls, NotNil)
+	sqls.Close()
+}
+
 func (s *sqlsSuite) TestDropPrevThan(c *C) {
 	dir := c.MkDir()
 	filename := dir + "test.db"

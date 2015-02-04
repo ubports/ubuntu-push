@@ -19,7 +19,6 @@ package util
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -79,26 +78,53 @@ func (s *redialerState) String() string {
 }
 
 type autoRedialer struct {
-	stateP *redialerState
-	dial   func() error
-	jitter func(time.Duration) time.Duration
+	stateLock     sync.RWMutex
+	stateValue    redialerState
+	stopping      chan struct{}
+	reallyStopped chan struct{}
+	dial          func() error
+	jitter        func(time.Duration) time.Duration
 }
 
 func (ar *autoRedialer) state() redialerState {
-	return redialerState(atomic.LoadUint32((*uint32)(ar.stateP)))
+	ar.stateLock.RLock()
+	defer ar.stateLock.RUnlock()
+	return ar.stateValue
 }
 
 func (ar *autoRedialer) setState(s redialerState) {
-	atomic.StoreUint32((*uint32)(ar.stateP), uint32(s))
+	ar.stateLock.Lock()
+	defer ar.stateLock.Unlock()
+	ar.stateValue = s
 }
 
 func (ar *autoRedialer) setStateIfEqual(oldState, newState redialerState) bool {
-	return atomic.CompareAndSwapUint32((*uint32)(ar.stateP), uint32(oldState), uint32(newState))
+	ar.stateLock.Lock()
+	defer ar.stateLock.Unlock()
+	if ar.stateValue != oldState {
+		return false
+	}
+	ar.stateValue = newState
+	return true
+}
+
+func (ar *autoRedialer) setStateStopped() {
+	ar.stateLock.Lock()
+	defer ar.stateLock.Unlock()
+	switch ar.stateValue {
+	case Stopped:
+		return
+	case Unconfigured:
+		close(ar.reallyStopped)
+	}
+	ar.stateValue = Stopped
+	close(ar.stopping)
 }
 
 func (ar *autoRedialer) Stop() {
 	if ar != nil {
-		ar.setState(Stopped)
+		ar.setStateStopped()
+		<-ar.reallyStopped
 	}
 }
 
@@ -113,6 +139,7 @@ func (ar *autoRedialer) Redial() uint32 {
 		// XXX log this
 		return 0
 	}
+	defer close(ar.reallyStopped)
 
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
@@ -134,15 +161,22 @@ func (ar *autoRedialer) Redial() uint32 {
 			timeout += ar.jitter(timeout)
 		}
 		dialAttempts++
-		time.Sleep(timeout)
+		select {
+		case <-ar.stopping:
+		case <-time.After(timeout):
+		}
 	}
 }
 
 // Returns a stoppable AutoRedialer using the provided Dialer. If the Dialer
 // is also a Jitterer, the backoff will be jittered.
 func NewAutoRedialer(dialer Dialer) AutoRedialer {
-	state := Unconfigured
-	ar := &autoRedialer{stateP: &state, dial: dialer.Dial}
+	ar := &autoRedialer{
+		stateValue:    Unconfigured,
+		dial:          dialer.Dial,
+		reallyStopped: make(chan struct{}),
+		stopping:      make(chan struct{}),
+	}
 	jitterer, ok := dialer.(Jitterer)
 	if ok {
 		ar.jitter = jitterer.Jitter
