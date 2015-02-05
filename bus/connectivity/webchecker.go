@@ -72,8 +72,11 @@ func (wb *webchecker) Webcheck(ch chan<- bool) {
 	hash := md5.New()
 	_, err = io.CopyN(hash, response.Body, 1024)
 	if err != io.EOF {
-		wb.log.Errorf("reading %s, expecting EOF, got: %v",
-			wb.url, err)
+		if err == nil {
+			wb.log.Errorf("reading %s, but response body is larger than 1k.", wb.url)
+		} else {
+			wb.log.Errorf("reading %s, expecting EOF, got: %v", wb.url, err)
+		}
 		ch <- false
 		return
 	}
