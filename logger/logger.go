@@ -83,7 +83,7 @@ func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger
 // io.Writer.
 func NewSimpleLogger(w io.Writer, level string) Logger {
 	flags := log.Ldate | log.Ltime | log.Lmicroseconds
-	if levelToNLevel[level] == lDebug {
+	if levelToNLevel[level] >= lDebug {
 		flags = flags | log.Lshortfile
 	}
 	return NewSimpleLoggerFromMinimalLogger(

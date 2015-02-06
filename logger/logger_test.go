@@ -170,7 +170,8 @@ func (s *loggerSuite) TestLogLineNo(c *C) {
 	logger.Output(1, "foobaz")
 	c.Check(buf.String(), Matches, ".* .* logger_test.go:[0-9]+: foobaz\n")
 
+	buf.Reset()
 	logger = NewSimpleLogger(buf, "error")
 	logger.Output(1, "foobaz")
-	c.Check(buf.String(), Matches, ".* .* logger_test.go:[0-9]+: foobaz\n"+".* .* foobaz\n")
+	c.Check(buf.String(), Matches, ".* .* foobaz\n")
 }
