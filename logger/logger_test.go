@@ -163,3 +163,14 @@ func (s *loggerSuite) TestReadConfigLogLevelErrors(c *C) {
 	checkError(`{"lvl": 1}`, "lvl:.*type string")
 	checkError(`{"lvl": "foo"}`, "lvl: not a log level: foo")
 }
+
+func (s *loggerSuite) TestLogLineNo(c *C) {
+	buf := &bytes.Buffer{}
+	logger := NewSimpleLogger(buf, "debug")
+	logger.Output(1, "foobaz")
+	c.Check(buf.String(), Matches, ".* .* logger_test.go:[0-9]+: foobaz\n")
+
+	logger = NewSimpleLogger(buf, "error")
+	logger.Output(1, "foobaz")
+	c.Check(buf.String(), Matches, ".* .* logger_test.go:[0-9]+: foobaz\n"+".* .* foobaz\n")
+}

@@ -50,7 +50,8 @@ type simpleLogger struct {
 }
 
 const (
-	lError = iota
+	calldepthBase = 3
+	lError        = iota
 	lInfo
 	lDebug
 )
@@ -81,8 +82,12 @@ func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger
 // level. The level can be, in order: "error", "info", "debug". It takes an
 // io.Writer.
 func NewSimpleLogger(w io.Writer, level string) Logger {
+	flags := log.Ldate | log.Ltime | log.Lmicroseconds
+	if levelToNLevel[level] == lDebug {
+		flags = flags | log.Lshortfile
+	}
 	return NewSimpleLoggerFromMinimalLogger(
-		log.New(w, "", log.Ldate|log.Ltime|log.Lmicroseconds),
+		log.New(w, "", flags),
 		level,
 	)
 }
@@ -92,13 +97,13 @@ func (lg *simpleLogger) Output(calldepth int, s string) error {
 }
 
 func (lg *simpleLogger) Errorf(format string, v ...interface{}) {
-	lg.outputFunc(2, fmt.Sprintf("ERROR "+format, v...))
+	lg.outputFunc(calldepthBase, fmt.Sprintf("ERROR "+format, v...))
 }
 
 var osExit = os.Exit // for testing
 
 func (lg *simpleLogger) Fatalf(format string, v ...interface{}) {
-	lg.outputFunc(2, fmt.Sprintf("ERROR "+format, v...))
+	lg.outputFunc(calldepthBase, fmt.Sprintf("ERROR "+format, v...))
 	osExit(1)
 }
 
@@ -107,18 +112,18 @@ func (lg *simpleLogger) PanicStackf(format string, v ...interface{}) {
 	stack := make([]byte, 8*1024) // Stack writes less but doesn't fail
 	stackWritten := runtime.Stack(stack, false)
 	stack = stack[:stackWritten]
-	lg.outputFunc(2, fmt.Sprintf("ERROR(PANIC) %s:\n%s", msg, stack))
+	lg.outputFunc(calldepthBase, fmt.Sprintf("ERROR(PANIC) %s:\n%s", msg, stack))
 }
 
 func (lg *simpleLogger) Infof(format string, v ...interface{}) {
 	if lg.nlevel >= lInfo {
-		lg.outputFunc(2, fmt.Sprintf("INFO "+format, v...))
+		lg.outputFunc(calldepthBase, fmt.Sprintf("INFO "+format, v...))
 	}
 }
 
 func (lg *simpleLogger) Debugf(format string, v ...interface{}) {
 	if lg.nlevel >= lDebug {
-		lg.outputFunc(2, fmt.Sprintf("DEBUG "+format, v...))
+		lg.outputFunc(calldepthBase, fmt.Sprintf("DEBUG "+format, v...))
 	}
 }
 
