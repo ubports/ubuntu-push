@@ -30,11 +30,11 @@ ubuntu-push (0.67-0ubuntu1) UNRELEASED; urgency=medium
 
   * Clean up goroutines in tests. [client]
 
-  * Add an explicit check and log message for nil error on webcheck's CopyN.
+  * Add an explicit check and log message for nil error on webcheck's CopyN. [client]
 
-  * Log line nums, enabled when logLevel = debug.
+  * Log line nums, enabled when logLevel = debug. [client server]
 
-  * Workaround gc issue with 1.3 and 32 bits. Fixes FTBFS.
+  * Workaround gc issue with 1.3 and 32 bits. Fixes FTBFS. [client]
 
  -- John R. Lenton <john.lenton@canonical.com>  Mon, 09 Feb 2015 10:19:59 +0000
 
