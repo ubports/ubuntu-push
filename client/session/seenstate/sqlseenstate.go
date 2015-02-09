@@ -48,6 +48,11 @@ func NewSqliteSeenState(filename string) (SeenState, error) {
 	return &sqliteSeenState{db}, nil
 }
 
+// Closes closes the underlying db.
+func (ps *sqliteSeenState) Close() {
+	ps.db.Close()
+}
+
 func (ps *sqliteSeenState) SetLevel(level string, top int64) error {
 	_, err := ps.db.Exec("REPLACE INTO level_map (level, top) VALUES (?, ?)", level, top)
 	if err != nil {

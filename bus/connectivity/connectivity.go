@@ -82,7 +82,7 @@ func (cs *connectedState) start() networkmanager.State {
 		// Get the current state.
 		initial = nm.GetState()
 		if initial == networkmanager.Unknown {
-			cs.log.Debugf("Failed to get state.")
+			cs.log.Debugf("failed to get state.")
 			goto Continue
 		}
 		cs.log.Debugf("got initial state of %s", initial)
@@ -120,40 +120,51 @@ Loop:
 		case <-cs.networkConCh:
 			cs.webgetCh = nil
 			cs.timer.Reset(stabilizingTimeout)
-			log.Debugf("PrimaryConnection changed. Assuming disconnect.")
 			if cs.lastSent == true {
+				log.Debugf("connectivity: PrimaryConnection changed. lastSent: %v, sending 'disconnected'.", cs.lastSent)
 				cs.lastSent = false
 				break Loop
+			} else {
+				log.Debugf("connectivity: PrimaryConnection changed. lastSent: %v, Ignoring.", cs.lastSent)
 			}
 
 		case v, ok := <-cs.networkStateCh:
+			// Handle only disconnecting here, connecting handled under the timer below
 			if !ok {
 				// tear it all down and start over
 				return false, errors.New("got not-OK from StateChanged watch")
 			}
 			cs.webgetCh = nil
+			lastState := cs.currentState
 			cs.currentState = v
-			cs.timer.Reset(stabilizingTimeout)
-			log.Debugf("State changed to %s. Assuming disconnect.", v)
-			if cs.lastSent == true {
-				log.Infof("Sending 'disconnected'.")
-				cs.lastSent = false
-				break Loop
+			// ignore Connecting (followed immediately by "Connected Global") and repeats
+			if v != networkmanager.Connecting && lastState != v {
+				cs.timer.Reset(stabilizingTimeout)
+				log.Debugf("state changed to %s. Assuming disconnect.", v)
+				if cs.lastSent == true {
+					log.Debugf("connectivity: %s -> %s. lastSent: %v, sending 'disconnected'", lastState, v, cs.lastSent)
+					cs.lastSent = false
+					break Loop
+				} else {
+					log.Debugf("connectivity: %s -> %s. lastSent: %v, Ignoring.", lastState, v, cs.lastSent)
+				}
+			} else {
+				log.Debugf("connectivity: %s -> %s. lastSent: %v, Ignoring.", lastState, v, cs.lastSent)
 			}
 
 		case <-cs.timer.C:
 			if cs.currentState == networkmanager.ConnectedGlobal {
-				log.Debugf("May be connected; checking...")
+				log.Debugf("connectivity: timer signal, state: ConnectedGlobal, checking...")
 				cs.webgetCh = make(chan bool)
 				go cs.webget(cs.webgetCh)
 			}
 
 		case connected := <-cs.webgetCh:
 			cs.timer.Reset(recheckTimeout)
-			log.Debugf("Connection check says: %t", connected)
+			log.Debugf("connectivity: connection check says: %t", connected)
 			cs.webgetCh = nil
 			if connected && cs.lastSent == false {
-				log.Infof("Sending 'connected'.")
+				log.Debugf("connectivity: connection check ok, lastSent: %v, sending 'connected'.", cs.lastSent)
 				cs.lastSent = true
 				break Loop
 			}
@@ -178,7 +189,7 @@ func ConnectedState(endp bus.Endpoint, config ConnectivityConfig, log logger.Log
 	}
 
 Start:
-	log.Infof("Sending initial 'disconnected'.")
+	log.Debugf("sending initial 'disconnected'.")
 	out <- false
 	cs.lastSent = false
 	cs.currentState = cs.start()

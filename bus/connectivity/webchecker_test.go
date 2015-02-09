@@ -18,7 +18,6 @@ package connectivity
 
 import (
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
 	helpers "launchpad.net/ubuntu-push/testing"
 	"launchpad.net/ubuntu-push/util"
 	"net/http"
@@ -28,7 +27,7 @@ import (
 
 type WebcheckerSuite struct {
 	timeouts []time.Duration
-	log      logger.Logger
+	log      *helpers.TestLogger
 }
 
 var _ = Suite(&WebcheckerSuite{})
@@ -104,6 +103,7 @@ func (s *WebcheckerSuite) TestHashFails(c *C) {
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
+	c.Check(s.log.Captured(), Matches, "(?ism).*content mismatch.*")
 }
 
 // Webchecker sends false if the download is too big
@@ -115,6 +115,7 @@ func (s *WebcheckerSuite) TestTooBigFails(c *C) {
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
+	c.Check(s.log.Captured(), Matches, "(?ism).*larger than 1k.*")
 }
 
 // Webchecker sends false if the request timeouts

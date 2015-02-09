@@ -106,7 +106,7 @@ func (s *UDSuite) TestTestURLWrongApp(c *C) {
 	appId := clickhelp.MustParseAppId("com.example.test_app_0.99")
 	urls := []string{"potato://test-app"}
 	c.Check(ud.TestURL(appId, urls), Equals, false)
-	c.Check(s.log.Captured(), Matches, `(?sm).*Notification skipped because of different appid for actions: \[potato://test-app\] - com.example.test_test-app_0.1 != com.example.test_app_0.99`)
+	c.Check(s.log.Captured(), Matches, `(?smi).*notification skipped because of different appid for actions: \[potato://test-app\] - com.example.test_test-app_0.1 != com.example.test_app_0.99`)
 }
 
 func (s *UDSuite) TestTestURLOneWrongApp(c *C) {
@@ -117,7 +117,7 @@ func (s *UDSuite) TestTestURLOneWrongApp(c *C) {
 	appId := clickhelp.MustParseAppId("com.example.test_test-app_0")
 	urls := []string{"potato://test-app", "potato_a://foo"}
 	c.Check(ud.TestURL(appId, urls), Equals, false)
-	c.Check(s.log.Captured(), Matches, `(?sm).*Notification skipped because of different appid for actions: \[potato://test-app potato_a://foo\] - com.example.test_test-app1 != com.example.test_test-app.*`)
+	c.Check(s.log.Captured(), Matches, `(?smi).*notification skipped because of different appid for actions: \[potato://test-app potato_a://foo\] - com.example.test_test-app1 != com.example.test_test-app.*`)
 }
 
 func (s *UDSuite) TestTestURLInvalidURL(c *C) {

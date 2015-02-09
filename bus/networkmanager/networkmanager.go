@@ -71,14 +71,14 @@ var _ NetworkManager = &networkManager{}
 func (nm *networkManager) GetState() State {
 	s, err := nm.bus.GetProperty("state")
 	if err != nil {
-		nm.log.Errorf("Failed gettting current state: %s", err)
-		nm.log.Debugf("Defaulting state to Unknown")
+		nm.log.Errorf("failed gettting current state: %s", err)
+		nm.log.Debugf("defaulting state to Unknown")
 		return Unknown
 	}
 
 	v, ok := s.(uint32)
 	if !ok {
-		nm.log.Errorf("Got weird state: %#v", s)
+		nm.log.Errorf("got weird state: %#v", s)
 		return Unknown
 	}
 
@@ -110,8 +110,8 @@ func (nm *networkManager) WatchState() (<-chan State, error) {
 func (nm *networkManager) GetPrimaryConnection() string {
 	s, err := nm.bus.GetProperty("PrimaryConnection")
 	if err != nil {
-		nm.log.Errorf("Failed gettting current primary connection: %s", err)
-		nm.log.Debugf("Defaulting primary connection to empty")
+		nm.log.Errorf("failed gettting current primary connection: %s", err)
+		nm.log.Debugf("defaulting primary connection to empty")
 		return ""
 	}
 
@@ -146,7 +146,7 @@ func (nm *networkManager) WatchPrimaryConnection() (<-chan string, error) {
 			ch <- string(con)
 		}, func() { close(ch) })
 	if err != nil {
-		nm.log.Debugf("Failed to set up the watch: %s", err)
+		nm.log.Debugf("failed to set up the watch: %s", err)
 		return nil, err
 	}
 

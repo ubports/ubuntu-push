@@ -104,7 +104,7 @@ func (ls *legacySuite) TestHelperFails(c *C) {
 	c.Assert(err, IsNil)
 
 	takeNext(ch, c)
-	c.Check(ls.log.Captured(), Matches, "(?s).*Legacy helper failed.*")
+	c.Check(ls.log.Captured(), Matches, "(?si).*Legacy helper failed.*")
 }
 
 func (ls *legacySuite) TestHelperFailsLog(c *C) {

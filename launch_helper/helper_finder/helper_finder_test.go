@@ -139,7 +139,7 @@ func (s *helperSuite) TestHelperMissingCacheFile(c *C) {
 	hid, hex := Helper(app, s.log)
 	c.Check(hid, Equals, "com.example.test_test-helper_1")
 	c.Check(hex, Equals, filepath.Join(s.symlinkPath, "tsthlpr"))
-	c.Check(s.log.Captured(), Matches, ".*Cache file not found, falling back to .json file lookup\n")
+	c.Check(s.log.Captured(), Matches, ".*(?i)Cache file not found, falling back to .json file lookup\n")
 }
 
 func (s *helperSuite) TestHelperFromHookBasic(c *C) {

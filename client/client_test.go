@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	//"runtime"
 	"testing"
 	"time"
 
@@ -201,6 +202,15 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.configPath = filepath.Join(dir, "config")
 
 	cs.writeTestConfig(nil)
+}
+
+func (cs *clientSuite) TearDownTest(c *C) {
+	//fmt.Println("GOROUTINE# ", runtime.NumGoroutine())
+	/*
+	   var x [16*1024]byte
+	   sz := runtime.Stack(x[:], true)
+	   fmt.Println(string(x[:sz]))
+	*/
 }
 
 type sqlientSuite struct{ clientSuite }
@@ -651,7 +661,9 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	)
 	siCond := condition.Fail2Work(2)
 	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})
-	testibus.SetWatchTicker(cEndp, make(chan bool))
+	tickerCh := make(chan bool)
+	testibus.SetWatchTicker(cEndp, tickerCh)
+	defer close(tickerCh)
 	// ok, create the thing
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
@@ -700,6 +712,7 @@ func (cs *clientSuite) TestHandleErr(c *C) {
 	c.Assert(cli.initSessionAndPoller(), IsNil)
 	cs.log.ResetCapture()
 	cli.hasConnectivity = true
+	defer cli.session.Close()
 	cli.handleErr(errors.New("bananas"))
 	c.Check(cs.log.Captured(), Matches, ".*session exited.*bananas\n")
 }
@@ -712,6 +725,7 @@ func (cs *clientSuite) TestSeenStateFactoryNoDbPath(c *C) {
 	cli := NewPushClient(cs.configPath, "")
 	ln, err := cli.seenStateFactory()
 	c.Assert(err, IsNil)
+	defer ln.Close()
 	c.Check(fmt.Sprintf("%T", ln), Equals, "*seenstate.memSeenState")
 }
 
@@ -719,6 +733,7 @@ func (cs *clientSuite) TestSeenStateFactoryWithDbPath(c *C) {
 	cli := NewPushClient(cs.configPath, ":memory:")
 	ln, err := cli.seenStateFactory()
 	c.Assert(err, IsNil)
+	defer ln.Close()
 	c.Check(fmt.Sprintf("%T", ln), Equals, "*seenstate.sqliteSeenState")
 }
 
@@ -733,6 +748,7 @@ func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	c.Assert(cli.hasConnectivity, Equals, false)
+	defer cli.session.Close()
 	cli.handleConnState(true)
 	c.Check(cli.hasConnectivity, Equals, true)
 	c.Assert(cli.session, NotNil)
@@ -1135,7 +1151,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	// sessionConnectedCh to nothing in particular, but it'll help sync this test
 	cli.sessionConnectedCh <- 42
 	tick()
-	c.Check(cs.log.Captured(), Matches, "(?ms).*Session connected after 42 attempts$")
+	c.Check(cs.log.Captured(), Matches, "(?msi).*Session connected after 42 attempts$")
 
 	// loop() should have connected:
 	//  * connCh to the connectivity checker

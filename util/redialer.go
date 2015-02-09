@@ -65,28 +65,67 @@ type AutoRedialer interface {
 	Stop()          // Stop shuts down the given AutoRedialer, if it is still retrying.
 }
 
+type redialerState uint32
+
+const (
+	Unconfigured redialerState = iota
+	Redialing
+	Stopped
+)
+
+func (s *redialerState) String() string {
+	return [3]string{"Unconfigured", "Redialing", "Stopped"}[uint32(*s)]
+}
+
 type autoRedialer struct {
-	stop   chan bool
-	lock   sync.RWMutex
-	dial   func() error
-	jitter func(time.Duration) time.Duration
+	stateLock     sync.RWMutex
+	stateValue    redialerState
+	stopping      chan struct{}
+	reallyStopped chan struct{}
+	dial          func() error
+	jitter        func(time.Duration) time.Duration
+}
+
+func (ar *autoRedialer) state() redialerState {
+	ar.stateLock.RLock()
+	defer ar.stateLock.RUnlock()
+	return ar.stateValue
+}
+
+func (ar *autoRedialer) setState(s redialerState) {
+	ar.stateLock.Lock()
+	defer ar.stateLock.Unlock()
+	ar.stateValue = s
+}
+
+func (ar *autoRedialer) setStateIfEqual(oldState, newState redialerState) bool {
+	ar.stateLock.Lock()
+	defer ar.stateLock.Unlock()
+	if ar.stateValue != oldState {
+		return false
+	}
+	ar.stateValue = newState
+	return true
+}
+
+func (ar *autoRedialer) setStateStopped() {
+	ar.stateLock.Lock()
+	defer ar.stateLock.Unlock()
+	switch ar.stateValue {
+	case Stopped:
+		return
+	case Unconfigured:
+		close(ar.reallyStopped)
+	}
+	ar.stateValue = Stopped
+	close(ar.stopping)
 }
 
 func (ar *autoRedialer) Stop() {
 	if ar != nil {
-		ar.lock.RLock()
-		defer ar.lock.RUnlock()
-		if ar.stop != nil {
-			ar.stop <- true
-		}
+		ar.setStateStopped()
+		<-ar.reallyStopped
 	}
-}
-
-func (ar *autoRedialer) shutdown() {
-	ar.lock.Lock()
-	defer ar.lock.Unlock()
-	close(ar.stop)
-	ar.stop = nil
 }
 
 // Redial keeps on calling Dial until it stops returning an error.  It does
@@ -96,20 +135,20 @@ func (ar *autoRedialer) Redial() uint32 {
 		// at least it's better than a segfault...
 		panic("you can't Redial a nil AutoRedialer")
 	}
-	if ar.stop == nil {
-		panic("this AutoRedialer has already been shut down")
+	if !ar.setStateIfEqual(Unconfigured, Redialing) {
+		// XXX log this
+		return 0
 	}
-	defer ar.shutdown()
-
-	ar.lock.RLock()
-	stop := ar.stop
-	ar.lock.RUnlock()
+	defer close(ar.reallyStopped)
 
 	var timeout time.Duration
 	var dialAttempts uint32 = 0 // unsigned so it can wrap safely ...
 	timeouts := Timeouts()
 	var numTimeouts uint32 = uint32(len(timeouts))
 	for {
+		if ar.state() != Redialing {
+			return dialAttempts
+		}
 		if ar.dial() == nil {
 			return dialAttempts + 1
 		}
@@ -123,8 +162,7 @@ func (ar *autoRedialer) Redial() uint32 {
 		}
 		dialAttempts++
 		select {
-		case <-stop:
-			return dialAttempts
+		case <-ar.stopping:
 		case <-time.After(timeout):
 		}
 	}
@@ -133,7 +171,12 @@ func (ar *autoRedialer) Redial() uint32 {
 // Returns a stoppable AutoRedialer using the provided Dialer. If the Dialer
 // is also a Jitterer, the backoff will be jittered.
 func NewAutoRedialer(dialer Dialer) AutoRedialer {
-	ar := &autoRedialer{stop: make(chan bool), dial: dialer.Dial}
+	ar := &autoRedialer{
+		stateValue:    Unconfigured,
+		dial:          dialer.Dial,
+		reallyStopped: make(chan struct{}),
+		stopping:      make(chan struct{}),
+	}
 	jitterer, ok := dialer.(Jitterer)
 	if ok {
 		ar.jitter = jitterer.Jitter

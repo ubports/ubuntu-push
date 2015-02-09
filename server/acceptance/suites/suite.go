@@ -21,7 +21,9 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
+	"regexp"
 	"runtime"
 	"time"
 
@@ -48,6 +50,13 @@ func (h *ServerHandle) StartClient(c *C, devId string, levels map[string]int64) 
 
 // Start a client with auth.
 func (h *ServerHandle) StartClientAuth(c *C, devId string, levels map[string]int64, auth string, cookie string) (events <-chan string, errorCh <-chan error, stop func()) {
+	cliEvents, errCh, stop := h.StartClientAuthFlex(c, devId, levels, auth, cookie, regexp.QuoteMeta(devId))
+	c.Assert(NextEvent(cliEvents, errCh), Matches, "connected .*")
+	return cliEvents, errCh, stop
+}
+
+// Start a client with auth, take a devId regexp, don't check any client event.
+func (h *ServerHandle) StartClientAuthFlex(c *C, devId string, levels map[string]int64, auth, cookie, devIdRegexp string) (events <-chan string, errorCh <-chan error, stop func()) {
 	errCh := make(chan error, 1)
 	cliEvents := make(chan string, 10)
 	sess := testClientSession(h.ServerAddr, devId, "m1", "img1", false)
@@ -76,9 +85,8 @@ func (h *ServerHandle) StartClientAuth(c *C, devId string, levels map[string]int
 	go func() {
 		errCh <- sess.Run(cliEvents)
 	}()
-	c.Assert(NextEvent(cliEvents, errCh), Matches, "connected .*")
 	c.Assert(NextEvent(h.ServerEvents, nil), Matches, ".*session.* connected .*")
-	c.Assert(NextEvent(h.ServerEvents, nil), Matches, ".*session.* registered "+devId)
+	c.Assert(NextEvent(h.ServerEvents, nil), Matches, ".*session.* registered "+devIdRegexp)
 	return cliEvents, errCh, func() { clientShutdown <- true }
 }
 
@@ -101,7 +109,7 @@ func (s *AcceptanceSuite) SetUpTest(c *C) {
 	c.Assert(s.ServerHandle.ServerEvents, NotNil)
 	c.Assert(s.ServerHandle.ServerAddr, Not(Equals), "")
 	c.Assert(s.ServerAPIURL, Not(Equals), "")
-	s.SetupClient(nil)
+	s.SetupClient(nil, false, http.DefaultMaxIdleConnsPerHost)
 }
 
 func (s *AcceptanceSuite) TearDownTest(c *C) {

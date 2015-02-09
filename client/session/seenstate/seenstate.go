@@ -28,8 +28,10 @@ type SeenState interface {
 	// GetAll() returns a "simple" map of the current levels.
 	GetAllLevels() (map[string]int64, error)
 	// FilterBySeen filters notifications already seen, keep track
-	// of them as well
+	// of them as well.
 	FilterBySeen([]protocol.Notification) ([]protocol.Notification, error)
+	// Close closes state.
+	Close()
 }
 
 type memSeenState struct {
@@ -56,6 +58,9 @@ func (m *memSeenState) FilterBySeen(notifs []protocol.Notification) ([]protocol.
 		acc = append(acc, notif)
 	}
 	return acc, nil
+}
+
+func (m *memSeenState) Close() {
 }
 
 var _ SeenState = (*memSeenState)(nil)

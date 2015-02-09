@@ -80,7 +80,7 @@ func WriteConfig(c *C, dir, filename string, cfg map[string]interface{}) string 
 	return cfgFpath
 }
 
-var rxLineInfo = regexp.MustCompile("^.*? ([[:alpha:]].*)\n")
+var rxLineInfo = regexp.MustCompile("^.*?(?: .+\\.go:\\d+:)? ([[:alpha:]].*)\n")
 
 // RunAndObserve runs cmdName and returns a channel that will receive
 // cmdName stderr logging and a function to kill the process.

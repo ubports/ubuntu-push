@@ -35,10 +35,21 @@ type APIClient struct {
 	httpClient *http.Client
 }
 
+type APIError struct {
+	Msg  string
+	Body []byte
+}
+
+func (e *APIError) Error() string {
+	return e.Msg
+}
+
 // SetupClient sets up the http client to make requests.
-func (api *APIClient) SetupClient(tlsConfig *tls.Config) {
+func (api *APIClient) SetupClient(tlsConfig *tls.Config, disableKeepAlives bool, maxIdleConnsPerHost int) {
 	api.httpClient = &http.Client{
-		Transport: &http.Transport{TLSClientConfig: tlsConfig},
+		Transport: &http.Transport{TLSClientConfig: tlsConfig,
+			DisableKeepAlives:   disableKeepAlives,
+			MaxIdleConnsPerHost: maxIdleConnsPerHost},
 	}
 }
 
@@ -73,7 +84,7 @@ func (api *APIClient) PostRequest(path string, message interface{}) (map[string]
 	var res map[string]interface{}
 	err = json.Unmarshal(body, &res)
 	if err != nil {
-		return nil, err
+		return nil, &APIError{err.Error(), body}
 	}
 	if ok, _ := res["ok"].(bool); !ok {
 		return res, ErrNOk
