@@ -376,15 +376,15 @@ func (client *PushClient) handleUnregister(app *click.AppId) {
 
 // handleConnState deals with connectivity events
 func (client *PushClient) handleConnState(hasConnectivity bool) {
+	client.log.Debugf("handleConnState: %v", hasConnectivity)
 	if client.hasConnectivity == hasConnectivity {
 		// nothing to do!
 		return
 	}
 	client.hasConnectivity = hasConnectivity
+	client.session.Close()
 	if hasConnectivity {
 		client.session.AutoRedial(client.sessionConnectedCh)
-	} else {
-		client.session.Close()
 	}
 }
 
@@ -490,7 +490,7 @@ func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*sess
 		case err := <-client.session.ErrCh:
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
-			client.log.Debugf("Session connected after %d attempts", count)
+			client.log.Debugf("session connected after %d attempts", count)
 		case app := <-client.unregisterCh:
 			unregisterhandler(app)
 		}

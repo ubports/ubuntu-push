@@ -1,0 +1,9 @@
+digraph "redialer" {
+    "Unconfigured" -> "Redialing" [ label="Redial" ]
+    "Unconfigured" -> "Stopped"   [ label="Stop"   ]
+
+    "Redialing"    -> "Redialing" [ label="Redial" ]
+    "Redialing"    -> "Stopped"   [ label="Stop"   ]
+
+    "Stopped"      -> "Stopped"   [ label="*"      ]
+}

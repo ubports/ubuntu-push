@@ -84,7 +84,7 @@ func (endp *endpoint) Dial() error {
 	name := endp.addr.Name
 	hasOwner, err := d.NameHasOwner(name)
 	if err != nil {
-		endp.log.Debugf("Unable to determine ownership of %#v: %v", name, err)
+		endp.log.Debugf("unable to determine ownership of %#v: %v", name, err)
 		bus.Close()
 		return err
 	}
@@ -110,7 +110,7 @@ func (endp *endpoint) Dial() error {
 			return errors.New(msg)
 		}
 	}
-	endp.log.Infof("%#v dialed in.", name)
+	endp.log.Debugf("%#v dialed in.", name)
 	endp.bus = bus
 	endp.proxy = bus.Object(name, dbus.ObjectPath(endp.addr.Path))
 	return nil
@@ -126,7 +126,7 @@ func (endp *endpoint) Dial() error {
 func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
 	watch, err := endp.proxy.WatchSignal(endp.addr.Interface, member)
 	if err != nil {
-		endp.log.Debugf("Failed to set up the watch: %s", err)
+		endp.log.Debugf("failed to set up the watch: %s", err)
 		return err
 	}
 
@@ -167,15 +167,15 @@ func (endp *endpoint) GetProperty(property string) (interface{}, error) {
 	variantvs := endp.unpackOneMsg(msg, property)
 	switch len(variantvs) {
 	default:
-		return nil, fmt.Errorf("Too many values in Properties.Get response: %d", len(variantvs))
+		return nil, fmt.Errorf("too many values in Properties.Get response: %d", len(variantvs))
 	case 0:
-		return nil, fmt.Errorf("Not enough values in Properties.Get response: %d", len(variantvs))
+		return nil, fmt.Errorf("not enough values in Properties.Get response: %d", len(variantvs))
 	case 1:
 		// carry on
 	}
 	variant, ok := variantvs[0].(*dbus.Variant)
 	if !ok {
-		return nil, fmt.Errorf("Response from Properties.Get wasn't a *dbus.Variant")
+		return nil, fmt.Errorf("response from Properties.Get wasn't a *dbus.Variant")
 	}
 	return variant.Value, nil
 }
@@ -324,6 +324,6 @@ func (endp *endpoint) unpackMessages(watch *dbus.SignalWatch, f func(...interfac
 		}
 		f(endp.unpackOneMsg(msg, member)...)
 	}
-	endp.log.Errorf("Got not-OK from %s watch", member)
+	endp.log.Errorf("got not-OK from %s watch", member)
 	d()
 }

@@ -48,7 +48,7 @@ func readMachineId() (string, error) {
 func New() (Id, error) {
 	value, err := readMachineId()
 	if err != nil {
-		return &Identifier{value: ""}, fmt.Errorf("Failed to read the machine id: %s", err)
+		return &Identifier{value: ""}, fmt.Errorf("failed to read the machine id: %s", err)
 	}
 	return &Identifier{value: value}, nil
 }

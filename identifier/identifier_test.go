@@ -48,7 +48,7 @@ func (s *IdentifierSuite) TestNewFail(c *C) {
 	machineIdPath = "/var/lib/dbus/no-such-file"
 	id, err := New()
 	c.Check(err, NotNil)
-	c.Check(err.Error(), Equals, "Failed to read the machine id: open /var/lib/dbus/no-such-file: no such file or directory")
+	c.Check(err.Error(), Equals, "failed to read the machine id: open /var/lib/dbus/no-such-file: no such file or directory")
 	c.Check(id.String(), HasLen, 0)
 }
 

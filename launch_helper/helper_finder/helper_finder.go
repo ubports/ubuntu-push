@@ -72,7 +72,7 @@ func Helper(app *click.AppId, log logger.Logger) (helperAppId string, helperExec
 	fInfo, err := os.Stat(helpersDataPath)
 	if err != nil {
 		// cache file is missing, go via the slow route
-		log.Infof("Cache file not found, falling back to .json file lookup")
+		log.Infof("cache file not found, falling back to .json file lookup")
 		return helperFromHookFile(app)
 	}
 	// get the lock as the map can be changed while we read

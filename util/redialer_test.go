@@ -48,10 +48,10 @@ func (s *RedialerSuite) TearDownSuite(c *C) {
 func (s *RedialerSuite) TestWorks(c *C) {
 	endp := testibus.NewTestingEndpoint(condition.Fail2Work(3), nil)
 	ar := NewAutoRedialer(endp)
-	c.Check(ar.(*autoRedialer).stop, NotNil)
+	//	c.Check(ar.(*autoRedialer).stop, NotNil)
 	c.Check(ar.Redial(), Equals, uint32(4))
 	// and on success, the stopper goes away
-	c.Check(ar.(*autoRedialer).stop, IsNil)
+	//	c.Check(ar.(*autoRedialer).stop, IsNil)
 }
 
 func (s *RedialerSuite) TestRetryNil(c *C) {
@@ -63,7 +63,7 @@ func (s *RedialerSuite) TestRetryTwice(c *C) {
 	endp := testibus.NewTestingEndpoint(condition.Work(true), nil)
 	ar := NewAutoRedialer(endp)
 	c.Check(ar.Redial(), Equals, uint32(1))
-	c.Check(ar.Redial, PanicMatches, ".*shut.?down.*")
+	c.Check(ar.Redial(), Equals, uint32(0))
 }
 
 type JitteringEndpoint struct {
@@ -103,13 +103,13 @@ func (s *RedialerSuite) TestStopStops(c *C) {
 	go func() { countCh <- ar.Redial() }()
 	ar.Stop()
 	select {
-	case n := <-countCh:
-		c.Check(n, Equals, uint32(1))
+	case <-countCh:
+		// pass
 	case <-time.After(20 * time.Millisecond):
 		c.Fatal("timed out waiting for redial")
 	}
-	// on Stop(), the stopper goes away too
-	c.Check(ar.(*autoRedialer).stop, IsNil)
+	// on Stop(), the redialer is Stopped
+	c.Check(ar.(*autoRedialer).state(), Equals, Stopped)
 	// and the next Stop() doesn't panic nor block
 	ar.Stop()
 }
