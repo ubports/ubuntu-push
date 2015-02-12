@@ -118,6 +118,9 @@ type ClientSessionConfig struct {
 	AuthGetter             func(string) string
 	AuthURL                string
 	AddresseeChecker       AddresseeChecking
+	ErrCh                  chan error
+	BroadcastCh            chan *BroadcastNotification
+	NotificationsCh        chan AddressedNotification
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -148,10 +151,7 @@ type ClientSession struct {
 	retrierLock  sync.Mutex
 	cookie       string
 	// status
-	stateP          *uint32
-	ErrCh           chan error
-	BroadcastCh     chan *BroadcastNotification
-	NotificationsCh chan AddressedNotification
+	stateP *uint32
 	// authorization
 	auth string
 	// autoredial knobs
@@ -469,7 +469,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 	if bcast.ChanId == protocol.SystemChannelId {
 		// the system channel id, the only one we care about for now
 		sess.Log.Debugf("sending bcast over")
-		sess.BroadcastCh <- sess.decodeBroadcast(bcast)
+		sess.ClientSessionConfig.BroadcastCh <- sess.decodeBroadcast(bcast)
 		sess.Log.Debugf("sent bcast over")
 	} else {
 		sess.Log.Errorf("what is this weird channel, %#v?", bcast.ChanId)
@@ -505,7 +505,7 @@ func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
 		sess.Log.Infof("unicast app:%v msg:%s payload:%s",
 			notif.AppId, notif.MsgId, notif.Payload)
 		sess.Log.Debugf("sending ucast over")
-		sess.NotificationsCh <- AddressedNotification{to, notif}
+		sess.ClientSessionConfig.NotificationsCh <- AddressedNotification{to, notif}
 		sess.Log.Debugf("sent ucast over")
 	}
 	return nil
@@ -646,10 +646,7 @@ func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter
 	if err == nil {
 		err = starter()
 		if err == nil {
-			sess.ErrCh = make(chan error, 1)
-			sess.BroadcastCh = make(chan *BroadcastNotification)
-			sess.NotificationsCh = make(chan AddressedNotification)
-			go func() { sess.ErrCh <- looper() }()
+			go func() { sess.ClientSessionConfig.ErrCh <- looper() }()
 		}
 	}
 	return err

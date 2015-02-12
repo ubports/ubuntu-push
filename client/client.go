@@ -206,6 +206,9 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		AuthGetter:       client.getAuthorization,
 		AuthURL:          client.config.SessionURL,
 		AddresseeChecker: client,
+		ErrCh:            make(chan error),
+		BroadcastCh:      make(chan *session.BroadcastNotification),
+		NotificationsCh:  make(chan session.AddressedNotification),
 	}
 }
 

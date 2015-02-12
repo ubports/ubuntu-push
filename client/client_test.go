@@ -431,6 +431,9 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		AuthGetter:       func(string) string { return "" },
 		AuthURL:          "xyzzy://",
 		AddresseeChecker: cli,
+		ErrCh:            make(chan error),
+		BroadcastCh:      make(chan *session.BroadcastNotification),
+		NotificationsCh:  make(chan session.AddressedNotification),
 	}
 	// sanity check that we are looking at all fields
 	vExpected := reflect.ValueOf(expected)
@@ -444,6 +447,13 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	conf := cli.deriveSessionConfig(info)
 	// compare authGetter by string
 	c.Check(fmt.Sprintf("%#v", conf.AuthGetter), Equals, fmt.Sprintf("%#v", cli.getAuthorization))
+	// channels are ok as long as non-nil
+	conf.ErrCh = nil
+	conf.BroadcastCh = nil
+	conf.NotificationsCh = nil
+	expected.ErrCh = nil
+	expected.BroadcastCh = nil
+	expected.NotificationsCh = nil
 	// and set it to nil
 	conf.AuthGetter = nil
 	expected.AuthGetter = nil
