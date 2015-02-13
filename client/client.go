@@ -116,7 +116,7 @@ type PushClient struct {
 	systemImageInfo    *systemimage.InfoResult
 	connCh             chan bool
 	hasConnectivity    bool
-	session            *session.ClientSession
+	session            session.ClientSession
 	sessionConnectedCh chan uint32
 	pushService        PushService
 	postalService      PostalService

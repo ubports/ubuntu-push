@@ -272,7 +272,7 @@ func (cs *clientSessionSuite) TestNewSessionBadSeenStateFails(c *C) {
 
 func (cs *clientSessionSuite) TestGetHostsFallback(c *C) {
 	fallback := []string{"foo:443", "bar:443"}
-	sess := &ClientSession{fallbackHosts: fallback}
+	sess := &clientSession{fallbackHosts: fallback}
 	err := sess.getHosts()
 	c.Assert(err, IsNil)
 	c.Check(sess.deliveryHosts, DeepEquals, fallback)
@@ -290,7 +290,7 @@ func (thg *testHostGetter) Get() (*gethosts.Host, error) {
 
 func (cs *clientSessionSuite) TestGetHostsRemote(c *C) {
 	hostGetter := &testHostGetter{"example.com", []string{"foo:443", "bar:443"}, nil}
-	sess := &ClientSession{getHost: hostGetter, timeSince: time.Since}
+	sess := &clientSession{getHost: hostGetter, timeSince: time.Since}
 	err := sess.getHosts()
 	c.Assert(err, IsNil)
 	c.Check(sess.deliveryHosts, DeepEquals, []string{"foo:443", "bar:443"})
@@ -310,7 +310,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteError(c *C) {
 
 func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
 	hostGetter := &testHostGetter{"example.com", []string{"foo:443", "bar:443"}, nil}
-	sess := &ClientSession{
+	sess := &clientSession{
 		getHost: hostGetter,
 		ClientSessionConfig: ClientSessionConfig{
 			HostsCachingExpiryTime: 2 * time.Hour,
@@ -335,7 +335,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCaching(c *C) {
 
 func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
 	hostGetter := &testHostGetter{"example.com", []string{"foo:443", "bar:443"}, nil}
-	sess := &ClientSession{
+	sess := &clientSession{
 		getHost: hostGetter,
 		ClientSessionConfig: ClientSessionConfig{
 			HostsCachingExpiryTime: 2 * time.Hour,
@@ -362,7 +362,7 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
 
 func (cs *clientSessionSuite) TestAddAuthorizationAddsAuthorization(c *C) {
 	url := "xyzzy://"
-	sess := &ClientSession{Log: cs.log}
+	sess := &clientSession{Log: cs.log}
 	sess.AuthGetter = func(url string) string { return url + " auth'ed" }
 	sess.AuthURL = url
 	c.Assert(sess.auth, Equals, "")
@@ -372,7 +372,7 @@ func (cs *clientSessionSuite) TestAddAuthorizationAddsAuthorization(c *C) {
 }
 
 func (cs *clientSessionSuite) TestAddAuthorizationSkipsIfUnset(c *C) {
-	sess := &ClientSession{Log: cs.log}
+	sess := &clientSession{Log: cs.log}
 	sess.AuthGetter = nil
 	c.Assert(sess.auth, Equals, "")
 	err := sess.addAuthorization()
@@ -386,7 +386,7 @@ func (cs *clientSessionSuite) TestAddAuthorizationSkipsIfUnset(c *C) {
 
 func (cs *clientSessionSuite) TestStartConnectionAttempt(c *C) {
 	since := time.Since(time.Time{})
-	sess := &ClientSession{
+	sess := &clientSession{
 		ClientSessionConfig: ClientSessionConfig{
 			ExpectAllRepairedTime: 10 * time.Second,
 		},
@@ -410,7 +410,7 @@ func (cs *clientSessionSuite) TestStartConnectionAttempt(c *C) {
 
 func (cs *clientSessionSuite) TestStartConnectionAttemptNoHostsPanic(c *C) {
 	since := time.Since(time.Time{})
-	sess := &ClientSession{
+	sess := &clientSession{
 		ClientSessionConfig: ClientSessionConfig{
 			ExpectAllRepairedTime: 10 * time.Second,
 		},
@@ -422,7 +422,7 @@ func (cs *clientSessionSuite) TestStartConnectionAttemptNoHostsPanic(c *C) {
 }
 
 func (cs *clientSessionSuite) TestNextHostToTry(c *C) {
-	sess := &ClientSession{
+	sess := &clientSession{
 		deliveryHosts: []string{"foo:443", "bar:443", "baz:443"},
 		tryHost:       0,
 		leftToTry:     3,
@@ -600,7 +600,7 @@ func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	flag := false
-	sess.redialDelay = func(sess *ClientSession) time.Duration { flag = true; return 0 }
+	sess.redialDelay = func(sess *clientSession) time.Duration { flag = true; return 0 }
 	sess.AutoRedial(nil)
 	c.Check(flag, Equals, true)
 }
@@ -608,7 +608,7 @@ func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
 func (cs *clientSessionSuite) TestAutoRedialSetsRedialDelayIfTooQuick(c *C) {
 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	sess.redialDelay = func(sess *ClientSession) time.Duration { return 0 }
+	sess.redialDelay = func(sess *clientSession) time.Duration { return 0 }
 	sess.AutoRedial(nil)
 	c.Check(sess.ShouldDelay(), Equals, false)
 	sess.stopRedial()
@@ -622,7 +622,7 @@ func (cs *clientSessionSuite) TestAutoRedialSetsRedialDelayIfTooQuick(c *C) {
 ****************************************************************/
 
 type msgSuite struct {
-	sess   *ClientSession
+	sess   *clientSession
 	upCh   chan interface{}
 	downCh chan interface{}
 	errCh  chan error

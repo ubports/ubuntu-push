@@ -535,10 +535,18 @@ func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
 /*****************************************************************
     derivePollerSetup tests
 ******************************************************************/
+type dummySession struct{}
+
+func (*dummySession) Close()                            {}
+func (*dummySession) AutoRedial(doneCh chan uint32)     {}
+func (*dummySession) ClearCookie()                      {}
+func (*dummySession) Dial() error                       { return nil }
+func (*dummySession) State() session.ClientSessionState { return session.Unknown }
+
 func (cs *clientSuite) TestDerivePollerSetup(c *C) {
 	cs.writeTestConfig(map[string]interface{}{})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.session = new(session.ClientSession)
+	cli.session = new(dummySession)
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	expected := &poller.PollerSetup{
