@@ -127,7 +127,6 @@ type ClientSession interface {
 	Close()
 	AutoRedial(doneCh chan uint32)
 	ClearCookie()
-	Dial() error
 	State() ClientSessionState
 }
 
