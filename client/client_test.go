@@ -1041,8 +1041,8 @@ func (cs *clientSuite) TestDoLoopBroadcast(c *C) {
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSessionAndPoller(), IsNil)
-	cli.session.BroadcastCh = make(chan *session.BroadcastNotification, 1)
-	cli.session.BroadcastCh <- &session.BroadcastNotification{}
+	cli.broadcastCh = make(chan *session.BroadcastNotification, 1)
+	cli.broadcastCh <- &session.BroadcastNotification{}
 
 	ch := make(chan bool, 1)
 	go cli.doLoop(nopConn, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopError, nopUnregister, nopAcct)
@@ -1054,8 +1054,8 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSessionAndPoller(), IsNil)
-	cli.session.NotificationsCh = make(chan session.AddressedNotification, 1)
-	cli.session.NotificationsCh <- session.AddressedNotification{}
+	cli.notificationsCh = make(chan session.AddressedNotification, 1)
+	cli.notificationsCh <- session.AddressedNotification{}
 
 	ch := make(chan bool, 1)
 	go cli.doLoop(nopConn, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopError, nopUnregister, nopAcct)
@@ -1067,8 +1067,8 @@ func (cs *clientSuite) TestDoLoopErr(c *C) {
 	cli.log = cs.log
 	cli.systemImageInfo = siInfoRes
 	c.Assert(cli.initSessionAndPoller(), IsNil)
-	cli.session.ErrCh = make(chan error, 1)
-	cli.session.ErrCh <- nil
+	cli.errCh = make(chan error, 1)
+	cli.errCh <- nil
 
 	ch := make(chan bool, 1)
 	go cli.doLoop(nopConn, nopBcast, nopUcast, func(error) { ch <- true }, nopUnregister, nopAcct)
@@ -1147,8 +1147,8 @@ func (cs *clientSuite) TestLoop(c *C) {
 
 	c.Assert(cli.initSessionAndPoller(), IsNil)
 
-	cli.session.BroadcastCh = make(chan *session.BroadcastNotification)
-	cli.session.ErrCh = make(chan error)
+	cli.broadcastCh = make(chan *session.BroadcastNotification)
+	cli.errCh = make(chan error)
 
 	// we use tick() to make sure things have been through the
 	// event loop at least once before looking at things;
@@ -1175,12 +1175,12 @@ func (cs *clientSuite) TestLoop(c *C) {
 
 	//  * session.BroadcastCh to the notifications handler
 	c.Check(d.bcastCount, Equals, 0)
-	cli.session.BroadcastCh <- positiveBroadcastNotification
+	cli.broadcastCh <- positiveBroadcastNotification
 	tick()
 	c.Check(d.bcastCount, Equals, 1)
 
 	//  * session.ErrCh to the error handler
-	cli.session.ErrCh <- nil
+	cli.errCh <- nil
 	tick()
 	c.Check(cs.log.Captured(), Matches, "(?ms).*session exited.*")
 }
