@@ -155,7 +155,12 @@ Loop:
 		case <-cs.timer.C:
 			if cs.currentState == networkmanager.ConnectedGlobal {
 				log.Debugf("connectivity: timer signal, state: ConnectedGlobal, checking...")
-				cs.webgetCh = make(chan bool)
+				// use a buffered channel, otherwise
+				// we may leak webcheckers that cannot
+				// send their result because we have
+				// cleared webgetCh and wont receive
+				// on it
+				cs.webgetCh = make(chan bool, 1)
 				go cs.webget(cs.webgetCh)
 			}
 

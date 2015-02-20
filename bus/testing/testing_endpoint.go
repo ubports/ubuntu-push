@@ -36,13 +36,13 @@ type callArgs struct {
 }
 
 type testingEndpoint struct {
-	dialCond    condition.Interface
-	callCond    condition.Interface
-	retvals     [][]interface{}
-	watchTicker chan bool
-	watchLck    sync.RWMutex
-	callArgs    []callArgs
-	callArgsLck sync.RWMutex
+	dialCond     condition.Interface
+	callCond     condition.Interface
+	retvals      [][]interface{}
+	watchSources map[string]chan []interface{}
+	watchLck     sync.RWMutex
+	callArgs     []callArgs
+	callArgsLck  sync.RWMutex
 }
 
 // Build a bus.Endpoint that calls OK() on its condition before returning
@@ -51,7 +51,7 @@ type testingEndpoint struct {
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them in turn, irrespective of whether Call has been called.
 func NewMultiValuedTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
-	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses}
+	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses, watchSources: make(map[string]chan []interface{})}
 }
 
 func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvals ...interface{}) bus.Endpoint {
@@ -59,15 +59,15 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 	for i, x := range retvals {
 		retvalses[i] = []interface{}{x}
 	}
-	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses}
+	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses, watchSources: make(map[string]chan []interface{})}
 }
 
-// If SetWatchTicker is called with a non-nil watchTicker, it is used
-// instead of the default timeout to wait while sending values over
-// WatchSignal. Set it to nil again to restore default behaviour.
-func SetWatchTicker(tc bus.Endpoint, watchTicker chan bool) {
+// If SetWatchSource is called with a non-nil watchSource, it is used
+// instead of the default timeout and retvals to get values to send
+// over WatchSignal. Set it to nil again to restore default behaviour.
+func SetWatchSource(tc bus.Endpoint, member string, watchSource chan []interface{}) {
 	tc.(*testingEndpoint).watchLck.Lock()
-	tc.(*testingEndpoint).watchTicker = watchTicker
+	tc.(*testingEndpoint).watchSources[member] = watchSource
 	tc.(*testingEndpoint).watchLck.Unlock()
 }
 
@@ -83,21 +83,24 @@ func GetCallArgs(tc bus.Endpoint) []callArgs {
 func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
 	if tc.callCond.OK() {
 		go func() {
-			for _, v := range tc.retvals {
-				f(v...)
-				tc.watchLck.RLock()
-				ticker := tc.watchTicker
-				tc.watchLck.RUnlock()
-				if ticker != nil {
-					_, ok := <-ticker
-					if !ok {
-						// bail out
-						return
+			tc.watchLck.RLock()
+			source := tc.watchSources[member]
+			tc.watchLck.RUnlock()
+			if source == nil {
+				source = make(chan []interface{})
+				go func() {
+					for _, v := range tc.retvals {
+						source <- v
+						time.Sleep(10 * time.Millisecond)
 					}
-				} else {
-					time.Sleep(10 * time.Millisecond)
-				}
+					close(source)
+				}()
 			}
+			for v := range source {
+				fmt.Println(member, "GOT", v)
+				f(v...)
+			}
+			fmt.Println(member, "DONE")
 			d()
 		}()
 		return nil
@@ -137,6 +140,9 @@ func (tc *testingEndpoint) Call(member string, args []interface{}, rvs ...interf
 			if err != nil {
 				return err
 			}
+			fmt.Println("CALL->", member, args, tc.retvals[0])
+		} else {
+			fmt.Println("CALL", member, args)
 		}
 		return nil
 	} else {

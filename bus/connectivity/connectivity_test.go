@@ -285,12 +285,17 @@ func (s *ConnSuite) TestRun(c *C) {
 	}
 
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
-		uint32(networkmanager.ConnectedGlobal),
 		uint32(networkmanager.Disconnected),
 	)
 
-	watchTicker := make(chan bool)
-	testingbus.SetWatchTicker(endp, watchTicker)
+	watchTicker := make(chan []interface{})
+	testingbus.SetWatchSource(endp, "StateChanged", watchTicker)
+	nopTicker := make(chan []interface{})
+	testingbus.SetWatchSource(endp, "PropertiesChanged", nopTicker)
+	states := [][]interface{}{
+		[]interface{}{uint32(networkmanager.ConnectedGlobal)},
+		[]interface{}{uint32(networkmanager.Disconnected)},
+	}
 
 	out := make(chan bool)
 	dt := time.Second / 10
@@ -302,15 +307,25 @@ func (s *ConnSuite) TestRun(c *C) {
 		s string
 		n int
 	}{
-		{false, "first state is always false", 0},
+		{false, "first state is always false", -1},
 		{true, "then it should be true as per ConnectedGlobal above", 0},
-		{false, "then it should be false (Disconnected)", 2},
-		{false, "then it should be false again because it's restarted", 2},
+		{false, "then it should be false (Disconnected)", 1},
+		{false, "then it should be false again because it's restarted", -2},
 	}
 
+	defer func() {
+		if watchTicker != nil {
+			close(watchTicker)
+		}
+	}()
+	defer close(nopTicker)
 	for i, expected := range expecteds {
-		for j := 0; j < expected.n; j++ {
-			watchTicker <- true
+		// xxx ugly
+		if expected.n >= 0 {
+			watchTicker <- states[expected.n]
+		} else if expected.n == -2 {
+			close(watchTicker)
+			watchTicker = nil
 		}
 		timer.Reset(dt)
 		select {
@@ -338,8 +353,10 @@ func (s *ConnSuite) TestRun4Active(c *C) {
 		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("hello")}},
 	)
 
-	watchTicker := make(chan bool)
-	testingbus.SetWatchTicker(endp, watchTicker)
+	watchTicker := make(chan []interface{})
+	testingbus.SetWatchSource(endp, "PropertiesChanged", watchTicker)
+	nopTicker := make(chan []interface{})
+	testingbus.SetWatchSource(endp, "StateChanged", nopTicker)
 
 	out := make(chan bool)
 	dt := time.Second / 10
@@ -357,9 +374,17 @@ func (s *ConnSuite) TestRun4Active(c *C) {
 		{true, "then it should be true (webcheck passed)", 0},
 	}
 
+	defer func() {
+		if watchTicker != nil {
+			close(watchTicker)
+		}
+	}()
+	defer close(nopTicker)
 	for i, expected := range expecteds {
-		for j := 0; j < expected.n; j++ {
-			watchTicker <- true
+		if expected.n != 0 {
+			watchTicker <- []interface{}{
+				map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("hello")}},
+			}
 		}
 		timer.Reset(dt)
 		select {
