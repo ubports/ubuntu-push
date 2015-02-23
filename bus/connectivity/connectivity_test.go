@@ -58,13 +58,15 @@ func (s *ConnSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
 }
 
+var helloCon = map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("hello")}}
+
 /*
    tests for connectedState's Start() method
 */
 
 // when given a working config and bus, Start() will work
 func (s *ConnSuite) TestStartWorks(c *C) {
-	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting))
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting), helloCon)
 	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
@@ -72,7 +74,7 @@ func (s *ConnSuite) TestStartWorks(c *C) {
 
 // if the bus fails a couple of times, we're still OK
 func (s *ConnSuite) TestStartRetriesConnect(c *C) {
-	endp := testingbus.NewTestingEndpoint(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting))
+	endp := testingbus.NewTestingEndpoint(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting), helloCon)
 	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
@@ -81,7 +83,7 @@ func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 
 // when the calls to NetworkManager fails for a bit, we're still OK
 func (s *ConnSuite) TestStartRetriesCall(c *C) {
-	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting))
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting), helloCon)
 	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
@@ -94,7 +96,10 @@ func (s *ConnSuite) TestStartRetriesCall2(c *C) {
 	cond := condition.Chain(3, condition.Work(true), 1, condition.Work(false),
 		1, condition.Work(true))
 
-	endp := testingbus.NewTestingEndpoint(condition.Work(true), cond, uint32(networkmanager.Connecting))
+	endp := testingbus.NewTestingEndpoint(condition.Work(true), cond,
+		uint32(networkmanager.Connecting), helloCon,
+		uint32(networkmanager.Connecting), helloCon,
+	)
 	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
@@ -286,16 +291,15 @@ func (s *ConnSuite) TestRun(c *C) {
 
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.Disconnected),
+		helloCon,
+		uint32(networkmanager.Disconnected),
+		helloCon,
 	)
 
 	watchTicker := make(chan []interface{})
 	testingbus.SetWatchSource(endp, "StateChanged", watchTicker)
 	nopTicker := make(chan []interface{})
 	testingbus.SetWatchSource(endp, "PropertiesChanged", nopTicker)
-	states := [][]interface{}{
-		[]interface{}{uint32(networkmanager.ConnectedGlobal)},
-		[]interface{}{uint32(networkmanager.Disconnected)},
-	}
 
 	out := make(chan bool)
 	dt := time.Second / 10
@@ -303,14 +307,14 @@ func (s *ConnSuite) TestRun(c *C) {
 	go ConnectedState(endp, cfg, s.log, out)
 	var v bool
 	expecteds := []struct {
-		p bool
-		s string
-		n int
+		p    bool
+		s    string
+		todo string
 	}{
-		{false, "first state is always false", -1},
-		{true, "then it should be true as per ConnectedGlobal above", 0},
-		{false, "then it should be false (Disconnected)", 1},
-		{false, "then it should be false again because it's restarted", -2},
+		{false, "first state is always false", ""},
+		{true, "then it should be true as per ConnectedGlobal above", "ConnectedGlobal"},
+		{false, "then it should be false (Disconnected)", "Disconnected"},
+		{false, "then it should be false again because it's restarted", "close"},
 	}
 
 	defer func() {
@@ -320,10 +324,12 @@ func (s *ConnSuite) TestRun(c *C) {
 	}()
 	defer close(nopTicker)
 	for i, expected := range expecteds {
-		// xxx ugly
-		if expected.n >= 0 {
-			watchTicker <- states[expected.n]
-		} else if expected.n == -2 {
+		switch expected.todo {
+		case "ConnectedGlobal":
+			watchTicker <- []interface{}{uint32(networkmanager.ConnectedGlobal)}
+		case "Disconnected":
+			watchTicker <- []interface{}{uint32(networkmanager.Disconnected)}
+		case "close":
 			close(watchTicker)
 			watchTicker = nil
 		}
@@ -350,7 +356,7 @@ func (s *ConnSuite) TestRun4Active(c *C) {
 
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
 		uint32(networkmanager.ConnectedGlobal),
-		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("hello")}},
+		helloCon,
 	)
 
 	watchTicker := make(chan []interface{})
@@ -364,14 +370,14 @@ func (s *ConnSuite) TestRun4Active(c *C) {
 	go ConnectedState(endp, cfg, s.log, out)
 	var v bool
 	expecteds := []struct {
-		p bool
-		s string
-		n int
+		p           bool
+		s           string
+		changedConn bool
 	}{
-		{false, "first state is always false", 0},
-		{true, "then it should be true as per ConnectedGlobal above", 0},
-		{false, "then, false (PrimaryConnection changed)", 2},
-		{true, "then it should be true (webcheck passed)", 0},
+		{false, "first state is always false", false},
+		{true, "then it should be true as per ConnectedGlobal above", false},
+		{false, "then, false (PrimaryConnection changed)", true},
+		{true, "then it should be true (webcheck passed)", false},
 	}
 
 	defer func() {
@@ -381,10 +387,8 @@ func (s *ConnSuite) TestRun4Active(c *C) {
 	}()
 	defer close(nopTicker)
 	for i, expected := range expecteds {
-		if expected.n != 0 {
-			watchTicker <- []interface{}{
-				map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("hello")}},
-			}
+		if expected.changedConn {
+			watchTicker <- []interface{}{helloCon}
 		}
 		timer.Reset(dt)
 		select {

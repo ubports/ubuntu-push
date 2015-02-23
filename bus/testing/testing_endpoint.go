@@ -38,6 +38,8 @@ type callArgs struct {
 type testingEndpoint struct {
 	dialCond     condition.Interface
 	callCond     condition.Interface
+	usedLck      sync.Mutex
+	used         int
 	retvals      [][]interface{}
 	watchSources map[string]chan []interface{}
 	watchLck     sync.RWMutex
@@ -120,20 +122,24 @@ func (tc *testingEndpoint) Call(member string, args []interface{}, rvs ...interf
 	if tc.callCond.OK() {
 		expected := len(rvs)
 		var provided int
-		if len(tc.retvals) == 0 {
+		tc.usedLck.Lock()
+		idx := tc.used
+		tc.used++
+		tc.usedLck.Unlock()
+		if len(tc.retvals) <= idx {
 			if expected != 0 {
 				panic("No return values provided!")
 			}
 			provided = 0
 		} else {
-			provided = len(tc.retvals[0])
+			provided = len(tc.retvals[idx])
 		}
 		if provided != expected {
 			return errors.New("provided/expected return vals mismatch")
 		}
 		if provided != 0 {
 			x := dbus.NewMethodCallMessage("", "", "", "")
-			err := x.AppendArgs(tc.retvals[0]...)
+			err := x.AppendArgs(tc.retvals[idx]...)
 			if err != nil {
 				return err
 			}
