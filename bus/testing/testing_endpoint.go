@@ -80,6 +80,7 @@ func GetCallArgs(tc bus.Endpoint) []callArgs {
 
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values
+// or values from the previously set watchSource for member.
 func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
 	if tc.callCond.OK() {
 		go func() {
