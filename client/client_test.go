@@ -659,9 +659,9 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	cCond := condition.Fail2Work(7)
 	cEndp := testibus.NewTestingEndpoint(cCond, condition.Work(true),
 		uint32(networkmanager.Connecting),
-		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("hello")}},
+		dbus.ObjectPath("hello"),
 		uint32(networkmanager.Connecting),
-		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("hello")}},
+		dbus.ObjectPath("hello"),
 	)
 	siCond := condition.Fail2Work(2)
 	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})

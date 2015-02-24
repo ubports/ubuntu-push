@@ -58,7 +58,10 @@ func (s *ConnSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
 }
 
-var helloCon = map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("hello")}}
+var (
+	helloCon      = dbus.ObjectPath("hello")
+	helloConProps = map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{helloCon}}
+)
 
 /*
    tests for connectedState's Start() method
@@ -69,6 +72,11 @@ func (s *ConnSuite) TestStartWorks(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting), helloCon)
 	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
+	nopTicker := make(chan []interface{})
+	testingbus.SetWatchSource(endp, "StateChanged", nopTicker)
+	testingbus.SetWatchSource(endp, "PropertiesChanged", nopTicker)
+	defer close(nopTicker)
+
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 }
 
@@ -76,6 +84,11 @@ func (s *ConnSuite) TestStartWorks(c *C) {
 func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting), helloCon)
 	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+
+	nopTicker := make(chan []interface{})
+	testingbus.SetWatchSource(endp, "StateChanged", nopTicker)
+	testingbus.SetWatchSource(endp, "PropertiesChanged", nopTicker)
+	defer close(nopTicker)
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(3)) // 1 more than the Fail2Work
@@ -85,6 +98,11 @@ func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 func (s *ConnSuite) TestStartRetriesCall(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting), helloCon)
 	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+
+	nopTicker := make(chan []interface{})
+	testingbus.SetWatchSource(endp, "StateChanged", nopTicker)
+	testingbus.SetWatchSource(endp, "PropertiesChanged", nopTicker)
+	defer close(nopTicker)
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 
@@ -102,6 +120,11 @@ func (s *ConnSuite) TestStartRetriesCall2(c *C) {
 	)
 	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
+	nopTicker := make(chan []interface{})
+	testingbus.SetWatchSource(endp, "StateChanged", nopTicker)
+	testingbus.SetWatchSource(endp, "PropertiesChanged", nopTicker)
+	defer close(nopTicker)
+
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 }
 
@@ -110,17 +133,26 @@ func (s *ConnSuite) TestStartRetriesCall2(c *C) {
 // watch, we recover and try again.
 func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 	nmcond := condition.Chain(
-		1, condition.Work(true), // 1 call to nm works
+		2, condition.Work(true), // 2 call to nm works
 		1, condition.Work(false), // 1 call to nm fails
 		0, condition.Work(true)) // and everything works from there on
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), nmcond,
 		uint32(networkmanager.Connecting),
-		uint32(networkmanager.ConnectedGlobal))
+		uint32(networkmanager.Connecting),
+		helloCon,
+	)
 	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+	watchTicker := make(chan []interface{}, 1)
+	nopTicker := make(chan []interface{})
+	testingbus.SetWatchSource(endp, "StateChanged", watchTicker)
+	testingbus.SetWatchSource(endp, "PropertiesChanged", nopTicker)
+	defer close(nopTicker)
+	defer close(watchTicker)
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(2))
-	c.Check(<-cs.networkStateCh, Equals, networkmanager.Connecting)
+	// XXX this may be stolen by an old watch => dead lock
+	watchTicker <- []interface{}{uint32(networkmanager.ConnectedGlobal)}
 	c.Check(<-cs.networkStateCh, Equals, networkmanager.ConnectedGlobal)
 }
 
@@ -388,7 +420,7 @@ func (s *ConnSuite) TestRun4Active(c *C) {
 	defer close(nopTicker)
 	for i, expected := range expecteds {
 		if expected.changedConn {
-			watchTicker <- []interface{}{helloCon}
+			watchTicker <- []interface{}{helloConProps}
 		}
 		timer.Reset(dt)
 		select {

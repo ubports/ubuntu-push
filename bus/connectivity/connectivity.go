@@ -87,14 +87,14 @@ func (cs *connectedState) start() networkmanager.State {
 		}
 		cs.log.Debugf("got initial state of %s", initial)
 
-		primary = nm.GetPrimaryConnection()
-		cs.log.Debugf("primary connection starts as %#v", primary)
-
 		conCh, err = nm.WatchPrimaryConnection()
 		if err != nil {
 			cs.log.Debugf("failed to set up the connection watch: %s", err)
 			goto Continue
 		}
+
+		primary = nm.GetPrimaryConnection()
+		cs.log.Debugf("primary connection starts as %#v", primary)
 
 		cs.networkStateCh = stateCh
 		cs.networkConCh = conCh

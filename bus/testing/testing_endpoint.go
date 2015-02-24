@@ -90,9 +90,13 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 			source := tc.watchSources[member]
 			tc.watchLck.RUnlock()
 			if source == nil {
+				tc.usedLck.Lock()
+				idx := tc.used
+				tc.used++
+				tc.usedLck.Unlock()
 				source = make(chan []interface{})
 				go func() {
-					for _, v := range tc.retvals {
+					for _, v := range tc.retvals[idx:] {
 						source <- v
 						time.Sleep(10 * time.Millisecond)
 					}
@@ -100,10 +104,8 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 				}()
 			}
 			for v := range source {
-				fmt.Println(member, "GOT", v)
 				f(v...)
 			}
-			fmt.Println(member, "DONE")
 			d()
 		}()
 		return nil
@@ -147,9 +149,6 @@ func (tc *testingEndpoint) Call(member string, args []interface{}, rvs ...interf
 			if err != nil {
 				return err
 			}
-			fmt.Println("CALL->", member, args, tc.retvals[0])
-		} else {
-			fmt.Println("CALL", member, args)
 		}
 		return nil
 	} else {
