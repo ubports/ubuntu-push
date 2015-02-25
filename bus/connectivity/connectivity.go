@@ -87,14 +87,14 @@ func (cs *connectedState) start() networkmanager.State {
 		}
 		cs.log.Debugf("got initial state of %s", initial)
 
-		primary = nm.GetPrimaryConnection()
-		cs.log.Debugf("primary connection starts as %#v", primary)
-
 		conCh, err = nm.WatchPrimaryConnection()
 		if err != nil {
 			cs.log.Debugf("failed to set up the connection watch: %s", err)
 			goto Continue
 		}
+
+		primary = nm.GetPrimaryConnection()
+		cs.log.Debugf("primary connection starts as %#v", primary)
 
 		cs.networkStateCh = stateCh
 		cs.networkConCh = conCh
@@ -155,7 +155,12 @@ Loop:
 		case <-cs.timer.C:
 			if cs.currentState == networkmanager.ConnectedGlobal {
 				log.Debugf("connectivity: timer signal, state: ConnectedGlobal, checking...")
-				cs.webgetCh = make(chan bool)
+				// use a buffered channel, otherwise
+				// we may leak webcheckers that cannot
+				// send their result because we have
+				// cleared webgetCh and wont receive
+				// on it
+				cs.webgetCh = make(chan bool, 1)
 				go cs.webget(cs.webgetCh)
 			}
 
