@@ -111,14 +111,16 @@ type tst struct {
 	errstr string
 	endp   bus.Endpoint
 	works  bool
+	src    chan []interface{}
 }
 
 func (s *RawSuite) TestWatchActionsToleratesDBusWeirdness(c *C) {
 	X := func(errstr string, args ...interface{}) tst {
-		endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), args)
-		// stop the endpoint from closing the channel:
-		testibus.SetWatchTicker(endp, make(chan bool))
-		return tst{errstr, endp, errstr == ""}
+		endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true))
+		src := make(chan []interface{}, 1)
+		testibus.SetWatchSource(endp, "ActionInvoked", src)
+		src <- args
+		return tst{errstr, endp, errstr == "", src}
 	}
 
 	ts := []tst{
@@ -146,6 +148,7 @@ func (s *RawSuite) TestWatchActionsToleratesDBusWeirdness(c *C) {
 		}
 		c.Check(s.log.Captured(), Matches, `(?ms).*`+t.errstr+`.*`)
 		s.log.ResetCapture()
+		close(t.src)
 	}
 
 }

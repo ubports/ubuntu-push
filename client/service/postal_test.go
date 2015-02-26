@@ -552,6 +552,10 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc.fallbackVibration = &launch_helper.Vibration{Pattern: []uint32{1}}
 	c.Assert(svc.Start(), IsNil)
 
+	nopTicker := make(chan []interface{})
+	testibus.SetWatchSource(endp, "ActionInvoked", nopTicker)
+	defer close(nopTicker)
+
 	// Persist is false so we just check the log
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true, Persist: false}
 	vib := json.RawMessage(`true`)
@@ -837,6 +841,10 @@ func (ps *postalSuite) TestSetCounterErrors(c *C) {
 }
 
 func (ps *postalSuite) TestBlacklisted(c *C) {
+	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{},
+		[]windowstack.WindowsInfo{},
+		[]windowstack.WindowsInfo{},
+		[]windowstack.WindowsInfo{})
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
 	svc.Start()
 	ps.blacklisted = false
