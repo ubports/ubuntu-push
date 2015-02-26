@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/accounts"
@@ -667,13 +668,19 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	// testing endpoints
 	cCond := condition.Fail2Work(7)
 	cEndp := testibus.NewTestingEndpoint(cCond, condition.Work(true),
-		uint32(networkmanager.ConnectedGlobal),
+		uint32(networkmanager.Connecting),
+		dbus.ObjectPath("hello"),
+		uint32(networkmanager.Connecting),
+		dbus.ObjectPath("hello"),
 	)
 	siCond := condition.Fail2Work(2)
 	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})
-	tickerCh := make(chan bool)
-	testibus.SetWatchTicker(cEndp, tickerCh)
+	tickerCh := make(chan []interface{})
+	nopTickerCh := make(chan []interface{})
+	testibus.SetWatchSource(cEndp, "StateChanged", tickerCh)
+	testibus.SetWatchSource(cEndp, "PropertiesChanged", nopTickerCh)
 	defer close(tickerCh)
+	defer close(nopTickerCh)
 	// ok, create the thing
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
@@ -689,6 +696,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	c.Assert(cli.takeTheBus(), IsNil)
 
 	c.Check(takeNextBool(cli.connCh), Equals, false)
+	tickerCh <- []interface{}{uint32(networkmanager.ConnectedGlobal)}
 	c.Check(takeNextBool(cli.connCh), Equals, true)
 	// the connectivity endpoint retried until connected
 	c.Check(cCond.OK(), Equals, true)
