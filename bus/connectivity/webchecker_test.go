@@ -75,6 +75,10 @@ func (s *WebcheckerSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
 }
 
+func (s *WebcheckerSuite) TearDownTest(c *C) {
+	helpers.DumpGoroutines()
+}
+
 // Webchecker sends true when everything works
 func (s *WebcheckerSuite) TestWorks(c *C) {
 	ts := httptest.NewServer(mkHandler(staticText))

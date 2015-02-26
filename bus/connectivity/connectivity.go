@@ -24,12 +24,14 @@ package connectivity
 
 import (
 	"errors"
+	"sync"
+	"time"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
-	"time"
 )
 
 // The configuration for ConnectedState, intended to be populated from a config file.
@@ -45,7 +47,8 @@ type ConnectivityConfig struct {
 	ConnectivityCheckMD5 string `json:"connectivity_check_md5"`
 }
 
-type connectedState struct {
+// ConnectedState helps tracking connectivity.
+type ConnectedState struct {
 	networkStateCh <-chan networkmanager.State
 	networkConCh   <-chan string
 	config         ConnectivityConfig
@@ -57,11 +60,43 @@ type connectedState struct {
 	currentState   networkmanager.State
 	lastSent       bool
 	timer          *time.Timer
+	doneLck        sync.Mutex
+	done           chan struct{}
+	canceled       bool
+	stateWatch     bus.Cancellable
+	conWatch       bus.Cancellable
+}
+
+// New makes a ConnectedState for connectivity tracking.
+//
+// The endpoint need not be dialed; Track()  will Dial() and
+// Close() it as it sees fit.
+func New(endp bus.Endpoint, config ConnectivityConfig, log logger.Logger) *ConnectedState {
+	wg := NewWebchecker(config.ConnectivityCheckURL, config.ConnectivityCheckMD5, 10*time.Second, log)
+	return &ConnectedState{
+		config: config,
+		log:    log,
+		endp:   endp,
+		webget: wg.Webcheck,
+		done:   make(chan struct{}),
+	}
+}
+
+// cancel watches if any
+func (cs *ConnectedState) reset() {
+	if cs.stateWatch != nil {
+		cs.stateWatch.Cancel()
+		cs.stateWatch = nil
+	}
+	if cs.conWatch != nil {
+		cs.conWatch.Cancel()
+		cs.conWatch = nil
+	}
 }
 
 // start connects to the bus, gets the initial NetworkManager state, and sets
 // up the watch.
-func (cs *connectedState) start() networkmanager.State {
+func (cs *ConnectedState) start() networkmanager.State {
 	var initial networkmanager.State
 	var stateCh <-chan networkmanager.State
 	var primary string
@@ -72,8 +107,9 @@ func (cs *connectedState) start() networkmanager.State {
 		cs.connAttempts += ar.Redial()
 		nm := networkmanager.New(cs.endp, cs.log)
 
+		cs.reset()
 		// set up the watch
-		stateCh, err = nm.WatchState()
+		stateCh, cs.stateWatch, err = nm.WatchState()
 		if err != nil {
 			cs.log.Debugf("failed to set up the state watch: %s", err)
 			goto Continue
@@ -87,7 +123,7 @@ func (cs *connectedState) start() networkmanager.State {
 		}
 		cs.log.Debugf("got initial state of %s", initial)
 
-		conCh, err = nm.WatchPrimaryConnection()
+		conCh, cs.conWatch, err = nm.WatchPrimaryConnection()
 		if err != nil {
 			cs.log.Debugf("failed to set up the connection watch: %s", err)
 			goto Continue
@@ -107,9 +143,11 @@ func (cs *connectedState) start() networkmanager.State {
 	}
 }
 
-// connectedStateStep takes one step forwards in the “am I connected?”
+var errCanceled = errors.New("canceled")
+
+// step takes one step forwards in the “am I connected?”
 // answering state machine.
-func (cs *connectedState) connectedStateStep() (bool, error) {
+func (cs *ConnectedState) step() (bool, error) {
 	stabilizingTimeout := cs.config.StabilizingTimeout.Duration
 	recheckTimeout := cs.config.RecheckTimeout.Duration
 	log := cs.log
@@ -117,6 +155,8 @@ func (cs *connectedState) connectedStateStep() (bool, error) {
 Loop:
 	for {
 		select {
+		case <-cs.done:
+			return false, errCanceled
 		case <-cs.networkConCh:
 			cs.webgetCh = nil
 			cs.timer.Reset(stabilizingTimeout)
@@ -178,35 +218,48 @@ Loop:
 	return cs.lastSent, nil
 }
 
-// ConnectedState sends the initial NetworkManager state and changes to it
+// Track sends the initial NetworkManager state and changes to it
 // over the "out" channel. Sends "false" as soon as it detects trouble, "true"
 // after checking actual connectivity.
 //
-// The endpoint need not be dialed; connectivity will Dial() and Close()
-// it as it sees fit.
-func ConnectedState(endp bus.Endpoint, config ConnectivityConfig, log logger.Logger, out chan<- bool) {
-	wg := NewWebchecker(config.ConnectivityCheckURL, config.ConnectivityCheckMD5, 10*time.Second, log)
-	cs := &connectedState{
-		config: config,
-		log:    log,
-		endp:   endp,
-		webget: wg.Webcheck,
-	}
+func (cs *ConnectedState) Track(out chan<- bool) {
 
 Start:
-	log.Debugf("sending initial 'disconnected'.")
-	out <- false
+	cs.log.Debugf("sending initial 'disconnected'.")
+	select {
+	case <-cs.done:
+		return
+	case out <- false:
+	}
 	cs.lastSent = false
 	cs.currentState = cs.start()
+	defer cs.reset()
 	cs.timer = time.NewTimer(cs.config.StabilizingTimeout.Duration)
 
 	for {
-		v, err := cs.connectedStateStep()
+		v, err := cs.step()
+		if err == errCanceled {
+			return
+		}
 		if err != nil {
 			// tear it all down and start over
-			log.Errorf("%s", err)
+			cs.log.Errorf("%s", err)
 			goto Start
 		}
-		out <- v
+		select {
+		case <-cs.done:
+			return
+		case out <- v:
+		}
+	}
+}
+
+// Cancel stops the ConnectedState machinary.
+func (cs *ConnectedState) Cancel() {
+	cs.doneLck.Lock()
+	defer cs.doneLck.Unlock()
+	if !cs.canceled {
+		cs.canceled = true
+		close(cs.done)
 	}
 }
