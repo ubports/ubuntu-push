@@ -151,7 +151,6 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(2))
-	// XXX this may be stolen by an old watch => dead lock
 	watchTicker <- []interface{}{uint32(networkmanager.ConnectedGlobal)}
 	c.Check(<-cs.networkStateCh, Equals, networkmanager.ConnectedGlobal)
 }
