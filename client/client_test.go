@@ -206,12 +206,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 }
 
 func (cs *clientSuite) TearDownTest(c *C) {
-	//fmt.Println("GOROUTINE# ", runtime.NumGoroutine())
-	/*
-	   var x [16*1024]byte
-	   sz := runtime.Stack(x[:], true)
-	   fmt.Println(string(x[:sz]))
-	*/
+	//helpers.DumpGoroutines()
 }
 
 type sqlientSuite struct{ clientSuite }
