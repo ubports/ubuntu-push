@@ -70,10 +70,12 @@ type ClientSessionState uint32
 
 const (
 	Error ClientSessionState = iota
+	Pristine
 	Disconnected
 	Connected
 	Started
 	Running
+	Shutdown
 	Unknown
 )
 
@@ -83,10 +85,12 @@ func (s ClientSessionState) String() string {
 	}
 	return [Unknown]string{
 		"Error",
+		"Pristine",
 		"Disconnected",
 		"Connected",
 		"Started",
 		"Running",
+		"Shutdown",
 	}[s]
 }
 
@@ -118,16 +122,16 @@ type ClientSessionConfig struct {
 	AuthGetter             func(string) string
 	AuthURL                string
 	AddresseeChecker       AddresseeChecking
-	ErrCh                  chan error
 	BroadcastCh            chan *BroadcastNotification
 	NotificationsCh        chan AddressedNotification
 }
 
 type ClientSession interface {
 	Close()
-	AutoRedial(doneCh chan uint32)
 	ClearCookie()
 	State() ClientSessionState
+	HasConnectivity(bool) error
+	Magic() error
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -169,6 +173,16 @@ type clientSession struct {
 	redialJitter    func(time.Duration) time.Duration
 	redialDelays    []time.Duration
 	redialDelaysIdx int
+	// connection events come in over here
+	connCh chan bool
+	// last seen connection event is here
+	lastConn bool
+	// autoredial goes over here (xxx spurious goroutine involved)
+	doneCh chan uint32
+	// main loop errors out through here (possibly another spurious goroutine)
+	errCh chan error
+	// look, a stopper!
+	stopCh chan struct{}
 }
 
 func redialDelay(sess *clientSession) time.Duration {
@@ -207,7 +221,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		Protocolator:        protocol.NewProtocol0,
 		SeenState:           seenState,
 		TLS:                 &tls.Config{},
-		state:               Disconnected,
+		state:               Pristine,
 		timeSince:           time.Since,
 		shouldDelayP:        &shouldDelay,
 		redialDelay:         redialDelay,
@@ -222,6 +236,10 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		}
 		sess.TLS.RootCAs = cp
 	}
+	sess.doneCh = make(chan uint32, 1)
+	sess.stopCh = make(chan struct{})
+	sess.connCh = make(chan bool, 1)
+	sess.errCh = make(chan error, 1)
 	return sess, nil
 }
 
@@ -383,7 +401,7 @@ func (sess *clientSession) stopRedial() {
 	}
 }
 
-func (sess *clientSession) AutoRedial(doneCh chan uint32) {
+func (sess *clientSession) autoRedial() {
 	sess.stopRedial()
 	if time.Since(sess.lastAutoRedial) < 2*time.Second {
 		sess.setShouldDelay()
@@ -405,7 +423,7 @@ func (sess *clientSession) AutoRedial(doneCh chan uint32) {
 			return
 		}
 		sess.Log.Debugf("session autoredialier launching Redial goroutine")
-		doneCh <- retrier.Redial()
+		sess.doneCh <- retrier.Redial()
 	}()
 }
 
@@ -657,7 +675,7 @@ func (sess *clientSession) run(closer func(), authChecker, hostGetter, connecter
 	if err == nil {
 		err = starter()
 		if err == nil {
-			go func() { sess.ErrCh <- looper() }()
+			go func() { sess.errCh <- looper() }()
 		}
 	}
 	return err
@@ -682,6 +700,66 @@ func (sess *clientSession) Dial() error {
 		panic("can't Dial() without a protocol constructor.")
 	}
 	return sess.run(sess.doClose, sess.addAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
+}
+
+func (sess *clientSession) doMagic(connHandler func(bool)) {
+	for {
+		select {
+		case hasConn := <-sess.connCh:
+			connHandler(hasConn)
+		case <-sess.stopCh:
+			sess.Log.Infof("session shutting down.")
+			break
+		case n := <-sess.doneCh:
+			sess.Log.Debugf("connected after %d attempts.", n)
+		case err := <-sess.errCh:
+			sess.Log.Errorf("session error'ed out with %v", err)
+			sess.stateLock.Lock()
+			if sess.state == Disconnected && sess.lastConn {
+				sess.autoRedial()
+			}
+			sess.stateLock.Unlock()
+		}
+	}
+}
+
+func (sess *clientSession) handleConn(hasConn bool) {
+	sess.lastConn = hasConn
+
+	// Note this does not depend on the current state!  That's because Dial
+	// starts with doClose, which gets you to Disconnected even if you're
+	// connected, and you can call Close when Disconnected without it
+	// losing its stuff.
+	if hasConn {
+		//
+		sess.autoRedial()
+	} else {
+		sess.Close()
+	}
+}
+
+func (sess *clientSession) Magic() error {
+	sess.stateLock.Lock()
+	defer sess.stateLock.Unlock()
+	if sess.state != Pristine {
+		return errors.New("don't call Magic() on a non-pristine session.")
+	}
+	sess.state = Disconnected
+
+	go sess.doMagic(sess.handleConn)
+
+	return nil
+}
+
+func (sess *clientSession) StopMagic() {
+	close(sess.stopCh)
+	sess.setState(Shutdown)
+}
+
+func (sess *clientSession) HasConnectivity(hasConn bool) error {
+	sess.connCh <- hasConn
+	// XXX throw errors if called from weird state?
+	return nil
 }
 
 func init() {

@@ -126,7 +126,6 @@ type PushClient struct {
 	poller             poller.Poller
 	accountsCh         <-chan accounts.Changed
 	// session-side channels
-	errCh           chan error
 	broadcastCh     chan *session.BroadcastNotification
 	notificationsCh chan session.AddressedNotification
 }
@@ -137,7 +136,6 @@ func NewPushClient(configPath string, leveldbPath string) *PushClient {
 	return &PushClient{
 		configPath:      configPath,
 		leveldbPath:     leveldbPath,
-		errCh:           make(chan error),
 		broadcastCh:     make(chan *session.BroadcastNotification),
 		notificationsCh: make(chan session.AddressedNotification),
 	}
@@ -212,7 +210,6 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		AuthGetter:       client.getAuthorization,
 		AuthURL:          client.config.SessionURL,
 		AddresseeChecker: client,
-		ErrCh:            client.errCh,
 		BroadcastCh:      client.broadcastCh,
 		NotificationsCh:  client.notificationsCh,
 	}
@@ -315,6 +312,7 @@ func (client *PushClient) initSessionAndPoller() error {
 		return err
 	}
 	client.session = sess
+	sess.Magic()
 	client.poller = poller.New(client.derivePollerSetup())
 	return nil
 }
@@ -386,24 +384,8 @@ func (client *PushClient) handleUnregister(app *click.AppId) {
 // handleConnState deals with connectivity events
 func (client *PushClient) handleConnState(hasConnectivity bool) {
 	client.log.Debugf("handleConnState: %v", hasConnectivity)
-	if client.hasConnectivity == hasConnectivity {
-		// nothing to do!
-		return
-	}
-	client.hasConnectivity = hasConnectivity
-	client.session.Close()
-	if hasConnectivity {
-		client.session.AutoRedial(client.sessionConnectedCh)
-	}
-}
-
-// handleErr deals with the session erroring out of its loop
-func (client *PushClient) handleErr(err error) {
-	// if we're not connected, we don't really care
-	client.log.Errorf("session exited: %s", err)
-	if client.hasConnectivity {
-		client.session.AutoRedial(client.sessionConnectedCh)
-	}
+	client.session.HasConnectivity(hasConnectivity)
+	client.log.Debugf("handled.")
 }
 
 // filterBroadcastNotification finds out if the notification is about an actual
@@ -485,7 +467,7 @@ func (client *PushClient) handleAccountsChange() {
 }
 
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId), accountshandler func()) {
+func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, unregisterhandler func(*click.AppId), accountshandler func()) {
 	for {
 		select {
 		case <-client.accountsCh:
@@ -496,8 +478,6 @@ func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*sess
 			bcasthandler(bcast)
 		case aucast := <-client.notificationsCh:
 			ucasthandler(aucast)
-		case err := <-client.errCh:
-			errhandler(err)
 		case count := <-client.sessionConnectedCh:
 			client.log.Debugf("session connected after %d attempts", count)
 		case app := <-client.unregisterCh:
@@ -522,7 +502,6 @@ func (client *PushClient) Loop() {
 	client.doLoop(client.handleConnState,
 		client.handleBroadcastNotification,
 		client.handleUnicastNotification,
-		client.handleErr,
 		client.handleUnregister,
 		client.handleAccountsChange,
 	)

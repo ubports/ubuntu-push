@@ -231,7 +231,9 @@ func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
 	c.Check(sess.redialDelays, DeepEquals, util.Timeouts())
 	// but no root CAs set
 	c.Check(sess.TLS.RootCAs, IsNil)
-	c.Check(sess.State(), Equals, Disconnected)
+	c.Check(sess.State(), Equals, Pristine)
+	c.Check(sess.stopCh, NotNil)
+	c.Check(sess.connCh, NotNil)
 }
 
 func (cs *clientSessionSuite) TestNewSessionHostEndpointWorks(c *C) {
@@ -569,53 +571,53 @@ func (cs *clientSessionSuite) TestCloseStopsRetrier(c *C) {
 	c.Check(ar.stopped, Equals, true)
 }
 
-/****************************************************************
-  AutoRedial() tests
-****************************************************************/
+// /****************************************************************
+//   AutoRedial() tests
+// ****************************************************************/
 
-func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
-	// checks that AutoRedial sets up a retrier and tries redialing it
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	ar := new(derp)
-	sess.retrier = ar
-	c.Check(ar.stopped, Equals, false)
-	sess.AutoRedial(nil)
-	c.Check(ar.stopped, Equals, true)
-}
+// func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
+// 	// checks that AutoRedial sets up a retrier and tries redialing it
+// 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+// 	c.Assert(err, IsNil)
+// 	ar := new(derp)
+// 	sess.retrier = ar
+// 	c.Check(ar.stopped, Equals, false)
+// 	sess.AutoRedial(nil)
+// 	c.Check(ar.stopped, Equals, true)
+// }
 
-func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
-	// checks that AutoRedial stops the previous retrier
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	ch := make(chan uint32)
-	c.Check(sess.retrier, IsNil)
-	sess.AutoRedial(ch)
-	c.Assert(sess.retrier, NotNil)
-	sess.retrier.Stop()
-	c.Check(<-ch, Not(Equals), 0)
-}
+// func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
+// 	// checks that AutoRedial stops the previous retrier
+// 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+// 	c.Assert(err, IsNil)
+// 	ch := make(chan uint32)
+// 	c.Check(sess.retrier, IsNil)
+// 	sess.AutoRedial(ch)
+// 	c.Assert(sess.retrier, NotNil)
+// 	sess.retrier.Stop()
+// 	c.Check(<-ch, Not(Equals), 0)
+// }
 
-func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	flag := false
-	sess.redialDelay = func(sess *clientSession) time.Duration { flag = true; return 0 }
-	sess.AutoRedial(nil)
-	c.Check(flag, Equals, true)
-}
+// func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
+// 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+// 	c.Assert(err, IsNil)
+// 	flag := false
+// 	sess.redialDelay = func(sess *clientSession) time.Duration { flag = true; return 0 }
+// 	sess.AutoRedial(nil)
+// 	c.Check(flag, Equals, true)
+// }
 
-func (cs *clientSessionSuite) TestAutoRedialSetsRedialDelayIfTooQuick(c *C) {
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	sess.redialDelay = func(sess *clientSession) time.Duration { return 0 }
-	sess.AutoRedial(nil)
-	c.Check(sess.ShouldDelay(), Equals, false)
-	sess.stopRedial()
-	sess.clearShouldDelay()
-	sess.AutoRedial(nil)
-	c.Check(sess.ShouldDelay(), Equals, true)
-}
+// func (cs *clientSessionSuite) TestAutoRedialSetsRedialDelayIfTooQuick(c *C) {
+// 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+// 	c.Assert(err, IsNil)
+// 	sess.redialDelay = func(sess *clientSession) time.Duration { return 0 }
+// 	sess.AutoRedial(nil)
+// 	c.Check(sess.ShouldDelay(), Equals, false)
+// 	sess.stopRedial()
+// 	sess.clearShouldDelay()
+// 	sess.AutoRedial(nil)
+// 	c.Check(sess.ShouldDelay(), Equals, true)
+// }
 
 /****************************************************************
   handlePing() tests
@@ -1702,4 +1704,54 @@ func (cs *clientSessionSuite) TestClearCookie(c *C) {
 	c.Check(sess.getCookie(), Equals, "COOKIE")
 	sess.ClearCookie()
 	c.Check(sess.getCookie(), Equals, "")
+}
+
+/****************************************************************
+  Magic() (and related) tests
+****************************************************************/
+
+func (cs *clientSessionSuite) TestMagicDoesNothingIfNotConnected(c *C) {
+	// how do you test "does nothing?"
+	sess, err := NewSession("foo:443", dummyConf(), "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	c.Assert(sess, NotNil)
+	c.Assert(sess.State(), Equals, Pristine)
+	c.Assert(sess.Magic(), IsNil)
+	// stopCh is meant to be used just for closing it, but abusing
+	// it for testing seems the right thing to do: this ensures
+	// the thing is ticking along before we check the state of
+	// stuff.
+	sess.stopCh <- struct{}{}
+	c.Check(sess.State(), Equals, Disconnected)
+}
+
+func (cs *clientSessionSuite) TestYouCantCallMagicTwice(c *C) {
+	sess, err := NewSession("foo:443", dummyConf(), "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	c.Assert(sess, NotNil)
+	c.Assert(sess.State(), Equals, Pristine)
+	c.Assert(sess.Magic(), IsNil)
+	defer sess.StopMagic()
+	c.Check(sess.Magic(), NotNil)
+}
+
+func (cs *clientSessionSuite) TestStopMagicShutsdown(c *C) {
+	sess, err := NewSession("foo:443", dummyConf(), "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	c.Assert(sess, NotNil)
+	sess.StopMagic()
+	c.Check(sess.State(), Equals, Shutdown)
+}
+
+func (cs *clientSessionSuite) TestHasConnectivityTriggersConnectivityHandler(c *C) {
+	sess, err := NewSession("foo:443", dummyConf(), "", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	c.Assert(sess, NotNil)
+	testCh := make(chan bool)
+	go sess.doMagic(func(p bool) { testCh <- p })
+	defer sess.StopMagic()
+	sess.HasConnectivity(true)
+	c.Check(<-testCh, Equals, true)
+	sess.HasConnectivity(false)
+	c.Check(<-testCh, Equals, false)
 }
