@@ -1,5 +1,5 @@
 /*
- Copyright 2013-2014 Canonical Ltd.
+ Copyright 2013-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -55,7 +55,7 @@ type ConnectedState struct {
 	log            logger.Logger
 	endp           bus.Endpoint
 	connAttempts   uint32
-	webget         func(ch chan<- bool)
+	webchk         Webchecker
 	webgetCh       chan bool
 	currentState   networkmanager.State
 	lastSent       bool
@@ -77,7 +77,7 @@ func New(endp bus.Endpoint, config ConnectivityConfig, log logger.Logger) *Conne
 		config: config,
 		log:    log,
 		endp:   endp,
-		webget: wg.Webcheck,
+		webchk: wg,
 		done:   make(chan struct{}),
 	}
 }
@@ -201,7 +201,7 @@ Loop:
 				// cleared webgetCh and wont receive
 				// on it
 				cs.webgetCh = make(chan bool, 1)
-				go cs.webget(cs.webgetCh)
+				go cs.webchk.Webcheck(cs.webgetCh)
 			}
 
 		case connected := <-cs.webgetCh:
@@ -261,5 +261,6 @@ func (cs *ConnectedState) Cancel() {
 	if !cs.canceled {
 		cs.canceled = true
 		close(cs.done)
+		cs.webchk.Close()
 	}
 }
