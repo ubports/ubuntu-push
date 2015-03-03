@@ -1,5 +1,5 @@
 /*
- Copyright 2013-2014 Canonical Ltd.
+ Copyright 2013-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -233,6 +233,15 @@ func (s *ConnSuite) TestStartAvoidsRace(c *C) {
    tests for step()
 */
 
+type testWebchk func(ch chan<- bool)
+
+func (x testWebchk) Webcheck(ch chan<- bool) {
+	x(ch)
+}
+
+func (x testWebchk) Close() {
+}
+
 func (s *ConnSuite) TestSteps(c *C) {
 	var webget_p condition.Interface = condition.Work(true)
 	recheck_timeout := 50 * time.Millisecond
@@ -246,7 +255,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 		networkStateCh: ch,
 		timer:          time.NewTimer(time.Second),
 		log:            s.log,
-		webget:         func(ch chan<- bool) { ch <- webget_p.OK() },
+		webchk:         testWebchk(func(ch chan<- bool) { ch <- webget_p.OK() }),
 		lastSent:       false,
 	}
 	ch <- networkmanager.ConnectedGlobal

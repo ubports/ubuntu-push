@@ -1,5 +1,5 @@
 /*
- Copyright 2013-2014 Canonical Ltd.
+ Copyright 2013-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -40,6 +40,8 @@ type Webchecker interface {
 	// contents match the target. If so, then it sends true; if anything
 	// fails, it sends false.
 	Webcheck(chan<- bool)
+	// Close idle connections.
+	Close()
 }
 
 type webchecker struct {
@@ -88,4 +90,8 @@ func (wb *webchecker) Webcheck(ch chan<- bool) {
 		wb.log.Infof("connectivity check failed: content mismatch.")
 		ch <- false
 	}
+}
+
+func (wb *webchecker) Close() {
+	wb.cli.Transport.(*http13.Transport).CloseIdleConnections()
 }
