@@ -1,5 +1,5 @@
 /*
- Copyright 2013-2014 Canonical Ltd.
+ Copyright 2013-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -81,6 +81,7 @@ func (s *WebcheckerSuite) TestWorks(c *C) {
 	defer ts.Close()
 
 	ck := NewWebchecker(ts.URL, staticHash, 5*time.Second, s.log)
+	defer ck.Close()
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, true)
@@ -89,6 +90,7 @@ func (s *WebcheckerSuite) TestWorks(c *C) {
 // Webchecker sends false if the download fails.
 func (s *WebcheckerSuite) TestActualFails(c *C) {
 	ck := NewWebchecker("garbage://", "", 5*time.Second, s.log)
+	defer ck.Close()
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
@@ -100,6 +102,7 @@ func (s *WebcheckerSuite) TestHashFails(c *C) {
 	defer ts.Close()
 
 	ck := NewWebchecker(ts.URL, staticHash, 5*time.Second, s.log)
+	defer ck.Close()
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
@@ -112,6 +115,7 @@ func (s *WebcheckerSuite) TestTooBigFails(c *C) {
 	defer ts.Close()
 
 	ck := NewWebchecker(ts.URL, bigHash, 5*time.Second, s.log)
+	defer ck.Close()
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)
@@ -131,6 +135,7 @@ func (s *WebcheckerSuite) TestTooSlowFails(c *C) {
 	}()
 
 	ck := NewWebchecker(ts.URL, bigHash, time.Second, s.log)
+	defer ck.Close()
 	ch := make(chan bool, 1)
 	ck.Webcheck(ch)
 	c.Check(<-ch, Equals, false)

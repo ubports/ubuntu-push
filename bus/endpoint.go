@@ -35,10 +35,15 @@ import (
 type BusMethod func(string, []interface{}, []interface{}) ([]interface{}, error)
 type DispatchMap map[string]BusMethod
 
+// Cancellable can be canceled.
+type Cancellable interface {
+	Cancel() error
+}
+
 // bus.Endpoint represents the DBus connection itself.
 type Endpoint interface {
 	GrabName(allowReplacement bool) <-chan error
-	WatchSignal(member string, f func(...interface{}), d func()) error
+	WatchSignal(member string, f func(...interface{}), d func()) (Cancellable, error)
 	WatchMethod(DispatchMap, string, ...interface{})
 	Signal(string, string, []interface{}) error
 	Call(member string, args []interface{}, rvs ...interface{}) error
@@ -123,16 +128,16 @@ func (endp *endpoint) Dial() error {
 // sends the values over a channel, and d() would close the channel.
 //
 // XXX: untested
-func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
+func (endp *endpoint) WatchSignal(member string, f func(...interface{}), d func()) (Cancellable, error) {
 	watch, err := endp.proxy.WatchSignal(endp.addr.Interface, member)
 	if err != nil {
 		endp.log.Debugf("failed to set up the watch: %s", err)
-		return err
+		return nil, err
 	}
 
 	go endp.unpackMessages(watch, f, d, member)
 
-	return nil
+	return watch, nil
 }
 
 // Call() invokes the provided member method (on the name, path and
@@ -324,6 +329,6 @@ func (endp *endpoint) unpackMessages(watch *dbus.SignalWatch, f func(...interfac
 		}
 		f(endp.unpackOneMsg(msg, member)...)
 	}
-	endp.log.Errorf("got not-OK from %s watch", member)
+	endp.log.Debugf("got not-OK from %s watch", member)
 	d()
 }
