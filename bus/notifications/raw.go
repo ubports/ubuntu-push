@@ -93,7 +93,7 @@ func (raw *RawNotifications) Notify(
 // and sends them over the channel provided
 func (raw *RawNotifications) WatchActions() (<-chan *RawAction, error) {
 	ch := make(chan *RawAction)
-	err := raw.bus.WatchSignal("ActionInvoked",
+	_, err := raw.bus.WatchSignal("ActionInvoked",
 		func(ns ...interface{}) {
 			if len(ns) != 2 {
 				raw.log.Debugf("ActionInvoked delivered %d things instead of 2", len(ns))

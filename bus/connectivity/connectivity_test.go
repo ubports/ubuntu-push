@@ -64,13 +64,13 @@ var (
 )
 
 /*
-   tests for connectedState's Start() method
+   tests for ConnectedState's Start() method
 */
 
 // when given a working config and bus, Start() will work
 func (s *ConnSuite) TestStartWorks(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Work(true), uint32(networkmanager.Connecting), helloCon)
-	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+	cs := ConnectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	nopTicker := make(chan []interface{})
 	testingbus.SetWatchSource(endp, "StateChanged", nopTicker)
@@ -83,7 +83,7 @@ func (s *ConnSuite) TestStartWorks(c *C) {
 // if the bus fails a couple of times, we're still OK
 func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Fail2Work(2), condition.Work(true), uint32(networkmanager.Connecting), helloCon)
-	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+	cs := ConnectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	nopTicker := make(chan []interface{})
 	testingbus.SetWatchSource(endp, "StateChanged", nopTicker)
@@ -97,7 +97,7 @@ func (s *ConnSuite) TestStartRetriesConnect(c *C) {
 // when the calls to NetworkManager fails for a bit, we're still OK
 func (s *ConnSuite) TestStartRetriesCall(c *C) {
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), condition.Fail2Work(5), uint32(networkmanager.Connecting), helloCon)
-	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+	cs := ConnectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	nopTicker := make(chan []interface{})
 	testingbus.SetWatchSource(endp, "StateChanged", nopTicker)
@@ -111,14 +111,14 @@ func (s *ConnSuite) TestStartRetriesCall(c *C) {
 
 // when some of the calls to NetworkManager fails for a bit, we're still OK
 func (s *ConnSuite) TestStartRetriesCall2(c *C) {
-	cond := condition.Chain(3, condition.Work(true), 1, condition.Work(false),
+	cond := condition.Chain(1, condition.Work(true), 1, condition.Work(false),
 		1, condition.Work(true))
 
 	endp := testingbus.NewTestingEndpoint(condition.Work(true), cond,
 		uint32(networkmanager.Connecting), helloCon,
 		uint32(networkmanager.Connecting), helloCon,
 	)
-	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+	cs := ConnectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 
 	nopTicker := make(chan []interface{})
 	testingbus.SetWatchSource(endp, "StateChanged", nopTicker)
@@ -141,7 +141,7 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 		uint32(networkmanager.Connecting),
 		helloCon,
 	)
-	cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
+	cs := ConnectedState{config: ConnectivityConfig{}, log: s.log, endp: endp}
 	watchTicker := make(chan []interface{}, 1)
 	nopTicker := make(chan []interface{})
 	testingbus.SetWatchSource(endp, "StateChanged", watchTicker)
@@ -151,7 +151,6 @@ func (s *ConnSuite) TestStartRetriesWatch(c *C) {
 
 	c.Check(cs.start(), Equals, networkmanager.Connecting)
 	c.Check(cs.connAttempts, Equals, uint32(2))
-	// XXX this may be stolen by an old watch => dead lock
 	watchTicker <- []interface{}{uint32(networkmanager.ConnectedGlobal)}
 	c.Check(<-cs.networkStateCh, Equals, networkmanager.ConnectedGlobal)
 }
@@ -181,7 +180,7 @@ func (rep *racyEndpoint) GetProperty(prop string) (interface{}, error) {
 	}
 }
 
-func (rep *racyEndpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
+func (rep *racyEndpoint) WatchSignal(member string, f func(...interface{}), d func()) (bus.Cancellable, error) {
 	if member == "StateChanged" {
 		// we count never having gotten the state as happening "after" now.
 		rep.lock.RLock()
@@ -194,7 +193,7 @@ func (rep *racyEndpoint) WatchSignal(member string, f func(...interface{}), d fu
 			d()
 		}()
 	}
-	return nil
+	return nil, nil
 }
 
 func (*racyEndpoint) Close()                                                        {}
@@ -223,7 +222,7 @@ func takeNext(ch <-chan networkmanager.State) networkmanager.State {
 func (s *ConnSuite) TestStartAvoidsRace(c *C) {
 	for delta := time.Second; delta > 1; delta /= 2 {
 		rep := &racyEndpoint{delta: delta}
-		cs := connectedState{config: ConnectivityConfig{}, log: s.log, endp: rep}
+		cs := ConnectedState{config: ConnectivityConfig{}, log: s.log, endp: rep}
 		f := Commentf("when delta=%s", delta)
 		c.Assert(cs.start(), Equals, networkmanager.Connecting, f)
 		c.Assert(takeNext(cs.networkStateCh), Equals, networkmanager.ConnectedGlobal, f)
@@ -231,7 +230,7 @@ func (s *ConnSuite) TestStartAvoidsRace(c *C) {
 }
 
 /*
-   tests for connectedStateStep()
+   tests for step()
 */
 
 func (s *ConnSuite) TestSteps(c *C) {
@@ -242,7 +241,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 		RecheckTimeout: config.ConfigTimeDuration{recheck_timeout},
 	}
 	ch := make(chan networkmanager.State, 10)
-	cs := &connectedState{
+	cs := &ConnectedState{
 		config:         cfg,
 		networkStateCh: ch,
 		timer:          time.NewTimer(time.Second),
@@ -251,15 +250,15 @@ func (s *ConnSuite) TestSteps(c *C) {
 		lastSent:       false,
 	}
 	ch <- networkmanager.ConnectedGlobal
-	f, e := cs.connectedStateStep()
+	f, e := cs.step()
 	c.Check(e, IsNil)
 	c.Check(f, Equals, true)
 	ch <- networkmanager.Disconnected
 	ch <- networkmanager.ConnectedGlobal
-	f, e = cs.connectedStateStep()
+	f, e = cs.step()
 	c.Check(e, IsNil)
 	c.Check(f, Equals, false)
-	f, e = cs.connectedStateStep()
+	f, e = cs.step()
 	c.Check(e, IsNil)
 	c.Check(f, Equals, true)
 
@@ -267,7 +266,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 	webget_p = condition.Fail2Work(1)
 	ch <- networkmanager.Disconnected
 	ch <- networkmanager.ConnectedGlobal
-	f, e = cs.connectedStateStep()
+	f, e = cs.step()
 	c.Check(e, IsNil)
 	c.Check(f, Equals, false) // first false is from the Disconnected
 
@@ -276,7 +275,7 @@ func (s *ConnSuite) TestSteps(c *C) {
 	_t := time.NewTimer(recheck_timeout / 2)
 
 	go func() {
-		f, e := cs.connectedStateStep()
+		f, e := cs.step()
 		c.Check(e, IsNil)
 		_ch <- f
 	}()
@@ -294,15 +293,15 @@ func (s *ConnSuite) TestSteps(c *C) {
 	ch <- networkmanager.Disconnected    // this should not
 	ch <- networkmanager.ConnectedGlobal // this should trigger a 'true'
 
-	f, e = cs.connectedStateStep()
+	f, e = cs.step()
 	c.Check(e, IsNil)
 	c.Check(f, Equals, false)
-	f, e = cs.connectedStateStep()
+	f, e = cs.step()
 	c.Check(e, IsNil)
 	c.Check(f, Equals, true)
 
 	close(ch) // this should make it error out
-	_, e = cs.connectedStateStep()
+	_, e = cs.step()
 	c.Check(e, NotNil)
 }
 
@@ -336,7 +335,9 @@ func (s *ConnSuite) TestRun(c *C) {
 	out := make(chan bool)
 	dt := time.Second / 10
 	timer := time.NewTimer(dt)
-	go ConnectedState(endp, cfg, s.log, out)
+	cs := New(endp, cfg, s.log)
+	defer cs.Cancel()
+	go cs.Track(out)
 	var v bool
 	expecteds := []struct {
 		p    bool
@@ -399,7 +400,9 @@ func (s *ConnSuite) TestRun4Active(c *C) {
 	out := make(chan bool)
 	dt := time.Second / 10
 	timer := time.NewTimer(dt)
-	go ConnectedState(endp, cfg, s.log, out)
+	cs := New(endp, cfg, s.log)
+	defer cs.Cancel()
+	go cs.Track(out)
 	var v bool
 	expecteds := []struct {
 		p           bool

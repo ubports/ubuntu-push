@@ -170,3 +170,12 @@ func ParseURL(s string) *url.URL {
 	}
 	return purl
 }
+
+// DumpGoroutines dumps current goroutines.
+func DumpGoroutines() {
+	var buf [64 * 1024]byte
+	sz := runtime.Stack(buf[:], true)
+	dump := string(buf[:sz])
+	fmt.Println(dump)
+	fmt.Println("#goroutines#", strings.Count("\n"+dump, "\ngoroutine "))
+}
