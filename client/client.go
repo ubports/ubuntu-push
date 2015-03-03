@@ -286,8 +286,10 @@ func (client *PushClient) getDeviceId() error {
 
 // takeTheBus starts the connection(s) to D-Bus and sets up associated event channels
 func (client *PushClient) takeTheBus() error {
-	go connectivity.ConnectedState(client.connectivityEndp,
-		client.config.ConnectivityConfig, client.log, client.connCh)
+	fmt.Println("FOO")
+	cs := connectivity.New(client.connectivityEndp,
+		client.config.ConnectivityConfig, client.log)
+	go cs.Track(client.connCh)
 	util.NewAutoRedialer(client.systemImageEndp).Redial()
 	sysimg := systemimage.New(client.systemImageEndp, client.log)
 	info, err := sysimg.Info()

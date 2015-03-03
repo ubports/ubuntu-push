@@ -80,11 +80,32 @@ func GetCallArgs(tc bus.Endpoint) []callArgs {
 	return tc.(*testingEndpoint).callArgs
 }
 
+type watchCancel struct {
+	done      chan struct{}
+	cancelled chan struct{}
+	lck       sync.Mutex
+	member    string
+}
+
+// this waits for actual cancelllation for test convenience
+func (wc *watchCancel) Cancel() error {
+	wc.lck.Lock()
+	defer wc.lck.Unlock()
+	if wc.cancelled != nil {
+		close(wc.cancelled)
+		wc.cancelled = nil
+		<-wc.done
+	}
+	return nil
+}
+
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values
 // or values from the previously set watchSource for member.
-func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
+func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d func()) (bus.Cancellable, error) {
 	if tc.callCond.OK() {
+		cancelled := make(chan struct{})
+		done := make(chan struct{})
 		go func() {
 			tc.watchLck.RLock()
 			source := tc.watchSources[member]
@@ -96,21 +117,40 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 				tc.usedLck.Unlock()
 				source = make(chan []interface{})
 				go func() {
+				Feed:
 					for _, v := range tc.retvals[idx:] {
-						source <- v
-						time.Sleep(10 * time.Millisecond)
+						select {
+						case source <- v:
+						case <-cancelled:
+							break Feed
+						}
+						select {
+						case <-time.After(10 * time.Millisecond):
+						case <-cancelled:
+							break Feed
+						}
 					}
 					close(source)
 				}()
 			}
-			for v := range source {
-				f(v...)
+		Receive:
+			for {
+				select {
+				case v, ok := <-source:
+					if !ok {
+						break Receive
+					}
+					f(v...)
+				case <-cancelled:
+					break Receive
+				}
 			}
 			d()
+			close(done)
 		}()
-		return nil
+		return &watchCancel{cancelled: cancelled, done: done, member: member}, nil
 	} else {
-		return errors.New("no way")
+		return nil, errors.New("no way")
 	}
 }
 

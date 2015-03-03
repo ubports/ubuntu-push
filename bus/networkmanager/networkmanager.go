@@ -42,13 +42,13 @@ type NetworkManager interface {
 	GetState() State
 	// WatchState listens for changes to NetworkManager's state, and sends
 	// them out over the channel returned.
-	WatchState() (<-chan State, error)
+	WatchState() (<-chan State, bus.Cancellable, error)
 	// GetPrimaryConnection fetches and returns NetworkManager's current
 	// primary connection.
 	GetPrimaryConnection() string
 	// WatchPrimaryConnection listens for changes of NetworkManager's
 	// Primary Connection, and sends it out over the channel returned.
-	WatchPrimaryConnection() (<-chan string, error)
+	WatchPrimaryConnection() (<-chan string, bus.Cancellable, error)
 }
 
 type networkManager struct {
@@ -85,9 +85,9 @@ func (nm *networkManager) GetState() State {
 	return State(v)
 }
 
-func (nm *networkManager) WatchState() (<-chan State, error) {
+func (nm *networkManager) WatchState() (<-chan State, bus.Cancellable, error) {
 	ch := make(chan State)
-	err := nm.bus.WatchSignal("StateChanged",
+	w, err := nm.bus.WatchSignal("StateChanged",
 		func(ns ...interface{}) {
 			stint, ok := ns[0].(uint32)
 			if !ok {
@@ -101,10 +101,10 @@ func (nm *networkManager) WatchState() (<-chan State, error) {
 		func() { close(ch) })
 	if err != nil {
 		nm.log.Debugf("Failed to set up the watch: %s", err)
-		return nil, err
+		return nil, nil, err
 	}
 
-	return ch, nil
+	return ch, w, nil
 }
 
 func (nm *networkManager) GetPrimaryConnection() string {
@@ -124,9 +124,9 @@ func (nm *networkManager) GetPrimaryConnection() string {
 	return string(v)
 }
 
-func (nm *networkManager) WatchPrimaryConnection() (<-chan string, error) {
+func (nm *networkManager) WatchPrimaryConnection() (<-chan string, bus.Cancellable, error) {
 	ch := make(chan string)
-	err := nm.bus.WatchSignal("PropertiesChanged",
+	w, err := nm.bus.WatchSignal("PropertiesChanged",
 		func(ppsi ...interface{}) {
 			pps, ok := ppsi[0].(map[string]dbus.Variant)
 			if !ok {
@@ -147,8 +147,8 @@ func (nm *networkManager) WatchPrimaryConnection() (<-chan string, error) {
 		}, func() { close(ch) })
 	if err != nil {
 		nm.log.Debugf("failed to set up the watch: %s", err)
-		return nil, err
+		return nil, nil, err
 	}
 
-	return ch, nil
+	return ch, w, nil
 }
