@@ -90,8 +90,9 @@ func (s *NMSuite) TestGetStateRubbishStructure(c *C) {
 func (s *NMSuite) TestWatchState(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), uint32(Unknown), uint32(Asleep), uint32(ConnectedGlobal))
 	nm := New(tc, s.log)
-	ch, err := nm.WatchState()
-	c.Check(err, IsNil)
+	ch, w, err := nm.WatchState()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
 	l := []State{<-ch, <-ch, <-ch}
 	c.Check(l, DeepEquals, []State{Unknown, Asleep, ConnectedGlobal})
 }
@@ -99,7 +100,7 @@ func (s *NMSuite) TestWatchState(c *C) {
 // WatchState returns on error if the dbus call fails
 func (s *NMSuite) TestWatchStateFails(c *C) {
 	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
-	_, err := nm.WatchState()
+	_, _, err := nm.WatchState()
 	c.Check(err, NotNil)
 }
 
@@ -107,8 +108,9 @@ func (s *NMSuite) TestWatchStateFails(c *C) {
 func (s *NMSuite) TestWatchStateClosesOnWatchBail(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
 	nm := New(tc, s.log)
-	ch, err := nm.WatchState()
-	c.Check(err, IsNil)
+	ch, w, err := nm.WatchState()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
 }
@@ -117,8 +119,9 @@ func (s *NMSuite) TestWatchStateClosesOnWatchBail(c *C) {
 func (s *NMSuite) TestWatchStateSurvivesRubbishValues(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), "a")
 	nm := New(tc, s.log)
-	ch, err := nm.WatchState()
-	c.Check(err, IsNil)
+	ch, w, err := nm.WatchState()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
 }
@@ -164,8 +167,9 @@ func (s *NMSuite) TestWatchPrimaryConnection(c *C) {
 		mkPriConMap("/b/2"),
 		mkPriConMap("/c/3"))
 	nm := New(tc, s.log)
-	ch, err := nm.WatchPrimaryConnection()
-	c.Check(err, IsNil)
+	ch, w, err := nm.WatchPrimaryConnection()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
 	l := []string{<-ch, <-ch, <-ch}
 	c.Check(l, DeepEquals, []string{"/a/1", "/b/2", "/c/3"})
 }
@@ -173,7 +177,7 @@ func (s *NMSuite) TestWatchPrimaryConnection(c *C) {
 // WatchPrimaryConnection returns on error if the dbus call fails
 func (s *NMSuite) TestWatchPrimaryConnectionFails(c *C) {
 	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
-	_, err := nm.WatchPrimaryConnection()
+	_, _, err := nm.WatchPrimaryConnection()
 	c.Check(err, NotNil)
 }
 
@@ -181,8 +185,9 @@ func (s *NMSuite) TestWatchPrimaryConnectionFails(c *C) {
 func (s *NMSuite) TestWatchPrimaryConnectionClosesOnWatchBail(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
 	nm := New(tc, s.log)
-	ch, err := nm.WatchPrimaryConnection()
-	c.Check(err, IsNil)
+	ch, w, err := nm.WatchPrimaryConnection()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
 }
@@ -191,8 +196,9 @@ func (s *NMSuite) TestWatchPrimaryConnectionClosesOnWatchBail(c *C) {
 func (s *NMSuite) TestWatchPrimaryConnectionSurvivesRubbishValues(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), "a")
 	nm := New(tc, s.log)
-	ch, err := nm.WatchPrimaryConnection()
+	ch, w, err := nm.WatchPrimaryConnection()
 	c.Assert(err, IsNil)
+	defer w.Cancel()
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
 }
@@ -204,8 +210,9 @@ func (s *NMSuite) TestWatchPrimaryConnectionIgnoresIrrelephant(c *C) {
 		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("42")}},
 	)
 	nm := New(tc, s.log)
-	ch, err := nm.WatchPrimaryConnection()
+	ch, w, err := nm.WatchPrimaryConnection()
 	c.Assert(err, IsNil)
+	defer w.Cancel()
 	v, ok := <-ch
 	c.Check(ok, Equals, true)
 	c.Check(v, Equals, "42")
@@ -218,8 +225,9 @@ func (s *NMSuite) TestWatchPrimaryConnectionIgnoresRubbishValues(c *C) {
 		map[string]dbus.Variant{"PrimaryConnection": dbus.Variant{dbus.ObjectPath("42")}},
 	)
 	nm := New(tc, s.log)
-	ch, err := nm.WatchPrimaryConnection()
+	ch, w, err := nm.WatchPrimaryConnection()
 	c.Assert(err, IsNil)
+	defer w.Cancel()
 	v, ok := <-ch
 	c.Check(ok, Equals, true)
 	c.Check(v, Equals, "42")
