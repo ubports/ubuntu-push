@@ -41,9 +41,23 @@ var BusAddress bus.Address = bus.Address{
 
 const accountsSoundIface = "com.ubuntu.touch.AccountsService.Sound"
 
+type Accounts interface {
+	// Start() sets up the asynchronous updating of properties, and does the first update.
+	Start() error
+	// Cancel() stops the asynchronous updating of properties.
+	Cancel() error
+	// SilentMode() tells you whether the device is in silent mode.
+	SilentMode() bool
+	// Vibrate() tells you whether the device is allowed to vibrate.
+	Vibrate() bool
+	// MessageSoundFile() tells you the default sound filename.
+	MessageSoundFile() string
+	String() string
+}
+
 // Accounts tracks the relevant bits of configuration. Nothing directly
 // accessible because it is updated asynchronously, so use the accessors.
-type Accounts struct {
+type accounts struct {
 	endp              bus.Endpoint
 	log               logger.Logger
 	silent            bool
@@ -56,8 +70,8 @@ type Accounts struct {
 }
 
 // sets up a new Accounts structure, ready to be Start()ed.
-func New(endp bus.Endpoint, log logger.Logger) *Accounts {
-	a := &Accounts{
+func New(endp bus.Endpoint, log logger.Logger) Accounts {
+	a := &accounts{
 		endp: endp,
 		log:  log,
 	}
@@ -73,7 +87,7 @@ func New(endp bus.Endpoint, log logger.Logger) *Accounts {
 }
 
 // sets up the asynchronous updating of properties, and does the first update.
-func (a *Accounts) Start() error {
+func (a *accounts) Start() error {
 	err := a.startWatch()
 	if err != nil {
 		return err
@@ -84,7 +98,7 @@ func (a *Accounts) Start() error {
 
 // does sets up the watch on the PropertiesChanged signal. Separate from Start
 // because it holds a lock.
-func (a *Accounts) startWatch() error {
+func (a *accounts) startWatch() error {
 	cancellable, err := a.endp.WatchSignal("PropertiesChanged", a.propsHandler, a.bailoutHandler)
 	if err != nil {
 		a.log.Errorf("unable to watch for property changes: %v", err)
@@ -102,24 +116,24 @@ func (a *Accounts) startWatch() error {
 }
 
 // cancel the asynchronous updating of properties.
-func (a *Accounts) Cancel() error {
+func (a *accounts) Cancel() error {
 	return a.cancellable.Cancel()
 }
 
 // slightly shorter than %#v
-func (a *Accounts) String() string {
+func (a *accounts) String() string {
 	return fmt.Sprintf("&Accounts{silent: %t, vibrate: %t, vibratesilent: %t, messageSound: %q}",
 		a.silent, a.vibrate, a.vibrateSilentMode, a.messageSound)
 }
 
 // merely log that the watch loop has bailed; not much we can do.
-func (a *Accounts) bailoutHandler() {
+func (a *accounts) bailoutHandler() {
 	a.log.Debugf("loop bailed out")
 }
 
 // handle PropertiesChanged, which is described in
 // http://dbus.freedesktop.org/doc/dbus-specification.html#standard-interfaces-properties
-func (a *Accounts) propsHandler(ns ...interface{}) {
+func (a *accounts) propsHandler(ns ...interface{}) {
 	if len(ns) != 3 {
 		a.log.Errorf("PropertiesChanged delivered %d things instead of 3.", len(ns))
 		return
@@ -187,7 +201,7 @@ func (a *Accounts) propsHandler(ns ...interface{}) {
 	}
 }
 
-func (a *Accounts) updateSilentMode(vsilent dbus.Variant) {
+func (a *accounts) updateSilentMode(vsilent dbus.Variant) {
 	silent, ok := vsilent.Value.(bool)
 	if !ok {
 		a.log.Errorf("SilentMode needed a bool.")
@@ -197,7 +211,7 @@ func (a *Accounts) updateSilentMode(vsilent dbus.Variant) {
 	a.silent = silent
 }
 
-func (a *Accounts) updateVibrate(vvibrate dbus.Variant) {
+func (a *accounts) updateVibrate(vvibrate dbus.Variant) {
 	vibrate, ok := vvibrate.Value.(bool)
 	if !ok {
 		a.log.Errorf("IncomingMessageVibrate needed a bool.")
@@ -207,7 +221,7 @@ func (a *Accounts) updateVibrate(vvibrate dbus.Variant) {
 	a.vibrate = vibrate
 }
 
-func (a *Accounts) updateVibrateSilentMode(vvibrateSilentMode dbus.Variant) {
+func (a *accounts) updateVibrateSilentMode(vvibrateSilentMode dbus.Variant) {
 	vibrateSilentMode, ok := vvibrateSilentMode.Value.(bool)
 	if !ok {
 		a.log.Errorf("IncomingMessageVibrateSilentMode needed a bool.")
@@ -217,7 +231,7 @@ func (a *Accounts) updateVibrateSilentMode(vvibrateSilentMode dbus.Variant) {
 	a.vibrateSilentMode = vibrateSilentMode
 }
 
-func (a *Accounts) updateMessageSound(vsnd dbus.Variant) {
+func (a *accounts) updateMessageSound(vsnd dbus.Variant) {
 	snd, ok := vsnd.Value.(string)
 	if !ok {
 		a.log.Errorf("IncomingMessageSound needed a string.")
@@ -227,7 +241,7 @@ func (a *Accounts) updateMessageSound(vsnd dbus.Variant) {
 	a.messageSound = snd
 }
 
-func (a *Accounts) update() {
+func (a *accounts) update() {
 	props := make(map[string]dbus.Variant)
 	err := a.endp.Call("GetAll", []interface{}{accountsSoundIface}, &props)
 	if err != nil {
@@ -245,7 +259,7 @@ func (a *Accounts) update() {
 }
 
 // is the device in silent mode?
-func (a *Accounts) SilentMode() bool {
+func (a *accounts) SilentMode() bool {
 	a.lck.Lock()
 	defer a.lck.Unlock()
 
@@ -253,7 +267,7 @@ func (a *Accounts) SilentMode() bool {
 }
 
 // should notifications vibrate?
-func (a *Accounts) Vibrate() bool {
+func (a *accounts) Vibrate() bool {
 	a.lck.Lock()
 	defer a.lck.Unlock()
 
@@ -265,7 +279,7 @@ func (a *Accounts) Vibrate() bool {
 }
 
 // what is the default sound file?
-func (a *Accounts) MessageSoundFile() string {
+func (a *accounts) MessageSoundFile() string {
 	a.lck.Lock()
 	defer a.lck.Unlock()
 
