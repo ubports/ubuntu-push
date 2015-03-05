@@ -249,3 +249,17 @@ func (s *AccSuite) TestVibrate(c *C) {
 	a.vibrate = false
 	c.Check(a.Vibrate(), Equals, true)
 }
+
+func (s *AccSuite) TestMessageSoundFile(c *C) {
+	a := New(nil, s.log).(*accounts)
+	c.Check(a.MessageSoundFile(), Equals, "")
+	a.messageSound = "xyzzy"
+	c.Check(a.MessageSoundFile(), Equals, "xyzzy")
+}
+
+func (s *AccSuite) TestString(c *C) {
+	a := New(nil, s.log).(*accounts)
+	a.vibrate = true
+	a.messageSound = "x"
+	c.Check(a.String(), Equals, `&accounts{silent: false, vibrate: true, vibratesilent: false, messageSound: "x"}`)
+}

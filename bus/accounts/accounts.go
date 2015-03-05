@@ -122,7 +122,7 @@ func (a *accounts) Cancel() error {
 
 // slightly shorter than %#v
 func (a *accounts) String() string {
-	return fmt.Sprintf("&Accounts{silent: %t, vibrate: %t, vibratesilent: %t, messageSound: %q}",
+	return fmt.Sprintf("&accounts{silent: %t, vibrate: %t, vibratesilent: %t, messageSound: %q}",
 		a.silent, a.vibrate, a.vibrateSilentMode, a.messageSound)
 }
 
