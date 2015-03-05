@@ -20,6 +20,7 @@ package haptic
 
 import (
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/accounts"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -36,18 +37,24 @@ var BusAddress bus.Address = bus.Address{
 type Haptic struct {
 	bus      bus.Endpoint
 	log      logger.Logger
+	acc      accounts.Accounts
 	fallback *launch_helper.Vibration
 }
 
 // New returns a new Haptic that'll use the provided bus.Endpoint
-func New(endp bus.Endpoint, log logger.Logger, fallback *launch_helper.Vibration) *Haptic {
-	return &Haptic{endp, log, fallback}
+func New(endp bus.Endpoint, log logger.Logger, acc accounts.Accounts, fallback *launch_helper.Vibration) *Haptic {
+	return &Haptic{endp, log, acc, fallback}
 }
 
 // Present presents the notification via a vibrate pattern
 func (haptic *Haptic) Present(_ *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")
+	}
+
+	if !haptic.acc.Vibrate() {
+		haptic.log.Debugf("[%s] vibrate disabled by user.", nid)
+		return false
 	}
 
 	vib := notification.Vibration(haptic.fallback)
