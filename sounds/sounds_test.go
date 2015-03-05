@@ -36,25 +36,42 @@ func TestSounds(t *testing.T) { TestingT(t) }
 type soundsSuite struct {
 	log *helpers.TestLogger
 	app *click.AppId
+	acc *mockAccounts
 }
 
 var _ = Suite(&soundsSuite{})
 
+type mockAccounts struct {
+	vib bool
+	sil bool
+	snd string
+	err error
+}
+
+func (m *mockAccounts) Start() error             { return m.err }
+func (m *mockAccounts) Cancel() error            { return m.err }
+func (m *mockAccounts) SilentMode() bool         { return m.sil }
+func (m *mockAccounts) Vibrate() bool            { return m.vib }
+func (m *mockAccounts) MessageSoundFile() string { return m.snd }
+func (m *mockAccounts) String() string           { return "<mockAccounts>" }
+
 func (ss *soundsSuite) SetUpTest(c *C) {
 	ss.log = helpers.NewTestLogger(c, "debug")
 	ss.app = clickhelp.MustParseAppId("com.example.test_test_0")
+	ss.acc = &mockAccounts{true, false, "", nil}
 }
 
 func (ss *soundsSuite) TestNew(c *C) {
-	s := New(ss.log, "foo")
+	s := New(ss.log, ss.acc, "foo")
 	c.Check(s.log, Equals, ss.log)
 	c.Check(s.player, Equals, "paplay")
 	c.Check(s.fallback, Equals, "foo")
+	c.Check(s.acc, Equals, ss.acc)
 }
 
 func (ss *soundsSuite) TestPresent(c *C) {
 	s := &Sound{
-		player: "echo", log: ss.log,
+		player: "echo", log: ss.log, acc: ss.acc,
 		dataFind: func(s string) (string, error) { return s, nil },
 	}
 
@@ -65,7 +82,7 @@ func (ss *soundsSuite) TestPresent(c *C) {
 
 func (ss *soundsSuite) TestPresentSimple(c *C) {
 	s := &Sound{
-		player: "echo", log: ss.log,
+		player: "echo", log: ss.log, acc: ss.acc,
 		dataFind: func(s string) (string, error) { return s, nil },
 		fallback: "fallback",
 	}
@@ -73,12 +90,18 @@ func (ss *soundsSuite) TestPresentSimple(c *C) {
 	c.Check(s.Present(ss.app, "",
 		&launch_helper.Notification{RawSound: json.RawMessage(`true`)}), Equals, true)
 	c.Check(ss.log.Captured(), Matches, `(?sm).* playing sound com.example.test/fallback using echo`)
+	ss.acc.snd = "from-prefs"
+	ss.log.ResetCapture()
+	c.Check(s.Present(ss.app, "",
+		&launch_helper.Notification{RawSound: json.RawMessage(`true`)}), Equals, true)
+	c.Check(ss.log.Captured(), Matches, `(?sm).* playing sound com.example.test/from-prefs using echo`)
 }
 
 func (ss *soundsSuite) TestPresentFails(c *C) {
 	s := &Sound{
 		player:   "/",
 		log:      ss.log,
+		acc:      ss.acc,
 		dataFind: func(string) (string, error) { return "", errors.New("nope") },
 		dataDirs: func() []string { return []string{""} },
 	}
@@ -107,6 +130,7 @@ func (ss *soundsSuite) TestBadPathFails(c *C) {
 	s := &Sound{
 		player:   "/",
 		log:      ss.log,
+		acc:      ss.acc,
 		dataFind: func(string) (string, error) { return "", errors.New("nope") },
 		dataDirs: func() []string { return []string{""} },
 	}
@@ -120,6 +144,7 @@ func (ss *soundsSuite) TestGoodPathSucceeds(c *C) {
 	s := &Sound{
 		player:   "/",
 		log:      ss.log,
+		acc:      ss.acc,
 		dataFind: func(string) (string, error) { return "", errors.New("nope") },
 		dataDirs: func() []string { return []string{""} },
 	}
@@ -127,4 +152,20 @@ func (ss *soundsSuite) TestGoodPathSucceeds(c *C) {
 	sound, err := s.cleanPath("foo/../bar")
 	c.Check(err, IsNil)
 	c.Check(sound, Equals, "bar")
+}
+
+func (ss *soundsSuite) TestSkipIfSilentMode(c *C) {
+	s := &Sound{
+		player:   "echo",
+		log:      ss.log,
+		acc:      ss.acc,
+		fallback: "fallback",
+		dataFind: func(s string) (string, error) { return s, nil },
+	}
+
+	c.Check(s.Present(ss.app, "",
+		&launch_helper.Notification{RawSound: json.RawMessage(`true`)}), Equals, true)
+	ss.acc.sil = true
+	c.Check(s.Present(ss.app, "",
+		&launch_helper.Notification{RawSound: json.RawMessage(`true`)}), Equals, false)
 }
