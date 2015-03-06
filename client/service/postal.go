@@ -24,6 +24,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/accounts"
 	"launchpad.net/ubuntu-push/bus/emblemcounter"
 	"launchpad.net/ubuntu-push/bus/haptic"
 	"launchpad.net/ubuntu-push/bus/notifications"
@@ -75,6 +76,7 @@ type PostalService struct {
 	// the endpoints are only exposed for testing from client
 	// XXX: uncouple some more so this isn't necessary
 	EmblemCounterEndp bus.Endpoint
+	AccountsEndp      bus.Endpoint
 	HapticEndp        bus.Endpoint
 	NotificationsEndp bus.Endpoint
 	UnityGreeterEndp  bus.Endpoint
@@ -82,6 +84,7 @@ type PostalService struct {
 	// presenters:
 	Presenters    []Presenter
 	emblemCounter *emblemcounter.EmblemCounter
+	accounts      accounts.Accounts
 	haptic        *haptic.Haptic
 	notifications *notifications.RawNotifications
 	sound         *sounds.Sound
@@ -117,6 +120,7 @@ func NewPostalService(setup *PostalServiceSetup, log logger.Logger) *PostalServi
 	svc.fallbackSound = setup.FallbackSound
 	svc.NotificationsEndp = bus.SessionBus.Endpoint(notifications.BusAddress, log)
 	svc.EmblemCounterEndp = bus.SessionBus.Endpoint(emblemcounter.BusAddress, log)
+	svc.AccountsEndp = bus.SystemBus.Endpoint(accounts.BusAddress, log)
 	svc.HapticEndp = bus.SessionBus.Endpoint(haptic.BusAddress, log)
 	svc.UnityGreeterEndp = bus.SessionBus.Endpoint(unitygreeter.BusAddress, log)
 	svc.WindowStackEndp = bus.SessionBus.Endpoint(windowstack.BusAddress, log)
@@ -158,8 +162,13 @@ func (svc *PostalService) init() error {
 	svc.urlDispatcher = urldispatcher.New(svc.Log)
 	svc.notifications = notifications.Raw(svc.NotificationsEndp, svc.Log)
 	svc.emblemCounter = emblemcounter.New(svc.EmblemCounterEndp, svc.Log)
-	svc.haptic = haptic.New(svc.HapticEndp, svc.Log, svc.fallbackVibration)
-	svc.sound = sounds.New(svc.Log, svc.fallbackSound)
+	svc.accounts = accounts.New(svc.AccountsEndp, svc.Log)
+	err = svc.accounts.Start()
+	if err != nil {
+		return err
+	}
+	svc.haptic = haptic.New(svc.HapticEndp, svc.Log, svc.accounts, svc.fallbackVibration)
+	svc.sound = sounds.New(svc.Log, svc.accounts, svc.fallbackSound)
 	svc.messagingMenu = messaging.New(svc.Log)
 	svc.Presenters = []Presenter{
 		svc.notifications,
@@ -228,6 +237,7 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 	}{
 		{"notifications", svc.NotificationsEndp},
 		{"emblemcounter", svc.EmblemCounterEndp},
+		{"accounts", svc.AccountsEndp},
 		{"haptic", svc.HapticEndp},
 		{"unitygreeter", svc.UnityGreeterEndp},
 		{"windowstack", svc.WindowStackEndp},

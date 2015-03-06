@@ -17,11 +17,13 @@
 package testing
 
 import (
-	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/testing/condition"
 	"testing"
 	"time"
+
+	. "launchpad.net/gocheck"
+
+	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/testing/condition"
 )
 
 // hook up gocheck
@@ -100,8 +102,9 @@ func (s *TestingEndpointSuite) TestWatch(c *C) {
 	var m, n uint32 = 42, 17
 	endp := NewTestingEndpoint(nil, condition.Work(true), m, n)
 	ch := make(chan uint32)
-	e := endp.WatchSignal("what", func(us ...interface{}) { ch <- us[0].(uint32) }, func() { close(ch) })
-	c.Check(e, IsNil)
+	w, e := endp.WatchSignal("which", func(us ...interface{}) { ch <- us[0].(uint32) }, func() { close(ch) })
+	c.Assert(e, IsNil)
+	defer w.Cancel()
 	c.Check(<-ch, Equals, m)
 	c.Check(<-ch, Equals, n)
 }
@@ -110,8 +113,9 @@ func (s *TestingEndpointSuite) TestWatch(c *C) {
 func (s *TestingEndpointSuite) TestWatchDestructor(c *C) {
 	endp := NewTestingEndpoint(nil, condition.Work(true))
 	ch := make(chan uint32)
-	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
-	c.Check(e, IsNil)
+	w, e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
+	c.Assert(e, IsNil)
+	defer w.Cancel()
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
 }
@@ -130,25 +134,28 @@ func (s *TestingEndpointSuite) TestCloser(c *C) {
 // Test that WatchSignal() with a negative condition returns an error.
 func (s *TestingEndpointSuite) TestWatchFails(c *C) {
 	endp := NewTestingEndpoint(nil, condition.Work(false))
-	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() {})
+	w, e := endp.WatchSignal("what", func(us ...interface{}) {}, func() {})
 	c.Check(e, NotNil)
+	c.Check(w, IsNil)
 }
 
-// Test WatchSignal can use the WatchTicker instead of a timeout (if
+// Test WatchSignal can use a watchSource instead of a timeout and retvals (if
 // the former is not nil)
-func (s *TestingEndpointSuite) TestWatchTicker(c *C) {
-	watchTicker := make(chan bool, 3)
-	watchTicker <- true
-	watchTicker <- true
-	watchTicker <- true
+func (s *TestingEndpointSuite) TestWatchSources(c *C) {
+	watchTicker := make(chan []interface{}, 3)
+	watchTicker <- []interface{}{true}
+	watchTicker <- []interface{}{true}
+	watchTicker <- []interface{}{true}
 	c.Assert(len(watchTicker), Equals, 3)
 
 	endp := NewTestingEndpoint(nil, condition.Work(true), 0, 0)
-	SetWatchTicker(endp, watchTicker)
+	SetWatchSource(endp, "what", watchTicker)
 	ch := make(chan int)
-	e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
-	c.Check(e, IsNil)
+	w, e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
+	c.Assert(e, IsNil)
+	defer w.Cancel()
 
+	close(watchTicker)
 	// wait for the destructor to be called
 	select {
 	case <-time.Tick(10 * time.Millisecond):
@@ -156,8 +163,21 @@ func (s *TestingEndpointSuite) TestWatchTicker(c *C) {
 	case <-ch:
 	}
 
-	// now if all went well, the ticker will have been tuck twice.
-	c.Assert(len(watchTicker), Equals, 1)
+	// now if all went well, the ticker will have been exhausted.
+	c.Assert(len(watchTicker), Equals, 0)
+}
+
+// Test that WatchSignal() calls the destructor callback when canceled.
+func (s *TestingEndpointSuite) TestWatchCancel(c *C) {
+	endp := NewTestingEndpoint(nil, condition.Work(true))
+	ch := make(chan uint32)
+	w, e := endp.WatchSignal("what", func(us ...interface{}) {}, func() { close(ch) })
+	c.Assert(e, IsNil)
+	defer w.Cancel()
+	SetWatchSource(endp, "what", make(chan []interface{}))
+	w.Cancel()
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
 }
 
 // Tests that GetProperty() works
