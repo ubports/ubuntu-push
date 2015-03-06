@@ -164,6 +164,12 @@ func (s *AccSuite) TestUpdateMessageSoundWorks(c *C) {
 	c.Check(a.messageSound, Equals, "xyzzy")
 }
 
+func (s *AccSuite) TestUpdateMessageSoundPrunesXDG(c *C) {
+	a := New(nil, s.log).(*accounts)
+	a.updateMessageSound(dbus.Variant{"/usr/share/xyzzy"})
+	c.Check(a.messageSound, Equals, "xyzzy")
+}
+
 func (s *AccSuite) TestPropsHandler(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 
