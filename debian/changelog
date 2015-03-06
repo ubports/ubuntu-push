@@ -1,3 +1,68 @@
+ubuntu-push (0.67+15.04.20150209-0ubuntu1) vivid; urgency=medium
+
+  [ John R. Lenton ]
+  * Updated precommit script. [dev]
+  * Include code examples in docs (instead of repeating). [docs]
+  * Cleanup and improve logging, and make log messages more
+    consistent. [client]
+  * Partially work around bug lp:1390663 in a minimally intrusive way
+    (real fix will have to wait). [client]
+  * Add an explicit check and log message for nil error on webcheck's
+    CopyN. [client]
+
+  [ Samuele Pedroni ]
+  * Make tests more robust in the face of go 1.3 [client, server]
+  * Introduce StartClientAuthFlex for acceptance tests: Start a client
+    with auth, take a devId regexp, don't check any client event; support
+    connbroken in acceptanceclient. [server]
+  * Clean up goroutines in tests. [client]
+  * Workaround gc issue with 1.3 and 32 bits. Fixes FTBFS. [client]
+
+  [ Bret Barker ]
+  * Add SIGQUIT handler to spit out stack dumps; more logging
+    tweaks. [client, server]
+  * Log line nums, enabled when logLevel = debug. [client server]
+
+  [ Roberto Alsina ]
+  * Adds a couple of buttons to exercise more APIs, version bump to
+    0.44. [sample app]
+
+  [ Guillermo Gonzalez ]
+  * Add APIError to server/acceptance/kit that includes the body for
+    debugging. [server]
+  * Add DisableKeepAlives and MaxIdleConnsPerHost to the APIClient
+    SetupClient method. [server]
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Mon, 09 Feb 2015 11:08:02 +0000
+
+ubuntu-push (0.66+15.04.20141211-0ubuntu1) vivid; urgency=medium
+
+  [ Roberto Alsina ]
+  * Change the example app to use declared states.
+  * Add section describing limitations of the server API.
+
+  [ Bret Barker ]
+  * Fixes to PACKAGE_DEPS for client tests.
+
+  [ Guillermo Gonzalez ]
+  * Add 2 new errors for the server: ErrMissingUserId and
+    ErrWrongRequestMethodGET.
+  * When The server reply 401 on /register, make the DBus call to Register
+    return ErrBadAuth instead of ErrBadRequest.
+  * Add support to media-type in the Content-Type check at server/api
+    handlers.
+
+  [ Samuele Pedroni ]
+  * Server-side logging improvements.
+  * Make tests more robust in the face of 1.3.
+
+  [ John R. Lenton ]
+  * Client-side logging improvements (including: loglevel defaults to info).
+  * Updated precommit script.
+  * Include code examples in docs (instead of repeating).
+
+ -- Ubuntu daily release <ps-jenkins@lists.canonical.com>  Thu, 11 Dec 2014 16:56:31 +0000
+
 ubuntu-push (0.65+15.04.20141103-0ubuntu1) vivid; urgency=medium
 
   [ John R. Lenton ]
