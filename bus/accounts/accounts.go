@@ -21,9 +21,11 @@ package accounts
 import (
 	"fmt"
 	"os/user"
+	"strings"
 	"sync"
 
 	"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/logger"
@@ -236,6 +238,13 @@ func (a *accounts) updateMessageSound(vsnd dbus.Variant) {
 	if !ok {
 		a.log.Errorf("IncomingMessageSound needed a string.")
 		return
+	}
+
+	for _, dir := range xdg.Data.Dirs()[1:] {
+		if strings.HasPrefix(snd, dir) {
+			snd = snd[len(dir):]
+			break
+		}
 	}
 
 	a.messageSound = snd
