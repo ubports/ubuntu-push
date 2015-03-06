@@ -1,4 +1,4 @@
-ubuntu-push (0.68-0ubuntu1) UNRELEASED; urgency=medium
+ubuntu-push (0.68+15.04.20150306.2-0ubuntu1) vivid; urgency=medium
 
   [ John R. Lenton ]
   * Use settings from org.freedesktop.Accounts for silent mode, when to
@@ -12,7 +12,7 @@ ubuntu-push (0.68-0ubuntu1) UNRELEASED; urgency=medium
   * TestTakeTheBusWorks doesn't block anymore, fixed leaking of
     webcheckers. [client]
 
- -- John R. Lenton <john.lenton@canonical.com>  Fri, 06 Mar 2015 10:50:34 +0000
+ -- CI Train Bot <ci-train-bot@canonical.com>  Fri, 06 Mar 2015 13:27:06 +0000
 
 ubuntu-push (0.67+15.04.20150209-0ubuntu1) vivid; urgency=medium
 
