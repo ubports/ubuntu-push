@@ -241,6 +241,9 @@ func (a *accounts) updateMessageSound(vsnd dbus.Variant) {
 	}
 
 	for _, dir := range xdg.Data.Dirs()[1:] {
+		if dir[len(dir)-1] != '/' {
+			dir += "/"
+		}
 		if strings.HasPrefix(snd, dir) {
 			snd = snd[len(dir):]
 			break
