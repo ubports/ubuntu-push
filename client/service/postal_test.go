@@ -169,6 +169,8 @@ type postalSuite struct {
 	hapticBus       bus.Endpoint
 	unityGreeterBus bus.Endpoint
 	winStackBus     bus.Endpoint
+	accountsBus     bus.Endpoint
+	accountsCh      chan []interface{}
 	fakeLauncher    *fakeHelperLauncher
 	getTempDir      func(string) (string, error)
 	oldIsBlisted    func(*click.AppId) bool
@@ -194,6 +196,7 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.notifBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.counterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
+	ps.accountsBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), map[string]dbus.Variant{"IncomingMessageVibrate": dbus.Variant{true}})
 	ps.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.unityGreeterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), false)
 	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
@@ -206,11 +209,15 @@ func (ps *postalSuite) SetUpTest(c *C) {
 		tmpDir := filepath.Join(d, pkgName)
 		return tmpDir, os.MkdirAll(tmpDir, 0700)
 	}
+
+	ps.accountsCh = make(chan []interface{})
+	testibus.SetWatchSource(ps.accountsBus, "PropertiesChanged", ps.accountsCh)
 }
 
 func (ps *postalSuite) TearDownTest(c *C) {
 	isBlacklisted = ps.oldIsBlisted
 	launch_helper.GetTempDir = ps.getTempDir
+	close(ps.accountsCh)
 }
 
 func (ts *trivialPostalSuite) SetUpTest(c *C) {
@@ -227,6 +234,7 @@ func (ps *postalSuite) replaceBuses(pst *PostalService) *PostalService {
 	pst.Bus = ps.bus
 	pst.NotificationsEndp = ps.notifBus
 	pst.EmblemCounterEndp = ps.counterBus
+	pst.AccountsEndp = ps.accountsBus
 	pst.HapticEndp = ps.hapticBus
 	pst.UnityGreeterEndp = ps.unityGreeterBus
 	pst.WindowStackEndp = ps.winStackBus
@@ -544,6 +552,7 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc := NewPostalService(ps.cfg, ps.log)
 	svc.Bus = endp
 	svc.EmblemCounterEndp = endp
+	svc.AccountsEndp = ps.accountsBus
 	svc.HapticEndp = endp
 	svc.NotificationsEndp = endp
 	svc.UnityGreeterEndp = ps.unityGreeterBus
@@ -551,6 +560,10 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc.launchers = map[string]launch_helper.HelperLauncher{}
 	svc.fallbackVibration = &launch_helper.Vibration{Pattern: []uint32{1}}
 	c.Assert(svc.Start(), IsNil)
+
+	nopTicker := make(chan []interface{})
+	testibus.SetWatchSource(endp, "ActionInvoked", nopTicker)
+	defer close(nopTicker)
 
 	// Persist is false so we just check the log
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true, Persist: false}
@@ -837,6 +850,10 @@ func (ps *postalSuite) TestSetCounterErrors(c *C) {
 }
 
 func (ps *postalSuite) TestBlacklisted(c *C) {
+	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{},
+		[]windowstack.WindowsInfo{},
+		[]windowstack.WindowsInfo{},
+		[]windowstack.WindowsInfo{})
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
 	svc.Start()
 	ps.blacklisted = false

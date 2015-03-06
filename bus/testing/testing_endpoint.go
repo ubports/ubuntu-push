@@ -36,13 +36,15 @@ type callArgs struct {
 }
 
 type testingEndpoint struct {
-	dialCond    condition.Interface
-	callCond    condition.Interface
-	retvals     [][]interface{}
-	watchTicker chan bool
-	watchLck    sync.RWMutex
-	callArgs    []callArgs
-	callArgsLck sync.RWMutex
+	dialCond     condition.Interface
+	callCond     condition.Interface
+	usedLck      sync.Mutex
+	used         int
+	retvals      [][]interface{}
+	watchSources map[string]chan []interface{}
+	watchLck     sync.RWMutex
+	callArgs     []callArgs
+	callArgsLck  sync.RWMutex
 }
 
 // Build a bus.Endpoint that calls OK() on its condition before returning
@@ -51,7 +53,7 @@ type testingEndpoint struct {
 // NOTE: Call() always returns the first return value; Watch() will provide
 // each of them in turn, irrespective of whether Call has been called.
 func NewMultiValuedTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvalses ...[]interface{}) bus.Endpoint {
-	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses}
+	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses, watchSources: make(map[string]chan []interface{})}
 }
 
 func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interface, retvals ...interface{}) bus.Endpoint {
@@ -59,15 +61,15 @@ func NewTestingEndpoint(dialCond condition.Interface, callCond condition.Interfa
 	for i, x := range retvals {
 		retvalses[i] = []interface{}{x}
 	}
-	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses}
+	return &testingEndpoint{dialCond: dialCond, callCond: callCond, retvals: retvalses, watchSources: make(map[string]chan []interface{})}
 }
 
-// If SetWatchTicker is called with a non-nil watchTicker, it is used
-// instead of the default timeout to wait while sending values over
-// WatchSignal. Set it to nil again to restore default behaviour.
-func SetWatchTicker(tc bus.Endpoint, watchTicker chan bool) {
+// If SetWatchSource is called with a non-nil watchSource, it is used
+// instead of the default timeout and retvals to get values to send
+// over WatchSignal. Set it to nil again to restore default behaviour.
+func SetWatchSource(tc bus.Endpoint, member string, watchSource chan []interface{}) {
 	tc.(*testingEndpoint).watchLck.Lock()
-	tc.(*testingEndpoint).watchTicker = watchTicker
+	tc.(*testingEndpoint).watchSources[member] = watchSource
 	tc.(*testingEndpoint).watchLck.Unlock()
 }
 
@@ -78,31 +80,77 @@ func GetCallArgs(tc bus.Endpoint) []callArgs {
 	return tc.(*testingEndpoint).callArgs
 }
 
+type watchCancel struct {
+	done      chan struct{}
+	cancelled chan struct{}
+	lck       sync.Mutex
+	member    string
+}
+
+// this waits for actual cancelllation for test convenience
+func (wc *watchCancel) Cancel() error {
+	wc.lck.Lock()
+	defer wc.lck.Unlock()
+	if wc.cancelled != nil {
+		close(wc.cancelled)
+		wc.cancelled = nil
+		<-wc.done
+	}
+	return nil
+}
+
 // See Endpoint's WatchSignal. This WatchSignal will check its condition to
 // decide whether to return an error, or provide each of its return values
-func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d func()) error {
+// or values from the previously set watchSource for member.
+func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d func()) (bus.Cancellable, error) {
 	if tc.callCond.OK() {
+		cancelled := make(chan struct{})
+		done := make(chan struct{})
 		go func() {
-			for _, v := range tc.retvals {
-				f(v...)
-				tc.watchLck.RLock()
-				ticker := tc.watchTicker
-				tc.watchLck.RUnlock()
-				if ticker != nil {
-					_, ok := <-ticker
-					if !ok {
-						// bail out
-						return
+			tc.watchLck.RLock()
+			source := tc.watchSources[member]
+			tc.watchLck.RUnlock()
+			if source == nil {
+				tc.usedLck.Lock()
+				idx := tc.used
+				tc.used++
+				tc.usedLck.Unlock()
+				source = make(chan []interface{})
+				go func() {
+				Feed:
+					for _, v := range tc.retvals[idx:] {
+						select {
+						case source <- v:
+						case <-cancelled:
+							break Feed
+						}
+						select {
+						case <-time.After(10 * time.Millisecond):
+						case <-cancelled:
+							break Feed
+						}
 					}
-				} else {
-					time.Sleep(10 * time.Millisecond)
+					close(source)
+				}()
+			}
+		Receive:
+			for {
+				select {
+				case v, ok := <-source:
+					if !ok {
+						break Receive
+					}
+					f(v...)
+				case <-cancelled:
+					break Receive
 				}
 			}
 			d()
+			close(done)
 		}()
-		return nil
+		return &watchCancel{cancelled: cancelled, done: done, member: member}, nil
 	} else {
-		return errors.New("no way")
+		return nil, errors.New("no way")
 	}
 }
 
@@ -116,20 +164,24 @@ func (tc *testingEndpoint) Call(member string, args []interface{}, rvs ...interf
 	if tc.callCond.OK() {
 		expected := len(rvs)
 		var provided int
-		if len(tc.retvals) == 0 {
+		tc.usedLck.Lock()
+		idx := tc.used
+		tc.used++
+		tc.usedLck.Unlock()
+		if len(tc.retvals) <= idx {
 			if expected != 0 {
 				panic("No return values provided!")
 			}
 			provided = 0
 		} else {
-			provided = len(tc.retvals[0])
+			provided = len(tc.retvals[idx])
 		}
 		if provided != expected {
 			return errors.New("provided/expected return vals mismatch")
 		}
 		if provided != 0 {
 			x := dbus.NewMethodCallMessage("", "", "", "")
-			err := x.AppendArgs(tc.retvals[0]...)
+			err := x.AppendArgs(tc.retvals[idx]...)
 			if err != nil {
 				return err
 			}

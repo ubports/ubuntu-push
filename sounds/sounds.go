@@ -25,6 +25,7 @@ import (
 
 	"launchpad.net/go-xdg/v0"
 
+	"launchpad.net/ubuntu-push/bus/accounts"
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
@@ -33,15 +34,17 @@ import (
 type Sound struct {
 	player   string
 	log      logger.Logger
+	acc      accounts.Accounts
 	fallback string
 	dataDirs func() []string
 	dataFind func(string) (string, error)
 }
 
-func New(log logger.Logger, fallback string) *Sound {
+func New(log logger.Logger, acc accounts.Accounts, fallback string) *Sound {
 	return &Sound{
 		player:   "paplay",
 		log:      log,
+		acc:      acc,
 		fallback: fallback,
 		dataDirs: xdg.Data.Dirs,
 		dataFind: xdg.Data.Find,
@@ -53,7 +56,17 @@ func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_hel
 		panic("please check notification is not nil before calling present")
 	}
 
-	sound := notification.Sound(snd.fallback)
+	if snd.acc.SilentMode() {
+		snd.log.Debugf("[%s] no sounds: silent mode on.", nid)
+		return false
+	}
+
+	fallback := snd.acc.MessageSoundFile()
+	if fallback == "" {
+		fallback = snd.fallback
+	}
+
+	sound := notification.Sound(fallback)
 	if sound == "" {
 		snd.log.Debugf("[%s] notification has no Sound: %#v", nid, sound)
 		return false
