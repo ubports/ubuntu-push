@@ -1,3 +1,19 @@
+ubuntu-push (0.68-0ubuntu1) UNRELEASED; urgency=medium
+
+  [ John R. Lenton ]
+  * Use settings from org.freedesktop.Accounts for silent mode, when to
+    vibrate, and default sound. [client] (LP: #1426418, LP:1427702)
+
+  [ Samuele "Yak Shaver of the Year" Pedroni ]
+  * Closing webchecker (avoids leaving goroutines around in testing). [client]
+  * WatchSignal cancelling, and connectivity exposed cancelling, make
+    connectivity start not leave watches behind (more goroutine
+    cleanup). [client]
+  * TestTakeTheBusWorks doesn't block anymore, fixed leaking of
+    webcheckers. [client]
+
+ -- John R. Lenton <john.lenton@canonical.com>  Fri, 06 Mar 2015 10:50:34 +0000
+
 ubuntu-push (0.67+15.04.20150209-0ubuntu1) vivid; urgency=medium
 
   [ John R. Lenton ]
