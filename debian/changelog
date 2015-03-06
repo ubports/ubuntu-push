@@ -2,7 +2,7 @@ ubuntu-push (0.68-0ubuntu1) UNRELEASED; urgency=medium
 
   [ John R. Lenton ]
   * Use settings from org.freedesktop.Accounts for silent mode, when to
-    vibrate, and default sound. [client] (LP: #1426418, LP:1427702)
+    vibrate, and default sound. [client] (LP: #1426418, LP: #1427702)
 
   [ Samuele "Yak Shaver of the Year" Pedroni ]
   * Closing webchecker (avoids leaving goroutines around in testing). [client]
