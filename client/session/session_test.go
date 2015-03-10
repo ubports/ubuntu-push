@@ -190,6 +190,24 @@ func (cs *clientSqlevelsSessionSuite) SetUpSuite(c *C) {
 	cs.lvls = func() (seenstate.SeenState, error) { return seenstate.NewSqliteSeenState(":memory:") }
 }
 
+func (cs *clientSessionSuite) TestStateString(c *C) {
+	for _, i := range []struct {
+		v ClientSessionState
+		s string
+	}{
+		{Error, "Error"},
+		{Pristine, "Pristine"},
+		{Disconnected, "Disconnected"},
+		{Connected, "Connected"},
+		{Started, "Started"},
+		{Running, "Running"},
+		{Shutdown, "Shutdown"},
+		{Unknown, fmt.Sprintf("??? (%d)", Unknown)},
+	} {
+		c.Check(i.v.String(), Equals, i.s)
+	}
+}
+
 /****************************************************************
   parseServerAddrSpec() tests
 ****************************************************************/
