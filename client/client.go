@@ -115,7 +115,6 @@ type PushClient struct {
 	systemImageEndp    bus.Endpoint
 	systemImageInfo    *systemimage.InfoResult
 	connCh             chan bool
-	hasConnectivity    bool
 	session            session.ClientSession
 	sessionConnectedCh chan uint32
 	pushService        PushService
@@ -314,7 +313,7 @@ func (client *PushClient) initSessionAndPoller() error {
 		return err
 	}
 	client.session = sess
-	sess.Magic()
+	sess.KeepConnection()
 	client.poller = poller.New(client.derivePollerSetup())
 	return nil
 }

@@ -132,6 +132,7 @@ type ClientSession interface {
 	State() ClientSessionState
 	HasConnectivity(bool) error
 	KeepConnection() error
+	StopKeepConnection()
 }
 
 // ClientSession holds a client<->server session and its configuration.

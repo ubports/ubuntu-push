@@ -43,7 +43,6 @@ import (
 	clickhelp "launchpad.net/ubuntu-push/click/testing"
 	"launchpad.net/ubuntu-push/client/service"
 	"launchpad.net/ubuntu-push/client/session"
-	"launchpad.net/ubuntu-push/client/session/seenstate"
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/identifier"
 	idtesting "launchpad.net/ubuntu-push/identifier/testing"
@@ -427,7 +426,6 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		AuthGetter:       func(string) string { return "" },
 		AuthURL:          "xyzzy://",
 		AddresseeChecker: cli,
-		ErrCh:            make(chan error),
 		BroadcastCh:      make(chan *session.BroadcastNotification),
 		NotificationsCh:  make(chan session.AddressedNotification),
 	}
@@ -444,10 +442,8 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	// compare authGetter by string
 	c.Check(fmt.Sprintf("%#v", conf.AuthGetter), Equals, fmt.Sprintf("%#v", cli.getAuthorization))
 	// channels are ok as long as non-nil
-	conf.ErrCh = nil
 	conf.BroadcastCh = nil
 	conf.NotificationsCh = nil
-	expected.ErrCh = nil
 	expected.BroadcastCh = nil
 	expected.NotificationsCh = nil
 	// and set it to nil
@@ -534,9 +530,11 @@ func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
 type derivePollerSession struct{}
 
 func (s *derivePollerSession) Close()                            {}
-func (s *derivePollerSession) AutoRedial(ch chan uint32)         {}
 func (s *derivePollerSession) ClearCookie()                      {}
 func (s *derivePollerSession) State() session.ClientSessionState { return session.Unknown }
+func (s *derivePollerSession) HasConnectivity(bool) error        { return nil }
+func (s *derivePollerSession) KeepConnection() error             { return nil }
+func (s *derivePollerSession) StopKeepConnection()               {}
 
 func (cs *clientSuite) TestDerivePollerSetup(c *C) {
 	cs.writeTestConfig(map[string]interface{}{})
@@ -722,22 +720,6 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 }
 
 /*****************************************************************
-    handleErr tests
-******************************************************************/
-
-func (cs *clientSuite) TestHandleErr(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSessionAndPoller(), IsNil)
-	cs.log.ResetCapture()
-	cli.hasConnectivity = true
-	defer cli.session.Close()
-	cli.handleErr(errors.New("bananas"))
-	c.Check(cs.log.Captured(), Matches, ".*session exited.*bananas\n")
-}
-
-/*****************************************************************
     seenStateFactory tests
 ******************************************************************/
 
@@ -755,66 +737,6 @@ func (cs *clientSuite) TestSeenStateFactoryWithDbPath(c *C) {
 	c.Assert(err, IsNil)
 	defer ln.Close()
 	c.Check(fmt.Sprintf("%T", ln), Equals, "*seenstate.sqliteSeenState")
-}
-
-/*****************************************************************
-    handleConnState tests
-******************************************************************/
-
-type handleConnStateSession struct {
-	connected bool
-}
-
-func (s *handleConnStateSession) AutoRedial(ch chan uint32)         { s.connected = true }
-func (s *handleConnStateSession) Close()                            { s.connected = false }
-func (s *handleConnStateSession) ClearCookie()                      {}
-func (s *handleConnStateSession) State() session.ClientSessionState { return session.Unknown }
-
-func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	sess := &handleConnStateSession{connected: false}
-	cli.session = sess
-
-	c.Assert(cli.hasConnectivity, Equals, false)
-	cli.handleConnState(true)
-	c.Check(cli.hasConnectivity, Equals, true)
-	c.Check(sess.connected, Equals, true)
-}
-
-func (cs *clientSuite) TestHandleConnStateSame(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	// here we want to check that we don't do anything
-	c.Assert(cli.session, IsNil)
-	c.Assert(cli.hasConnectivity, Equals, false)
-	cli.handleConnState(false)
-	c.Check(cli.session, IsNil)
-
-	cli.hasConnectivity = true
-	cli.handleConnState(true)
-	c.Check(cli.session, IsNil)
-}
-
-func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	sess := &handleConnStateSession{connected: true}
-	cli.session = sess
-	cli.hasConnectivity = true
-
-	cli.handleConnState(false)
-	c.Check(sess.connected, Equals, false)
-}
-
-func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, seenstate.NewSeenState, cs.log)
-	cli.hasConnectivity = true
-
-	cli.handleConnState(false)
-	c.Check(cli.session.State(), Equals, session.Disconnected)
 }
 
 /*****************************************************************
@@ -1035,7 +957,6 @@ func (cs *clientSuite) TestHandleUnregisterError(c *C) {
 var nopConn = func(bool) {}
 var nopBcast = func(*session.BroadcastNotification) error { return nil }
 var nopUcast = func(session.AddressedNotification) error { return nil }
-var nopError = func(error) {}
 var nopUnregister = func(*click.AppId) {}
 var nopAcct = func() {}
 
@@ -1048,7 +969,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) { ch <- true }, nopBcast, nopUcast, nopError, nopUnregister, nopAcct)
+	go cli.doLoop(func(bool) { ch <- true }, nopBcast, nopUcast, nopUnregister, nopAcct)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1061,7 +982,7 @@ func (cs *clientSuite) TestDoLoopBroadcast(c *C) {
 	cli.broadcastCh <- &session.BroadcastNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopError, nopUnregister, nopAcct)
+	go cli.doLoop(nopConn, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopUnregister, nopAcct)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1074,20 +995,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.notificationsCh <- session.AddressedNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopError, nopUnregister, nopAcct)
-	c.Check(takeNextBool(ch), Equals, true)
-}
-
-func (cs *clientSuite) TestDoLoopErr(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSessionAndPoller(), IsNil)
-	cli.errCh = make(chan error, 1)
-	cli.errCh <- nil
-
-	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, nopUcast, func(error) { ch <- true }, nopUnregister, nopAcct)
+	go cli.doLoop(nopConn, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopUnregister, nopAcct)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1100,7 +1008,7 @@ func (cs *clientSuite) TestDoLoopUnregister(c *C) {
 	cli.unregisterCh <- app1
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, nopUcast, nopError, func(app *click.AppId) { c.Check(app.Original(), Equals, appId1); ch <- true }, nopAcct)
+	go cli.doLoop(nopConn, nopBcast, nopUcast, func(app *click.AppId) { c.Check(app.Original(), Equals, appId1); ch <- true }, nopAcct)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1114,7 +1022,7 @@ func (cs *clientSuite) TestDoLoopAcct(c *C) {
 	cli.accountsCh = acctCh
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, nopUcast, nopError, nopUnregister, func() { ch <- true })
+	go cli.doLoop(nopConn, nopBcast, nopUcast, nopUnregister, func() { ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1149,6 +1057,21 @@ func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
     Loop() tests
 ******************************************************************/
 
+type loopSession struct{ hasConn bool }
+
+func (s *loopSession) Close()       {}
+func (s *loopSession) ClearCookie() {}
+func (s *loopSession) State() session.ClientSessionState {
+	if s.hasConn {
+		return session.Connected
+	} else {
+		return session.Disconnected
+	}
+}
+func (s *loopSession) HasConnectivity(hasConn bool) error { s.hasConn = hasConn; return nil }
+func (s *loopSession) KeepConnection() error              { return nil }
+func (s *loopSession) StopKeepConnection()                {}
+
 func (cs *clientSuite) TestLoop(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.connCh = make(chan bool)
@@ -1164,7 +1087,6 @@ func (cs *clientSuite) TestLoop(c *C) {
 	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	cli.broadcastCh = make(chan *session.BroadcastNotification)
-	cli.errCh = make(chan error)
 
 	// we use tick() to make sure things have been through the
 	// event loop at least once before looking at things;
@@ -1179,26 +1101,25 @@ func (cs *clientSuite) TestLoop(c *C) {
 	tick()
 	c.Check(cs.log.Captured(), Matches, "(?msi).*Session connected after 42 attempts$")
 
+	c.Assert(cli.session, NotNil)
+	cli.session.StopKeepConnection()
+	cli.session = &loopSession{}
+
 	// loop() should have connected:
 	//  * connCh to the connectivity checker
-	c.Check(cli.hasConnectivity, Equals, false)
+	c.Check(cli.session.State(), Equals, session.Disconnected)
 	cli.connCh <- true
 	tick()
-	c.Check(cli.hasConnectivity, Equals, true)
+	c.Check(cli.session.State(), Equals, session.Connected)
 	cli.connCh <- false
 	tick()
-	c.Check(cli.hasConnectivity, Equals, false)
+	c.Check(cli.session.State(), Equals, session.Disconnected)
 
 	//  * session.BroadcastCh to the notifications handler
 	c.Check(d.bcastCount, Equals, 0)
 	cli.broadcastCh <- positiveBroadcastNotification
 	tick()
 	c.Check(d.bcastCount, Equals, 1)
-
-	//  * session.ErrCh to the error handler
-	cli.errCh <- nil
-	tick()
-	c.Check(cs.log.Captured(), Matches, "(?ms).*session exited.*")
 }
 
 /*****************************************************************
