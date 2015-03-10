@@ -131,7 +131,7 @@ type ClientSession interface {
 	ClearCookie()
 	State() ClientSessionState
 	HasConnectivity(bool) error
-	Magic() error
+	KeepConnection() error
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -702,14 +702,16 @@ func (sess *clientSession) Dial() error {
 	return sess.run(sess.doClose, sess.addAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
-func (sess *clientSession) doMagic(connHandler func(bool)) {
+func (sess *clientSession) doKeepConnection(connHandler func(bool)) {
+Loop:
 	for {
 		select {
 		case hasConn := <-sess.connCh:
 			connHandler(hasConn)
 		case <-sess.stopCh:
+			sess.stopRedial()
 			sess.Log.Infof("session shutting down.")
-			break
+			break Loop
 		case n := <-sess.doneCh:
 			sess.Log.Debugf("connected after %d attempts.", n)
 		case err := <-sess.errCh:
@@ -738,20 +740,20 @@ func (sess *clientSession) handleConn(hasConn bool) {
 	}
 }
 
-func (sess *clientSession) Magic() error {
+func (sess *clientSession) KeepConnection() error {
 	sess.stateLock.Lock()
 	defer sess.stateLock.Unlock()
 	if sess.state != Pristine {
-		return errors.New("don't call Magic() on a non-pristine session.")
+		return errors.New("don't call KeepConnection() on a non-pristine session.")
 	}
 	sess.state = Disconnected
 
-	go sess.doMagic(sess.handleConn)
+	go sess.doKeepConnection(sess.handleConn)
 
 	return nil
 }
 
-func (sess *clientSession) StopMagic() {
+func (sess *clientSession) StopKeepConnection() {
 	close(sess.stopCh)
 	sess.setState(Shutdown)
 }
