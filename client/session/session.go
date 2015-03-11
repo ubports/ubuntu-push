@@ -178,10 +178,14 @@ type clientSession struct {
 	connCh chan bool
 	// last seen connection event is here
 	lastConn bool
+	// connection events are handled by this
+	connHandler func(bool)
 	// autoredial goes over here (xxx spurious goroutine involved)
 	doneCh chan uint32
 	// main loop errors out through here (possibly another spurious goroutine)
 	errCh chan error
+	// main loop errors are handled by this
+	errHandler func(error)
 	// look, a stopper!
 	stopCh chan struct{}
 }
@@ -225,7 +229,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		state:               Pristine,
 		timeSince:           time.Since,
 		shouldDelayP:        &shouldDelay,
-		redialDelay:         redialDelay,
+		redialDelay:         redialDelay, // NOTE there are tests that use calling sess.redialDelay as an indication of calling autoRedial!
 		redialDelays:        util.Timeouts(),
 	}
 	sess.redialJitter = sess.Jitter
@@ -241,6 +245,11 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	sess.stopCh = make(chan struct{})
 	sess.connCh = make(chan bool, 1)
 	sess.errCh = make(chan error, 1)
+
+	// to be overridden by tests
+	sess.connHandler = sess.handleConn
+	sess.errHandler = sess.handleErr
+
 	return sess, nil
 }
 
@@ -703,12 +712,12 @@ func (sess *clientSession) Dial() error {
 	return sess.run(sess.doClose, sess.addAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
-func (sess *clientSession) doKeepConnection(connHandler func(bool)) {
+func (sess *clientSession) doKeepConnection() {
 Loop:
 	for {
 		select {
 		case hasConn := <-sess.connCh:
-			connHandler(hasConn)
+			sess.connHandler(hasConn)
 		case <-sess.stopCh:
 			sess.stopRedial()
 			sess.Log.Infof("session shutting down.")
@@ -716,12 +725,7 @@ Loop:
 		case n := <-sess.doneCh:
 			sess.Log.Debugf("connected after %d attempts.", n)
 		case err := <-sess.errCh:
-			sess.Log.Errorf("session error'ed out with %v", err)
-			sess.stateLock.Lock()
-			if sess.state == Disconnected && sess.lastConn {
-				sess.autoRedial()
-			}
-			sess.stateLock.Unlock()
+			sess.errHandler(err)
 		}
 	}
 }
@@ -734,11 +738,19 @@ func (sess *clientSession) handleConn(hasConn bool) {
 	// connected, and you can call Close when Disconnected without it
 	// losing its stuff.
 	if hasConn {
-		//
 		sess.autoRedial()
 	} else {
 		sess.Close()
 	}
+}
+
+func (sess *clientSession) handleErr(err error) {
+	sess.Log.Errorf("session error'ed out with %v", err)
+	sess.stateLock.Lock()
+	if sess.state == Disconnected && sess.lastConn {
+		sess.autoRedial()
+	}
+	sess.stateLock.Unlock()
 }
 
 func (sess *clientSession) KeepConnection() error {
@@ -749,7 +761,7 @@ func (sess *clientSession) KeepConnection() error {
 	}
 	sess.state = Disconnected
 
-	go sess.doKeepConnection(sess.handleConn)
+	go sess.doKeepConnection()
 
 	return nil
 }

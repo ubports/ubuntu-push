@@ -592,49 +592,51 @@ func (cs *clientSessionSuite) TestCloseStopsRetrier(c *C) {
 //   AutoRedial() tests
 // ****************************************************************/
 
-// func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
-// 	// checks that AutoRedial sets up a retrier and tries redialing it
-// 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-// 	c.Assert(err, IsNil)
-// 	ar := new(derp)
-// 	sess.retrier = ar
-// 	c.Check(ar.stopped, Equals, false)
-// 	sess.AutoRedial(nil)
-// 	c.Check(ar.stopped, Equals, true)
-// }
+func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
+	// checks that AutoRedial sets up a retrier and tries redialing it
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	ar := new(derp)
+	sess.retrier = ar
+	c.Check(ar.stopped, Equals, false)
+	sess.autoRedial()
+	defer sess.stopRedial()
+	c.Check(ar.stopped, Equals, true)
+}
 
-// func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
-// 	// checks that AutoRedial stops the previous retrier
-// 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-// 	c.Assert(err, IsNil)
-// 	ch := make(chan uint32)
-// 	c.Check(sess.retrier, IsNil)
-// 	sess.AutoRedial(ch)
-// 	c.Assert(sess.retrier, NotNil)
-// 	sess.retrier.Stop()
-// 	c.Check(<-ch, Not(Equals), 0)
-// }
+func (cs *clientSessionSuite) TestAutoRedialStopsRetrier(c *C) {
+	// checks that AutoRedial stops the previous retrier
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.doneCh = make(chan uint32)
+	c.Check(sess.retrier, IsNil)
+	sess.autoRedial()
+	c.Assert(sess.retrier, NotNil)
+	sess.retrier.Stop()
+	c.Check(<-sess.doneCh, Not(Equals), 0)
+}
 
-// func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
-// 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-// 	c.Assert(err, IsNil)
-// 	flag := false
-// 	sess.redialDelay = func(sess *clientSession) time.Duration { flag = true; return 0 }
-// 	sess.AutoRedial(nil)
-// 	c.Check(flag, Equals, true)
-// }
+func (cs *clientSessionSuite) TestAutoRedialCallsRedialDelay(c *C) {
+	// NOTE there are tests that use calling redialDelay as an indication of calling autoRedial!
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	flag := false
+	sess.redialDelay = func(sess *clientSession) time.Duration { flag = true; return 0 }
+	sess.autoRedial()
+	c.Check(flag, Equals, true)
+}
 
-// func (cs *clientSessionSuite) TestAutoRedialSetsRedialDelayIfTooQuick(c *C) {
-// 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-// 	c.Assert(err, IsNil)
-// 	sess.redialDelay = func(sess *clientSession) time.Duration { return 0 }
-// 	sess.AutoRedial(nil)
-// 	c.Check(sess.ShouldDelay(), Equals, false)
-// 	sess.stopRedial()
-// 	sess.clearShouldDelay()
-// 	sess.AutoRedial(nil)
-// 	c.Check(sess.ShouldDelay(), Equals, true)
-// }
+func (cs *clientSessionSuite) TestAutoRedialSetsRedialDelayIfTooQuick(c *C) {
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.redialDelay = func(sess *clientSession) time.Duration { return 0 }
+	sess.autoRedial()
+	c.Check(sess.ShouldDelay(), Equals, false)
+	sess.stopRedial()
+	sess.clearShouldDelay()
+	sess.autoRedial()
+	c.Check(sess.ShouldDelay(), Equals, true)
+}
 
 /****************************************************************
   handlePing() tests
@@ -1763,10 +1765,160 @@ func (cs *clientSessionSuite) TestHasConnectivityTriggersConnectivityHandler(c *
 	c.Assert(err, IsNil)
 	c.Assert(sess, NotNil)
 	testCh := make(chan bool)
-	go sess.doKeepConnection(func(p bool) { testCh <- p })
+	sess.connHandler = func(p bool) { testCh <- p }
+	go sess.doKeepConnection()
 	defer sess.StopKeepConnection()
 	sess.HasConnectivity(true)
 	c.Check(<-testCh, Equals, true)
 	sess.HasConnectivity(false)
 	c.Check(<-testCh, Equals, false)
+}
+
+func (cs *clientSessionSuite) xTestStuff(c *C) {
+	srv, err := net.Listen("tcp", "localhost:0")
+	c.Assert(err, IsNil)
+	defer srv.Close()
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.deliveryHosts = []string{srv.Addr().String()}
+	sess.clearShouldDelay()
+	sess.autoRedial()
+	c.Check(<-sess.doneCh, Equals, 1)
+}
+
+func (cs *clientSessionSuite) TestDoneChIsEmptiedAndLogged(c *C) {
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	sess.doneCh = make(chan uint32) // unbuffered
+
+	sess.KeepConnection()
+	defer sess.StopKeepConnection()
+
+	sess.doneCh <- 23
+
+	c.Check(cs.log.Captured(),
+		Matches, `(?ms).* connected after 23 attempts\.`)
+}
+
+func (cs *clientSessionSuite) TestErrChIsEmptiedAndLoggedAndAutoRedial(c *C) {
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	ch := make(chan struct{}, 1)
+	sess.errCh = make(chan error) // unbuffered
+	sess.redialDelay = func(sess *clientSession) time.Duration { ch <- struct{}{}; return 0 }
+	sess.lastConn = true // -> autoRedial, if the session is in Disconnected
+
+	sess.KeepConnection()
+	defer sess.StopKeepConnection()
+
+	sess.errCh <- errors.New("potato")
+	c.Assert(sess.State(), Equals, Disconnected)
+	select {
+	case <-ch:
+		// all ok
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("redialDelay not called (-> autoRedial not called)?")
+	}
+
+	c.Check(cs.log.Captured(),
+		Matches, `(?ms).* session error.*potato`)
+}
+
+func (cs *clientSessionSuite) TestErrChIsEmptiedAndLoggedNoAutoRedial(c *C) {
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	ch := make(chan struct{}, 1)
+	sess.errCh = make(chan error) // unbuffered
+	sess.redialDelay = func(sess *clientSession) time.Duration { ch <- struct{}{}; return 0 }
+	sess.connHandler = func(bool) {}
+	sess.lastConn = false // so, no autoredial
+
+	sess.KeepConnection()
+	defer sess.StopKeepConnection()
+
+	sess.errCh <- errors.New("potato")
+	c.Assert(sess.State(), Equals, Disconnected)
+	select {
+	case <-ch:
+		c.Fatalf("redialDelay called (-> autoRedial called) when disconnected?")
+	case <-time.After(100 * time.Millisecond):
+		// all ok
+	}
+
+	c.Check(cs.log.Captured(),
+		Matches, `(?ms).* session error.*potato`)
+}
+
+func (cs *clientSessionSuite) TestHandleConnConnFromConnected(c *C) {
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	ch := make(chan struct{}, 1)
+	sess.redialDelay = func(sess *clientSession) time.Duration { ch <- struct{}{}; return 0 }
+	sess.state = Connected
+	sess.lastConn = true
+	sess.handleConn(true)
+	c.Check(sess.lastConn, Equals, true)
+
+	select {
+	case <-ch:
+		// all ok
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("redialDelay not called (-> autoRedial not called)?")
+	}
+}
+
+func (cs *clientSessionSuite) TestHandleConnConnFromDisconnected(c *C) {
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	ch := make(chan struct{}, 1)
+	sess.redialDelay = func(sess *clientSession) time.Duration { ch <- struct{}{}; return 0 }
+	sess.state = Disconnected
+	sess.lastConn = false
+	sess.handleConn(true)
+	c.Check(sess.lastConn, Equals, true)
+
+	select {
+	case <-ch:
+		// all ok
+	case <-time.After(100 * time.Millisecond):
+		c.Fatalf("redialDelay not called (-> autoRedial not called)?")
+	}
+}
+
+func (cs *clientSessionSuite) TestHandleConnNotConnFromDisconnected(c *C) {
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	ch := make(chan struct{}, 1)
+	sess.redialDelay = func(sess *clientSession) time.Duration { ch <- struct{}{}; return 0 }
+	sess.state = Disconnected
+	sess.lastConn = false
+	sess.handleConn(false)
+	c.Check(sess.lastConn, Equals, false)
+
+	select {
+	case <-ch:
+		c.Fatalf("redialDelay called (-> autoRedial called)?")
+	case <-time.After(100 * time.Millisecond):
+		// all ok
+	}
+	c.Check(cs.log.Captured(), Matches, `(?ms).*-> Disconnected`)
+}
+
+func (cs *clientSessionSuite) TestHandleConnNotConnFromConnected(c *C) {
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	ch := make(chan struct{}, 1)
+	sess.redialDelay = func(sess *clientSession) time.Duration { ch <- struct{}{}; return 0 }
+	sess.state = Connected
+	sess.lastConn = true
+	sess.handleConn(false)
+	c.Check(sess.lastConn, Equals, false)
+
+	select {
+	case <-ch:
+		c.Fatalf("redialDelay called (-> autoRedial called)?")
+	case <-time.After(100 * time.Millisecond):
+		// all ok
+	}
+	c.Check(cs.log.Captured(), Matches, `(?ms).*-> Disconnected`)
 }
