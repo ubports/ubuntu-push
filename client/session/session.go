@@ -118,6 +118,9 @@ type ClientSessionConfig struct {
 	AuthGetter             func(string) string
 	AuthURL                string
 	AddresseeChecker       AddresseeChecking
+	ErrCh                  chan error
+	BroadcastCh            chan *BroadcastNotification
+	NotificationsCh        chan AddressedNotification
 }
 
 // ClientSession holds a client<->server session and its configuration.
@@ -148,10 +151,7 @@ type ClientSession struct {
 	retrierLock  sync.Mutex
 	cookie       string
 	// status
-	stateP          *uint32
-	ErrCh           chan error
-	BroadcastCh     chan *BroadcastNotification
-	NotificationsCh chan AddressedNotification
+	stateP *uint32
 	// authorization
 	auth string
 	// autoredial knobs
@@ -646,9 +646,6 @@ func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter
 	if err == nil {
 		err = starter()
 		if err == nil {
-			sess.ErrCh = make(chan error, 1)
-			sess.BroadcastCh = make(chan *BroadcastNotification)
-			sess.NotificationsCh = make(chan AddressedNotification)
 			go func() { sess.ErrCh <- looper() }()
 		}
 	}

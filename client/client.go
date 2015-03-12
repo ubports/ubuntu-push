@@ -125,16 +125,22 @@ type PushClient struct {
 	installedChecker   click.InstalledChecker
 	poller             poller.Poller
 	accountsCh         <-chan accounts.Changed
+	// session-side channels
+	errCh           chan error
+	broadcastCh     chan *session.BroadcastNotification
+	notificationsCh chan session.AddressedNotification
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
 func NewPushClient(configPath string, leveldbPath string) *PushClient {
-	client := new(PushClient)
-	client.configPath = configPath
-	client.leveldbPath = leveldbPath
-
-	return client
+	return &PushClient{
+		configPath:      configPath,
+		leveldbPath:     leveldbPath,
+		errCh:           make(chan error),
+		broadcastCh:     make(chan *session.BroadcastNotification),
+		notificationsCh: make(chan session.AddressedNotification),
+	}
 }
 
 var newIdentifier = identifier.New
@@ -206,6 +212,9 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		AuthGetter:       client.getAuthorization,
 		AuthURL:          client.config.SessionURL,
 		AddresseeChecker: client,
+		ErrCh:            client.errCh,
+		BroadcastCh:      client.broadcastCh,
+		NotificationsCh:  client.notificationsCh,
 	}
 }
 
@@ -485,11 +494,11 @@ func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*sess
 			accountshandler()
 		case state := <-client.connCh:
 			connhandler(state)
-		case bcast := <-client.session.BroadcastCh:
+		case bcast := <-client.broadcastCh:
 			bcasthandler(bcast)
-		case aucast := <-client.session.NotificationsCh:
+		case aucast := <-client.notificationsCh:
 			ucasthandler(aucast)
-		case err := <-client.session.ErrCh:
+		case err := <-client.errCh:
 			errhandler(err)
 		case count := <-client.sessionConnectedCh:
 			client.log.Debugf("session connected after %d attempts", count)
