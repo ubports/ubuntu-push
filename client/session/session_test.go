@@ -1774,18 +1774,6 @@ func (cs *clientSessionSuite) TestHasConnectivityTriggersConnectivityHandler(c *
 	c.Check(<-testCh, Equals, false)
 }
 
-func (cs *clientSessionSuite) xTestStuff(c *C) {
-	srv, err := net.Listen("tcp", "localhost:0")
-	c.Assert(err, IsNil)
-	defer srv.Close()
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	sess.deliveryHosts = []string{srv.Addr().String()}
-	sess.clearShouldDelay()
-	sess.autoRedial()
-	c.Check(<-sess.doneCh, Equals, 1)
-}
-
 func (cs *clientSessionSuite) TestDoneChIsEmptiedAndLogged(c *C) {
 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
