@@ -123,6 +123,7 @@ type ClientSessionConfig struct {
 	NotificationsCh        chan AddressedNotification
 }
 
+// ClientSession holds a client<->server session and its configuration.
 type ClientSession interface {
 	Close()
 	AutoRedial(doneCh chan uint32)
@@ -130,7 +131,6 @@ type ClientSession interface {
 	State() ClientSessionState
 }
 
-// ClientSession holds a client<->server session and its configuration.
 type clientSession struct {
 	// configuration
 	DeviceId string
