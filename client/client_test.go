@@ -531,10 +531,17 @@ func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
 /*****************************************************************
     derivePollerSetup tests
 ******************************************************************/
+type derivePollerSession struct{}
+
+func (s *derivePollerSession) Close()                            {}
+func (s *derivePollerSession) AutoRedial(ch chan uint32)         {}
+func (s *derivePollerSession) ClearCookie()                      {}
+func (s *derivePollerSession) State() session.ClientSessionState { return session.Unknown }
+
 func (cs *clientSuite) TestDerivePollerSetup(c *C) {
 	cs.writeTestConfig(map[string]interface{}{})
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.session = new(session.ClientSession)
+	cli.session = new(derivePollerSession)
 	err := cli.configure()
 	c.Assert(err, IsNil)
 	expected := &poller.PollerSetup{
@@ -754,17 +761,25 @@ func (cs *clientSuite) TestSeenStateFactoryWithDbPath(c *C) {
     handleConnState tests
 ******************************************************************/
 
+type handleConnStateSession struct {
+	connected bool
+}
+
+func (s *handleConnStateSession) AutoRedial(ch chan uint32)         { s.connected = true }
+func (s *handleConnStateSession) Close()                            { s.connected = false }
+func (s *handleConnStateSession) ClearCookie()                      {}
+func (s *handleConnStateSession) State() session.ClientSessionState { return session.Unknown }
+
 func (cs *clientSuite) TestHandleConnStateD2C(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSessionAndPoller(), IsNil)
+	sess := &handleConnStateSession{connected: false}
+	cli.session = sess
 
 	c.Assert(cli.hasConnectivity, Equals, false)
-	defer cli.session.Close()
 	cli.handleConnState(true)
 	c.Check(cli.hasConnectivity, Equals, true)
-	c.Assert(cli.session, NotNil)
+	c.Check(sess.connected, Equals, true)
 }
 
 func (cs *clientSuite) TestHandleConnStateSame(c *C) {
@@ -784,14 +799,12 @@ func (cs *clientSuite) TestHandleConnStateSame(c *C) {
 func (cs *clientSuite) TestHandleConnStateC2D(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	cli.log = cs.log
-	cli.session, _ = session.NewSession(cli.config.Addr, cli.deriveSessionConfig(nil), cli.deviceId, seenstate.NewSeenState, cs.log)
-	cli.session.Dial()
+	sess := &handleConnStateSession{connected: true}
+	cli.session = sess
 	cli.hasConnectivity = true
 
-	// cli.session.State() will be "Error" here, for now at least
-	c.Check(cli.session.State(), Not(Equals), session.Disconnected)
 	cli.handleConnState(false)
-	c.Check(cli.session.State(), Equals, session.Disconnected)
+	c.Check(sess.connected, Equals, false)
 }
 
 func (cs *clientSuite) TestHandleConnStateC2DPending(c *C) {

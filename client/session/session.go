@@ -124,7 +124,14 @@ type ClientSessionConfig struct {
 }
 
 // ClientSession holds a client<->server session and its configuration.
-type ClientSession struct {
+type ClientSession interface {
+	Close()
+	AutoRedial(doneCh chan uint32)
+	ClearCookie()
+	State() ClientSessionState
+}
+
+type clientSession struct {
 	// configuration
 	DeviceId string
 	ClientSessionConfig
@@ -157,13 +164,13 @@ type ClientSession struct {
 	// autoredial knobs
 	shouldDelayP    *uint32
 	lastAutoRedial  time.Time
-	redialDelay     func(*ClientSession) time.Duration
+	redialDelay     func(*clientSession) time.Duration
 	redialJitter    func(time.Duration) time.Duration
 	redialDelays    []time.Duration
 	redialDelaysIdx int
 }
 
-func redialDelay(sess *ClientSession) time.Duration {
+func redialDelay(sess *clientSession) time.Duration {
 	if sess.ShouldDelay() {
 		t := sess.redialDelays[sess.redialDelaysIdx]
 		if len(sess.redialDelays) > sess.redialDelaysIdx+1 {
@@ -178,7 +185,7 @@ func redialDelay(sess *ClientSession) time.Duration {
 
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	deviceId string, seenStateFactory func() (seenstate.SeenState, error),
-	log logger.Logger) (*ClientSession, error) {
+	log logger.Logger) (*clientSession, error) {
 	state := uint32(Disconnected)
 	seenState, err := seenStateFactory()
 	if err != nil {
@@ -191,7 +198,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		getHost = gethosts.New(deviceId, hostsEndpoint, conf.ExchangeTimeout)
 	}
 	var shouldDelay uint32 = 0
-	sess := &ClientSession{
+	sess := &clientSession{
 		ClientSessionConfig: conf,
 		getHost:             getHost,
 		fallbackHosts:       fallbackHosts,
@@ -218,59 +225,59 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	return sess, nil
 }
 
-func (sess *ClientSession) ShouldDelay() bool {
+func (sess *clientSession) ShouldDelay() bool {
 	return atomic.LoadUint32(sess.shouldDelayP) != 0
 }
 
-func (sess *ClientSession) setShouldDelay() {
+func (sess *clientSession) setShouldDelay() {
 	atomic.StoreUint32(sess.shouldDelayP, uint32(1))
 }
 
-func (sess *ClientSession) clearShouldDelay() {
+func (sess *clientSession) clearShouldDelay() {
 	atomic.StoreUint32(sess.shouldDelayP, uint32(0))
 }
 
-func (sess *ClientSession) State() ClientSessionState {
+func (sess *clientSession) State() ClientSessionState {
 	return ClientSessionState(atomic.LoadUint32(sess.stateP))
 }
 
-func (sess *ClientSession) setState(state ClientSessionState) {
+func (sess *clientSession) setState(state ClientSessionState) {
 	sess.Log.Debugf("session.setState: %s -> %s", ClientSessionState(atomic.LoadUint32(sess.stateP)), state)
 	atomic.StoreUint32(sess.stateP, uint32(state))
 }
 
-func (sess *ClientSession) setConnection(conn net.Conn) {
+func (sess *clientSession) setConnection(conn net.Conn) {
 	sess.connLock.Lock()
 	defer sess.connLock.Unlock()
 	sess.Connection = conn
 }
 
-func (sess *ClientSession) getConnection() net.Conn {
+func (sess *clientSession) getConnection() net.Conn {
 	sess.connLock.RLock()
 	defer sess.connLock.RUnlock()
 	return sess.Connection
 }
 
-func (sess *ClientSession) setCookie(cookie string) {
+func (sess *clientSession) setCookie(cookie string) {
 	sess.connLock.Lock()
 	defer sess.connLock.Unlock()
 	sess.cookie = cookie
 }
 
-func (sess *ClientSession) getCookie() string {
+func (sess *clientSession) getCookie() string {
 	sess.connLock.RLock()
 	defer sess.connLock.RUnlock()
 	return sess.cookie
 }
 
-func (sess *ClientSession) ClearCookie() {
+func (sess *clientSession) ClearCookie() {
 	sess.connLock.Lock()
 	defer sess.connLock.Unlock()
 	sess.cookie = ""
 }
 
 // getHosts sets deliveryHosts possibly querying a remote endpoint
-func (sess *ClientSession) getHosts() error {
+func (sess *clientSession) getHosts() error {
 	if sess.getHost != nil {
 		if sess.deliveryHosts != nil && sess.timeSince(sess.deliveryHostsTimestamp) < sess.HostsCachingExpiryTime {
 			return nil
@@ -294,7 +301,7 @@ func (sess *ClientSession) getHosts() error {
 
 // addAuthorization gets the authorization blob to send to the server
 // and adds it to the session.
-func (sess *ClientSession) addAuthorization() error {
+func (sess *clientSession) addAuthorization() error {
 	if sess.AuthGetter != nil {
 		sess.Log.Debugf("adding authorization")
 		sess.auth = sess.AuthGetter(sess.AuthURL)
@@ -302,13 +309,13 @@ func (sess *ClientSession) addAuthorization() error {
 	return nil
 }
 
-func (sess *ClientSession) resetHosts() {
+func (sess *clientSession) resetHosts() {
 	sess.deliveryHosts = nil
 }
 
 // startConnectionAttempt/nextHostToTry help connect iterating over candidate hosts
 
-func (sess *ClientSession) startConnectionAttempt() {
+func (sess *clientSession) startConnectionAttempt() {
 	if sess.timeSince(sess.lastAttemptTimestamp) > sess.ExpectAllRepairedTime {
 		sess.tryHost = 0
 	}
@@ -319,7 +326,7 @@ func (sess *ClientSession) startConnectionAttempt() {
 	sess.lastAttemptTimestamp = time.Now()
 }
 
-func (sess *ClientSession) nextHostToTry() string {
+func (sess *clientSession) nextHostToTry() string {
 	if sess.leftToTry == 0 {
 		return ""
 	}
@@ -331,7 +338,7 @@ func (sess *ClientSession) nextHostToTry() string {
 
 // we reached the Started state, we can retry with the same host if we
 // have to retry again
-func (sess *ClientSession) started() {
+func (sess *clientSession) started() {
 	sess.tryHost--
 	if sess.tryHost == -1 {
 		sess.tryHost = len(sess.deliveryHosts) - 1
@@ -341,7 +348,7 @@ func (sess *ClientSession) started() {
 
 // connect to a server using the configuration in the ClientSession
 // and set up the connection.
-func (sess *ClientSession) connect() error {
+func (sess *clientSession) connect() error {
 	sess.setShouldDelay()
 	sess.startConnectionAttempt()
 	var err error
@@ -363,7 +370,7 @@ func (sess *ClientSession) connect() error {
 	return nil
 }
 
-func (sess *ClientSession) stopRedial() {
+func (sess *clientSession) stopRedial() {
 	sess.retrierLock.Lock()
 	defer sess.retrierLock.Unlock()
 	if sess.retrier != nil {
@@ -372,7 +379,7 @@ func (sess *ClientSession) stopRedial() {
 	}
 }
 
-func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
+func (sess *clientSession) AutoRedial(doneCh chan uint32) {
 	sess.stopRedial()
 	if time.Since(sess.lastAutoRedial) < 2*time.Second {
 		sess.setShouldDelay()
@@ -398,12 +405,12 @@ func (sess *ClientSession) AutoRedial(doneCh chan uint32) {
 	}()
 }
 
-func (sess *ClientSession) Close() {
+func (sess *clientSession) Close() {
 	sess.stopRedial()
 	sess.doClose()
 }
 
-func (sess *ClientSession) doClose() {
+func (sess *clientSession) doClose() {
 	sess.connLock.Lock()
 	defer sess.connLock.Unlock()
 	if sess.Connection != nil {
@@ -417,7 +424,7 @@ func (sess *ClientSession) doClose() {
 }
 
 // handle "ping" messages
-func (sess *ClientSession) handlePing() error {
+func (sess *clientSession) handlePing() error {
 	err := sess.proto.WriteMessage(protocol.PingPongMsg{Type: "pong"})
 	if err == nil {
 		sess.Log.Debugf("ping.")
@@ -429,7 +436,7 @@ func (sess *ClientSession) handlePing() error {
 	return err
 }
 
-func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *BroadcastNotification {
+func (sess *clientSession) decodeBroadcast(bcast *serverMsg) *BroadcastNotification {
 	decoded := make([]map[string]interface{}, 0)
 	for _, p := range bcast.Payloads {
 		var v map[string]interface{}
@@ -447,7 +454,7 @@ func (sess *ClientSession) decodeBroadcast(bcast *serverMsg) *BroadcastNotificat
 }
 
 // handle "broadcast" messages
-func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
+func (sess *clientSession) handleBroadcast(bcast *serverMsg) error {
 	err := sess.SeenState.SetLevel(bcast.ChanId, bcast.TopLevel)
 	if err != nil {
 		sess.setState(Error)
@@ -478,7 +485,7 @@ func (sess *ClientSession) handleBroadcast(bcast *serverMsg) error {
 }
 
 // handle "notifications" messages
-func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
+func (sess *clientSession) handleNotifications(ucast *serverMsg) error {
 	notifs, err := sess.SeenState.FilterBySeen(ucast.Notifications)
 	if err != nil {
 		sess.setState(Error)
@@ -512,7 +519,7 @@ func (sess *ClientSession) handleNotifications(ucast *serverMsg) error {
 }
 
 // handle "connbroken" messages
-func (sess *ClientSession) handleConnBroken(connBroken *serverMsg) error {
+func (sess *clientSession) handleConnBroken(connBroken *serverMsg) error {
 	sess.setState(Error)
 	reason := connBroken.Reason
 	err := fmt.Errorf("server broke connection: %s", reason)
@@ -525,7 +532,7 @@ func (sess *ClientSession) handleConnBroken(connBroken *serverMsg) error {
 }
 
 // handle "setparams" messages
-func (sess *ClientSession) handleSetParams(setParams *serverMsg) error {
+func (sess *clientSession) handleSetParams(setParams *serverMsg) error {
 	if setParams.SetCookie != "" {
 		sess.setCookie(setParams.SetCookie)
 	}
@@ -533,7 +540,7 @@ func (sess *ClientSession) handleSetParams(setParams *serverMsg) error {
 }
 
 // loop runs the session with the server, emits a stream of events.
-func (sess *ClientSession) loop() error {
+func (sess *clientSession) loop() error {
 	var err error
 	var recv serverMsg
 	sess.setState(Running)
@@ -571,7 +578,7 @@ func (sess *ClientSession) loop() error {
 }
 
 // Call this when you've connected and want to start looping.
-func (sess *ClientSession) start() error {
+func (sess *clientSession) start() error {
 	conn := sess.getConnection()
 	err := conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	if err != nil {
@@ -634,7 +641,7 @@ func (sess *ClientSession) start() error {
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter, starter, looper func() error) error {
+func (sess *clientSession) run(closer func(), authChecker, hostGetter, connecter, starter, looper func() error) error {
 	closer()
 	if err := authChecker(); err != nil {
 		return err
@@ -653,7 +660,7 @@ func (sess *ClientSession) run(closer func(), authChecker, hostGetter, connecter
 }
 
 // This Jitter returns a random time.Duration somewhere in [-spread, spread].
-func (sess *ClientSession) Jitter(spread time.Duration) time.Duration {
+func (sess *clientSession) Jitter(spread time.Duration) time.Duration {
 	if spread < 0 {
 		panic("spread must be non-negative")
 	}
@@ -663,7 +670,7 @@ func (sess *ClientSession) Jitter(spread time.Duration) time.Duration {
 
 // Dial takes the session from newly created (or newly disconnected)
 // to running the main loop.
-func (sess *ClientSession) Dial() error {
+func (sess *clientSession) Dial() error {
 	if sess.Protocolator == nil {
 		// a missing protocolator means you've willfully overridden
 		// it; returning an error here would prompt AutoRedial to just
