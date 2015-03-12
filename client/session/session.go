@@ -158,7 +158,8 @@ type clientSession struct {
 	retrierLock  sync.Mutex
 	cookie       string
 	// status
-	stateP *uint32
+	stateLock sync.RWMutex
+	state     ClientSessionState
 	// authorization
 	auth string
 	// autoredial knobs
@@ -186,7 +187,6 @@ func redialDelay(sess *clientSession) time.Duration {
 func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	deviceId string, seenStateFactory func() (seenstate.SeenState, error),
 	log logger.Logger) (*clientSession, error) {
-	state := uint32(Disconnected)
 	seenState, err := seenStateFactory()
 	if err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 		Protocolator:        protocol.NewProtocol0,
 		SeenState:           seenState,
 		TLS:                 &tls.Config{},
-		stateP:              &state,
+		state:               Disconnected,
 		timeSince:           time.Since,
 		shouldDelayP:        &shouldDelay,
 		redialDelay:         redialDelay,
@@ -238,12 +238,16 @@ func (sess *clientSession) clearShouldDelay() {
 }
 
 func (sess *clientSession) State() ClientSessionState {
-	return ClientSessionState(atomic.LoadUint32(sess.stateP))
+	sess.stateLock.RLock()
+	defer sess.stateLock.RUnlock()
+	return sess.state
 }
 
 func (sess *clientSession) setState(state ClientSessionState) {
-	sess.Log.Debugf("session.setState: %s -> %s", ClientSessionState(atomic.LoadUint32(sess.stateP)), state)
-	atomic.StoreUint32(sess.stateP, uint32(state))
+	sess.stateLock.Lock()
+	defer sess.stateLock.Unlock()
+	sess.Log.Debugf("session.setState: %s -> %s", sess.state, state)
+	sess.state = state
 }
 
 func (sess *clientSession) setConnection(conn net.Conn) {
