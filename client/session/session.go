@@ -303,6 +303,7 @@ func (sess *clientSession) getCookie() string {
 }
 
 func (sess *clientSession) ResetCookie() {
+	sess.stopRedial()
 	sess.doClose(true)
 }
 
