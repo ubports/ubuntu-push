@@ -529,7 +529,6 @@ func (cs *clientSuite) TestDerivePostalServiceSetup(c *C) {
 ******************************************************************/
 type derivePollerSession struct{}
 
-func (s *derivePollerSession) Close()                            {}
 func (s *derivePollerSession) ResetCookie()                      {}
 func (s *derivePollerSession) State() session.ClientSessionState { return session.Unknown }
 func (s *derivePollerSession) HasConnectivity(bool)              {}
@@ -1059,7 +1058,6 @@ func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
 
 type loopSession struct{ hasConn bool }
 
-func (s *loopSession) Close()       {}
 func (s *loopSession) ResetCookie() {}
 func (s *loopSession) State() session.ClientSessionState {
 	if s.hasConn {
