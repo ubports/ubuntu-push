@@ -720,8 +720,13 @@ Loop:
 			sess.connHandler(hasConn)
 		case <-sess.stopCh:
 			sess.Log.Infof("session shutting down.")
+			sess.connLock.Lock()
+			defer sess.connLock.Unlock()
 			sess.stopRedial()
-			sess.doClose()
+			if sess.Connection != nil {
+				sess.Connection.Close()
+				sess.Connection = nil
+			}
 			break Loop
 		case n := <-sess.doneCh:
 			sess.Log.Debugf("connected after %d attempts.", n)
