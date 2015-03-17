@@ -1371,13 +1371,31 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
   run() tests
 ****************************************************************/
 
+func (cs *clientSessionSuite) TestRunCallsCloserWithFalse(c *C) {
+	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	failure := errors.New("bail")
+	has_closed := false
+	with_false := false
+	err = sess.run(
+		func(b bool) { has_closed = true; with_false = !b },
+		func() error { return failure },
+		nil,
+		nil,
+		nil,
+		nil)
+	c.Check(err, Equals, failure)
+	c.Check(has_closed, Equals, true)
+	c.Check(with_false, Equals, true)
+}
+
 func (cs *clientSessionSuite) TestRunBailsIfAuthCheckFails(c *C) {
 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	failure := errors.New("TestRunBailsIfAuthCheckFails")
 	has_closed := false
 	err = sess.run(
-		func() { has_closed = true },
+		func(bool) { has_closed = true },
 		func() error { return failure },
 		nil,
 		nil,
@@ -1393,7 +1411,7 @@ func (cs *clientSessionSuite) TestRunBailsIfHostGetterFails(c *C) {
 	failure := errors.New("TestRunBailsIfHostGetterFails")
 	has_closed := false
 	err = sess.run(
-		func() { has_closed = true },
+		func(bool) { has_closed = true },
 		func() error { return nil },
 		func() error { return failure },
 		nil,
@@ -1408,7 +1426,7 @@ func (cs *clientSessionSuite) TestRunBailsIfConnectFails(c *C) {
 	c.Assert(err, IsNil)
 	failure := errors.New("TestRunBailsIfConnectFails")
 	err = sess.run(
-		func() {},
+		func(bool) {},
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return failure },
@@ -1422,7 +1440,7 @@ func (cs *clientSessionSuite) TestRunBailsIfStartFails(c *C) {
 	c.Assert(err, IsNil)
 	failure := errors.New("TestRunBailsIfStartFails")
 	err = sess.run(
-		func() {},
+		func(bool) {},
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
@@ -1437,7 +1455,7 @@ func (cs *clientSessionSuite) TestRunRunsEvenIfLoopFails(c *C) {
 	failureCh := make(chan error) // must be unbuffered
 	notf := &BroadcastNotification{}
 	err = sess.run(
-		func() {},
+		func(bool) {},
 		func() error { return nil },
 		func() error { return nil },
 		func() error { return nil },
@@ -1710,16 +1728,16 @@ func (cs *clientSessionSuite) TestRedialDelay(c *C) {
 }
 
 /****************************************************************
-  ClearCookie() tests
+  ResetCookie() tests
 ****************************************************************/
 
-func (cs *clientSessionSuite) TestClearCookie(c *C) {
+func (cs *clientSessionSuite) TestResetCookie(c *C) {
 	sess, err := NewSession("foo:443", dummyConf(), "", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	c.Check(sess.getCookie(), Equals, "")
 	sess.setCookie("COOKIE")
 	c.Check(sess.getCookie(), Equals, "COOKIE")
-	sess.ClearCookie()
+	sess.ResetCookie()
 	c.Check(sess.getCookie(), Equals, "")
 }
 

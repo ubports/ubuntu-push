@@ -129,7 +129,7 @@ type ClientSessionConfig struct {
 // ClientSession holds a client<->server session and its configuration.
 type ClientSession interface {
 	Close()
-	ClearCookie()
+	ResetCookie()
 	State() ClientSessionState
 	HasConnectivity(bool)
 	KeepConnection() error
@@ -302,10 +302,8 @@ func (sess *clientSession) getCookie() string {
 	return sess.cookie
 }
 
-func (sess *clientSession) ClearCookie() {
-	sess.connLock.Lock()
-	defer sess.connLock.Unlock()
-	sess.cookie = ""
+func (sess *clientSession) ResetCookie() {
+	sess.doClose(true)
 }
 
 // getHosts sets deliveryHosts possibly querying a remote endpoint
@@ -439,12 +437,15 @@ func (sess *clientSession) autoRedial() {
 
 func (sess *clientSession) Close() {
 	sess.stopRedial()
-	sess.doClose()
+	sess.doClose(false)
 }
 
-func (sess *clientSession) doClose() {
+func (sess *clientSession) doClose(resetCookie bool) {
 	sess.connLock.Lock()
 	defer sess.connLock.Unlock()
+	if resetCookie {
+		sess.cookie = ""
+	}
 	if sess.Connection != nil {
 		sess.Connection.Close()
 		// we ignore Close errors, on purpose (the thinking being that
@@ -673,8 +674,8 @@ func (sess *clientSession) start() error {
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *clientSession) run(closer func(), authChecker, hostGetter, connecter, starter, looper func() error) error {
-	closer()
+func (sess *clientSession) run(closer func(bool), authChecker, hostGetter, connecter, starter, looper func() error) error {
+	closer(false)
 	if err := authChecker(); err != nil {
 		return err
 	}
