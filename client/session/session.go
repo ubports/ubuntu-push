@@ -159,7 +159,6 @@ type clientSession struct {
 	proto        protocol.Protocol
 	pingInterval time.Duration
 	retrier      util.AutoRedialer
-	retrierLock  sync.Mutex
 	cookie       string
 	// status
 	stateLock sync.RWMutex
@@ -400,8 +399,6 @@ func (sess *clientSession) connect() error {
 }
 
 func (sess *clientSession) stopRedial() {
-	sess.retrierLock.Lock()
-	defer sess.retrierLock.Unlock()
 	if sess.retrier != nil {
 		sess.retrier.Stop()
 		sess.retrier = nil
@@ -414,24 +411,16 @@ func (sess *clientSession) autoRedial() {
 		sess.setShouldDelay()
 	}
 	time.Sleep(sess.redialDelay(sess))
-	sess.retrierLock.Lock()
-	defer sess.retrierLock.Unlock()
 	if sess.retrier != nil {
 		panic("session AutoRedial: unexpected non-nil retrier.")
 	}
 	sess.retrier = util.NewAutoRedialer(sess)
 	sess.lastAutoRedial = time.Now()
-	go func() {
-		sess.retrierLock.Lock()
-		retrier := sess.retrier
-		sess.retrierLock.Unlock()
-		if retrier == nil {
-			sess.Log.Debugf("session autoredialer skipping retry: retrier has been set to nil.")
-			return
-		}
+	go func(retrier util.AutoRedialer) {
 		sess.Log.Debugf("session autoredialier launching Redial goroutine")
+		// if the redialer has been stopped before calling Redial(), it'll return 0.
 		sess.doneCh <- retrier.Redial()
-	}()
+	}(sess.retrier)
 }
 
 func (sess *clientSession) doClose(resetCookie bool) {
@@ -718,6 +707,8 @@ Loop:
 			sess.Log.Infof("session shutting down.")
 			break Loop
 		case n := <-sess.doneCh:
+			// if n == 0, the redialer aborted. If you do
+			// anything other than log it, keep that in mind.
 			sess.Log.Debugf("connected after %d attempts.", n)
 		case err := <-sess.errCh:
 			sess.errHandler(err)
