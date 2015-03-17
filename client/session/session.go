@@ -719,8 +719,9 @@ Loop:
 		case hasConn := <-sess.connCh:
 			sess.connHandler(hasConn)
 		case <-sess.stopCh:
-			sess.stopRedial()
 			sess.Log.Infof("session shutting down.")
+			sess.stopRedial()
+			sess.doClose()
 			break Loop
 		case n := <-sess.doneCh:
 			sess.Log.Debugf("connected after %d attempts.", n)
@@ -767,8 +768,8 @@ func (sess *clientSession) KeepConnection() error {
 }
 
 func (sess *clientSession) StopKeepConnection() {
-	close(sess.stopCh)
 	sess.setState(Shutdown)
+	close(sess.stopCh)
 }
 
 func (sess *clientSession) HasConnectivity(hasConn bool) error {
