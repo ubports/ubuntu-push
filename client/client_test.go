@@ -532,7 +532,7 @@ type derivePollerSession struct{}
 func (s *derivePollerSession) Close()                            {}
 func (s *derivePollerSession) ClearCookie()                      {}
 func (s *derivePollerSession) State() session.ClientSessionState { return session.Unknown }
-func (s *derivePollerSession) HasConnectivity(bool) error        { return nil }
+func (s *derivePollerSession) HasConnectivity(bool)              {}
 func (s *derivePollerSession) KeepConnection() error             { return nil }
 func (s *derivePollerSession) StopKeepConnection()               {}
 
@@ -1068,9 +1068,9 @@ func (s *loopSession) State() session.ClientSessionState {
 		return session.Disconnected
 	}
 }
-func (s *loopSession) HasConnectivity(hasConn bool) error { s.hasConn = hasConn; return nil }
-func (s *loopSession) KeepConnection() error              { return nil }
-func (s *loopSession) StopKeepConnection()                {}
+func (s *loopSession) HasConnectivity(hasConn bool) { s.hasConn = hasConn }
+func (s *loopSession) KeepConnection() error        { return nil }
+func (s *loopSession) StopKeepConnection()          {}
 
 func (cs *clientSuite) TestLoop(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -1094,16 +1094,16 @@ func (cs *clientSuite) TestLoop(c *C) {
 	// at and the loop itself.
 	tick := func() { cli.sessionConnectedCh <- 42 }
 
+	c.Assert(cli.session, NotNil)
+	cli.session.StopKeepConnection()
+	cli.session = &loopSession{}
+
 	go cli.Loop()
 
 	// sessionConnectedCh to nothing in particular, but it'll help sync this test
 	cli.sessionConnectedCh <- 42
 	tick()
 	c.Check(cs.log.Captured(), Matches, "(?msi).*Session connected after 42 attempts$")
-
-	c.Assert(cli.session, NotNil)
-	cli.session.StopKeepConnection()
-	cli.session = &loopSession{}
 
 	// loop() should have connected:
 	//  * connCh to the connectivity checker
