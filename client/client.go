@@ -452,14 +452,6 @@ func (client *PushClient) handleUnicastNotification(anotif session.AddressedNoti
 	return nil
 }
 
-// handleAccountsChange deals with the user adding or removing (or
-// changing) the u1 account used to auth
-func (client *PushClient) handleAccountsChange() {
-	client.log.Infof("U1 account changed; restarting session")
-	client.session.ClearCookie()
-	client.session.Close()
-}
-
 // doLoop connects events with their handlers
 func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, unregisterhandler func(*click.AppId), accountshandler func()) {
 	for {
@@ -497,7 +489,7 @@ func (client *PushClient) Loop() {
 		client.handleBroadcastNotification,
 		client.handleUnicastNotification,
 		client.handleUnregister,
-		client.handleAccountsChange,
+		client.session.ResetCookie,
 	)
 }
 
