@@ -61,6 +61,5 @@ func (cfg *TLSParsedConfig) TLSServerConfig() *tls.Config {
 		},
 		MinVersion: tls.VersionTLS12,
 	}
-	fmt.Printf("TLS: %#v\n", tlsCfg)
 	return tlsCfg
 }
