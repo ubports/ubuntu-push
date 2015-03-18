@@ -131,7 +131,7 @@ type ClientSession interface {
 	Close()
 	ClearCookie()
 	State() ClientSessionState
-	HasConnectivity(bool) error
+	HasConnectivity(bool)
 	KeepConnection() error
 	StopKeepConnection()
 }
@@ -777,10 +777,8 @@ func (sess *clientSession) StopKeepConnection() {
 	close(sess.stopCh)
 }
 
-func (sess *clientSession) HasConnectivity(hasConn bool) error {
+func (sess *clientSession) HasConnectivity(hasConn bool) {
 	sess.connCh <- hasConn
-	// XXX throw errors if called from weird state?
-	return nil
 }
 
 func init() {

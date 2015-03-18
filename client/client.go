@@ -382,13 +382,6 @@ func (client *PushClient) handleUnregister(app *click.AppId) {
 	}
 }
 
-// handleConnState deals with connectivity events
-func (client *PushClient) handleConnState(hasConnectivity bool) {
-	client.log.Debugf("handleConnState: %v", hasConnectivity)
-	client.session.HasConnectivity(hasConnectivity)
-	client.log.Debugf("handled.")
-}
-
 // filterBroadcastNotification finds out if the notification is about an actual
 // upgrade for the device. It expects msg.Decoded entries to look
 // like:
@@ -500,7 +493,7 @@ func (client *PushClient) doStart(fs ...func() error) error {
 
 // Loop calls doLoop with the "real" handlers
 func (client *PushClient) Loop() {
-	client.doLoop(client.handleConnState,
+	client.doLoop(client.session.HasConnectivity,
 		client.handleBroadcastNotification,
 		client.handleUnicastNotification,
 		client.handleUnregister,
