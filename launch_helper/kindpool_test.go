@@ -45,7 +45,7 @@ func takeNext(ch chan *HelperResult, c *C) *HelperResult {
 	select {
 	case res := <-ch:
 		return res
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(time.Second):
 		c.Fatal("timeout waiting for result")
 	}
 	return nil
