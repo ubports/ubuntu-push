@@ -302,6 +302,7 @@ func (sess *clientSession) getCookie() string {
 }
 
 func (sess *clientSession) ResetCookie() {
+	sess.stopRedial()
 	sess.doClose(true)
 }
 
@@ -714,8 +715,14 @@ Loop:
 		case hasConn := <-sess.connCh:
 			sess.connHandler(hasConn)
 		case <-sess.stopCh:
-			sess.stopRedial()
 			sess.Log.Infof("session shutting down.")
+			sess.connLock.Lock()
+			defer sess.connLock.Unlock()
+			sess.stopRedial()
+			if sess.Connection != nil {
+				sess.Connection.Close()
+				sess.Connection = nil
+			}
 			break Loop
 		case n := <-sess.doneCh:
 			sess.Log.Debugf("connected after %d attempts.", n)
@@ -763,8 +770,8 @@ func (sess *clientSession) KeepConnection() error {
 }
 
 func (sess *clientSession) StopKeepConnection() {
-	close(sess.stopCh)
 	sess.setState(Shutdown)
+	close(sess.stopCh)
 }
 
 func (sess *clientSession) HasConnectivity(hasConn bool) {
