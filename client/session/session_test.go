@@ -538,55 +538,10 @@ func (cs *clientSessionSuite) TestConnectConnectFail(c *C) {
 	c.Check(sess.State(), Equals, Error)
 }
 
-/****************************************************************
-  Close() tests
-****************************************************************/
+type dumbRetrier struct{ stopped bool }
 
-func (cs *clientSessionSuite) TestClose(c *C) {
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: "TestClose"}
-	sess.Close()
-	c.Check(sess.Connection, IsNil)
-	c.Check(sess.State(), Equals, Disconnected)
-}
-
-func (cs *clientSessionSuite) TestCloseTwice(c *C) {
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: "TestCloseTwice"}
-	sess.Close()
-	c.Check(sess.Connection, IsNil)
-	sess.Close()
-	c.Check(sess.Connection, IsNil)
-	c.Check(sess.State(), Equals, Disconnected)
-}
-
-func (cs *clientSessionSuite) TestCloseFails(c *C) {
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	sess.Connection = &testConn{Name: "TestCloseFails", CloseCondition: condition.Work(false)}
-	sess.Close()
-	c.Check(sess.Connection, IsNil) // nothing you can do to clean up anyway
-	c.Check(sess.State(), Equals, Disconnected)
-}
-
-type derp struct{ stopped bool }
-
-func (*derp) Redial() uint32 { return 0 }
-func (d *derp) Stop()        { d.stopped = true }
-
-func (cs *clientSessionSuite) TestCloseStopsRetrier(c *C) {
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	ar := new(derp)
-	sess.retrier = ar
-	c.Check(ar.stopped, Equals, false)
-	sess.Close()
-	c.Check(ar.stopped, Equals, true)
-	sess.Close() // double close check
-	c.Check(ar.stopped, Equals, true)
-}
+func (*dumbRetrier) Redial() uint32 { return 0 }
+func (d *dumbRetrier) Stop()        { d.stopped = true }
 
 // /****************************************************************
 //   AutoRedial() tests
@@ -596,7 +551,7 @@ func (cs *clientSessionSuite) TestAutoRedialWorks(c *C) {
 	// checks that AutoRedial sets up a retrier and tries redialing it
 	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	ar := new(derp)
+	ar := new(dumbRetrier)
 	sess.retrier = ar
 	c.Check(ar.stopped, Equals, false)
 	sess.autoRedial()
@@ -1678,7 +1633,7 @@ func (cs *clientSessionSuite) TestDialWorksDirect(c *C) {
 	c.Assert(err, IsNil)
 	sess, err := NewSession(lst.Addr().String(), dialTestConf(), "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
-	defer sess.Close()
+	defer sess.StopKeepConnection()
 
 	upCh := make(chan interface{}, 5)
 	downCh := make(chan interface{}, 5)

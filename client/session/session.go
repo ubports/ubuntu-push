@@ -128,7 +128,6 @@ type ClientSessionConfig struct {
 
 // ClientSession holds a client<->server session and its configuration.
 type ClientSession interface {
-	Close()
 	ResetCookie()
 	State() ClientSessionState
 	HasConnectivity(bool)
@@ -434,11 +433,6 @@ func (sess *clientSession) autoRedial() {
 		sess.Log.Debugf("session autoredialier launching Redial goroutine")
 		sess.doneCh <- retrier.Redial()
 	}()
-}
-
-func (sess *clientSession) Close() {
-	sess.stopRedial()
-	sess.doClose(false)
 }
 
 func (sess *clientSession) doClose(resetCookie bool) {
@@ -748,7 +742,8 @@ func (sess *clientSession) handleConn(hasConn bool) {
 	if hasConn {
 		sess.autoRedial()
 	} else {
-		sess.Close()
+		sess.stopRedial()
+		sess.doClose(false)
 	}
 }
 
