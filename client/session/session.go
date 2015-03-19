@@ -442,6 +442,12 @@ func (sess *clientSession) doClose(resetCookie bool) {
 	if resetCookie {
 		sess.cookie = ""
 	}
+	sess.closeConnection()
+	sess.setState(Disconnected)
+}
+
+func (sess *clientSession) closeConnection() {
+	// *must be called with connLock held*
 	if sess.Connection != nil {
 		sess.Connection.Close()
 		// we ignore Close errors, on purpose (the thinking being that
@@ -449,7 +455,6 @@ func (sess *clientSession) doClose(resetCookie bool) {
 		// you could do to recover at this stage).
 		sess.Connection = nil
 	}
-	sess.setState(Disconnected)
 }
 
 // handle "ping" messages
@@ -727,10 +732,7 @@ Loop:
 			sess.connLock.Lock()
 			defer sess.connLock.Unlock()
 			sess.stopRedial()
-			if sess.Connection != nil {
-				sess.Connection.Close()
-				sess.Connection = nil
-			}
+			sess.closeConnection()
 			break Loop
 		case n := <-sess.doneCh:
 			// if n == 0, the redialer aborted. If you do
