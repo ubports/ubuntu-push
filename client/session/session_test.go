@@ -1759,6 +1759,7 @@ func (cs *clientSessionSuite) TestDoneChIsEmptiedAndLogged(c *C) {
 	defer sess.StopKeepConnection()
 
 	sess.doneCh <- 23
+	sess.doneCh <- 24 // makes sure the first one has been processed before checking
 
 	c.Check(cs.log.Captured(),
 		Matches, `(?ms).* connected after 23 attempts\.`)
