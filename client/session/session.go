@@ -442,6 +442,12 @@ func (sess *clientSession) doClose(resetCookie bool) {
 	if resetCookie {
 		sess.cookie = ""
 	}
+	sess.closeConnection()
+	sess.setState(Disconnected)
+}
+
+func (sess *clientSession) closeConnection() {
+	// *must be called with connLock held*
 	if sess.Connection != nil {
 		sess.Connection.Close()
 		// we ignore Close errors, on purpose (the thinking being that
@@ -449,7 +455,6 @@ func (sess *clientSession) doClose(resetCookie bool) {
 		// you could do to recover at this stage).
 		sess.Connection = nil
 	}
-	sess.setState(Disconnected)
 }
 
 // handle "ping" messages
@@ -709,8 +714,15 @@ func (sess *clientSession) Dial() error {
 	return sess.run(sess.doClose, sess.addAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
+func (sess *clientSession) shutdown() {
+	sess.Log.Infof("session shutting down.")
+	sess.connLock.Lock()
+	defer sess.connLock.Unlock()
+	sess.stopRedial()
+	sess.closeConnection()
+}
+
 func (sess *clientSession) doKeepConnection() {
-Loop:
 	for {
 		select {
 		case cmd := <-sess.cmdCh:
@@ -723,15 +735,8 @@ Loop:
 				sess.resetCookie()
 			}
 		case <-sess.stopCh:
-			sess.Log.Infof("session shutting down.")
-			sess.connLock.Lock()
-			defer sess.connLock.Unlock()
-			sess.stopRedial()
-			if sess.Connection != nil {
-				sess.Connection.Close()
-				sess.Connection = nil
-			}
-			break Loop
+			sess.shutdown()
+			return
 		case n := <-sess.doneCh:
 			// if n == 0, the redialer aborted. If you do
 			// anything other than log it, keep that in mind.
