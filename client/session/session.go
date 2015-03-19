@@ -714,8 +714,15 @@ func (sess *clientSession) Dial() error {
 	return sess.run(sess.doClose, sess.addAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
+func (sess *clientSession) shutdown() {
+	sess.Log.Infof("session shutting down.")
+	sess.connLock.Lock()
+	defer sess.connLock.Unlock()
+	sess.stopRedial()
+	sess.closeConnection()
+}
+
 func (sess *clientSession) doKeepConnection() {
-Loop:
 	for {
 		select {
 		case cmd := <-sess.cmdCh:
@@ -728,12 +735,7 @@ Loop:
 				sess.resetCookie()
 			}
 		case <-sess.stopCh:
-			sess.Log.Infof("session shutting down.")
-			sess.connLock.Lock()
-			defer sess.connLock.Unlock()
-			sess.stopRedial()
-			sess.closeConnection()
-			break Loop
+			return sess.shutdown()
 		case n := <-sess.doneCh:
 			// if n == 0, the redialer aborted. If you do
 			// anything other than log it, keep that in mind.
