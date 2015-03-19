@@ -39,6 +39,14 @@ import (
 	"launchpad.net/ubuntu-push/util"
 )
 
+type sessCmd uint8
+
+const (
+	cmdDisconnect sessCmd = iota
+	cmdConnect
+	cmdResetCookie
+)
+
 var (
 	wireVersionBytes = []byte{protocol.ProtocolWireVersion}
 )
@@ -172,8 +180,8 @@ type clientSession struct {
 	redialJitter    func(time.Duration) time.Duration
 	redialDelays    []time.Duration
 	redialDelaysIdx int
-	// connection events come in over here
-	connCh chan bool
+	// connection events, and cookie reset requests, come in over here
+	cmdCh chan sessCmd
 	// last seen connection event is here
 	lastConn bool
 	// connection events are handled by this
@@ -241,7 +249,7 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 	}
 	sess.doneCh = make(chan uint32, 1)
 	sess.stopCh = make(chan struct{})
-	sess.connCh = make(chan bool, 1)
+	sess.cmdCh = make(chan sessCmd)
 	sess.errCh = make(chan error, 1)
 
 	// to be overridden by tests
@@ -301,6 +309,10 @@ func (sess *clientSession) getCookie() string {
 }
 
 func (sess *clientSession) ResetCookie() {
+	sess.cmdCh <- cmdResetCookie
+}
+
+func (sess *clientSession) resetCookie() {
 	sess.stopRedial()
 	sess.doClose(true)
 }
@@ -701,8 +713,15 @@ func (sess *clientSession) doKeepConnection() {
 Loop:
 	for {
 		select {
-		case hasConn := <-sess.connCh:
-			sess.connHandler(hasConn)
+		case cmd := <-sess.cmdCh:
+			switch cmd {
+			case cmdConnect:
+				sess.connHandler(true)
+			case cmdDisconnect:
+				sess.connHandler(false)
+			case cmdResetCookie:
+				sess.resetCookie()
+			}
 		case <-sess.stopCh:
 			sess.Log.Infof("session shutting down.")
 			sess.connLock.Lock()
@@ -766,7 +785,11 @@ func (sess *clientSession) StopKeepConnection() {
 }
 
 func (sess *clientSession) HasConnectivity(hasConn bool) {
-	sess.connCh <- hasConn
+	if hasConn {
+		sess.cmdCh <- cmdConnect
+	} else {
+		sess.cmdCh <- cmdDisconnect
+	}
 }
 
 func init() {

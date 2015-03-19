@@ -250,7 +250,7 @@ func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
 	c.Check(sess.TLS.RootCAs, IsNil)
 	c.Check(sess.State(), Equals, Pristine)
 	c.Check(sess.stopCh, NotNil)
-	c.Check(sess.connCh, NotNil)
+	c.Check(sess.cmdCh, NotNil)
 }
 
 func (cs *clientSessionSuite) TestNewSessionHostEndpointWorks(c *C) {
@@ -1689,6 +1689,8 @@ func (cs *clientSessionSuite) TestRedialDelay(c *C) {
 func (cs *clientSessionSuite) TestResetCookie(c *C) {
 	sess, err := NewSession("foo:443", dummyConf(), "", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
+	c.Assert(sess.KeepConnection(), IsNil)
+	defer sess.StopKeepConnection()
 	c.Check(sess.getCookie(), Equals, "")
 	sess.setCookie("COOKIE")
 	c.Check(sess.getCookie(), Equals, "COOKIE")
@@ -1707,6 +1709,7 @@ func (cs *clientSessionSuite) TestKeepConnectionDoesNothingIfNotConnected(c *C) 
 	c.Assert(sess, NotNil)
 	c.Assert(sess.State(), Equals, Pristine)
 	c.Assert(sess.KeepConnection(), IsNil)
+	defer sess.StopKeepConnection()
 	// stopCh is meant to be used just for closing it, but abusing
 	// it for testing seems the right thing to do: this ensures
 	// the thing is ticking along before we check the state of
