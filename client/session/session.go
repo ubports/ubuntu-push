@@ -735,7 +735,8 @@ func (sess *clientSession) doKeepConnection() {
 				sess.resetCookie()
 			}
 		case <-sess.stopCh:
-			return sess.shutdown()
+			sess.shutdown()
+			return
 		case n := <-sess.doneCh:
 			// if n == 0, the redialer aborted. If you do
 			// anything other than log it, keep that in mind.
