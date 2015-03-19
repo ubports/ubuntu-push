@@ -1690,11 +1690,11 @@ func (cs *clientSessionSuite) TestResetCookie(c *C) {
 	sess, err := NewSession("foo:443", dummyConf(), "", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	c.Assert(sess.KeepConnection(), IsNil)
+	defer sess.StopKeepConnection()
 	c.Check(sess.getCookie(), Equals, "")
 	sess.setCookie("COOKIE")
 	c.Check(sess.getCookie(), Equals, "COOKIE")
 	sess.ResetCookie()
-	sess.StopKeepConnection() // is synchronous
 	c.Check(sess.getCookie(), Equals, "")
 }
 
