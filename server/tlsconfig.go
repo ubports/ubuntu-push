@@ -59,7 +59,7 @@ func (cfg *TLSParsedConfig) TLSServerConfig() *tls.Config {
 			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
 		},
-		MinVersion: tls.VersionTLS12,
+		MinVersion: tls.VersionTLS11,
 	}
 	return tlsCfg
 }
