@@ -1776,8 +1776,8 @@ func (cs *clientSessionSuite) TestErrChIsEmptiedAndLoggedAndAutoRedial(c *C) {
 	sess.KeepConnection()
 	defer sess.StopKeepConnection()
 
+	sess.setState(Error)
 	sess.errCh <- errors.New("potato")
-	c.Assert(sess.State(), Equals, Disconnected)
 	select {
 	case <-ch:
 		// all ok

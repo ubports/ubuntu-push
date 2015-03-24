@@ -423,6 +423,7 @@ func (sess *clientSession) autoRedial() {
 	if time.Since(sess.lastAutoRedial) < 2*time.Second {
 		sess.setShouldDelay()
 	}
+	// xxx should we really wait on the caller goroutine?
 	time.Sleep(sess.redialDelay(sess))
 	if sess.retrier != nil {
 		panic("session AutoRedial: unexpected non-nil retrier.")
@@ -764,11 +765,12 @@ func (sess *clientSession) handleConn(hasConn bool) {
 
 func (sess *clientSession) handleErr(err error) {
 	sess.Log.Errorf("session error'ed out with %v", err)
-	sess.stateLock.Lock()
-	if sess.state == Disconnected && sess.lastConn {
+	// State() == Error mostly defends interrupting an ongoing
+	// autoRedial if we went quickly already through hasConn =
+	// false => hasConn = true
+	if sess.State() == Error && sess.lastConn {
 		sess.autoRedial()
 	}
-	sess.stateLock.Unlock()
 }
 
 func (sess *clientSession) KeepConnection() error {
