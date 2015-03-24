@@ -424,7 +424,10 @@ func (sess *clientSession) autoRedial() {
 		sess.setShouldDelay()
 	}
 	// xxx should we really wait on the caller goroutine?
-	time.Sleep(sess.redialDelay(sess))
+	delay := sess.redialDelay(sess)
+	sess.Log.Debugf("session redial delay: %v, wait", delay)
+	time.Sleep(delay)
+	sess.Log.Debugf("session redial delay: %v, cont", delay)
 	if sess.retrier != nil {
 		panic("session AutoRedial: unexpected non-nil retrier.")
 	}
