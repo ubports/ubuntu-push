@@ -177,13 +177,17 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		p.log.Errorf("RequestWakelock got %v", err)
 		return lockCookie
 	}
-	p.log.Debugf("got wakelock cookie of %s", lockCookie)
-	time.Sleep(p.times.SessionStateSettle)
+	p.log.Debugf("got wakelock cookie of %s, checking conn state", lockCookie)
+	// XXX killed as part of bug #1435109 troubleshooting, remove cfg if remains unused
+	// time.Sleep(p.times.SessionStateSettle)
 	for i := 0; i < 20; i++ {
 		if p.IsConnected() {
+			p.log.Debugf("iter %02d: connected", i)
 			break
 		}
+		p.log.Debugf("iter %02d: not connected, sleeping for %s", i, p.times.NetworkWait/20)
 		time.Sleep(p.times.NetworkWait / 20)
+		p.log.Debugf("iter %02d: slept", i)
 	}
 	if !p.IsConnected() {
 		p.log.Errorf("not connected after %s; giving up", p.times.NetworkWait)
@@ -215,7 +219,9 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		}
 
 		// XXX check whether something was actually done before waiting
+		p.log.Debugf("sleeping for DoneWait %s", p.times.DoneWait)
 		time.Sleep(p.times.DoneWait)
+		p.log.Debugf("slept")
 	}
 
 	return lockCookie
