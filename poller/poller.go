@@ -178,6 +178,8 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		return lockCookie
 	}
 	p.log.Debugf("got wakelock cookie of %s, checking conn state", lockCookie)
+	// XXX killed as part of bug #1435109 troubleshooting, remove cfg if remains unused
+	// time.Sleep(p.times.SessionStateSettle)
 	for i := 0; i < 20; i++ {
 		if p.IsConnected() {
 			p.log.Debugf("iter %02d: connected", i)
