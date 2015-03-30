@@ -50,6 +50,7 @@ type Times struct {
 	NetworkWait        time.Duration
 	PolldWait          time.Duration
 	DoneWait           time.Duration
+	BusyWait           time.Duration
 }
 
 type Poller interface {
@@ -135,6 +136,19 @@ func (p *poller) Start() error {
 	p.polld = polld.New(polldEndp, p.log)
 	p.urfkill = urfkill.New(urEndp, p.log)
 
+	// busy sleep loop to workaround go's timer/sleep
+	// not accounting for time when the system is suspended
+	// see https://bugs.launchpad.net/ubuntu/+source/ubuntu-push/+bug/1435109
+	if p.times.BusyWait > 0 {
+		p.log.Debugf("starting busy loop with %s interval", p.times.BusyWait)
+		go func() {
+			for {
+				time.Sleep(p.times.BusyWait)
+			}
+		}()
+	} else {
+		p.log.Debugf("skipping busy loop")
+	}
 	return nil
 }
 
@@ -290,8 +304,7 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 	}
 	p.holdsWakeLock(true)
 	p.log.Debugf("got wakelock cookie of %s, checking conn state", lockCookie)
-	// XXX killed as part of bug #1435109 troubleshooting, remove cfg if remains unused
-	// time.Sleep(p.times.SessionStateSettle)
+	time.Sleep(p.times.SessionStateSettle)
 	for i := 0; i < 20; i++ {
 		if p.IsConnected() {
 			p.log.Debugf("iter %02d: connected", i)
