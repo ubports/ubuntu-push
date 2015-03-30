@@ -71,6 +71,7 @@ type poller struct {
 	sessionState         stater
 	requestWakeupCh      chan struct{}
 	requestedWakeupErrCh chan error
+	holdsWakeLockCh      chan bool
 }
 
 func New(setup *PollerSetup) Poller {
@@ -82,6 +83,7 @@ func New(setup *PollerSetup) Poller {
 		sessionState:         setup.SessionStateGetter,
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
+		holdsWakeLockCh:      make(chan bool),
 	}
 }
 
@@ -155,8 +157,10 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 	dontPoll := flightMode && !wirelessEnabled
 	var t time.Time
 	cookie := ""
+	holdsWakeLock := false
 	for {
 		select {
+		case holdsWakeLock = <-p.holdsWakeLockCh:
 		case <-p.requestWakeupCh:
 			if !t.IsZero() || dontPoll {
 				// earlier wakeup or we shouldn't be polling
@@ -197,7 +201,7 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 					}
 				}
 			} else {
-				if t.IsZero() {
+				if t.IsZero() && !holdsWakeLock {
 					// reschedule soon
 					t, cookie, _ = p.doRequestWakeup(p.times.NetworkWait / 20)
 				}
@@ -209,6 +213,10 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 func (p *poller) requestWakeup() error {
 	p.requestWakeupCh <- struct{}{}
 	return <-p.requestedWakeupErrCh
+}
+
+func (p *poller) holdsWakeLock(has bool) {
+	p.holdsWakeLockCh <- has
 }
 
 func (p *poller) run(wakeupCh <-chan bool, doneCh <-chan bool) {
@@ -228,6 +236,7 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		time.Sleep(p.times.AlarmInterval)
 		return lockCookie
 	}
+	p.holdsWakeLock(false)
 	if lockCookie != "" {
 		if err := p.powerd.ClearWakelock(lockCookie); err != nil {
 			p.log.Errorf("ClearWakelock(%#v) got %v", lockCookie, err)
@@ -242,6 +251,7 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		p.log.Errorf("RequestWakelock got %v", err)
 		return lockCookie
 	}
+	p.holdsWakeLock(true)
 	p.log.Debugf("got wakelock cookie of %s, checking conn state", lockCookie)
 	// XXX killed as part of bug #1435109 troubleshooting, remove cfg if remains unused
 	// time.Sleep(p.times.SessionStateSettle)

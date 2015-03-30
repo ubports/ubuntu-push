@@ -63,7 +63,9 @@ type myD struct {
 func (m *myD) RequestWakeup(name string, wakeupTime time.Time) (string, error) {
 	m.reqWakeName = name
 	m.reqWakeTime = wakeupTime
-	m.watchWakeCh <- true
+	time.AfterFunc(100*time.Millisecond, func() {
+		m.watchWakeCh <- true
+	})
 	return m.reqWakeCookie, m.reqWakeErr
 }
 func (m *myD) RequestWakelock(name string) (string, error) {
@@ -97,6 +99,7 @@ func (s *PrSuite) TestStep(c *C) {
 		sessionState:         s.myd,
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
+		holdsWakeLockCh:      make(chan bool),
 	}
 	s.myd.reqLockCookie = "wakelock cookie"
 	s.myd.stateState = session.Running
@@ -129,6 +132,7 @@ func (s *PrSuite) TestControl(c *C) {
 		sessionState:         s.myd,
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
+		holdsWakeLockCh:      make(chan bool),
 	}
 	wakeUpCh := make(chan bool)
 	filteredWakeUpCh := make(chan bool)
