@@ -1,5 +1,5 @@
 /*
- Copyright 2014 Canonical Ltd.
+ Copyright 2014-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -134,23 +134,38 @@ func (p *poller) Run() error {
 		return err
 	}
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh)
+	go p.control(wakeupCh, filteredWakeUpCh, false, nil, true, nil)
 	go p.run(filteredWakeUpCh, doneCh)
 	return nil
 }
 
-func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
+func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error) {
+	t := time.Now().Add(p.times.AlarmInterval).Truncate(time.Second)
+	cookie, err := p.powerd.RequestWakeup("ubuntu push client", t)
+	if err == nil {
+		p.log.Debugf("requested wakeup at %s", t)
+	} else {
+		t = time.Time{}
+		cookie = ""
+	}
+	return t, cookie, err
+}
+
+func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, flightMode bool, flightModeCh <-chan bool, wirelessEnabled bool, wirelessEnabledCh <-chan bool) {
+	dontPoll := flightMode && !wirelessEnabled
 	var t time.Time
+	cookie := ""
 	for {
 		select {
 		case <-p.requestWakeupCh:
-			t = time.Now().Add(p.times.AlarmInterval).Truncate(time.Second)
-			_, err := p.powerd.RequestWakeup("ubuntu push client", t)
-			if err == nil {
-				p.log.Debugf("requested wakeup at %s", t)
-			} else {
-				t = time.Time{}
+			if !t.IsZero() || dontPoll {
+				// earlier wakeup or we shouldn't be polling
+				// => don't request wakeup
+				p.requestedWakeupErrCh <- nil
+				break
 			}
+			var err error
+			t, cookie, err = p.doRequestWakeup(p.times.AlarmInterval)
 			p.requestedWakeupErrCh <- err
 		case b := <-wakeupCh:
 			if !b {
@@ -166,6 +181,25 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
 				if !now.Before(t) {
 					t = time.Time{}
 					filteredWakeUpCh <- true
+				}
+			}
+		case flightMode = <-flightModeCh:
+		case wirelessEnabled = <-wirelessEnabledCh:
+		}
+		newDontPoll := flightMode && !wirelessEnabled
+		if newDontPoll != dontPoll {
+			if dontPoll = newDontPoll; dontPoll {
+				if !t.IsZero() {
+					err := p.powerd.ClearWakeup(cookie)
+					if err == nil {
+						// cleared
+						t = time.Time{}
+					}
+				}
+			} else {
+				if t.IsZero() {
+					// reschedule soon
+					t, cookie, _ = p.doRequestWakeup(p.times.NetworkWait / 20)
 				}
 			}
 		}

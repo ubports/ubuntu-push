@@ -1,5 +1,5 @@
 /*
- Copyright 2014 Canonical Ltd.
+ Copyright 2014-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -74,7 +74,10 @@ func (m *myD) ClearWakelock(cookie string) error {
 	m.clearLockCookie = cookie
 	return m.clearLockErr
 }
-func (m *myD) ClearWakeup(cookie string) error    { panic("clearwakeup called??") }
+func (m *myD) ClearWakeup(cookie string) error {
+	m.watchWakeCh <- false
+	return nil
+}
 func (m *myD) WatchWakeups() (<-chan bool, error) { return m.watchWakeCh, m.watchWakeErr }
 func (m *myD) Poll() error                        { return m.pollErr }
 func (m *myD) WatchDones() (<-chan bool, error)   { return m.watchDonesCh, m.watchDonesErr }
@@ -105,7 +108,7 @@ func (s *PrSuite) TestStep(c *C) {
 	ch := make(chan string)
 	// now, run
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh)
+	go p.control(wakeupCh, filteredWakeUpCh, false, nil, true, nil)
 	go func() { ch <- p.step(filteredWakeUpCh, doneCh, "old cookie") }()
 	select {
 	case s := <-ch:
@@ -115,4 +118,53 @@ func (s *PrSuite) TestStep(c *C) {
 	}
 	// check we cleared the old cookie
 	c.Check(s.myd.clearLockCookie, Equals, "old cookie")
+}
+
+func (s *PrSuite) TestControl(c *C) {
+	p := &poller{
+		times:                Times{},
+		log:                  s.log,
+		powerd:               s.myd,
+		polld:                s.myd,
+		sessionState:         s.myd,
+		requestWakeupCh:      make(chan struct{}),
+		requestedWakeupErrCh: make(chan error),
+	}
+	wakeUpCh := make(chan bool)
+	filteredWakeUpCh := make(chan bool)
+	s.myd.watchWakeCh = make(chan bool, 1)
+	flightModeCh := make(chan bool)
+	wirelessModeCh := make(chan bool)
+	go p.control(wakeUpCh, filteredWakeUpCh, false, flightModeCh, true, wirelessModeCh)
+
+	// works
+	err := p.requestWakeup()
+	c.Assert(err, IsNil)
+	c.Check(<-s.myd.watchWakeCh, Equals, true)
+
+	// there's a wakeup already
+	err = p.requestWakeup()
+	c.Assert(err, IsNil)
+	c.Check(s.myd.watchWakeCh, HasLen, 0)
+
+	// wakeup happens
+	wakeUpCh <- true
+	<-filteredWakeUpCh
+
+	// flight mode
+	flightModeCh <- true
+	wirelessModeCh <- false
+	err = p.requestWakeup()
+	c.Assert(err, IsNil)
+	c.Check(s.myd.watchWakeCh, HasLen, 0)
+
+	// wireless on
+	wirelessModeCh <- true
+	c.Check(<-s.myd.watchWakeCh, Equals, true)
+
+	// wireless off
+	wirelessModeCh <- false
+	// pending wakeup was cleared
+	c.Check(<-s.myd.watchWakeCh, Equals, false)
+
 }
