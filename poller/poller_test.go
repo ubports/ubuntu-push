@@ -42,7 +42,7 @@ type myD struct {
 	reqWakeCookie string
 	reqWakeErr    error
 	// WatchWakeups
-	watchWakeCh  <-chan bool
+	watchWakeCh  chan bool
 	watchWakeErr error
 	// RequestWakelock
 	reqLockName   string
@@ -63,6 +63,7 @@ type myD struct {
 func (m *myD) RequestWakeup(name string, wakeupTime time.Time) (string, error) {
 	m.reqWakeName = name
 	m.reqWakeTime = wakeupTime
+	m.watchWakeCh <- true
 	return m.reqWakeCookie, m.reqWakeErr
 }
 func (m *myD) RequestWakelock(name string) (string, error) {
@@ -86,23 +87,26 @@ func (s *PrSuite) SetUpTest(c *C) {
 
 func (s *PrSuite) TestStep(c *C) {
 	p := &poller{
-		times:        Times{},
-		log:          s.log,
-		powerd:       s.myd,
-		polld:        s.myd,
-		sessionState: s.myd,
+		times:                Times{},
+		log:                  s.log,
+		powerd:               s.myd,
+		polld:                s.myd,
+		sessionState:         s.myd,
+		requestWakeupCh:      make(chan struct{}),
+		requestedWakeupErrCh: make(chan error),
 	}
 	s.myd.reqLockCookie = "wakelock cookie"
 	s.myd.stateState = session.Running
-	// we'll get the wakeup right away
 	wakeupCh := make(chan bool, 1)
-	wakeupCh <- true
+	s.myd.watchWakeCh = wakeupCh
 	// we won't get the "done" signal in time ;)
 	doneCh := make(chan bool)
 	// and a channel to get the return value from a goroutine
 	ch := make(chan string)
 	// now, run
-	go func() { ch <- p.step(wakeupCh, doneCh, "old cookie") }()
+	filteredWakeUpCh := make(chan bool)
+	go p.control(wakeupCh, filteredWakeUpCh)
+	go func() { ch <- p.step(filteredWakeUpCh, doneCh, "old cookie") }()
 	select {
 	case s := <-ch:
 		c.Check(s, Equals, "wakelock cookie")

@@ -63,21 +63,25 @@ type PollerSetup struct {
 }
 
 type poller struct {
-	times        Times
-	log          logger.Logger
-	powerd       powerd.Powerd
-	polld        polld.Polld
-	cookie       string
-	sessionState stater
+	times                Times
+	log                  logger.Logger
+	powerd               powerd.Powerd
+	polld                polld.Polld
+	cookie               string
+	sessionState         stater
+	requestWakeupCh      chan struct{}
+	requestedWakeupErrCh chan error
 }
 
 func New(setup *PollerSetup) Poller {
 	return &poller{
-		times:        setup.Times,
-		log:          setup.Log,
-		powerd:       nil,
-		polld:        nil,
-		sessionState: setup.SessionStateGetter,
+		times:                setup.Times,
+		log:                  setup.Log,
+		powerd:               nil,
+		polld:                nil,
+		sessionState:         setup.SessionStateGetter,
+		requestWakeupCh:      make(chan struct{}),
+		requestedWakeupErrCh: make(chan error),
 	}
 }
 
@@ -129,8 +133,48 @@ func (p *poller) Run() error {
 	if err != nil {
 		return err
 	}
-	go p.run(wakeupCh, doneCh)
+	filteredWakeUpCh := make(chan bool)
+	go p.control(wakeupCh, filteredWakeUpCh)
+	go p.run(filteredWakeUpCh, doneCh)
 	return nil
+}
+
+func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
+	var t time.Time
+	for {
+		select {
+		case <-p.requestWakeupCh:
+			t = time.Now().Add(p.times.AlarmInterval).Truncate(time.Second)
+			_, err := p.powerd.RequestWakeup("ubuntu push client", t)
+			if err == nil {
+				p.log.Debugf("requested wakeup at %s", t)
+			} else {
+				t = time.Time{}
+			}
+			p.requestedWakeupErrCh <- err
+		case b := <-wakeupCh:
+			if !b {
+				panic("WatchWakeups channel produced a false value (??)")
+			}
+			// the channel will produce a true for every
+			// wakeup, not only the one we asked for
+			now := time.Now()
+			if t.IsZero() {
+				p.log.Debugf("got woken up; time is %s", now)
+			} else {
+				p.log.Debugf("got woken up; time is %s (𝛥: %s)", now, now.Sub(t))
+				if !now.Before(t) {
+					t = time.Time{}
+					filteredWakeUpCh <- true
+				}
+			}
+		}
+	}
+}
+
+func (p *poller) requestWakeup() error {
+	p.requestWakeupCh <- struct{}{}
+	return <-p.requestedWakeupErrCh
 }
 
 func (p *poller) run(wakeupCh <-chan bool, doneCh <-chan bool) {
@@ -143,15 +187,13 @@ func (p *poller) run(wakeupCh <-chan bool, doneCh <-chan bool) {
 
 func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie string) string {
 
-	t := time.Now().Add(p.times.AlarmInterval).Truncate(time.Second)
-	_, err := p.powerd.RequestWakeup("ubuntu push client", t)
+	err := p.requestWakeup()
 	if err != nil {
 		p.log.Errorf("RequestWakeup got %v", err)
 		// Don't do this too quickly. Pretend we are just skipping one wakeup
 		time.Sleep(p.times.AlarmInterval)
 		return lockCookie
 	}
-	p.log.Debugf("requested wakeup at %s", t)
 	if lockCookie != "" {
 		if err := p.powerd.ClearWakelock(lockCookie); err != nil {
 			p.log.Errorf("ClearWakelock(%#v) got %v", lockCookie, err)
@@ -160,18 +202,7 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		}
 		lockCookie = ""
 	}
-	for b := range wakeupCh {
-		if !b {
-			panic("WatchWakeups channel produced a false value (??)")
-		}
-		// the channel will produce a true for every
-		// wakeup, not only the one we asked for
-		now := time.Now()
-		p.log.Debugf("got woken up; time is %s (𝛥: %s)", now, now.Sub(t))
-		if !now.Before(t) {
-			break
-		}
-	}
+	<-wakeupCh
 	lockCookie, err = p.powerd.RequestWakelock("ubuntu push client")
 	if err != nil {
 		p.log.Errorf("RequestWakelock got %v", err)
