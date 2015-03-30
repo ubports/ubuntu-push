@@ -111,6 +111,15 @@ func (p *poller) Start() error {
 	p.powerd = powerd.New(powerdEndp, p.log)
 	p.polld = polld.New(polldEndp, p.log)
 
+	// busy sleep loop to workaround go's timer/sleep
+	// not accounting for time when the system is suspended
+	// see https://bugs.launchpad.net/ubuntu/+source/ubuntu-push/+bug/1435109
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
+			p.log.Debugf("HACK Busy sleep, slept 1s")
+		}
+	}()
 	return nil
 }
 
@@ -178,8 +187,7 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		return lockCookie
 	}
 	p.log.Debugf("got wakelock cookie of %s, checking conn state", lockCookie)
-	// XXX killed as part of bug #1435109 troubleshooting, remove cfg if remains unused
-	// time.Sleep(p.times.SessionStateSettle)
+	time.Sleep(p.times.SessionStateSettle)
 	for i := 0; i < 20; i++ {
 		if p.IsConnected() {
 			p.log.Debugf("iter %02d: connected", i)
