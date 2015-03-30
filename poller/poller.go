@@ -171,7 +171,7 @@ func (p *poller) Run() error {
 }
 
 func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error) {
-	t := time.Now().Add(p.times.AlarmInterval).Truncate(time.Second)
+	t := time.Now().Add(delta).Truncate(time.Second)
 	cookie, err := p.powerd.RequestWakeup("ubuntu push client", t)
 	if err == nil {
 		p.log.Debugf("requested wakeup at %s", t)
@@ -205,6 +205,7 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 			t, cookie, err = p.doRequestWakeup(p.times.AlarmInterval)
 			p.requestedWakeupErrCh <- err
 		case b := <-wakeupCh:
+			// seems we get here also on clear wakeup, oh well
 			if !b {
 				panic("WatchWakeups channel produced a false value (??)")
 			}
