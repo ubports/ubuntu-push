@@ -149,6 +149,7 @@ func (p *poller) Start() error {
 	} else {
 		p.log.Debugf("skipping busy loop")
 	}
+
 	return nil
 }
 
