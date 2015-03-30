@@ -176,6 +176,7 @@ func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error)
 	if err == nil {
 		p.log.Debugf("requested wakeup at %s", t)
 	} else {
+		p.log.Errorf("RequestWakeup got %v", err)
 		t = time.Time{}
 		cookie = ""
 	}
@@ -194,6 +195,9 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 			if !t.IsZero() || dontPoll {
 				// earlier wakeup or we shouldn't be polling
 				// => don't request wakeup
+				if dontPoll {
+					p.log.Debugf("skip requesting wakeup")
+				}
 				p.requestedWakeupErrCh <- nil
 				break
 			}
@@ -220,6 +224,7 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 		case wirelessEnabled = <-wirelessEnabledCh:
 		}
 		newDontPoll := flightMode && !wirelessEnabled
+		p.log.Debugf("control: flightMode:%v wirelessEnabled:%v prevDontPoll:%v dontPoll:%v wakeupReq:%v holdsWakeLock:%v", flightMode, wirelessEnabled, dontPoll, newDontPoll, !t.IsZero(), holdsWakeLock)
 		if newDontPoll != dontPoll {
 			if dontPoll = newDontPoll; dontPoll {
 				if !t.IsZero() {
@@ -227,6 +232,9 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 					if err == nil {
 						// cleared
 						t = time.Time{}
+						p.log.Debugf("cleared wakeup")
+					} else {
+						p.log.Errorf("ClearWakeup got %v", err)
 					}
 				}
 			} else {
@@ -260,7 +268,6 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 
 	err := p.requestWakeup()
 	if err != nil {
-		p.log.Errorf("RequestWakeup got %v", err)
 		// Don't do this too quickly. Pretend we are just skipping one wakeup
 		time.Sleep(p.times.AlarmInterval)
 		return lockCookie
