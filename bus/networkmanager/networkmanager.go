@@ -1,5 +1,5 @@
 /*
- Copyright 2013-2014 Canonical Ltd.
+ Copyright 2013-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -14,9 +14,10 @@
  with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Package networkmanager wraps a couple of NetworkManager's DBus API points:
-// the org.freedesktop.NetworkManager.state call, and listening for the
-// StateChange signal.
+// Package networkmanager wraps a couple of NetworkManager's DBus API
+// points: the org.freedesktop.NetworkManager.state call, and
+// listening for the StateChange signal, similarly for the primary
+// connection and wireless enabled state.
 package networkmanager
 
 import (
@@ -47,8 +48,14 @@ type NetworkManager interface {
 	// primary connection.
 	GetPrimaryConnection() string
 	// WatchPrimaryConnection listens for changes of NetworkManager's
-	// Primary Connection, and sends it out over the channel returned.
+	// Primary Connection, and sends them out over the channel returned.
 	WatchPrimaryConnection() (<-chan string, bus.Cancellable, error)
+	// GetWirelessEnabled fetches and returns NetworkManager's
+	// wireless state.
+	GetWirelessEnabled() bool
+	// WatchWirelessEnabled listens for changes of NetworkManager's
+	// wireless state, and sends them out over the channel returned.
+	WatchWirelessEnabled() (<-chan bool, bus.Cancellable, error)
 }
 
 type networkManager struct {
@@ -71,7 +78,7 @@ var _ NetworkManager = &networkManager{}
 func (nm *networkManager) GetState() State {
 	s, err := nm.bus.GetProperty("state")
 	if err != nil {
-		nm.log.Errorf("failed gettting current state: %s", err)
+		nm.log.Errorf("failed getting current state: %s", err)
 		nm.log.Debugf("defaulting state to Unknown")
 		return Unknown
 	}
@@ -108,16 +115,16 @@ func (nm *networkManager) WatchState() (<-chan State, bus.Cancellable, error) {
 }
 
 func (nm *networkManager) GetPrimaryConnection() string {
-	s, err := nm.bus.GetProperty("PrimaryConnection")
+	got, err := nm.bus.GetProperty("PrimaryConnection")
 	if err != nil {
-		nm.log.Errorf("failed gettting current primary connection: %s", err)
-		nm.log.Debugf("defaulting primary connection to empty")
+		nm.log.Errorf("failed getting current PrimaryConnection: %s", err)
+		nm.log.Debugf("defaulting PrimaryConnection to empty")
 		return ""
 	}
 
-	v, ok := s.(dbus.ObjectPath)
+	v, ok := got.(dbus.ObjectPath)
 	if !ok {
-		nm.log.Errorf("got weird PrimaryConnection: %#v", s)
+		nm.log.Errorf("got weird PrimaryConnection: %#v", got)
 		return ""
 	}
 
@@ -142,8 +149,54 @@ func (nm *networkManager) WatchPrimaryConnection() (<-chan string, bus.Cancellab
 				nm.log.Errorf("got weird PrimaryConnection via PropertiesChanged: %#v", v)
 				return
 			}
-			nm.log.Debugf("got primary connection: %s", con)
+			nm.log.Debugf("got PrimaryConnection change: %s", con)
 			ch <- string(con)
+		}, func() { close(ch) })
+	if err != nil {
+		nm.log.Debugf("failed to set up the watch: %s", err)
+		return nil, nil, err
+	}
+
+	return ch, w, nil
+}
+
+func (nm *networkManager) GetWirelessEnabled() bool {
+	got, err := nm.bus.GetProperty("WirelessEnabled")
+	if err != nil {
+		nm.log.Errorf("failed getting WirelessEnabled: %s", err)
+		nm.log.Debugf("defaulting WirelessEnabled to true")
+		return true
+	}
+
+	v, ok := got.(bool)
+	if !ok {
+		nm.log.Errorf("got weird WirelessEnabled: %#v", got)
+		return true
+	}
+
+	return v
+}
+
+func (nm *networkManager) WatchWirelessEnabled() (<-chan bool, bus.Cancellable, error) {
+	ch := make(chan bool)
+	w, err := nm.bus.WatchSignal("PropertiesChanged",
+		func(ppsi ...interface{}) {
+			pps, ok := ppsi[0].(map[string]dbus.Variant)
+			if !ok {
+				nm.log.Errorf("got weird PropertiesChanged: %#v", ppsi[0])
+				return
+			}
+			v, ok := pps["WirelessEnabled"]
+			if !ok {
+				return
+			}
+			en, ok := v.Value.(bool)
+			if !ok {
+				nm.log.Errorf("got weird WirelessEnabled via PropertiesChanged: %#v", v)
+				return
+			}
+			nm.log.Debugf("got WirelessEnabled change: %v", en)
+			ch <- en
 		}, func() { close(ch) })
 	if err != nil {
 		nm.log.Debugf("failed to set up the watch: %s", err)
