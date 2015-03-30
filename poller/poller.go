@@ -117,7 +117,6 @@ func (p *poller) Start() error {
 	go func() {
 		for {
 			time.Sleep(1 * time.Second)
-			p.log.Debugf("HACK Busy sleep, slept 1s")
 		}
 	}()
 	return nil
