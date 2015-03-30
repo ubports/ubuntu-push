@@ -25,8 +25,10 @@ import (
 	"time"
 
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/polld"
 	"launchpad.net/ubuntu-push/bus/powerd"
+	"launchpad.net/ubuntu-push/bus/urfkill"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
@@ -65,8 +67,10 @@ type PollerSetup struct {
 type poller struct {
 	times                Times
 	log                  logger.Logger
+	nm                   networkmanager.NetworkManager
 	powerd               powerd.Powerd
 	polld                polld.Polld
+	urfkill              urfkill.URfkill
 	cookie               string
 	sessionState         stater
 	requestWakeupCh      chan struct{}
@@ -98,10 +102,17 @@ func (p *poller) Start() error {
 	if p.powerd != nil || p.polld != nil {
 		return ErrAlreadyStarted
 	}
+	nmEndp := bus.SystemBus.Endpoint(networkmanager.BusAddress, p.log)
 	powerdEndp := bus.SystemBus.Endpoint(powerd.BusAddress, p.log)
 	polldEndp := bus.SessionBus.Endpoint(polld.BusAddress, p.log)
+	urEndp := bus.SystemBus.Endpoint(urfkill.BusAddress, p.log)
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(4)
+	go func() {
+		n := util.NewAutoRedialer(nmEndp).Redial()
+		p.log.Debugf("NetworkManager dialed on try %d", n)
+		wg.Done()
+	}()
 	go func() {
 		n := util.NewAutoRedialer(powerdEndp).Redial()
 		p.log.Debugf("powerd dialed on try %d", n)
@@ -112,10 +123,17 @@ func (p *poller) Start() error {
 		p.log.Debugf("polld dialed in on try %d", n)
 		wg.Done()
 	}()
+	go func() {
+		n := util.NewAutoRedialer(urEndp).Redial()
+		p.log.Debugf("URfkill dialed on try %d", n)
+		wg.Done()
+	}()
 	wg.Wait()
 
+	p.nm = networkmanager.New(nmEndp, p.log)
 	p.powerd = powerd.New(powerdEndp, p.log)
 	p.polld = polld.New(polldEndp, p.log)
+	p.urfkill = urfkill.New(urEndp, p.log)
 
 	return nil
 }
@@ -124,7 +142,7 @@ func (p *poller) Run() error {
 	if p.log == nil {
 		return ErrUnconfigured
 	}
-	if p.powerd == nil || p.polld == nil {
+	if p.nm == nil || p.powerd == nil || p.polld == nil || p.urfkill == nil{
 		return ErrNotStarted
 	}
 	wakeupCh, err := p.powerd.WatchWakeups()
@@ -135,8 +153,19 @@ func (p *poller) Run() error {
 	if err != nil {
 		return err
 	}
+	flightMode := p.urfkill.IsFlightMode()
+	wirelessEnabled := p.nm.GetWirelessEnabled()
+	flightModeCh, _, err := p.urfkill.WatchFlightMode()
+	if err != nil {
+		return err
+	}
+	wirelessEnabledCh, _, err := p.nm.WatchWirelessEnabled()
+	if err != nil {
+		return err
+	}
+
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh, false, nil, true, nil)
+	go p.control(wakeupCh, filteredWakeUpCh, flightMode, flightModeCh, wirelessEnabled, wirelessEnabledCh)
 	go p.run(filteredWakeUpCh, doneCh)
 	return nil
 }
