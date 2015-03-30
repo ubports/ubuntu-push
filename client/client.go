@@ -79,6 +79,7 @@ type ClientConfig struct {
 	PollNetworkWait config.ConfigTimeDuration `json:"poll_net_wait"`
 	PollPolldWait   config.ConfigTimeDuration `json:"poll_polld_wait"`
 	PollDoneWait    config.ConfigTimeDuration `json:"poll_done_wait"`
+	PollBusyWait    config.ConfigTimeDuration `json:"poll_busy_wait"`
 }
 
 // PushService is the interface we use of service.PushService.
@@ -246,6 +247,7 @@ func (client *PushClient) derivePollerSetup() *poller.PollerSetup {
 			NetworkWait:        client.config.PollNetworkWait.TimeDuration(),
 			PolldWait:          client.config.PollPolldWait.TimeDuration(),
 			DoneWait:           client.config.PollDoneWait.TimeDuration(),
+			BusyWait:           client.config.PollBusyWait.TimeDuration(),
 		},
 		Log:                client.log,
 		SessionStateGetter: client.session,

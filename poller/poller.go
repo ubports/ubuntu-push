@@ -48,6 +48,7 @@ type Times struct {
 	NetworkWait        time.Duration
 	PolldWait          time.Duration
 	DoneWait           time.Duration
+	BusyWait           time.Duration
 }
 
 type Poller interface {
@@ -114,11 +115,16 @@ func (p *poller) Start() error {
 	// busy sleep loop to workaround go's timer/sleep
 	// not accounting for time when the system is suspended
 	// see https://bugs.launchpad.net/ubuntu/+source/ubuntu-push/+bug/1435109
-	go func() {
-		for {
-			time.Sleep(1 * time.Second)
-		}
-	}()
+	if p.times.BusyWait > 0 {
+		p.log.Debugf("starting busy loop with %s interval", p.times.BusyWait)
+		go func() {
+			for {
+				time.Sleep(p.times.BusyWait)
+			}
+		}()
+	} else {
+		p.log.Debugf("skipping busy loop")
+	}
 	return nil
 }
 

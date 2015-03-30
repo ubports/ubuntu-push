@@ -185,6 +185,7 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"poll_net_wait":    "1m",
 		"poll_polld_wait":  "3m",
 		"poll_done_wait":   "5s",
+		"poll_busy_wait":   "0s",
 	}
 	for k, v := range overrides {
 		cfgMap[k] = v
