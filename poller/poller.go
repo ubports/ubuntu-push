@@ -142,7 +142,7 @@ func (p *poller) Run() error {
 	if p.log == nil {
 		return ErrUnconfigured
 	}
-	if p.nm == nil || p.powerd == nil || p.polld == nil || p.urfkill == nil{
+	if p.nm == nil || p.powerd == nil || p.polld == nil || p.urfkill == nil {
 		return ErrNotStarted
 	}
 	wakeupCh, err := p.powerd.WatchWakeups()
