@@ -1,5 +1,5 @@
 /*
- Copyright 2014 Canonical Ltd.
+ Copyright 2014-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -25,8 +25,10 @@ import (
 	"time"
 
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/polld"
 	"launchpad.net/ubuntu-push/bus/powerd"
+	"launchpad.net/ubuntu-push/bus/urfkill"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
@@ -64,21 +66,29 @@ type PollerSetup struct {
 }
 
 type poller struct {
-	times        Times
-	log          logger.Logger
-	powerd       powerd.Powerd
-	polld        polld.Polld
-	cookie       string
-	sessionState stater
+	times                Times
+	log                  logger.Logger
+	nm                   networkmanager.NetworkManager
+	powerd               powerd.Powerd
+	polld                polld.Polld
+	urfkill              urfkill.URfkill
+	cookie               string
+	sessionState         stater
+	requestWakeupCh      chan struct{}
+	requestedWakeupErrCh chan error
+	holdsWakeLockCh      chan bool
 }
 
 func New(setup *PollerSetup) Poller {
 	return &poller{
-		times:        setup.Times,
-		log:          setup.Log,
-		powerd:       nil,
-		polld:        nil,
-		sessionState: setup.SessionStateGetter,
+		times:                setup.Times,
+		log:                  setup.Log,
+		powerd:               nil,
+		polld:                nil,
+		sessionState:         setup.SessionStateGetter,
+		requestWakeupCh:      make(chan struct{}),
+		requestedWakeupErrCh: make(chan error),
+		holdsWakeLockCh:      make(chan bool),
 	}
 }
 
@@ -93,10 +103,17 @@ func (p *poller) Start() error {
 	if p.powerd != nil || p.polld != nil {
 		return ErrAlreadyStarted
 	}
+	nmEndp := bus.SystemBus.Endpoint(networkmanager.BusAddress, p.log)
 	powerdEndp := bus.SystemBus.Endpoint(powerd.BusAddress, p.log)
 	polldEndp := bus.SessionBus.Endpoint(polld.BusAddress, p.log)
+	urEndp := bus.SystemBus.Endpoint(urfkill.BusAddress, p.log)
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(4)
+	go func() {
+		n := util.NewAutoRedialer(nmEndp).Redial()
+		p.log.Debugf("NetworkManager dialed on try %d", n)
+		wg.Done()
+	}()
 	go func() {
 		n := util.NewAutoRedialer(powerdEndp).Redial()
 		p.log.Debugf("powerd dialed on try %d", n)
@@ -107,10 +124,17 @@ func (p *poller) Start() error {
 		p.log.Debugf("polld dialed in on try %d", n)
 		wg.Done()
 	}()
+	go func() {
+		n := util.NewAutoRedialer(urEndp).Redial()
+		p.log.Debugf("URfkill dialed on try %d", n)
+		wg.Done()
+	}()
 	wg.Wait()
 
+	p.nm = networkmanager.New(nmEndp, p.log)
 	p.powerd = powerd.New(powerdEndp, p.log)
 	p.polld = polld.New(polldEndp, p.log)
+	p.urfkill = urfkill.New(urEndp, p.log)
 
 	// busy sleep loop to workaround go's timer/sleep
 	// not accounting for time when the system is suspended
@@ -125,6 +149,7 @@ func (p *poller) Start() error {
 	} else {
 		p.log.Debugf("skipping busy loop")
 	}
+
 	return nil
 }
 
@@ -132,7 +157,7 @@ func (p *poller) Run() error {
 	if p.log == nil {
 		return ErrUnconfigured
 	}
-	if p.powerd == nil || p.polld == nil {
+	if p.nm == nil || p.powerd == nil || p.polld == nil || p.urfkill == nil {
 		return ErrNotStarted
 	}
 	wakeupCh, err := p.powerd.WatchWakeups()
@@ -143,8 +168,108 @@ func (p *poller) Run() error {
 	if err != nil {
 		return err
 	}
-	go p.run(wakeupCh, doneCh)
+	flightMode := p.urfkill.IsFlightMode()
+	wirelessEnabled := p.nm.GetWirelessEnabled()
+	flightModeCh, _, err := p.urfkill.WatchFlightMode()
+	if err != nil {
+		return err
+	}
+	wirelessEnabledCh, _, err := p.nm.WatchWirelessEnabled()
+	if err != nil {
+		return err
+	}
+
+	filteredWakeUpCh := make(chan bool)
+	go p.control(wakeupCh, filteredWakeUpCh, flightMode, flightModeCh, wirelessEnabled, wirelessEnabledCh)
+	go p.run(filteredWakeUpCh, doneCh)
 	return nil
+}
+
+func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error) {
+	t := time.Now().Add(delta).Truncate(time.Second)
+	cookie, err := p.powerd.RequestWakeup("ubuntu push client", t)
+	if err == nil {
+		p.log.Debugf("requested wakeup at %s", t)
+	} else {
+		p.log.Errorf("RequestWakeup got %v", err)
+		t = time.Time{}
+		cookie = ""
+	}
+	return t, cookie, err
+}
+
+func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, flightMode bool, flightModeCh <-chan bool, wirelessEnabled bool, wirelessEnabledCh <-chan bool) {
+	dontPoll := flightMode && !wirelessEnabled
+	var t time.Time
+	cookie := ""
+	holdsWakeLock := false
+	for {
+		select {
+		case holdsWakeLock = <-p.holdsWakeLockCh:
+		case <-p.requestWakeupCh:
+			if !t.IsZero() || dontPoll {
+				// earlier wakeup or we shouldn't be polling
+				// => don't request wakeup
+				if dontPoll {
+					p.log.Debugf("skip requesting wakeup")
+				}
+				p.requestedWakeupErrCh <- nil
+				break
+			}
+			var err error
+			t, cookie, err = p.doRequestWakeup(p.times.AlarmInterval)
+			p.requestedWakeupErrCh <- err
+		case b := <-wakeupCh:
+			// seems we get here also on clear wakeup, oh well
+			if !b {
+				panic("WatchWakeups channel produced a false value (??)")
+			}
+			// the channel will produce a true for every
+			// wakeup, not only the one we asked for
+			now := time.Now()
+			if t.IsZero() {
+				p.log.Debugf("got woken up; time is %s", now)
+			} else {
+				p.log.Debugf("got woken up; time is %s (𝛥: %s)", now, now.Sub(t))
+				if !now.Before(t) {
+					t = time.Time{}
+					filteredWakeUpCh <- true
+				}
+			}
+		case flightMode = <-flightModeCh:
+		case wirelessEnabled = <-wirelessEnabledCh:
+		}
+		newDontPoll := flightMode && !wirelessEnabled
+		p.log.Debugf("control: flightMode:%v wirelessEnabled:%v prevDontPoll:%v dontPoll:%v wakeupReq:%v holdsWakeLock:%v", flightMode, wirelessEnabled, dontPoll, newDontPoll, !t.IsZero(), holdsWakeLock)
+		if newDontPoll != dontPoll {
+			if dontPoll = newDontPoll; dontPoll {
+				if !t.IsZero() {
+					err := p.powerd.ClearWakeup(cookie)
+					if err == nil {
+						// cleared
+						t = time.Time{}
+						p.log.Debugf("cleared wakeup")
+					} else {
+						p.log.Errorf("ClearWakeup got %v", err)
+					}
+				}
+			} else {
+				if t.IsZero() && !holdsWakeLock {
+					// reschedule soon
+					t, cookie, _ = p.doRequestWakeup(p.times.NetworkWait / 20)
+				}
+			}
+		}
+	}
+}
+
+func (p *poller) requestWakeup() error {
+	p.requestWakeupCh <- struct{}{}
+	return <-p.requestedWakeupErrCh
+}
+
+func (p *poller) holdsWakeLock(has bool) {
+	p.holdsWakeLockCh <- has
 }
 
 func (p *poller) run(wakeupCh <-chan bool, doneCh <-chan bool) {
@@ -157,15 +282,13 @@ func (p *poller) run(wakeupCh <-chan bool, doneCh <-chan bool) {
 
 func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie string) string {
 
-	t := time.Now().Add(p.times.AlarmInterval).Truncate(time.Second)
-	_, err := p.powerd.RequestWakeup("ubuntu push client", t)
+	err := p.requestWakeup()
 	if err != nil {
-		p.log.Errorf("RequestWakeup got %v", err)
 		// Don't do this too quickly. Pretend we are just skipping one wakeup
 		time.Sleep(p.times.AlarmInterval)
 		return lockCookie
 	}
-	p.log.Debugf("requested wakeup at %s", t)
+	p.holdsWakeLock(false)
 	if lockCookie != "" {
 		if err := p.powerd.ClearWakelock(lockCookie); err != nil {
 			p.log.Errorf("ClearWakelock(%#v) got %v", lockCookie, err)
@@ -174,23 +297,13 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		}
 		lockCookie = ""
 	}
-	for b := range wakeupCh {
-		if !b {
-			panic("WatchWakeups channel produced a false value (??)")
-		}
-		// the channel will produce a true for every
-		// wakeup, not only the one we asked for
-		now := time.Now()
-		p.log.Debugf("got woken up; time is %s (𝛥: %s)", now, now.Sub(t))
-		if !now.Before(t) {
-			break
-		}
-	}
+	<-wakeupCh
 	lockCookie, err = p.powerd.RequestWakelock("ubuntu push client")
 	if err != nil {
 		p.log.Errorf("RequestWakelock got %v", err)
 		return lockCookie
 	}
+	p.holdsWakeLock(true)
 	p.log.Debugf("got wakelock cookie of %s, checking conn state", lockCookie)
 	time.Sleep(p.times.SessionStateSettle)
 	for i := 0; i < 20; i++ {
