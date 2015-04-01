@@ -411,11 +411,8 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 		return false
 	}
 	_, ok = pair[0].(float64)
-	if !ok {
-		return false
-	}
-	// it sanity checks, let the helper check for build number etc
-	return true
+	// ok means it sanity checks, let the helper check for build number etc
+	return ok
 }
 
 // handleBroadcastNotification deals with receiving a broadcast notification
