@@ -410,20 +410,9 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 	if len(pair) < 1 {
 		return false
 	}
-	buildNumber, ok := pair[0].(float64)
-	if !ok {
-		return false
-	}
-	curBuildNumber := float64(client.systemImageInfo.BuildNumber)
-	if buildNumber > curBuildNumber {
-		return true
-	}
-	// xxx we should really compare channel_target and alias here
-	// going backward by a margin, assume switch of target
-	if buildNumber < curBuildNumber && (curBuildNumber-buildNumber) > 10 {
-		return true
-	}
-	return false
+	_, ok = pair[0].(float64)
+	// ok means it sanity checks, let the helper check for build number etc
+	return ok
 }
 
 // handleBroadcastNotification deals with receiving a broadcast notification

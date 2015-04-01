@@ -756,35 +756,11 @@ func (cs *clientSuite) TestFilterBroadcastNotification(c *C) {
 	// empty
 	msg := &session.BroadcastNotification{}
 	c.Check(cli.filterBroadcastNotification(msg), Equals, false)
-	// same build number
+	// same build number, we let the helper deal
 	msg = &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
 			map[string]interface{}{
 				"daily/mako": []interface{}{float64(102), "tubular"},
-			},
-		},
-	}
-	c.Check(cli.filterBroadcastNotification(msg), Equals, false)
-	// higher build number and pick last
-	msg = &session.BroadcastNotification{
-		Decoded: []map[string]interface{}{
-			map[string]interface{}{
-				"daily/mako": []interface{}{float64(102), "tubular"},
-			},
-			map[string]interface{}{
-				"daily/mako": []interface{}{float64(103), "tubular"},
-			},
-		},
-	}
-	c.Check(cli.filterBroadcastNotification(msg), Equals, true)
-	// going backward by a margin, assume switch of alias
-	msg = &session.BroadcastNotification{
-		Decoded: []map[string]interface{}{
-			map[string]interface{}{
-				"daily/mako": []interface{}{float64(102), "tubular"},
-			},
-			map[string]interface{}{
-				"daily/mako": []interface{}{float64(2), "urban"},
 			},
 		},
 	}
@@ -833,9 +809,7 @@ var (
 	}
 	negativeBroadcastNotification = &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
-			map[string]interface{}{
-				"daily/mako": []interface{}{float64(102), "tubular"},
-			},
+			map[string]interface{}{},
 		},
 	}
 )
