@@ -809,8 +809,7 @@ var (
 	}
 	negativeBroadcastNotification = &session.BroadcastNotification{
 		Decoded: []map[string]interface{}{
-			map[string]interface{}{
-			},
+			map[string]interface{}{},
 		},
 	}
 )
