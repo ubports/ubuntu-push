@@ -53,6 +53,8 @@ def cleanup_settings():
 
 def collect_helpers(helpers_data_path, helpers_data_path_tmp, hooks_path):
     helpers_data = {}
+    if not os.path.isdir(hookspath):
+        return True
     for hook_fname in os.listdir(hooks_path):
         if not hook_fname.endswith(hook_ext):
             continue
