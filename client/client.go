@@ -79,6 +79,7 @@ type ClientConfig struct {
 	PollNetworkWait config.ConfigTimeDuration `json:"poll_net_wait"`
 	PollPolldWait   config.ConfigTimeDuration `json:"poll_polld_wait"`
 	PollDoneWait    config.ConfigTimeDuration `json:"poll_done_wait"`
+	PollBusyWait    config.ConfigTimeDuration `json:"poll_busy_wait"`
 }
 
 // PushService is the interface we use of service.PushService.
@@ -115,8 +116,7 @@ type PushClient struct {
 	systemImageEndp    bus.Endpoint
 	systemImageInfo    *systemimage.InfoResult
 	connCh             chan bool
-	hasConnectivity    bool
-	session            *session.ClientSession
+	session            session.ClientSession
 	sessionConnectedCh chan uint32
 	pushService        PushService
 	postalService      PostalService
@@ -125,16 +125,20 @@ type PushClient struct {
 	installedChecker   click.InstalledChecker
 	poller             poller.Poller
 	accountsCh         <-chan accounts.Changed
+	// session-side channels
+	broadcastCh     chan *session.BroadcastNotification
+	notificationsCh chan session.AddressedNotification
 }
 
 // Creates a new Ubuntu Push Notifications client-side daemon that will use
 // the given configuration file.
 func NewPushClient(configPath string, leveldbPath string) *PushClient {
-	client := new(PushClient)
-	client.configPath = configPath
-	client.leveldbPath = leveldbPath
-
-	return client
+	return &PushClient{
+		configPath:      configPath,
+		leveldbPath:     leveldbPath,
+		broadcastCh:     make(chan *session.BroadcastNotification),
+		notificationsCh: make(chan session.AddressedNotification),
+	}
 }
 
 var newIdentifier = identifier.New
@@ -206,6 +210,8 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		AuthGetter:       client.getAuthorization,
 		AuthURL:          client.config.SessionURL,
 		AddresseeChecker: client,
+		BroadcastCh:      client.broadcastCh,
+		NotificationsCh:  client.notificationsCh,
 	}
 }
 
@@ -241,6 +247,7 @@ func (client *PushClient) derivePollerSetup() *poller.PollerSetup {
 			NetworkWait:        client.config.PollNetworkWait.TimeDuration(),
 			PolldWait:          client.config.PollPolldWait.TimeDuration(),
 			DoneWait:           client.config.PollDoneWait.TimeDuration(),
+			BusyWait:           client.config.PollBusyWait.TimeDuration(),
 		},
 		Log:                client.log,
 		SessionStateGetter: client.session,
@@ -280,7 +287,6 @@ func (client *PushClient) getDeviceId() error {
 
 // takeTheBus starts the connection(s) to D-Bus and sets up associated event channels
 func (client *PushClient) takeTheBus() error {
-	fmt.Println("FOO")
 	cs := connectivity.New(client.connectivityEndp,
 		client.config.ConnectivityConfig, client.log)
 	go cs.Track(client.connCh)
@@ -308,6 +314,7 @@ func (client *PushClient) initSessionAndPoller() error {
 		return err
 	}
 	client.session = sess
+	sess.KeepConnection()
 	client.poller = poller.New(client.derivePollerSetup())
 	return nil
 }
@@ -376,29 +383,6 @@ func (client *PushClient) handleUnregister(app *click.AppId) {
 	}
 }
 
-// handleConnState deals with connectivity events
-func (client *PushClient) handleConnState(hasConnectivity bool) {
-	client.log.Debugf("handleConnState: %v", hasConnectivity)
-	if client.hasConnectivity == hasConnectivity {
-		// nothing to do!
-		return
-	}
-	client.hasConnectivity = hasConnectivity
-	client.session.Close()
-	if hasConnectivity {
-		client.session.AutoRedial(client.sessionConnectedCh)
-	}
-}
-
-// handleErr deals with the session erroring out of its loop
-func (client *PushClient) handleErr(err error) {
-	// if we're not connected, we don't really care
-	client.log.Errorf("session exited: %s", err)
-	if client.hasConnectivity {
-		client.session.AutoRedial(client.sessionConnectedCh)
-	}
-}
-
 // filterBroadcastNotification finds out if the notification is about an actual
 // upgrade for the device. It expects msg.Decoded entries to look
 // like:
@@ -426,20 +410,9 @@ func (client *PushClient) filterBroadcastNotification(msg *session.BroadcastNoti
 	if len(pair) < 1 {
 		return false
 	}
-	buildNumber, ok := pair[0].(float64)
-	if !ok {
-		return false
-	}
-	curBuildNumber := float64(client.systemImageInfo.BuildNumber)
-	if buildNumber > curBuildNumber {
-		return true
-	}
-	// xxx we should really compare channel_target and alias here
-	// going backward by a margin, assume switch of target
-	if buildNumber < curBuildNumber && (curBuildNumber-buildNumber) > 10 {
-		return true
-	}
-	return false
+	_, ok = pair[0].(float64)
+	// ok means it sanity checks, let the helper check for build number etc
+	return ok
 }
 
 // handleBroadcastNotification deals with receiving a broadcast notification
@@ -469,28 +442,18 @@ func (client *PushClient) handleUnicastNotification(anotif session.AddressedNoti
 	return nil
 }
 
-// handleAccountsChange deals with the user adding or removing (or
-// changing) the u1 account used to auth
-func (client *PushClient) handleAccountsChange() {
-	client.log.Infof("U1 account changed; restarting session")
-	client.session.ClearCookie()
-	client.session.Close()
-}
-
 // doLoop connects events with their handlers
-func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, errhandler func(error), unregisterhandler func(*click.AppId), accountshandler func()) {
+func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, unregisterhandler func(*click.AppId), accountshandler func()) {
 	for {
 		select {
 		case <-client.accountsCh:
 			accountshandler()
 		case state := <-client.connCh:
 			connhandler(state)
-		case bcast := <-client.session.BroadcastCh:
+		case bcast := <-client.broadcastCh:
 			bcasthandler(bcast)
-		case aucast := <-client.session.NotificationsCh:
+		case aucast := <-client.notificationsCh:
 			ucasthandler(aucast)
-		case err := <-client.session.ErrCh:
-			errhandler(err)
 		case count := <-client.sessionConnectedCh:
 			client.log.Debugf("session connected after %d attempts", count)
 		case app := <-client.unregisterCh:
@@ -512,12 +475,11 @@ func (client *PushClient) doStart(fs ...func() error) error {
 
 // Loop calls doLoop with the "real" handlers
 func (client *PushClient) Loop() {
-	client.doLoop(client.handleConnState,
+	client.doLoop(client.session.HasConnectivity,
 		client.handleBroadcastNotification,
 		client.handleUnicastNotification,
-		client.handleErr,
 		client.handleUnregister,
-		client.handleAccountsChange,
+		client.session.ResetCookie,
 	)
 }
 

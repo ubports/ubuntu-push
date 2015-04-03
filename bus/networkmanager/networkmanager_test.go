@@ -1,5 +1,5 @@
 /*
- Copyright 2013-2014 Canonical Ltd.
+ Copyright 2013-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -231,4 +231,112 @@ func (s *NMSuite) TestWatchPrimaryConnectionIgnoresRubbishValues(c *C) {
 	v, ok := <-ch
 	c.Check(ok, Equals, true)
 	c.Check(v, Equals, "42")
+}
+
+// GetWirelessEnabled returns the right state when everything works
+func (s *NMSuite) TestGetWirelessEnabled(c *C) {
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(true), false), s.log)
+	en := nm.GetWirelessEnabled()
+	c.Check(en, Equals, false)
+}
+
+// GetWirelessEnabled returns the right state when dbus fails
+func (s *NMSuite) TestGetWirelessEnabledFail(c *C) {
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
+	en := nm.GetWirelessEnabled()
+	c.Check(en, Equals, true)
+}
+
+// GetWirelessEnabled returns the right state when dbus works but delivers rubbish values
+func (s *NMSuite) TestGetWirelessEnabledRubbishValues(c *C) {
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(true), "broken"), s.log)
+	en := nm.GetWirelessEnabled()
+	c.Check(en, Equals, true)
+}
+
+// GetWirelessEnabled returns the right state when dbus works but delivers a rubbish structure
+func (s *NMSuite) TestGetWirelessEnabledRubbishStructure(c *C) {
+	nm := New(testingbus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{}), s.log)
+	en := nm.GetWirelessEnabled()
+	c.Check(en, Equals, true)
+}
+
+func mkWirelessEnMap(en bool) map[string]dbus.Variant {
+	m := make(map[string]dbus.Variant)
+	m["WirelessEnabled"] = dbus.Variant{en}
+	return m
+}
+
+// WatchWirelessEnabled sends a stream of wireless enabled states over the channel
+func (s *NMSuite) TestWatchWirelessEnabled(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true),
+		mkWirelessEnMap(true),
+		mkWirelessEnMap(false),
+		mkWirelessEnMap(true),
+	)
+	nm := New(tc, s.log)
+	ch, w, err := nm.WatchWirelessEnabled()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
+	l := []bool{<-ch, <-ch, <-ch}
+	c.Check(l, DeepEquals, []bool{true, false, true})
+}
+
+// WatchWirelessEnabled returns on error if the dbus call fails
+func (s *NMSuite) TestWatchWirelessEnabledFails(c *C) {
+	nm := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
+	_, _, err := nm.WatchWirelessEnabled()
+	c.Check(err, NotNil)
+}
+
+// WatchWirelessEnabled calls close on its channel when the watch bails
+func (s *NMSuite) TestWatchWirelessEnabledClosesOnWatchBail(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
+	nm := New(tc, s.log)
+	ch, w, err := nm.WatchWirelessEnabled()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
+
+// WatchWirelessEnabled survives rubbish values
+func (s *NMSuite) TestWatchWirelessEnabledSurvivesRubbishValues(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), "gorp")
+	nm := New(tc, s.log)
+	ch, w, err := nm.WatchWirelessEnabled()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
+
+// WatchWirelessEnabled ignores non-WirelessEnabled PropertyChanged
+func (s *NMSuite) TestWatchWirelessEnabledIgnoresIrrelephant(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true),
+		map[string]dbus.Variant{"foo": dbus.Variant{}},
+		map[string]dbus.Variant{"WirelessEnabled": dbus.Variant{true}},
+	)
+	nm := New(tc, s.log)
+	ch, w, err := nm.WatchWirelessEnabled()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
+	v, ok := <-ch
+	c.Check(ok, Equals, true)
+	c.Check(v, Equals, true)
+}
+
+// WatchWirelessEnabled ignores rubbish WirelessEnabled
+func (s *NMSuite) TestWatchWirelessEnabledIgnoresRubbishValues(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true),
+		map[string]dbus.Variant{"WirelessEnabled": dbus.Variant{-12}},
+		map[string]dbus.Variant{"WirelessEnabled": dbus.Variant{false}},
+	)
+	nm := New(tc, s.log)
+	ch, w, err := nm.WatchWirelessEnabled()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
+	v, ok := <-ch
+	c.Check(ok, Equals, true)
+	c.Check(v, Equals, false)
 }
