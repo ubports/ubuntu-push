@@ -51,7 +51,7 @@ func (ccu *CClickUser) CInit(holder interface{}) error {
 	}
 	ccu.cref = cref
 	runtime.SetFinalizer(holder, func(interface{}) {
-		ccu.cref = nil // 1.3 gc gets confused otherwise
+		ccu.cref = nil // blocks gc really for now, 1.3 otherwise panics
 		C.g_object_unref((C.gpointer)(cref))
 	})
 	return nil
