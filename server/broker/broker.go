@@ -73,6 +73,19 @@ func GetInfoString(msg *protocol.ConnectMsg, name, defaultVal string) (string, e
 	return s, nil
 }
 
+// GetInfoInt helps retrivieng an integer out of a protocol.ConnectMsg.Info
+func GetInfoInt(msg *protocol.ConnectMsg, name string, defaultVal int) (int, error) {
+	v, ok := msg.Info[name]
+	if !ok {
+		return defaultVal, nil
+	}
+	n, ok := v.(float64)
+	if !ok {
+		return -1, ErrUnexpectedValue
+	}
+	return int(n), nil
+}
+
 // BrokerSession holds broker session state.
 type BrokerSession interface {
 	// SessionChannel returns the session control channel
