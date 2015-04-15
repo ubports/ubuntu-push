@@ -45,6 +45,7 @@ type Configuration struct {
 	ReportPings  bool   `json:"reportPings" help:"report each Ping from the server"`
 	DeviceModel  string `json:"model" help:"device image model"`
 	ImageChannel string `json:"imageChannel" help:"image channel"`
+	BuildNumber  int32  `json:"buildNumber" help:"build number"`
 }
 
 func (cfg *Configuration) PickByTarget(what, productionValue, stagingValue string) (value string) {
@@ -75,6 +76,7 @@ var (
 		"reportPings":      true,
 		"model":            "?",
 		"imageChannel":     "?",
+		"buildNumber":      -1,
 	}
 )
 
@@ -112,6 +114,7 @@ func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(sess *accept
 		// flags
 		Model:        cfg.DeviceModel,
 		ImageChannel: cfg.ImageChannel,
+		BuildNumber:  cfg.BuildNumber,
 		ReportPings:  cfg.ReportPings,
 	}
 	cfgDir := filepath.Dir(flag.Lookup("cfg@").Value.String())
