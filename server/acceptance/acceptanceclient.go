@@ -111,7 +111,7 @@ func (sess *ClientSession) Run(events chan<- string) error {
 		"device":  sess.Model,
 		"channel": sess.ImageChannel,
 	}
-	if sess.BuildNumber != 0 {
+	if sess.BuildNumber != -1 {
 		info["build_number"] = sess.BuildNumber
 	}
 	err = proto.WriteMessage(protocol.ConnectMsg{

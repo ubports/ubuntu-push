@@ -76,7 +76,7 @@ var (
 		"reportPings":      true,
 		"model":            "?",
 		"imageChannel":     "?",
-		"buildNumber":      0,
+		"buildNumber":      -1,
 	}
 )
 
