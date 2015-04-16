@@ -19,6 +19,7 @@
 package session
 
 import (
+	_ "crypto/sha512" // support sha384/512 certs
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"

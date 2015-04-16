@@ -3,6 +3,6 @@ testing.key/testing.cert
 
 Generated with:
 
-  go run /usr/lib/go/src/pkg/crypto/tls/generate_cert.go -ca -host push-delivery -rsa-bits 512 -duration 87600h
+  openssl req -x509 -nodes -newkey rsa:2048 -multivalue-rdn -sha384 -days 3650 -keyout testing.key -out testing.cert -subj "/O=Acme Co/CN=push-delivery/"
 
-and then renamed.
+

@@ -18,6 +18,7 @@
 package acceptance
 
 import (
+	_ "crypto/sha512" // support sha384/512 certs
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
