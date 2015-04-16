@@ -1,3 +1,43 @@
+ubuntu-push (0.68+15.04.20150403-0ubuntu1) vivid; urgency=medium
+
+  [ Samuele Pedroni ]
+  [Roberto Alsina]
+  * click-hook: report failure if hooks_path doesn't exist. [client]
+
+  [Bret Barker]
+  * add a hacky busy sleep loop to workaround go's sleep not
+    accounting for suspended time, more logging (lp:1435109). [client]
+
+  [John R. Lenton]
+  * Refactor code maintaining session (better fix for lp:1390663) [client]
+
+  [Samuele Pedroni]
+  * just delegate whether there's a update-worthy image to the
+    system-settings helper and system-image. [client]
+  * stop waking up for polling if in flight-mode and wireless not
+    enabled (lp:1437135). [client]
+  * don't hold a lock for a long time on handleErrConn, trigger
+    autoRedial on Error more actively (lp:1435109). [client]
+  * disallow RC4 and SSLv3. [server]
+
+ -- CI Train Bot <ci-train-bot@canonical.com>  Fri, 03 Apr 2015 13:27:44 +0000
+
+ubuntu-push (0.68+15.04.20150306.2-0ubuntu1) vivid; urgency=medium
+
+  [ John R. Lenton ]
+  * Use settings from org.freedesktop.Accounts for silent mode, when to
+    vibrate, and default sound. [client] (LP: #1426418, LP: #1427702)
+
+  [ Samuele "Yak Shaver of the Year" Pedroni ]
+  * Closing webchecker (avoids leaving goroutines around in testing). [client]
+  * WatchSignal cancelling, and connectivity exposed cancelling, make
+    connectivity start not leave watches behind (more goroutine
+    cleanup). [client]
+  * TestTakeTheBusWorks doesn't block anymore, fixed leaking of
+    webcheckers. [client]
+
+ -- CI Train Bot <ci-train-bot@canonical.com>  Fri, 06 Mar 2015 13:27:06 +0000
+
 ubuntu-push (0.67+15.04.20150209-0ubuntu1) vivid; urgency=medium
 
   [ John R. Lenton ]
