@@ -592,14 +592,17 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 
 func (ps *postalSuite) TestMessageHandlerReportsFailedNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), 1)
+	nopTicker := make(chan []interface{})
+	testibus.SetWatchSource(endp, "ActionInvoked", nopTicker)
+	defer close(nopTicker)
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
 	svc.NotificationsEndp = endp
 	c.Assert(svc.Start(), IsNil)
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true}
 	notif := &launch_helper.Notification{Card: card}
 	output := &launch_helper.HelperOutput{Notification: notif}
-	err := svc.messageHandler(&click.AppId{}, "", output)
-	c.Assert(err, NotNil)
+	b := svc.messageHandler(&click.AppId{}, "", output)
+	c.Check(b, Equals, false)
 }
 
 func (ps *postalSuite) TestMessageHandlerInhibition(c *C) {
