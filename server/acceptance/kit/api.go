@@ -19,6 +19,7 @@ package kit
 
 import (
 	"bytes"
+	_ "crypto/sha512" // support sha384/512 certs
 	"crypto/tls"
 	"encoding/json"
 	"errors"
