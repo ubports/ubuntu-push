@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -247,6 +248,22 @@ func NewSession(serverAddrSpec string, conf ClientSessionConfig,
 			return nil, errors.New("could not parse certificate")
 		}
 		sess.TLS.RootCAs = cp
+		block, _ := pem.Decode(sess.PEM)
+		if block == nil {
+			panic(fmt.Errorf("unexpected error reparsing certificate"))
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			panic(fmt.Errorf("unexpected error reparsing certificate: %v", err))
+		}
+		// good guess
+		var serverName string
+		if len(cert.DNSNames) > 0 {
+			serverName = cert.DNSNames[0]
+		} else {
+			serverName = cert.Subject.CommonName
+		}
+		sess.TLS.ServerName = serverName
 	}
 	sess.doneCh = make(chan uint32, 1)
 	sess.stopCh = make(chan struct{})

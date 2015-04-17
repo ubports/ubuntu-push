@@ -259,10 +259,9 @@ func (cs *clientSessionSuite) TestNewSessionHostEndpointWorks(c *C) {
 	c.Check(sess.getHost, NotNil)
 }
 
-var certfile string = helpers.SourceRelative("../../server/acceptance/ssl/testing.cert")
-var pem, _ = ioutil.ReadFile(certfile)
-
 func (cs *clientSessionSuite) TestNewSessionPEMWorks(c *C) {
+	pem, err := ioutil.ReadFile(helpers.SourceRelative("../../server/acceptance/ssl/testing.cert"))
+	c.Assert(err, IsNil)
 	conf := ClientSessionConfig{PEM: pem}
 	sess, err := NewSession("", conf, "wah", cs.lvls, cs.log)
 	c.Check(sess, NotNil)
@@ -1648,6 +1647,7 @@ func (cs *clientSessionSuite) TestDialWorksDirect(c *C) {
 
 	cli, err := lst.Accept()
 	c.Assert(err, IsNil)
+	cli.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var buf [1]byte
 	_, err = cli.Read(buf[:])
 	c.Assert(err, IsNil)
@@ -1673,6 +1673,7 @@ func (cs *clientSessionSuite) TestDialWorksDirectSHA512Cert(c *C) {
 
 	cli, err := lst.Accept()
 	c.Assert(err, IsNil)
+	cli.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var buf [1]byte
 	_, err = cli.Read(buf[:])
 	c.Assert(err, IsNil)
