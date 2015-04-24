@@ -61,6 +61,7 @@ type kindHelperPool struct {
 	chOut      chan *HelperResult
 	chIn       chan *HelperInput
 	chDone     chan *click.AppId
+	chStopped  chan struct{}
 	launchers  map[string]HelperLauncher
 	lock       sync.Mutex
 	hmap       map[string]*HelperArgs
@@ -91,6 +92,7 @@ func (pool *kindHelperPool) Start() chan *HelperResult {
 	pool.chOut = make(chan *HelperResult)
 	pool.chIn = make(chan *HelperInput, InputBufferSize)
 	pool.chDone = make(chan *click.AppId)
+	pool.chStopped = make(chan struct{})
 
 	for kind, launcher := range pool.launchers {
 		kind1 := kind
@@ -115,6 +117,7 @@ func (pool *kindHelperPool) loop() {
 		select {
 		case in, ok := <-pool.chIn:
 			if !ok {
+				close(pool.chStopped)
 				return
 			}
 			if len(running) >= pool.maxNum || running[in.App.Original()] {
@@ -176,6 +179,8 @@ func (pool *kindHelperPool) Stop() {
 			panic(fmt.Errorf("failed to remove helper observer for &s: %v", kind, err))
 		}
 	}
+	// make Stop sync for tests
+	<-pool.chStopped
 }
 
 func (pool *kindHelperPool) Run(kind string, input *HelperInput) {
