@@ -21,6 +21,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
+	"launchpad.net/ubuntu-push/bus/urfkill"
 	"launchpad.net/ubuntu-push/client/session"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
@@ -90,6 +91,11 @@ func (s *PrSuite) SetUpTest(c *C) {
 	s.myd = &myD{}
 }
 
+const (
+	wlanOn  = urfkill.KillswitchStateUnblocked
+	wlanOff = urfkill.KillswitchStateSoftBlocked
+)
+
 func (s *PrSuite) TestStep(c *C) {
 	p := &poller{
 		times:                Times{},
@@ -111,7 +117,7 @@ func (s *PrSuite) TestStep(c *C) {
 	ch := make(chan string)
 	// now, run
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh, false, nil, true, nil)
+	go p.control(wakeupCh, filteredWakeUpCh, false, nil, wlanOn, nil)
 	go func() { ch <- p.step(filteredWakeUpCh, doneCh, "old cookie") }()
 	select {
 	case s := <-ch:
@@ -138,8 +144,8 @@ func (s *PrSuite) TestControl(c *C) {
 	filteredWakeUpCh := make(chan bool)
 	s.myd.watchWakeCh = make(chan bool, 1)
 	flightModeCh := make(chan bool)
-	wirelessModeCh := make(chan bool)
-	go p.control(wakeUpCh, filteredWakeUpCh, false, flightModeCh, true, wirelessModeCh)
+	wlanKillswitchStateCh := make(chan urfkill.KillswitchState)
+	go p.control(wakeUpCh, filteredWakeUpCh, false, flightModeCh, wlanOn, wlanKillswitchStateCh)
 
 	// works
 	err := p.requestWakeup()
@@ -157,17 +163,17 @@ func (s *PrSuite) TestControl(c *C) {
 
 	// flight mode
 	flightModeCh <- true
-	wirelessModeCh <- false
+	wlanKillswitchStateCh <- wlanOff
 	err = p.requestWakeup()
 	c.Assert(err, IsNil)
 	c.Check(s.myd.watchWakeCh, HasLen, 0)
 
 	// wireless on
-	wirelessModeCh <- true
+	wlanKillswitchStateCh <- wlanOn
 	c.Check(<-s.myd.watchWakeCh, Equals, true)
 
 	// wireless off
-	wirelessModeCh <- false
+	wlanKillswitchStateCh <- wlanOff
 	// pending wakeup was cleared
 	c.Check(<-s.myd.watchWakeCh, Equals, false)
 
