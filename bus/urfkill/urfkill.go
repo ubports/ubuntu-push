@@ -19,7 +19,7 @@
 package urfkill
 
 import (
-	//"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus/v1"
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/logger"
@@ -32,9 +32,24 @@ var BusAddress bus.Address = bus.Address{
 	Name:      "org.freedesktop.URfkill",
 }
 
+// URfkill lives on a well-knwon bus.Address
+var WLANKillswitchBusAddress bus.Address = bus.Address{
+	Interface: "org.freedesktop.URfkill.Killswitch",
+	Path:      "/org/freedesktop/URfkill/WLAN",
+	Name:      "org.freedesktop.URfkill",
+}
+
 /*****************************************************************
  *    URfkill (and its implementation)
  */
+
+type KillswitchState int32
+
+const (
+	KillswitchStateUnblocked   KillswitchState = 0
+	KillswitchStateSoftBlocked KillswitchState = 1
+	KillswitchStateHardBlocked KillswitchState = 2
+)
 
 type URfkill interface {
 	// IsFlightMode returns flight mode state.
@@ -42,16 +57,24 @@ type URfkill interface {
 	// WatchFlightMode listens for changes to URfkill's flight
 	// mode state, and sends them out over the channel returned.
 	WatchFlightMode() (<-chan bool, bus.Cancellable, error)
+	// GetWLANKillswitchState fetches and returns URfkill's
+	// WLAN killswitch state.
+	GetWLANKillswitchState() KillswitchState
+	// WatchWLANKillswitchState listens for changes of URfkill's
+	// WLAN killswtich state, and sends them out over the channel returned.
+	WatchWLANKillswitchState() (<-chan KillswitchState, bus.Cancellable, error)
 }
 
 type uRfkill struct {
-	bus bus.Endpoint
-	log logger.Logger
+	bus            bus.Endpoint
+	wlanKillswitch bus.Endpoint
+	log            logger.Logger
 }
 
-// New returns a new URfkill that'll use the provided bus.Endpoint
-func New(endp bus.Endpoint, log logger.Logger) URfkill {
-	return &uRfkill{endp, log}
+// New returns a new URfkill that'll use the provided bus.Endpoints
+// for BusAddress and WLANKillswitchBusAddress
+func New(endp bus.Endpoint, wlanKillswitch bus.Endpoint, log logger.Logger) URfkill {
+	return &uRfkill{endp, wlanKillswitch, log}
 }
 
 // ensure uRfkill implements URfkill
@@ -87,6 +110,47 @@ func (ur *uRfkill) WatchFlightMode() (<-chan bool, bus.Cancellable, error) {
 		func() { close(ch) })
 	if err != nil {
 		ur.log.Debugf("Failed to set up the watch: %s", err)
+		return nil, nil, err
+	}
+
+	return ch, w, nil
+}
+
+func (ur *uRfkill) GetWLANKillswitchState() KillswitchState {
+	got, err := ur.wlanKillswitch.GetProperty("state")
+	if err != nil {
+		ur.log.Errorf("failed getting WLANKillswitchState: %s", err)
+		ur.log.Debugf("defaulting WLANKillswitchState to true")
+		return KillswitchStateUnblocked
+	}
+
+	v, ok := got.(int32)
+	if !ok {
+		ur.log.Errorf("got weird WLANKillswitchState: %#v", got)
+		return KillswitchStateUnblocked
+	}
+
+	return KillswitchState(v)
+}
+
+func (ur *uRfkill) WatchWLANKillswitchState() (<-chan KillswitchState, bus.Cancellable, error) {
+	ch := make(chan KillswitchState)
+	w, err := ur.wlanKillswitch.WatchProperties(
+		func(changed map[string]dbus.Variant, invalidated []string) {
+			v, ok := changed["state"]
+			if !ok {
+				return
+			}
+			st, ok := v.Value.(int32)
+			if !ok {
+				ur.log.Errorf("got weird WLANKillswitchState via PropertiesChanged: %#v", v)
+				return
+			}
+			ur.log.Debugf("got WLANKillswitchState change: %v", st)
+			ch <- KillswitchState(st)
+		}, func() { close(ch) })
+	if err != nil {
+		ur.log.Debugf("failed to set up the watch: %s", err)
 		return nil, nil, err
 	}
 

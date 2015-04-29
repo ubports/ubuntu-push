@@ -19,7 +19,7 @@ package urfkill
 import (
 	"testing"
 
-	//"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
 	testingbus "launchpad.net/ubuntu-push/bus/testing"
@@ -42,14 +42,14 @@ func (s *URSuite) SetUpTest(c *C) {
 }
 
 func (s *URSuite) TestNew(c *C) {
-	ur := New(testingbus.NewTestingEndpoint(nil, condition.Work(true)), s.log)
+	ur := New(testingbus.NewTestingEndpoint(nil, condition.Work(true)), nil, s.log)
 	c.Check(ur, NotNil)
 }
 
 // IsFlightMode returns the right state when everything works
 func (s *URSuite) TestIsFlightMode(c *C) {
 	endp := testingbus.NewTestingEndpoint(nil, condition.Work(true), true)
-	ur := New(endp, s.log)
+	ur := New(endp, nil, s.log)
 	state := ur.IsFlightMode()
 	c.Check(state, Equals, true)
 	callArgs := testingbus.GetCallArgs(endp)
@@ -60,7 +60,7 @@ func (s *URSuite) TestIsFlightMode(c *C) {
 
 // IsFlightMode returns the right state when dbus fails
 func (s *URSuite) TestIsFlightModeFail(c *C) {
-	ur := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
+	ur := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), nil, s.log)
 	state := ur.IsFlightMode()
 	c.Check(state, Equals, false)
 }
@@ -68,14 +68,14 @@ func (s *URSuite) TestIsFlightModeFail(c *C) {
 // IsFlightMode returns the right state when dbus works but delivers
 // rubbish values
 func (s *URSuite) TestIsFlightModeRubbishValues(c *C) {
-	ur := New(testingbus.NewTestingEndpoint(nil, condition.Work(true), "broken"), s.log)
+	ur := New(testingbus.NewTestingEndpoint(nil, condition.Work(true), "broken"), nil, s.log)
 	state := ur.IsFlightMode()
 	c.Check(state, Equals, false)
 }
 
 // IsFlightMode returns the right state when dbus works but delivers a rubbish structure
 func (s *URSuite) TestIsFlightModeRubbishStructure(c *C) {
-	ur := New(testingbus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{}), s.log)
+	ur := New(testingbus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{}), nil, s.log)
 	state := ur.IsFlightMode()
 	c.Check(state, Equals, false)
 }
@@ -83,7 +83,7 @@ func (s *URSuite) TestIsFlightModeRubbishStructure(c *C) {
 // WatchFightMode sends a stream of states over the channel
 func (s *URSuite) TestWatchFlightMode(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), false, true, false)
-	ur := New(tc, s.log)
+	ur := New(tc, nil, s.log)
 	ch, w, err := ur.WatchFlightMode()
 	c.Assert(err, IsNil)
 	defer w.Cancel()
@@ -93,7 +93,7 @@ func (s *URSuite) TestWatchFlightMode(c *C) {
 
 // WatchFlightMode returns on error if the dbus call fails
 func (s *URSuite) TestWatchFlightModeFails(c *C) {
-	ur := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
+	ur := New(testingbus.NewTestingEndpoint(nil, condition.Work(false)), nil, s.log)
 	_, _, err := ur.WatchFlightMode()
 	c.Check(err, NotNil)
 }
@@ -101,7 +101,7 @@ func (s *URSuite) TestWatchFlightModeFails(c *C) {
 // WatchFlightMode calls close on its channel when the watch bails
 func (s *URSuite) TestWatchFlightModeClosesOnWatchBail(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
-	ur := New(tc, s.log)
+	ur := New(tc, nil, s.log)
 	ch, w, err := ur.WatchFlightMode()
 	c.Assert(err, IsNil)
 	defer w.Cancel()
@@ -112,10 +112,107 @@ func (s *URSuite) TestWatchFlightModeClosesOnWatchBail(c *C) {
 // WatchFlightMode survives rubbish values
 func (s *URSuite) TestWatchFlightModeSurvivesRubbishValues(c *C) {
 	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true), "gorp")
-	ur := New(tc, s.log)
+	ur := New(tc, nil, s.log)
 	ch, w, err := ur.WatchFlightMode()
 	c.Assert(err, IsNil)
 	defer w.Cancel()
 	_, ok := <-ch
 	c.Check(ok, Equals, false)
+}
+
+// GetWLANKillState returns the right state when everything works
+func (s *URSuite) TestGetWLANKillState(c *C) {
+	ur := New(nil, testingbus.NewTestingEndpoint(nil, condition.Work(true), KillswitchStateSoftBlocked), s.log)
+	st := ur.GetWLANKillswitchState()
+	c.Check(st, Equals, KillswitchStateSoftBlocked)
+}
+
+// GetWLANKillswitchState returns the right state when dbus fails
+func (s *URSuite) TestGetWLANKillswitchStateFail(c *C) {
+	ur := New(nil, testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
+	st := ur.GetWLANKillswitchState()
+	c.Check(st, Equals, KillswitchStateUnblocked)
+}
+
+// GetWLANKillswitchState returns the right state when dbus works but delivers rubbish values
+func (s *URSuite) TestGetWLANKillswitchStateRubbishValues(c *C) {
+	ur := New(nil, testingbus.NewTestingEndpoint(nil, condition.Work(true), "broken"), s.log)
+	st := ur.GetWLANKillswitchState()
+	c.Check(st, Equals, KillswitchStateUnblocked)
+}
+
+// GetWLANKillswitchState returns the right state when dbus works but delivers a rubbish structure
+func (s *URSuite) TestGetWLANKillswitchStateRubbishStructure(c *C) {
+	ur := New(nil, testingbus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{}), s.log)
+	st := ur.GetWLANKillswitchState()
+	c.Check(st, Equals, KillswitchStateUnblocked)
+}
+
+func mkWLANKillswitchStateMap(st KillswitchState) map[string]dbus.Variant {
+	m := make(map[string]dbus.Variant)
+	m["state"] = dbus.Variant{int32(st)}
+	return m
+}
+
+// WatchWLANKillswitchState sends a stream of WLAN killswitch states over the channel
+func (s *URSuite) TestWatchWLANKillswitchState(c *C) {
+	tc := testingbus.NewMultiValuedTestingEndpoint(nil, condition.Work(true),
+		[]interface{}{mkWLANKillswitchStateMap(KillswitchStateUnblocked), []string{}},
+		[]interface{}{mkWLANKillswitchStateMap(KillswitchStateHardBlocked), []string{}},
+		[]interface{}{mkWLANKillswitchStateMap(KillswitchStateUnblocked), []string{}},
+	)
+	ur := New(nil, tc, s.log)
+	ch, w, err := ur.WatchWLANKillswitchState()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
+	l := []KillswitchState{<-ch, <-ch, <-ch}
+	c.Check(l, DeepEquals, []KillswitchState{KillswitchStateUnblocked, KillswitchStateHardBlocked, KillswitchStateUnblocked})
+}
+
+// WatchWLANKillswitchState returns on error if the dbus call fails
+func (s *URSuite) TestWatchWLANKillswitchStateFails(c *C) {
+	ur := New(nil, testingbus.NewTestingEndpoint(nil, condition.Work(false)), s.log)
+	_, _, err := ur.WatchWLANKillswitchState()
+	c.Check(err, NotNil)
+}
+
+// WatchWLANKillswitchState calls close on its channel when the watch bails
+func (s *URSuite) TestWatchWLANKillswitchStateClosesOnWatchBail(c *C) {
+	tc := testingbus.NewTestingEndpoint(nil, condition.Work(true))
+	ur := New(nil, tc, s.log)
+	ch, w, err := ur.WatchWLANKillswitchState()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
+	_, ok := <-ch
+	c.Check(ok, Equals, false)
+}
+
+// WatchWLANKillswitchState ignores non-WLAN-killswitch PropertiesChanged
+func (s *URSuite) TestWatchWLANKillswitchStateIgnoresIrrelevant(c *C) {
+	tc := testingbus.NewMultiValuedTestingEndpoint(nil, condition.Work(true),
+		[]interface{}{map[string]dbus.Variant{"foo": dbus.Variant{}}, []string{}},
+		[]interface{}{mkWLANKillswitchStateMap(KillswitchStateUnblocked), []string{}},
+	)
+	ur := New(nil, tc, s.log)
+	ch, w, err := ur.WatchWLANKillswitchState()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
+	v, ok := <-ch
+	c.Check(ok, Equals, true)
+	c.Check(v, Equals, KillswitchStateUnblocked)
+}
+
+// WatchWLANKillswitchState ignores rubbish WLAN killswitch state
+func (s *URSuite) TestWatchWLANKillswitchStateIgnoresRubbishValues(c *C) {
+	tc := testingbus.NewMultiValuedTestingEndpoint(nil, condition.Work(true),
+		[]interface{}{map[string]dbus.Variant{"state": dbus.Variant{-12}}, []string{}},
+		[]interface{}{mkWLANKillswitchStateMap(KillswitchStateSoftBlocked), []string{}},
+	)
+	ur := New(nil, tc, s.log)
+	ch, w, err := ur.WatchWLANKillswitchState()
+	c.Assert(err, IsNil)
+	defer w.Cancel()
+	v, ok := <-ch
+	c.Check(ok, Equals, true)
+	c.Check(v, Equals, KillswitchStateSoftBlocked)
 }
