@@ -154,6 +154,16 @@ func (tc *testingEndpoint) WatchSignal(member string, f func(...interface{}), d 
 	}
 }
 
+// See Endpoint's WatchProperties.
+func (tc *testingEndpoint) WatchProperties(f func(map[string]dbus.Variant, []string), d func()) (bus.Cancellable, error) {
+	translate := func(vals ...interface{}) {
+		changed := vals[0].(map[string]dbus.Variant)
+		invalidated := vals[1].([]string)
+		f(changed, invalidated)
+	}
+	return tc.WatchSignal("PropertiesChanged", translate, d)
+}
+
 // See Endpoint's Call. This Call will check its condition to decide whether
 // to return an error, or the first of its return values
 func (tc *testingEndpoint) Call(member string, args []interface{}, rvs ...interface{}) error {

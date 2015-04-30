@@ -49,6 +49,7 @@ type Endpoint interface {
 	Call(member string, args []interface{}, rvs ...interface{}) error
 	GetProperty(property string) (interface{}, error)
 	SetProperty(property string, suffix string, value interface{}) error
+	WatchProperties(f func(map[string]dbus.Variant, []string), d func()) (Cancellable, error)
 	Dial() error
 	Close()
 	String() string
@@ -193,6 +194,48 @@ func (endp *endpoint) SetProperty(property string, suffix string, value interfac
 	proxy := endp.bus.Object(endp.addr.Name, dbus.ObjectPath(endp.addr.Path+suffix))
 	_, err := proxy.Call("org.freedesktop.DBus.Properties", "Set", endp.addr.Interface, property, value)
 	return err
+}
+
+// WatchProperties() sets up a watch for
+// org.freedesktop.DBus.Properties PropertiesChanged signal for the
+// path and interface provided when creating the endpoint, and then
+// calls f() with the unpacked value. If it's unable to set up the
+// watch it returns an error. If the watch fails once established, d()
+// is called. Typically f() sends the values over a channel, and d()
+// would close the channel.
+//
+// XXX: untested
+func (endp *endpoint) WatchProperties(f func(map[string]dbus.Variant, []string), d func()) (Cancellable, error) {
+	watch, err := endp.proxy.WatchSignal("org.freedesktop.DBus.Properties", "PropertiesChanged")
+	if err != nil {
+		endp.log.Debugf("failed to set up the watch: %s", err)
+		return nil, err
+	}
+
+	go func() {
+		for {
+			msg, ok := <-watch.C
+			if !ok {
+				break
+			}
+			var intfName string
+			var changed map[string]dbus.Variant
+			var invalidated []string
+			if err := msg.Args(&intfName, &changed, &invalidated); err != nil {
+				endp.log.Errorf("unexpected values from Properties watch")
+				break
+			}
+			if intfName != endp.addr.Interface {
+				// ignore
+				continue
+			}
+			f(changed, invalidated)
+		}
+		endp.log.Debugf("got not-OK from Properties watch")
+		d()
+	}()
+
+	return watch, nil
 }
 
 // Close the connection to dbus.
