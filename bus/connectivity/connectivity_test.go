@@ -196,6 +196,10 @@ func (rep *racyEndpoint) WatchSignal(member string, f func(...interface{}), d fu
 	return nil, nil
 }
 
+func (rep *racyEndpoint) WatchProperties(f func(map[string]dbus.Variant, []string), d func()) (bus.Cancellable, error) {
+	return nil, nil
+}
+
 func (*racyEndpoint) Close()                                                        {}
 func (*racyEndpoint) Dial() error                                                   { return nil }
 func (*racyEndpoint) String() string                                                { return "racyEndpoint" }

@@ -17,6 +17,7 @@
 package broker
 
 import (
+	"encoding/json"
 	"fmt"
 
 	. "launchpad.net/gocheck"
@@ -46,5 +47,22 @@ func (s *brokerSuite) TestGetInfoString(c *C) {
 
 	connectMsg.Info["foo"] = 33
 	v, err = GetInfoString(connectMsg, "foo", "?")
+	c.Check(err, Equals, ErrUnexpectedValue)
+}
+
+func (s *brokerSuite) TestGetInfoInt(c *C) {
+	connectMsg := &protocol.ConnectMsg{}
+	v, err := GetInfoInt(connectMsg, "bar", -1)
+	c.Check(err, IsNil)
+	c.Check(v, Equals, -1)
+
+	err = json.Unmarshal([]byte(`{"bar": 233}`), &connectMsg.Info)
+	c.Assert(err, IsNil)
+	v, err = GetInfoInt(connectMsg, "bar", -1)
+	c.Check(err, IsNil)
+	c.Check(v, Equals, 233)
+
+	connectMsg.Info["bar"] = "garbage"
+	v, err = GetInfoInt(connectMsg, "bar", -1)
 	c.Check(err, Equals, ErrUnexpectedValue)
 }
