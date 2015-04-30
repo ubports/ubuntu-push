@@ -1,4 +1,4 @@
-ubuntu-push (0.68+15.04.20150430-0ubuntu1) UNRELEASED; urgency=medium
+ubuntu-push (0.68+15.04.20150430.1-0ubuntu1) vivid; urgency=medium
 
   [ Samuele Pedroni ]
   * switch poller to use killswitch state for WLAN instead of
@@ -12,7 +12,10 @@ ubuntu-push (0.68+15.04.20150430-0ubuntu1) UNRELEASED; urgency=medium
   * let send a build number with acceptanceclient
   * add helper to get int out of ConnectMsg Info
 
- -- Ricardo Salveti de Araujo <ricardo.salveti@canonical.com>  Thu, 30 Apr 2015 09:57:38 -0500
+  [ CI Train Bot ]
+  * New rebuild forced.
+
+ -- CI Train Bot <ci-train-bot@canonical.com>  Thu, 30 Apr 2015 15:08:57 +0000
 
 ubuntu-push (0.68+15.04.20150403-0ubuntu1) vivid; urgency=medium
 
