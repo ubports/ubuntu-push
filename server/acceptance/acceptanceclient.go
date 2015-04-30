@@ -18,6 +18,7 @@
 package acceptance
 
 import (
+	_ "crypto/sha512" // support sha384/512 certs
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -37,6 +38,7 @@ type ClientSession struct {
 	DeviceId        string
 	Model           string
 	ImageChannel    string
+	BuildNumber     int32
 	ServerAddr      string
 	ExchangeTimeout time.Duration
 	ReportPings     bool
@@ -106,14 +108,18 @@ func (sess *ClientSession) Run(events chan<- string) error {
 		return err
 	}
 	proto := protocol.NewProtocol0(conn)
+	info := map[string]interface{}{
+		"device":  sess.Model,
+		"channel": sess.ImageChannel,
+	}
+	if sess.BuildNumber != -1 {
+		info["build_number"] = sess.BuildNumber
+	}
 	err = proto.WriteMessage(protocol.ConnectMsg{
-		Type:     "connect",
-		DeviceId: sess.DeviceId,
-		Levels:   sess.Levels,
-		Info: map[string]interface{}{
-			"device":  sess.Model,
-			"channel": sess.ImageChannel,
-		},
+		Type:          "connect",
+		DeviceId:      sess.DeviceId,
+		Levels:        sess.Levels,
+		Info:          info,
 		Authorization: sess.Auth,
 		Cookie:        sess.GetCookie(),
 	})

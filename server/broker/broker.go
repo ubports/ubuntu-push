@@ -60,7 +60,7 @@ var ErrNop = errors.New("nothing to send")
 // LevelsMap is the type for holding channel levels for session.
 type LevelsMap map[store.InternalChannelId]int64
 
-// GetInfoString helps retrivieng a string out of a protocol.ConnectMsg.Info
+// GetInfoString helps retrieveng a string out of a protocol.ConnectMsg.Info.
 func GetInfoString(msg *protocol.ConnectMsg, name, defaultVal string) (string, error) {
 	v, ok := msg.Info[name]
 	if !ok {
@@ -71,6 +71,19 @@ func GetInfoString(msg *protocol.ConnectMsg, name, defaultVal string) (string, e
 		return "", ErrUnexpectedValue
 	}
 	return s, nil
+}
+
+// GetInfoInt helps retrieving an integer out of a protocol.ConnectMsg.Info.
+func GetInfoInt(msg *protocol.ConnectMsg, name string, defaultVal int) (int, error) {
+	v, ok := msg.Info[name]
+	if !ok {
+		return defaultVal, nil
+	}
+	n, ok := v.(float64)
+	if !ok {
+		return -1, ErrUnexpectedValue
+	}
+	return int(n), nil
 }
 
 // BrokerSession holds broker session state.

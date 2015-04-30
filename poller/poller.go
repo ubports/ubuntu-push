@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/polld"
 	"launchpad.net/ubuntu-push/bus/powerd"
 	"launchpad.net/ubuntu-push/bus/urfkill"
@@ -68,7 +67,6 @@ type PollerSetup struct {
 type poller struct {
 	times                Times
 	log                  logger.Logger
-	nm                   networkmanager.NetworkManager
 	powerd               powerd.Powerd
 	polld                polld.Polld
 	urfkill              urfkill.URfkill
@@ -103,17 +101,12 @@ func (p *poller) Start() error {
 	if p.powerd != nil || p.polld != nil {
 		return ErrAlreadyStarted
 	}
-	nmEndp := bus.SystemBus.Endpoint(networkmanager.BusAddress, p.log)
 	powerdEndp := bus.SystemBus.Endpoint(powerd.BusAddress, p.log)
 	polldEndp := bus.SessionBus.Endpoint(polld.BusAddress, p.log)
 	urEndp := bus.SystemBus.Endpoint(urfkill.BusAddress, p.log)
+	urWLANKillswitchEndp := bus.SystemBus.Endpoint(urfkill.WLANKillswitchBusAddress, p.log)
 	var wg sync.WaitGroup
 	wg.Add(4)
-	go func() {
-		n := util.NewAutoRedialer(nmEndp).Redial()
-		p.log.Debugf("NetworkManager dialed on try %d", n)
-		wg.Done()
-	}()
 	go func() {
 		n := util.NewAutoRedialer(powerdEndp).Redial()
 		p.log.Debugf("powerd dialed on try %d", n)
@@ -129,12 +122,16 @@ func (p *poller) Start() error {
 		p.log.Debugf("URfkill dialed on try %d", n)
 		wg.Done()
 	}()
+	go func() {
+		n := util.NewAutoRedialer(urWLANKillswitchEndp).Redial()
+		p.log.Debugf("URfkill (WLAN killswitch) dialed on try %d", n)
+		wg.Done()
+	}()
 	wg.Wait()
 
-	p.nm = networkmanager.New(nmEndp, p.log)
 	p.powerd = powerd.New(powerdEndp, p.log)
 	p.polld = polld.New(polldEndp, p.log)
-	p.urfkill = urfkill.New(urEndp, p.log)
+	p.urfkill = urfkill.New(urEndp, urWLANKillswitchEndp, p.log)
 
 	// busy sleep loop to workaround go's timer/sleep
 	// not accounting for time when the system is suspended
@@ -157,7 +154,7 @@ func (p *poller) Run() error {
 	if p.log == nil {
 		return ErrUnconfigured
 	}
-	if p.nm == nil || p.powerd == nil || p.polld == nil || p.urfkill == nil {
+	if p.powerd == nil || p.polld == nil || p.urfkill == nil {
 		return ErrNotStarted
 	}
 	wakeupCh, err := p.powerd.WatchWakeups()
@@ -169,18 +166,18 @@ func (p *poller) Run() error {
 		return err
 	}
 	flightMode := p.urfkill.IsFlightMode()
-	wirelessEnabled := p.nm.GetWirelessEnabled()
+	wlanKillswitchState := p.urfkill.GetWLANKillswitchState()
 	flightModeCh, _, err := p.urfkill.WatchFlightMode()
 	if err != nil {
 		return err
 	}
-	wirelessEnabledCh, _, err := p.nm.WatchWirelessEnabled()
+	wlanKillswitchStateCh, _, err := p.urfkill.WatchWLANKillswitchState()
 	if err != nil {
 		return err
 	}
 
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh, flightMode, flightModeCh, wirelessEnabled, wirelessEnabledCh)
+	go p.control(wakeupCh, filteredWakeUpCh, flightMode, flightModeCh, wlanKillswitchState, wlanKillswitchStateCh)
 	go p.run(filteredWakeUpCh, doneCh)
 	return nil
 }
@@ -198,7 +195,8 @@ func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error)
 	return t, cookie, err
 }
 
-func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, flightMode bool, flightModeCh <-chan bool, wirelessEnabled bool, wirelessEnabledCh <-chan bool) {
+func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, flightMode bool, flightModeCh <-chan bool, wlanKillswitchState urfkill.KillswitchState, wlanKillswitchStateCh <-chan urfkill.KillswitchState) {
+	wirelessEnabled := wlanKillswitchState == urfkill.KillswitchStateUnblocked
 	dontPoll := flightMode && !wirelessEnabled
 	var t time.Time
 	cookie := ""
@@ -237,7 +235,8 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 				}
 			}
 		case flightMode = <-flightModeCh:
-		case wirelessEnabled = <-wirelessEnabledCh:
+		case wlanKillswitchState = <-wlanKillswitchStateCh:
+			wirelessEnabled = wlanKillswitchState == urfkill.KillswitchStateUnblocked
 		}
 		newDontPoll := flightMode && !wirelessEnabled
 		p.log.Debugf("control: flightMode:%v wirelessEnabled:%v prevDontPoll:%v dontPoll:%v wakeupReq:%v holdsWakeLock:%v", flightMode, wirelessEnabled, dontPoll, newDontPoll, !t.IsZero(), holdsWakeLock)

@@ -259,10 +259,9 @@ func (cs *clientSessionSuite) TestNewSessionHostEndpointWorks(c *C) {
 	c.Check(sess.getHost, NotNil)
 }
 
-var certfile string = helpers.SourceRelative("../../server/acceptance/ssl/testing.cert")
-var pem, _ = ioutil.ReadFile(certfile)
-
 func (cs *clientSessionSuite) TestNewSessionPEMWorks(c *C) {
+	pem, err := ioutil.ReadFile(helpers.SourceRelative("../../server/acceptance/ssl/testing.cert"))
+	c.Assert(err, IsNil)
 	conf := ClientSessionConfig{PEM: pem}
 	sess, err := NewSession("", conf, "wah", cs.lvls, cs.log)
 	c.Check(sess, NotNil)
@@ -1474,10 +1473,14 @@ var (
 	dialTestTimeout = 300 * time.Millisecond
 )
 
-func dialTestConf() ClientSessionConfig {
+func dialTestConf(certPEM []byte) ClientSessionConfig {
 	conf := dummyConf()
 	conf.ExchangeTimeout = dialTestTimeout
-	conf.PEM = helpers.TestCertPEMBlock
+	if certPEM == nil {
+		conf.PEM = helpers.TestCertPEMBlock
+	} else {
+		conf.PEM = certPEM
+	}
 	return conf
 }
 
@@ -1499,7 +1502,7 @@ func (cs *clientSessionSuite) TestDialBadServerName(c *C) {
 	}))
 	defer ts.Close()
 
-	sess, err := NewSession(ts.URL, dialTestConf(), "wah", cs.lvls, cs.log)
+	sess, err := NewSession(ts.URL, dialTestConf(nil), "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	tconn := &testConn{}
 	sess.Connection = tconn
@@ -1544,7 +1547,7 @@ func (cs *clientSessionSuite) TestDialWorks(c *C) {
 	}))
 	defer ts.Close()
 
-	sess, err := NewSession(ts.URL, dialTestConf(), "wah", cs.lvls, cs.log)
+	sess, err := NewSession(ts.URL, dialTestConf(nil), "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	tconn := &testConn{CloseCondition: condition.Fail2Work(10)}
 	sess.Connection = tconn
@@ -1631,7 +1634,7 @@ func (cs *clientSessionSuite) TestDialWorksDirect(c *C) {
 	// happy path thoughts
 	lst, err := tls.Listen("tcp", "localhost:0", helpers.TestTLSServerConfig)
 	c.Assert(err, IsNil)
-	sess, err := NewSession(lst.Addr().String(), dialTestConf(), "wah", cs.lvls, cs.log)
+	sess, err := NewSession(lst.Addr().String(), dialTestConf(nil), "wah", cs.lvls, cs.log)
 	c.Assert(err, IsNil)
 	defer sess.StopKeepConnection()
 
@@ -1642,7 +1645,37 @@ func (cs *clientSessionSuite) TestDialWorksDirect(c *C) {
 
 	go sess.Dial()
 
-	_, err = lst.Accept()
+	cli, err := lst.Accept()
+	c.Assert(err, IsNil)
+	cli.SetReadDeadline(time.Now().Add(2 * time.Second))
+	var buf [1]byte
+	_, err = cli.Read(buf[:])
+	c.Assert(err, IsNil)
+	// connect done
+}
+
+func (cs *clientSessionSuite) TestDialWorksDirectSHA512Cert(c *C) {
+	// happy path thoughts
+	lst, err := tls.Listen("tcp", "localhost:0", helpers.TestTLSServerConfigs["sha512"])
+	c.Assert(err, IsNil)
+	sess, err := NewSession(lst.Addr().String(), dialTestConf(helpers.TestCertPEMBlock512), "wah", cs.lvls, cs.log)
+	c.Assert(err, IsNil)
+	defer sess.StopKeepConnection()
+
+	upCh := make(chan interface{}, 5)
+	downCh := make(chan interface{}, 5)
+	proto := &testProtocol{up: upCh, down: downCh}
+	sess.Protocolator = func(conn net.Conn) protocol.Protocol {
+		return proto
+	}
+
+	go sess.Dial()
+
+	cli, err := lst.Accept()
+	c.Assert(err, IsNil)
+	cli.SetReadDeadline(time.Now().Add(2 * time.Second))
+	var buf [1]byte
+	_, err = cli.Read(buf[:])
 	c.Assert(err, IsNil)
 	// connect done
 }

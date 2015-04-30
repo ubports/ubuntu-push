@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/bus"
@@ -201,6 +202,24 @@ func (s *TestingEndpointSuite) TestGetPropertyFailsGargling(c *C) {
 	endp := NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{})
 	_, e := endp.GetProperty("what")
 	c.Check(e, NotNil)
+}
+
+// Test that WatchProperties() with a positive condition sends the
+// provided return values over the channel.
+func (s *TestingEndpointSuite) TestWatchProperties(c *C) {
+	var m, n int32 = 42, 17
+	endp := NewMultiValuedTestingEndpoint(nil, condition.Work(true),
+		[]interface{}{map[string]dbus.Variant{"s": dbus.Variant{m}}, []string{}},
+		[]interface{}{map[string]dbus.Variant{"s": dbus.Variant{n}}, []string{}},
+	)
+	ch := make(chan int32)
+	w, e := endp.WatchProperties(func(changed map[string]dbus.Variant, nvalited []string) {
+		ch <- changed["s"].Value.(int32)
+	}, func() { close(ch) })
+	c.Assert(e, IsNil)
+	defer w.Cancel()
+	c.Check(<-ch, Equals, m)
+	c.Check(<-ch, Equals, n)
 }
 
 // Test Dial() with a non-working bus fails
