@@ -125,7 +125,7 @@ func (mmu *MessagingMenu) Tags(app *click.AppId) []string {
 	mmu.lock.RLock()
 	defer mmu.lock.RUnlock()
 	for _, payload := range mmu.notifications {
-		if payload.App.Original() == orig {
+		if payload.App.Original() == orig && !payload.Gone {
 			tags = append(tags, payload.Tag)
 		}
 	}
