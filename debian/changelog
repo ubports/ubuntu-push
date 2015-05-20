@@ -1,3 +1,22 @@
+ubuntu-push (0.68+15.04.20150430.1-0ubuntu1) vivid; urgency=medium
+
+  [ Samuele Pedroni ]
+  * switch poller to use killswitch state for WLAN instead of
+    misleading NM property (LP: #1446584)
+  * don't have goroutines from a previous test overlap with the next,
+    races gets detected otherwise
+  * have the TestDialWorksDirect* tests quickly timeout, go1.3 wants a
+    ServerName set in the tls config for them to work
+  * fix flaky test
+  * support sha384/512 certs, some exercizing of that
+  * let send a build number with acceptanceclient
+  * add helper to get int out of ConnectMsg Info
+
+  [ CI Train Bot ]
+  * New rebuild forced.
+
+ -- CI Train Bot <ci-train-bot@canonical.com>  Thu, 30 Apr 2015 15:08:57 +0000
+
 ubuntu-push (0.68+15.04.20150403-0ubuntu1) vivid; urgency=medium
 
   [ Samuele Pedroni ]
