@@ -165,7 +165,7 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 
 func (ms *MessagingSuite) TestTagsSkipGone(c *C) {
 	existsCount := 0
-	// patch cnotificationexists to return true
+	// patch cnotificationexists to return false
 	cNotificationExists = func(did string, nid string) bool {
 		existsCount++
 		return false
