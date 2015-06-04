@@ -23,8 +23,10 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 )
 
 // APIClient helps making api requests.
@@ -56,6 +58,20 @@ func (api *APIClient) SetupClient(tlsConfig *tls.Config, disableKeepAlives bool,
 
 var ErrNOk = errors.New("not ok")
 
+func readBody(respBody io.ReadCloser) (map[string]interface{}, error) {
+	defer respBody.Close()
+	body, err := ioutil.ReadAll(respBody)
+	if err != nil {
+		return nil, err
+	}
+	var res map[string]interface{}
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		return nil, &APIError{err.Error(), body}
+	}
+	return res, nil
+}
+
 // Post a API request.
 func (api *APIClient) PostRequest(path string, message interface{}) (map[string]interface{}, error) {
 	packedMessage, err := json.Marshal(message)
@@ -77,18 +93,36 @@ func (api *APIClient) PostRequest(path string, message interface{}) (map[string]
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	res, err := readBody(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	var res map[string]interface{}
-	err = json.Unmarshal(body, &res)
-	if err != nil {
-		return nil, &APIError{err.Error(), body}
-	}
+
 	if ok, _ := res["ok"].(bool); !ok {
 		return res, ErrNOk
+	}
+	return res, nil
+}
+
+// Get resource from API endpoint.
+func (api *APIClient) GetRequest(path string, params map[string]string) (map[string]interface{}, error) {
+	apiURL := api.ServerAPIURL + path
+	if len(params) != 0 {
+		vals := url.Values{}
+		for k, v := range params {
+			vals.Set(k, v)
+		}
+		apiURL += "?" + vals.Encode()
+	}
+	request, _ := http.NewRequest("GET", apiURL, nil)
+
+	resp, err := api.httpClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	res, err := readBody(resp.Body)
+	if err != nil {
+		return nil, err
 	}
 	return res, nil
 }
