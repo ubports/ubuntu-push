@@ -111,7 +111,7 @@ func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(sess *accept
 			log.Fatalf("-vnode needs -addr specified")
 		}
 		deviceId = cfg.Addr.HostPort() + "|" + cfg.Vnode
-		log.Printf("using device-id: %s", deviceId)
+		log.Printf("using device-id: %q", deviceId)
 
 	} else {
 		narg := flag.NArg()
