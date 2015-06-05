@@ -112,7 +112,6 @@ func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(sess *accept
 		}
 		deviceId = cfg.Addr.HostPort() + "|" + cfg.Vnode
 		log.Printf("using device-id: %q", deviceId)
-
 	} else {
 		narg := flag.NArg()
 		switch {
