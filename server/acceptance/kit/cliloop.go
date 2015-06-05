@@ -37,13 +37,14 @@ type Configuration struct {
 	// session configuration
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// server connection config
-	Target      string                `json:"target"`
+	Target      string                `json:"target" help:"production|staging - picks defaults"`
 	Addr        config.ConfigHostPort `json:"addr"`
+	Vnode       string                `json:"vnode" help:"vnode postfix to make up a targeting device-id"`
 	CertPEMFile string                `json:"cert_pem_file"`
 	Insecure    bool                  `json:"insecure" help:"disable checking of server certificate and hostname"`
 	Domain      string                `json:"domain" help:"domain for tls connect"`
 	// api config
-	APIURL         string `json:"api"`
+	APIURL         string `json:"api" help:"api url"`
 	APICertPEMFile string `json:"api_cert_pem_file"`
 	// run timeout
 	RunTimeout config.ConfigTimeDuration `json:"run_timeout"`
@@ -74,6 +75,7 @@ var (
 	Defaults = map[string]interface{}{
 		"target":            "",
 		"addr":              ":0",
+		"vnode":             "",
 		"exchange_timeout":  "5s",
 		"cert_pem_file":     "",
 		"insecure":          false,
@@ -103,10 +105,21 @@ func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(sess *accept
 	if err != nil {
 		log.Fatalf("reading config: %v", err)
 	}
-	narg := flag.NArg()
-	switch {
-	case narg < 1:
-		missingArg("device-id")
+	deviceId := ""
+	if cfg.Vnode != "" {
+		if cfg.Addr == ":0" {
+			log.Fatalf("-vnode needs -addr specified")
+		}
+		deviceId = cfg.Addr.HostPort() + "|" + cfg.Vnode
+		log.Printf("using device-id: %s", deviceId)
+
+	} else {
+		narg := flag.NArg()
+		switch {
+		case narg < 1:
+			missingArg("device-id")
+		}
+		deviceId = flag.Arg(0)
 	}
 	cfgDir := filepath.Dir(flag.Lookup("cfg@").Value.String())
 	// setup api
@@ -128,7 +141,6 @@ func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(sess *accept
 	} else {
 		apiCli.ServerAPIURL = cfg.APIURL
 	}
-	deviceId := flag.Arg(0)
 	addr := ""
 	domain := ""
 	if cfg.Addr == ":0" {
