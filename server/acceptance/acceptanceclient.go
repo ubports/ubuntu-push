@@ -49,6 +49,8 @@ type ClientSession struct {
 	cookie          string
 	cookieLock      sync.RWMutex
 	ReportSetParams bool
+	DontClose       bool
+	SlowStart       time.Duration
 	// connection
 	Connection net.Conn
 }
@@ -101,7 +103,10 @@ type serverMsg struct {
 // Run the session with the server, emits a stream of events.
 func (sess *ClientSession) Run(events chan<- string) error {
 	conn := sess.Connection
-	defer conn.Close()
+	if !sess.DontClose {
+		defer conn.Close()
+	}
+	time.Sleep(sess.SlowStart)
 	conn.SetDeadline(time.Now().Add(sess.ExchangeTimeout))
 	_, err := conn.Write(wireVersionBytes)
 	if err != nil {
