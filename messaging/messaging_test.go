@@ -47,8 +47,6 @@ func (ms *MessagingSuite) SetUpSuite(c *C) {
 	cRemoveNotification = func(a, n string) {
 		ms.log.Debugf("REMOVE: app: %s, not: %s", a, n)
 	}
-	// just in case
-	cNotificationExists = nil
 }
 
 func (ms *MessagingSuite) TearDownSuite(c *C) {
@@ -60,6 +58,8 @@ func (ms *MessagingSuite) TearDownSuite(c *C) {
 func (ms *MessagingSuite) SetUpTest(c *C) {
 	ms.log = helpers.NewTestLogger(c, "debug")
 	ms.app = clickhelp.MustParseAppId("com.example.test_test_0")
+	// just in case
+	cNotificationExists = nil
 }
 
 func (ms *MessagingSuite) TestPresentPresents(c *C) {
@@ -134,11 +134,23 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 		return &launch_helper.Notification{Card: &card, Tag: s}
 	}
 
+	existsCount := 0
+	// patch cNotificationExists to return true
+	cNotificationExists = func(did string, nid string) bool {
+		existsCount++
+		return true
+	}
+
 	c.Check(mmu.Tags(ms.app), IsNil)
 	c.Assert(mmu.Present(ms.app, "notif1", f("one")), Equals, true)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one"})
+	c.Check(existsCount, Equals, 1)
+	existsCount = 0
+	
 	c.Assert(mmu.Present(ms.app, "notif2", f("")), Equals, true)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one", ""})
+	c.Check(existsCount, Equals, 2)
+
 	// and an empty notification doesn't count
 	c.Assert(mmu.Present(ms.app, "notif3", &launch_helper.Notification{Tag: "X"}), Equals, false)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one", ""})
