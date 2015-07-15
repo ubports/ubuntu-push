@@ -48,6 +48,8 @@ func (ms *MessagingSuite) SetUpSuite(c *C) {
 	cRemoveNotification = func(a, n string) {
 		ms.log.Debugf("REMOVE: app: %s, not: %s", a, n)
 	}
+	// just in case
+	cNotificationExists = nil
 }
 
 func (ms *MessagingSuite) TearDownSuite(c *C) {
@@ -59,8 +61,6 @@ func (ms *MessagingSuite) TearDownSuite(c *C) {
 func (ms *MessagingSuite) SetUpTest(c *C) {
 	ms.log = helpers.NewTestLogger(c, "debug")
 	ms.app = clickhelp.MustParseAppId("com.example.test_test_0")
-	// just in case
-	cNotificationExists = nil
 }
 
 func (ms *MessagingSuite) TestPresentPresents(c *C) {
@@ -129,13 +129,6 @@ func (msg *MessagingSuite) checkTags(c *C, got, expected []string) {
 }
 
 func (ms *MessagingSuite) TestTagsListsTags(c *C) {
-	existsCount := 0
-	// patch cnotificationexists to return true
-	cNotificationExists = func(did string, nid string) bool {
-		existsCount++
-		return true
-	}
-
 	mmu := New(ms.log)
 	f := func(s string) *launch_helper.Notification {
 		card := launch_helper.Card{Summary: "tag: \"" + s + "\"", Persist: true}
@@ -145,14 +138,8 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 	c.Check(mmu.Tags(ms.app), IsNil)
 	c.Assert(mmu.Present(ms.app, "notif1", f("one")), Equals, true)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one"})
-	c.Check(existsCount, Equals, 1)
-	existsCount = 0
-
 	c.Assert(mmu.Present(ms.app, "notif2", f("")), Equals, true)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one", ""})
-	c.Check(existsCount, Equals, 2)
-	existsCount = 0
-
 	// and an empty notification doesn't count
 	c.Assert(mmu.Present(ms.app, "notif3", &launch_helper.Notification{Tag: "X"}), Equals, false)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one", ""})
@@ -163,32 +150,7 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 	c.Check(mmu.Tags(ms.app), IsNil)
 }
 
-func (ms *MessagingSuite) TestTagsSkipGone(c *C) {
-	existsCount := 0
-	// patch cnotificationexists to return false
-	cNotificationExists = func(did string, nid string) bool {
-		existsCount++
-		return false
-	}
-
-	mmu := New(ms.log)
-	f := func(s string) *launch_helper.Notification {
-		card := launch_helper.Card{Summary: "tag: \"" + s + "\"", Persist: true}
-		return &launch_helper.Notification{Card: &card, Tag: s}
-	}
-
-	c.Check(mmu.Tags(ms.app), IsNil)
-	c.Assert(mmu.Present(ms.app, "notif1", f("one")), Equals, true)
-	ms.checkTags(c, mmu.Tags(ms.app), []string(nil))
-	c.Check(existsCount, Equals, 1)
-}
-
 func (ms *MessagingSuite) TestClearClears(c *C) {
-	// patch cnotificationexists to return true
-	cNotificationExists = func(did string, nid string) bool {
-		return true
-	}
-
 	app1 := ms.app
 	app2 := clickhelp.MustParseAppId("com.example.test_test-2_0")
 	app3 := clickhelp.MustParseAppId("com.example.test_test-3_0")
