@@ -18,7 +18,6 @@ package messaging
 
 import (
 	"sort"
-	"time"
 
 	. "launchpad.net/gocheck"
 	"testing"
@@ -48,8 +47,6 @@ func (ms *MessagingSuite) SetUpSuite(c *C) {
 	cRemoveNotification = func(a, n string) {
 		ms.log.Debugf("REMOVE: app: %s, not: %s", a, n)
 	}
-	// just in case
-	cNotificationExists = nil
 }
 
 func (ms *MessagingSuite) TearDownSuite(c *C) {
@@ -61,6 +58,8 @@ func (ms *MessagingSuite) TearDownSuite(c *C) {
 func (ms *MessagingSuite) SetUpTest(c *C) {
 	ms.log = helpers.NewTestLogger(c, "debug")
 	ms.app = clickhelp.MustParseAppId("com.example.test_test_0")
+	// just in case
+	cNotificationExists = nil
 }
 
 func (ms *MessagingSuite) TestPresentPresents(c *C) {
@@ -135,11 +134,23 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 		return &launch_helper.Notification{Card: &card, Tag: s}
 	}
 
+	existsCount := 0
+	// patch cNotificationExists to return true
+	cNotificationExists = func(did string, nid string) bool {
+		existsCount++
+		return true
+	}
+
 	c.Check(mmu.Tags(ms.app), IsNil)
 	c.Assert(mmu.Present(ms.app, "notif1", f("one")), Equals, true)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one"})
+	c.Check(existsCount, Equals, 1)
+	existsCount = 0
+	
 	c.Assert(mmu.Present(ms.app, "notif2", f("")), Equals, true)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one", ""})
+	c.Check(existsCount, Equals, 2)
+
 	// and an empty notification doesn't count
 	c.Assert(mmu.Present(ms.app, "notif3", &launch_helper.Notification{Tag: "X"}), Equals, false)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one", ""})
@@ -171,6 +182,12 @@ func (ms *MessagingSuite) TestClearClears(c *C) {
 	c.Assert(f(app2, "notif5", "two", true), Equals, true)
 	c.Assert(f(app3, "notif6", "one", true), Equals, true)
 	c.Assert(f(app3, "notif7", "", true), Equals, true)
+
+	// patch cNotificationExists to return true in order to make sure that messages
+	// do not get deleted by the doCleanUpTags() call in the Tags() function
+	cNotificationExists = func(did string, nid string) bool {
+		return true
+	}
 
 	// that is:
 	//   app 1: "one", "two", "";
@@ -267,7 +284,7 @@ func (ms *MessagingSuite) TestCleanupStaleNotification(c *C) {
 	_, ok := mmu.notifications["notif-id"]
 	c.Check(ok, Equals, true)
 
-	// patch cnotificationexists to return true
+	// patch cNotificationExists to return true
 	cNotificationExists = func(did string, nid string) bool {
 		return true
 	}
@@ -276,62 +293,16 @@ func (ms *MessagingSuite) TestCleanupStaleNotification(c *C) {
 	// check it's still there
 	_, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, true)
-	// patch cnotificationexists to return false
+
+	// patch cNotificationExists to return false
 	cNotificationExists = func(did string, nid string) bool {
 		return false
 	}
-	// mark the notification
-	mmu.cleanUpNotifications()
-	// check it's gone
-	_, ok = mmu.notifications["notif-id"]
-	c.Check(ok, Equals, true)
-	// sweep the notification
+	// remove the notification
 	mmu.cleanUpNotifications()
 	// check it's gone
 	_, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, false)
-}
-
-func (ms *MessagingSuite) TestCleanupLoop(c *C) {
-	mmu := New(ms.log)
-	tickerCh := make(chan time.Time)
-	mmu.tickerCh = tickerCh
-	cleanupCh := make(chan bool)
-	cleanupFunc := func() {
-		cleanupCh <- true
-	}
-	// start the cleanup loop
-	mmu.doStartCleanupLoop(cleanupFunc)
-	// mark
-	tickerCh <- time.Now()
-	// check it was called
-	<-cleanupCh
-	// stop the loop and check that it's actually stopped.
-	mmu.StopCleanupLoop()
-	c.Check(ms.log.Captured(), Matches, "(?s).*DEBUG CleanupLoop stopped.*")
-}
-
-func (ms *MessagingSuite) TestStartCleanupLoop(c *C) {
-	mmu := New(ms.log)
-	tickerCh := make(chan time.Time)
-	mmu.tickerCh = tickerCh
-	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
-	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
-	mmu.addNotification(ms.app, "notif-id", "", &card, actions)
-	// patch cnotificationexists to return true and signal when it's called
-	notifExistsCh := make(chan bool)
-	cNotificationExists = func(did string, nid string) bool {
-		notifExistsCh <- true
-		return true
-	}
-	// statr the cleanup loop
-	mmu.StartCleanupLoop()
-	// mark
-	tickerCh <- time.Now()
-	// check it's there, and marked
-	<-notifExistsCh
-	// stop the loop
-	mmu.StopCleanupLoop()
 }
 
 func (ms *MessagingSuite) TestGetCh(c *C) {
