@@ -2,6 +2,7 @@ ubuntu-push (0.69-0ubuntu1) wily; urgency=medium
 
   [ John R. Lenton ]
   * go's compatibility promise fails us again; fixes for 1.4.
+  * fix gcc5-related linking issues.
 
  -- John R. Lenton <john.lenton@canonical.com>  Fri, 31 Jul 2015 13:52:04 +0100
 
