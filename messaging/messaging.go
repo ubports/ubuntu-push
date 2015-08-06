@@ -130,6 +130,7 @@ func (mmu *MessagingMenu) Clear(app *click.AppId, tags ...string) int {
 	for _, nid := range nids {
 		mmu.RemoveNotification(nid, true)
 	}
+	mmu.cleanUpNotifications()
 
 	return len(nids)
 }

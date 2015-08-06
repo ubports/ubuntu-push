@@ -324,7 +324,7 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 	}
 
 	// check we have got 20 notifications
-	c.Check(len(mmu.notifications), Equals, 20)
+	c.Check(mmu.notifications, HasLen, 20)
 
 	// give the cleanup go routine in addNotification some time to finish
 	time.Sleep(2 * time.Second)
@@ -338,7 +338,7 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 	showNotification(21)
 
 	// check we have 21 notifications now
-	c.Check(len(mmu.notifications), Equals, 21)
+	c.Check(mmu.notifications, HasLen, 21)
 
 	// give the cleanup go routine in addNotification some time to finish
 	time.Sleep(2 * time.Second)
@@ -354,8 +354,8 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 	// give the cleanup go routine in addNotification some time to finish
 	time.Sleep(2 * time.Second)
 
-	// check that all notifications except the last one have been cleared
-	c.Check(len(mmu.notifications), Equals, 1)
+	// check that all notifications except the last one have been removed
+	c.Check(mmu.notifications, HasLen, 1)
 }
 
 func (ms *MessagingSuite) TestGetCh(c *C) {
