@@ -18,6 +18,8 @@ package messaging
 
 import (
 	"sort"
+	"time"
+	"strconv"
 
 	. "launchpad.net/gocheck"
 	"testing"
@@ -146,7 +148,7 @@ func (ms *MessagingSuite) TestTagsListsTags(c *C) {
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one"})
 	c.Check(existsCount, Equals, 1)
 	existsCount = 0
-	
+
 	c.Assert(mmu.Present(ms.app, "notif2", f("")), Equals, true)
 	ms.checkTags(c, mmu.Tags(ms.app), []string{"one", ""})
 	c.Check(existsCount, Equals, 2)
@@ -303,6 +305,57 @@ func (ms *MessagingSuite) TestCleanupStaleNotification(c *C) {
 	// check it's gone
 	_, ok = mmu.notifications["notif-id"]
 	c.Check(ok, Equals, false)
+}
+
+func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
+	mmu := New(ms.log)
+
+	showNotification := func(number int) {
+		action := "action-" + strconv.Itoa(number)
+		notificationId := "notif-id-" + strconv.Itoa(number)
+		card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{action}}
+		actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"" + action + "\",\"nid\":\"" + notificationId + "\"}", action}
+		mmu.addNotification(ms.app, notificationId, "", &card, actions)
+	}
+
+	// Add 20 notifications
+	for i:= 0; i < 20; i++ {
+		showNotification(i)
+	}
+
+	// check we have got 20 notifications
+	c.Check(len(mmu.notifications), Equals, 20)
+
+	// give the cleanup go routine in addNotification some time to finish
+	time.Sleep(2 * time.Second)
+
+	// patch cNotificationExists to return true
+	cNotificationExists = func(did string, nid string) bool {
+		return true
+	}
+
+	// adding another notification should not remove the current ones
+	showNotification(21)
+
+	// check we have 21 notifications now
+	c.Check(len(mmu.notifications), Equals, 21)
+
+	// give the cleanup go routine in addNotification some time to finish
+	time.Sleep(2 * time.Second)
+
+	// patch cNotificationExists to return false for all but the next one we are going to add
+	cNotificationExists = func(did string, nid string) bool {
+		return nid == "notif-id-22"
+	}
+
+	// adding another notification should not remove the current ones
+	showNotification(22)
+
+	// give the cleanup go routine in addNotification some time to finish
+	time.Sleep(2 * time.Second)
+
+	// check that all notifications except the last one have been cleared
+	c.Check(len(mmu.notifications), Equals, 1)
 }
 
 func (ms *MessagingSuite) TestGetCh(c *C) {
