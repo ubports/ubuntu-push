@@ -35,6 +35,7 @@ type MessagingMenu struct {
 	Ch                chan *reply.MMActionReply
 	notifications     map[string]*cmessaging.Payload // keep a ref to the Payload used in the MMU callback
 	lock              sync.RWMutex
+	cleaningUp        bool
 }
 
 // New returns a new MessagingMenu
@@ -57,6 +58,11 @@ func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId strin
 	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app, Tag: tag}
 	mmu.notifications[notificationId] = payload
 	cAddNotification(app.DesktopId(), notificationId, card, payload)
+
+	// Clean up our internal notifications store if it holds more than 20 messages (and apparently nobody ever calls Tags())
+	if len(mmu.notifications) > 20 && !mmu.cleaningUp {
+		go mmu.cleanUpNotifications()
+	}
 }
 
 func (mmu *MessagingMenu) RemoveNotification(notificationId string, fromUI bool) {
@@ -77,6 +83,8 @@ func (mmu *MessagingMenu) cleanUpNotifications() {
 
 // doCleanupNotifications removes notifications that were cleared from the messaging menu
 func (mmu *MessagingMenu) doCleanUpNotifications() {
+	mmu.cleaningUp = true;
+	defer func() { mmu.cleaningUp = false; }()
 	for nid, payload := range mmu.notifications {
 		if !cNotificationExists(payload.App.DesktopId(), nid) {
 			delete(mmu.notifications, nid)
