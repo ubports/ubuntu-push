@@ -344,7 +344,7 @@ func (s *configFlagsSuite) TestReadUsingFlagsHelp(c *C) {
 		"d": json.RawMessage(`"2s"`),
 	}
 	readUsingFlags(p, reflect.ValueOf(&cfg))
-	c.Check(buf.String(), Matches, `(?s).*-cfg@=<config.json>: get config values from file\n.*-d="2s": duration.*`)
+	c.Check(buf.String(), Matches, `(?s).*get config values from file.*duration.*`)
 }
 
 func (s *configFlagsSuite) TestReadUsingFlagsAlreadyParsed(c *C) {
