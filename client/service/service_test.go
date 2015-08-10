@@ -36,7 +36,9 @@ import (
 	"launchpad.net/ubuntu-push/testing/condition"
 )
 
-func TestService(t *testing.T) { TestingT(t) }
+func TestService(t *testing.T) {
+	TestingT(t)
+}
 
 type serviceSuite struct {
 	log logger.Logger

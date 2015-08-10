@@ -1,3 +1,15 @@
+ubuntu-push (0.69.4-0ubuntu1) wily; urgency=medium
+
+  * Even more test craziness.
+
+ -- Michael Hudson-Doyle <michael.hudson@canonical.com>  Mon, 10 Aug 2015 15:05:07 +1200
+
+ubuntu-push (0.69.3-0ubuntu1) wily; urgency=medium
+
+  * More test craziness. 
+
+ -- Michael Hudson-Doyle <michael.hudson@canonical.com>  Mon, 10 Aug 2015 14:37:27 +1200
+
 ubuntu-push (0.69.2-0ubuntu1) wily; urgency=medium
 
   * Even more test tweaks.
