@@ -1,3 +1,21 @@
+ubuntu-push (0.69.2-0ubuntu1) wily; urgency=medium
+
+  * Even more test tweaks.
+
+ -- Michael Hudson-Doyle <michael.hudson@canonical.com>  Mon, 10 Aug 2015 14:20:55 +1200
+
+ubuntu-push (0.69.1-0ubuntu2) wily; urgency=medium
+
+  * Remove odd override_dh_auto_test rule. 
+
+ -- Michael Hudson-Doyle <michael.hudson@canonical.com>  Mon, 10 Aug 2015 14:10:36 +1200
+
+ubuntu-push (0.69.1-0ubuntu1) wily; urgency=medium
+
+  * Disable some racy tests.
+
+ -- Michael Hudson-Doyle <michael.hudson@canonical.com>  Mon, 10 Aug 2015 14:07:50 +1200
+
 ubuntu-push (0.69-0ubuntu2) wily; urgency=medium
 
   * Fix more tests with 1.5. 
