@@ -1,3 +1,9 @@
+ubuntu-push (0.68+15.04.20150430.1-0ubuntu2) UNRELEASED; urgency=medium
+
+  * Fix tests with 1.5. 
+
+ -- Michael Hudson-Doyle <michael.hudson@canonical.com>  Mon, 10 Aug 2015 12:02:42 +1200
+
 ubuntu-push (0.68+15.04.20150430.1-0ubuntu1) vivid; urgency=medium
 
   [ Samuele Pedroni ]
