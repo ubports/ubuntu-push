@@ -21,6 +21,7 @@ package messaging
 import (
 	"encoding/json"
 	"sync"
+	"time"
 
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/click"
@@ -35,7 +36,7 @@ type MessagingMenu struct {
 	Ch                chan *reply.MMActionReply
 	notifications     map[string]*cmessaging.Payload // keep a ref to the Payload used in the MMU callback
 	lock              sync.RWMutex
-	cleaningUp        bool
+	lastCleanupTime   time.Time
 }
 
 // New returns a new MessagingMenu
@@ -60,7 +61,8 @@ func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId strin
 	cAddNotification(app.DesktopId(), notificationId, card, payload)
 
 	// Clean up our internal notifications store if it holds more than 20 messages (and apparently nobody ever calls Tags())
-	if len(mmu.notifications) > 20 && !mmu.cleaningUp {
+	if len(mmu.notifications) > 20 && time.Since(mmu.lastCleanupTime) > 10 * time.Minute {
+		mmu.lastCleanupTime = time.Now()
 		go mmu.cleanUpNotifications()
 	}
 }
@@ -83,8 +85,6 @@ func (mmu *MessagingMenu) cleanUpNotifications() {
 
 // doCleanupNotifications removes notifications that were cleared from the messaging menu
 func (mmu *MessagingMenu) doCleanUpNotifications() {
-	mmu.cleaningUp = true;
-	defer func() { mmu.cleaningUp = false; }()
 	for nid, payload := range mmu.notifications {
 		if !cNotificationExists(payload.App.DesktopId(), nid) {
 			delete(mmu.notifications, nid)
@@ -97,6 +97,7 @@ func (mmu *MessagingMenu) Tags(app *click.AppId) []string {
 	tags := []string(nil)
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
+	mmu.lastCleanupTime = time.Now()
 	mmu.doCleanUpNotifications()
 	for _, payload := range mmu.notifications {
 		if payload.App.Original() == orig {
