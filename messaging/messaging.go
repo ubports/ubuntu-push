@@ -61,7 +61,7 @@ func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId strin
 	cAddNotification(app.DesktopId(), notificationId, card, payload)
 
 	// Clean up our internal notifications store if it holds more than 20 messages (and apparently nobody ever calls Tags())
-	if len(mmu.notifications) > 20 && time.Since(mmu.lastCleanupTime) > 10 * time.Minute {
+	if len(mmu.notifications) > 20 && time.Since(mmu.lastCleanupTime).Minutes() > 10 {
 		mmu.lastCleanupTime = time.Now()
 		go mmu.cleanUpNotifications()
 	}
