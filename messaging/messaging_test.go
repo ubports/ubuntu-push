@@ -323,11 +323,11 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 		showNotification(i)
 	}
 
-	// check we have got 20 notifications
-	c.Check(mmu.notifications, HasLen, 20)
+	// give the cleanup go routine in addNotification some time to finish in case it gets called (which it shouldn't!)
+	time.Sleep(time.Second)
 
-	// give the cleanup go routine in addNotification some time to finish
-	time.Sleep(2 * time.Second)
+	// check that we have got 20 notifications
+	c.Check(mmu.notifications, HasLen, 20)
 
 	// patch cNotificationExists to return true
 	cNotificationExists = func(did string, nid string) bool {
@@ -337,22 +337,39 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 	// adding another notification should not remove the current ones
 	showNotification(21)
 
-	// check we have 21 notifications now
-	c.Check(mmu.notifications, HasLen, 21)
+	// give the cleanup go routine in addNotification some time to finish in case it gets called (which it shouldn't!)
+	time.Sleep(time.Second)
 
-	// give the cleanup go routine in addNotification some time to finish
-	time.Sleep(2 * time.Second)
+	// check we that have 21 notifications now
+	c.Check(mmu.notifications, HasLen, 21)
 
 	// patch cNotificationExists to return false for all but the next one we are going to add
 	cNotificationExists = func(did string, nid string) bool {
 		return nid == "notif-id-22"
 	}
 
-	// adding another notification should not remove the current ones
+	// adding another notification should not remove the current ones as mmu.lastCleanupTime is too recent
 	showNotification(22)
 
+	// give the cleanup go routine in addNotification some time to finish in case it gets called (which it shouldn't!)
+	time.Sleep(time.Second)
+
+	// check we that have got 22 notifications now
+	c.Check(mmu.notifications, HasLen, 22)
+
+	// set back the lastCleanupTime to 11 minutes ago
+	mmu.lastCleanupTime = mmu.lastCleanupTime.Add(-11 * time.Minute)
+
+	// patch cNotificationExists to return false for all but the next one we are going to add
+	cNotificationExists = func(did string, nid string) bool {
+		return nid == "notif-id-23"
+	}
+
+	// adding another notification should remove all previous ones now
+	showNotification(23)
+
 	// give the cleanup go routine in addNotification some time to finish
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Second)
 
 	// check that all notifications except the last one have been removed
 	c.Check(mmu.notifications, HasLen, 1)
