@@ -20,6 +20,7 @@ import (
 	"sort"
 	"time"
 	"strconv"
+	"sync"
 
 	. "launchpad.net/gocheck"
 	"testing"
@@ -318,13 +319,24 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 		mmu.addNotification(ms.app, notificationId, "", &card, actions)
 	}
 
+	var wg sync.WaitGroup
+
+	// patch cleanUpNotificationsAsync to tell us when the goroutine has finished
+	MessagingMenu.cleanUpNotificationsAsynchronously = func(mmu *MessagingMenu) {
+		wg.Add(1)
+		go func(mmu *MessagingMenu) {
+			defer wg.Done()
+			mmu.cleanUpNotifications()
+		}(mmu)
+	}
+
 	// Add 20 notifications
 	for i:= 0; i < 20; i++ {
 		showNotification(i)
 	}
 
-	// give the cleanup go routine in addNotification some time to finish in case it gets called (which it shouldn't!)
-	time.Sleep(time.Second)
+	// wait for the cleanup goroutine in addNotification to finish in case it gets called (which it shouldn't!)
+	wg.Wait()
 
 	// check that we have got 20 notifications
 	c.Check(mmu.notifications, HasLen, 20)
@@ -337,8 +349,8 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 	// adding another notification should not remove the current ones
 	showNotification(21)
 
-	// give the cleanup go routine in addNotification some time to finish in case it gets called (which it shouldn't!)
-	time.Sleep(time.Second)
+	// wait for the cleanup goroutine in addNotification to finish in case it gets called (which it shouldn't!)
+	wg.Wait()
 
 	// check we that have 21 notifications now
 	c.Check(mmu.notifications, HasLen, 21)
@@ -351,8 +363,8 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 	// adding another notification should not remove the current ones as mmu.lastCleanupTime is too recent
 	showNotification(22)
 
-	// give the cleanup go routine in addNotification some time to finish in case it gets called (which it shouldn't!)
-	time.Sleep(time.Second)
+	// wait for the cleanup goroutine in addNotification to finish in case it gets called (which it shouldn't!)
+	wg.Wait()
 
 	// check we that have got 22 notifications now
 	c.Check(mmu.notifications, HasLen, 22)
@@ -368,8 +380,8 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 	// adding another notification should remove all previous ones now
 	showNotification(23)
 
-	// give the cleanup go routine in addNotification some time to finish
-	time.Sleep(time.Second)
+	// wait for the cleanup goroutine in addNotification to finish
+	wg.Wait()
 
 	// check that all notifications except the last one have been removed
 	c.Check(mmu.notifications, HasLen, 1)
