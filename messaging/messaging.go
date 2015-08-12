@@ -39,6 +39,8 @@ type MessagingMenu struct {
 	lastCleanupTime   time.Time
 }
 
+type cleanUp func()
+
 // New returns a new MessagingMenu
 func New(log logger.Logger) *MessagingMenu {
 	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload)}
@@ -47,14 +49,13 @@ func New(log logger.Logger) *MessagingMenu {
 var cAddNotification = cmessaging.AddNotification
 var cRemoveNotification = cmessaging.RemoveNotification
 var cNotificationExists = cmessaging.NotificationExists
-var cleanUpNotificationsAsync = cleanUpNotificationsAsynchronously
 
 // GetCh returns the reply channel, exactly like mm.Ch.
 func (mmu *MessagingMenu) GetCh() chan *reply.MMActionReply {
 	return mmu.Ch
 }
 
-func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string) {
+func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string, testingCleanUpFunction cleanUp) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app, Tag: tag}
@@ -64,13 +65,13 @@ func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId strin
 	// Clean up our internal notifications store if it holds more than 20 messages (and apparently nobody ever calls Tags())
 	if len(mmu.notifications) > 20 && time.Since(mmu.lastCleanupTime).Minutes() > 10 {
 		mmu.lastCleanupTime = time.Now()
-		cleanUpNotificationsAsync(mmu)
-	}
-}
+		if testingCleanUpFunction == nil {
+			go mmu.cleanUpNotifications()
+		} else {
+			testingCleanUpFunction() // Has to implement the asynchronous part itself
+		}
 
-// Wrapper method needed for unit tests, do not do anything else here than starting the goroutine
-func cleanUpNotificationsAsynchronously(mmu *MessagingMenu) {
-	go mmu.cleanUpNotifications()
+	}
 }
 
 func (mmu *MessagingMenu) RemoveNotification(notificationId string, fromUI bool) {
@@ -172,7 +173,7 @@ func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *la
 
 	mmu.Log.Debugf("[%s] creating notification centre entry for %s (summary: %s)", nid, app.Base(), card.Summary)
 
-	mmu.addNotification(app, nid, notification.Tag, card, actions)
+	mmu.addNotification(app, nid, notification.Tag, card, actions, nil)
 
 	return true
 }

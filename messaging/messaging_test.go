@@ -243,7 +243,7 @@ func (ms *MessagingSuite) TestRemoveNotification(c *C) {
 	mmu := New(ms.log)
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
 	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
-	mmu.addNotification(ms.app, "notif-id", "a-tag", &card, actions)
+	mmu.addNotification(ms.app, "notif-id", "a-tag", &card, actions, nil)
 
 	// check it's there
 	payload, ok := mmu.notifications["notif-id"]
@@ -262,7 +262,7 @@ func (ms *MessagingSuite) TestRemoveNotificationsFromUI(c *C) {
 	mmu := New(ms.log)
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
 	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
-	mmu.addNotification(ms.app, "notif-id", "a-tag", &card, actions)
+	mmu.addNotification(ms.app, "notif-id", "a-tag", &card, actions, nil)
 
 	// check it's there
 	_, ok := mmu.notifications["notif-id"]
@@ -281,7 +281,7 @@ func (ms *MessagingSuite) TestCleanupStaleNotification(c *C) {
 	mmu := New(ms.log)
 	card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{"action-1"}}
 	actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"action-1\",\"nid\":\"notif-id\"}", "action-1"}
-	mmu.addNotification(ms.app, "notif-id", "", &card, actions)
+	mmu.addNotification(ms.app, "notif-id", "", &card, actions, nil)
 
 	// check it's there
 	_, ok := mmu.notifications["notif-id"]
@@ -311,23 +311,22 @@ func (ms *MessagingSuite) TestCleanupStaleNotification(c *C) {
 func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 	mmu := New(ms.log)
 
+	var wg sync.WaitGroup
+
+	var cleanUpAsynchronously = func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			mmu.cleanUpNotifications()
+		}()
+	}
+
 	showNotification := func(number int) {
 		action := "action-" + strconv.Itoa(number)
 		notificationId := "notif-id-" + strconv.Itoa(number)
 		card := launch_helper.Card{Summary: "ehlo", Persist: true, Actions: []string{action}}
 		actions := []string{"{\"app\":\"com.example.test_test_0\",\"act\":\"" + action + "\",\"nid\":\"" + notificationId + "\"}", action}
-		mmu.addNotification(ms.app, notificationId, "", &card, actions)
-	}
-
-	var wg sync.WaitGroup
-
-	// patch cleanUpNotificationsAsync to tell us when the goroutine has finished
-	MessagingMenu.cleanUpNotificationsAsynchronously = func(mmu *MessagingMenu) {
-		wg.Add(1)
-		go func(mmu *MessagingMenu) {
-			defer wg.Done()
-			mmu.cleanUpNotifications()
-		}(mmu)
+		mmu.addNotification(ms.app, notificationId, "", &card, actions, cleanUpAsynchronously)
 	}
 
 	// Add 20 notifications
