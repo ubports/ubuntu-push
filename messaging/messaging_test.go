@@ -18,9 +18,9 @@ package messaging
 
 import (
 	"sort"
-	"time"
 	"strconv"
 	"sync"
+	"time"
 
 	. "launchpad.net/gocheck"
 	"testing"
@@ -330,7 +330,7 @@ func (ms *MessagingSuite) TestCleanupInAddNotification(c *C) {
 	}
 
 	// Add 20 notifications
-	for i:= 0; i < 20; i++ {
+	for i := 0; i < 20; i++ {
 		showNotification(i)
 	}
 

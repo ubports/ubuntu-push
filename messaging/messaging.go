@@ -32,11 +32,11 @@ import (
 )
 
 type MessagingMenu struct {
-	Log               logger.Logger
-	Ch                chan *reply.MMActionReply
-	notifications     map[string]*cmessaging.Payload // keep a ref to the Payload used in the MMU callback
-	lock              sync.RWMutex
-	lastCleanupTime   time.Time
+	Log             logger.Logger
+	Ch              chan *reply.MMActionReply
+	notifications   map[string]*cmessaging.Payload // keep a ref to the Payload used in the MMU callback
+	lock            sync.RWMutex
+	lastCleanupTime time.Time
 }
 
 type cleanUp func()
