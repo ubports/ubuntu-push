@@ -81,10 +81,6 @@ func (mmu *MessagingMenu) RemoveNotification(notificationId string, fromUI bool)
 func (mmu *MessagingMenu) cleanUpNotifications() {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
-	mmu.doCleanUpNotifications()
-}
-
-func (mmu *MessagingMenu) doCleanUpNotifications() {
 	for nid, payload := range mmu.notifications {
 		if payload.Gone {
 			// sweep
@@ -126,11 +122,10 @@ func (mmu *MessagingMenu) StopCleanupLoop() {
 func (mmu *MessagingMenu) Tags(app *click.AppId) []string {
 	orig := app.Original()
 	tags := []string(nil)
-	mmu.lock.Lock()
-	defer mmu.lock.Unlock()
-	mmu.doCleanUpNotifications()
+	mmu.lock.RLock()
+	defer mmu.lock.RUnlock()
 	for _, payload := range mmu.notifications {
-		if payload.App.Original() == orig && !payload.Gone {
+		if payload.App.Original() == orig {
 			tags = append(tags, payload.Tag)
 		}
 	}
