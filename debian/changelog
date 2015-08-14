@@ -1,3 +1,16 @@
+ubuntu-push (0.68+15.04.20150430.1-0ubuntu2~ppa1) wily; urgency=medium
+
+  [ John R. Lenton ]
+  * go's compatibility promise fails us again; fixes for 1.4.
+
+ -- John R. Lenton <john.lenton@canonical.com>  Fri, 31 Jul 2015 13:52:04 +0100
+
+ubuntu-push (0.68+15.04.20150430.1-0ubuntu2~gcc5.1) wily; urgency=medium
+
+  * No-change test rebuild for g++5 ABI transition
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 15 Jul 2015 16:10:40 +0000
+
 ubuntu-push (0.68+15.04.20150430.1-0ubuntu1) vivid; urgency=medium
 
   [ Samuele Pedroni ]
