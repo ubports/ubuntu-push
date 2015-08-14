@@ -44,7 +44,6 @@ type Payload struct {
 	Actions []string
 	App     *click.AppId
 	Tag     string
-	Gone    bool
 }
 
 func gchar(s string) *C.gchar {

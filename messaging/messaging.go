@@ -31,23 +31,19 @@ import (
 	"launchpad.net/ubuntu-push/messaging/reply"
 )
 
-var cleanupLoopDuration = 5 * time.Minute
-
 type MessagingMenu struct {
-	Log               logger.Logger
-	Ch                chan *reply.MMActionReply
-	notifications     map[string]*cmessaging.Payload // keep a ref to the Payload used in the MMU callback
-	lock              sync.RWMutex
-	stopCleanupLoopCh chan bool
-	ticker            *time.Ticker
-	tickerCh          <-chan time.Time
+	Log             logger.Logger
+	Ch              chan *reply.MMActionReply
+	notifications   map[string]*cmessaging.Payload // keep a ref to the Payload used in the MMU callback
+	lock            sync.RWMutex
+	lastCleanupTime time.Time
 }
+
+type cleanUp func()
 
 // New returns a new MessagingMenu
 func New(log logger.Logger) *MessagingMenu {
-	ticker := time.NewTicker(cleanupLoopDuration)
-	stopCh := make(chan bool)
-	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload), ticker: ticker, tickerCh: ticker.C, stopCleanupLoopCh: stopCh}
+	return &MessagingMenu{Log: log, Ch: make(chan *reply.MMActionReply), notifications: make(map[string]*cmessaging.Payload)}
 }
 
 var cAddNotification = cmessaging.AddNotification
@@ -59,12 +55,23 @@ func (mmu *MessagingMenu) GetCh() chan *reply.MMActionReply {
 	return mmu.Ch
 }
 
-func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string) {
+func (mmu *MessagingMenu) addNotification(app *click.AppId, notificationId string, tag string, card *launch_helper.Card, actions []string, testingCleanUpFunction cleanUp) {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
 	payload := &cmessaging.Payload{Ch: mmu.Ch, Actions: actions, App: app, Tag: tag}
 	mmu.notifications[notificationId] = payload
 	cAddNotification(app.DesktopId(), notificationId, card, payload)
+
+	// Clean up our internal notifications store if it holds more than 20 messages (and apparently nobody ever calls Tags())
+	if len(mmu.notifications) > 20 && time.Since(mmu.lastCleanupTime).Minutes() > 10 {
+		mmu.lastCleanupTime = time.Now()
+		if testingCleanUpFunction == nil {
+			go mmu.cleanUpNotifications()
+		} else {
+			testingCleanUpFunction() // Has to implement the asynchronous part itself
+		}
+
+	}
 }
 
 func (mmu *MessagingMenu) RemoveNotification(notificationId string, fromUI bool) {
@@ -77,53 +84,28 @@ func (mmu *MessagingMenu) RemoveNotification(notificationId string, fromUI bool)
 	}
 }
 
-// cleanupNotifications remove notifications that were cleared from the messaging menu
 func (mmu *MessagingMenu) cleanUpNotifications() {
 	mmu.lock.Lock()
 	defer mmu.lock.Unlock()
+	mmu.doCleanUpNotifications()
+}
+
+// doCleanupNotifications removes notifications that were cleared from the messaging menu
+func (mmu *MessagingMenu) doCleanUpNotifications() {
 	for nid, payload := range mmu.notifications {
-		if payload.Gone {
-			// sweep
+		if !cNotificationExists(payload.App.DesktopId(), nid) {
 			delete(mmu.notifications, nid)
-			// don't check the mmu for this nid
-			continue
-		}
-		exists := cNotificationExists(payload.App.DesktopId(), nid)
-		if !exists {
-			// mark
-			payload.Gone = true
 		}
 	}
-}
-
-func (mmu *MessagingMenu) StartCleanupLoop() {
-	mmu.doStartCleanupLoop(mmu.cleanUpNotifications)
-}
-
-func (mmu *MessagingMenu) doStartCleanupLoop(cleanupFunc func()) {
-	go func() {
-		for {
-			select {
-			case <-mmu.tickerCh:
-				cleanupFunc()
-			case <-mmu.stopCleanupLoopCh:
-				mmu.ticker.Stop()
-				mmu.Log.Debugf("CleanupLoop stopped.")
-				return
-			}
-		}
-	}()
-}
-
-func (mmu *MessagingMenu) StopCleanupLoop() {
-	mmu.stopCleanupLoopCh <- true
 }
 
 func (mmu *MessagingMenu) Tags(app *click.AppId) []string {
 	orig := app.Original()
 	tags := []string(nil)
-	mmu.lock.RLock()
-	defer mmu.lock.RUnlock()
+	mmu.lock.Lock()
+	defer mmu.lock.Unlock()
+	mmu.lastCleanupTime = time.Now()
+	mmu.doCleanUpNotifications()
 	for _, payload := range mmu.notifications {
 		if payload.App.Original() == orig {
 			tags = append(tags, payload.Tag)
@@ -156,6 +138,7 @@ func (mmu *MessagingMenu) Clear(app *click.AppId, tags ...string) int {
 	for _, nid := range nids {
 		mmu.RemoveNotification(nid, true)
 	}
+	mmu.cleanUpNotifications()
 
 	return len(nids)
 }
@@ -190,7 +173,7 @@ func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *la
 
 	mmu.Log.Debugf("[%s] creating notification centre entry for %s (summary: %s)", nid, app.Base(), card.Summary)
 
-	mmu.addNotification(app, nid, notification.Tag, card, actions)
+	mmu.addNotification(app, nid, notification.Tag, card, actions, nil)
 
 	return true
 }
