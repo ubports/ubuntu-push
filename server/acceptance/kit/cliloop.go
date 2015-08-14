@@ -17,6 +17,7 @@
 package kit
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -26,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"launchpad.net/ubuntu-push/external/murmur3"
+
 	"launchpad.net/ubuntu-push/config"
 	"launchpad.net/ubuntu-push/server/acceptance"
 )
@@ -34,11 +37,15 @@ type Configuration struct {
 	// session configuration
 	ExchangeTimeout config.ConfigTimeDuration `json:"exchange_timeout"`
 	// server connection config
-	Target      string                `json:"target"`
+	Target      string                `json:"target" help:"production|staging - picks defaults"`
 	Addr        config.ConfigHostPort `json:"addr"`
+	Vnode       string                `json:"vnode" help:"vnode postfix to make up a targeting device-id"`
 	CertPEMFile string                `json:"cert_pem_file"`
 	Insecure    bool                  `json:"insecure" help:"disable checking of server certificate and hostname"`
 	Domain      string                `json:"domain" help:"domain for tls connect"`
+	// api config
+	APIURL         string `json:"api" help:"api url"`
+	APICertPEMFile string `json:"api_cert_pem_file"`
 	// run timeout
 	RunTimeout config.ConfigTimeDuration `json:"run_timeout"`
 	// flags
@@ -66,22 +73,25 @@ func (cfg *Configuration) PickByTarget(what, productionValue, stagingValue strin
 var (
 	Name     = "acceptanceclient"
 	Defaults = map[string]interface{}{
-		"target":           "",
-		"addr":             ":0",
-		"exchange_timeout": "5s",
-		"cert_pem_file":    "",
-		"insecure":         false,
-		"domain":           "",
-		"run_timeout":      "0s",
-		"reportPings":      true,
-		"model":            "?",
-		"imageChannel":     "?",
-		"buildNumber":      -1,
+		"target":            "",
+		"addr":              ":0",
+		"vnode":             "",
+		"exchange_timeout":  "5s",
+		"cert_pem_file":     "",
+		"insecure":          false,
+		"domain":            "",
+		"run_timeout":       "0s",
+		"reportPings":       true,
+		"model":             "?",
+		"imageChannel":      "?",
+		"buildNumber":       -1,
+		"api":               "",
+		"api_cert_pem_file": "",
 	}
 )
 
 // CliLoop parses command line arguments and runs a client loop.
-func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(sess *acceptance.ClientSession, cfgDir string), auth func(string) string, waitFor func() string, onConnect func()) {
+func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(sess *acceptance.ClientSession, apiCli *APIClient, cfgDir string), auth func(string) string, waitFor func() string, onConnect func()) {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] <device id>\n", Name)
 		flag.PrintDefaults()
@@ -95,31 +105,71 @@ func CliLoop(totalCfg interface{}, cfg *Configuration, onSetup func(sess *accept
 	if err != nil {
 		log.Fatalf("reading config: %v", err)
 	}
-	narg := flag.NArg()
-	switch {
-	case narg < 1:
-		missingArg("device-id")
+	deviceId := ""
+	if cfg.Vnode != "" {
+		if cfg.Addr == ":0" {
+			log.Fatalf("-vnode needs -addr specified")
+		}
+		deviceId = cfg.Addr.HostPort() + "|" + cfg.Vnode
+		log.Printf("using device-id: %q", deviceId)
+	} else {
+		narg := flag.NArg()
+		switch {
+		case narg < 1:
+			missingArg("device-id")
+		}
+		deviceId = flag.Arg(0)
+	}
+	cfgDir := filepath.Dir(flag.Lookup("cfg@").Value.String())
+	// setup api
+	apiCli := &APIClient{}
+	var apiTLSConfig *tls.Config
+	if cfg.APICertPEMFile != "" || cfg.Insecure {
+		var err error
+		apiTLSConfig, err = MakeTLSConfig("", cfg.Insecure,
+			cfg.APICertPEMFile, cfgDir)
+		if err != nil {
+			log.Fatalf("api tls config: %v", err)
+		}
+	}
+	apiCli.SetupClient(apiTLSConfig, true, 1)
+	if cfg.APIURL == "" {
+		apiCli.ServerAPIURL = cfg.PickByTarget("api",
+			"https://push.ubuntu.com",
+			"https://push.staging.ubuntu.com")
+	} else {
+		apiCli.ServerAPIURL = cfg.APIURL
 	}
 	addr := ""
+	domain := ""
 	if cfg.Addr == ":0" {
-		addr = cfg.PickByTarget("addr", "push-delivery.ubuntu.com:443",
-			"push-delivery.staging.ubuntu.com:443")
+		hash := murmur3.Sum64([]byte(deviceId))
+		hosts, err := apiCli.GetRequest("/delivery-hosts",
+			map[string]string{
+				"h": fmt.Sprintf("%x", hash),
+			})
+		if err != nil {
+			log.Fatalf("querying hosts: %v", err)
+		}
+		addr = hosts["hosts"].([]interface{})[0].(string)
+		domain = hosts["domain"].(string)
+		log.Printf("using: %s %s", addr, domain)
 	} else {
 		addr = cfg.Addr.HostPort()
+		domain = cfg.Domain
 	}
 	session := &acceptance.ClientSession{
 		ExchangeTimeout: cfg.ExchangeTimeout.TimeDuration(),
 		ServerAddr:      addr,
-		DeviceId:        flag.Arg(0),
+		DeviceId:        deviceId,
 		// flags
 		Model:        cfg.DeviceModel,
 		ImageChannel: cfg.ImageChannel,
 		BuildNumber:  cfg.BuildNumber,
 		ReportPings:  cfg.ReportPings,
 	}
-	cfgDir := filepath.Dir(flag.Lookup("cfg@").Value.String())
-	onSetup(session, cfgDir)
-	session.TLSConfig, err = MakeTLSConfig(cfg.Domain, cfg.Insecure, cfg.CertPEMFile, cfgDir)
+	onSetup(session, apiCli, cfgDir)
+	session.TLSConfig, err = MakeTLSConfig(domain, cfg.Insecure, cfg.CertPEMFile, cfgDir)
 	if err != nil {
 		log.Fatalf("tls config: %v", err)
 	}
