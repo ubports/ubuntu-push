@@ -278,7 +278,7 @@ func (s *poolSuite) TestOneDoneOnValid(c *C) {
 	args := HelperArgs{
 		Input:   input,
 		FileOut: filepath.Join(d, "file_out.json"),
-		Timer:   &time.Timer{},
+		Timer:   time.NewTimer(0),
 	}
 	pool.hmap["l:1"] = &args
 
@@ -310,7 +310,7 @@ func (s *poolSuite) TestOneDoneOnBadFileOut(c *C) {
 			Payload:        []byte(`"hello"`),
 		},
 		FileOut: "/does-not-exist",
-		Timer:   &time.Timer{},
+		Timer:   time.NewTimer(0),
 	}
 	pool.hmap["l:1"] = &args
 
@@ -337,7 +337,7 @@ func (s *poolSuite) TestOneDonwOnBadJSONOut(c *C) {
 			NotificationId: "foo",
 			Payload:        []byte(`"hello"`),
 		},
-		Timer: &time.Timer{},
+		Timer: time.NewTimer(0),
 	}
 	pool.hmap["l:1"] = &args
 
