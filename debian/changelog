@@ -1,3 +1,16 @@
+ubuntu-push (0.68+15.04.20150814.1-0ubuntu1) vivid; urgency=medium
+
+  [ CI Train Bot ]
+  * New rebuild forced.
+
+  [ Samuele Pedroni (Canonical Services Ltd.) ]
+  * address lp:1451510 aggressively finding gone notifications in Tags()
+    truncate runtime.Stack result to size, otherwise we log \x00s or old
+    stuff go's compatibility promise fails us again; fixes for 1.4 (LP:
+    #1451510)
+
+ -- CI Train Bot <ci-train-bot@canonical.com>  Fri, 14 Aug 2015 13:07:29 +0000
+
 ubuntu-push (0.68+15.04.20150430.1-0ubuntu1) vivid; urgency=medium
 
   [ Samuele Pedroni ]
