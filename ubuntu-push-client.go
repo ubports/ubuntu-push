@@ -35,8 +35,8 @@ func installSigQuitHandler() {
 		buf := make([]byte, 1<<20)
 		for {
 			<-sigs
-			runtime.Stack(buf, true)
-			log.Printf("=== received SIGQUIT ===\n*** goroutine dump...\n%s\n*** end\n", buf)
+			sz := runtime.Stack(buf, true)
+			log.Printf("=== received SIGQUIT ===\n*** goroutine dump...\n%s\n*** end", buf[:sz])
 		}
 	}()
 }
