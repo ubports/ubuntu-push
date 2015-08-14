@@ -12,10 +12,10 @@ override_dh_auto_build:
 # (should go away once we ship go 1.3)
 override_dh_auto_test:
 	cd $$( find ./ -type d -regex '\./[^/]*/src/launchpad.net' -printf "%h\n" | head -n1) && \
-	env GOPATH=$$(cd ..; pwd) go test -v $$(env GOPATH=$$(cd ..; pwd) go list $(DH_GOPKG)/... | grep -v acceptance | grep -v http13client )
+	env GOPATH=$$(cd ..; pwd) go test -race -v $$(env GOPATH=$$(cd ..; pwd) go list $(DH_GOPKG)/... | grep -v acceptance | grep -v http13client )
 
 override_dh_install:
 	dh_install -Xusr/bin/cmd --fail-missing
 
 %:
-	dh $@ --buildsystem=golang --with=golang
+	dh $@ --buildsystem=golang --with=golang --parallel

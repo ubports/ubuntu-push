@@ -53,7 +53,6 @@ type notificationCentre interface {
 	Presenter
 	GetCh() chan *reply.MMActionReply
 	RemoveNotification(string, bool)
-	StartCleanupLoop()
 	Tags(*click.AppId) []string
 	Clear(*click.AppId, ...string) int
 }
@@ -187,7 +186,6 @@ func (svc *PostalService) init() error {
 
 	go svc.consumeHelperResults(svc.HelperPool.Start())
 	go svc.handleActions(actionsCh, svc.messagingMenu.GetCh())
-	svc.messagingMenu.StartCleanupLoop()
 	return nil
 }
 
