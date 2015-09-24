@@ -107,7 +107,7 @@ func (p *poller) Start() error {
 	nmEndp := bus.SystemBus.Endpoint(networkmanager.BusAddress, p.log)
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(3)
 	go func() {
 		n := util.NewAutoRedialer(powerdEndp).Redial()
 		p.log.Debugf("powerd dialed on try %d", n)
