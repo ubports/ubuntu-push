@@ -187,6 +187,7 @@ func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error)
 
 func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, nmState networkmanager.State, nmStateCh <-chan networkmanager.State) {
 	dontPoll := nmState != networkmanager.ConnectedGlobal
+	p.log.Debugf("nmState: %v, networkmanager.ConnectedGlobal: %v", nmState, networkmanager.ConnectedGlobal)
 	var t time.Time
 	cookie := ""
 	holdsWakeLock := false
