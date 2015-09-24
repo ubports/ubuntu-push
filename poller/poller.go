@@ -95,16 +95,16 @@ func (p *poller) IsConnected() bool {
 }
 
 func (p *poller) Start() error {
-    if p.log == nil {
-        return ErrUnconfigured
-    }
-    if p.powerd != nil || p.polld != nil {
-        return ErrAlreadyStarted
-    }
+	if p.log == nil {
+		return ErrUnconfigured
+	}
+	if p.powerd != nil || p.polld != nil {
+		return ErrAlreadyStarted
+	}
 
-    powerdEndp := bus.SystemBus.Endpoint(powerd.BusAddress, p.log)
-    polldEndp := bus.SessionBus.Endpoint(polld.BusAddress, p.log)
-    nmEndp := bus.SystemBus.Endpoint(networkmanager.BusAddress, p.log)
+	powerdEndp := bus.SystemBus.Endpoint(powerd.BusAddress, p.log)
+	polldEndp := bus.SessionBus.Endpoint(polld.BusAddress, p.log)
+	nmEndp := bus.SystemBus.Endpoint(networkmanager.BusAddress, p.log)
 
 	var wg sync.WaitGroup
 	wg.Add(4)
@@ -127,7 +127,7 @@ func (p *poller) Start() error {
 
 	p.powerd = powerd.New(powerdEndp, p.log)
 	p.polld = polld.New(polldEndp, p.log)
-    p.nm = networkmanager.New(nmEndp, p.log)
+	p.nm = networkmanager.New(nmEndp, p.log)
 
 	// busy sleep loop to workaround go's timer/sleep
 	// not accounting for time when the system is suspended
@@ -222,7 +222,7 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, nmS
 					t = time.Time{}
 					filteredWakeUpCh <- true
 				}
-            }
+			}
 		}
 		newDontPoll := nmState != networkmanager.ConnectedGlobal
 		p.log.Debugf("control: nmState:%v prevDontPoll:%v dontPoll:%v wakeupReq:%v holdsWakeLock:%v", nmState, dontPoll, newDontPoll, !t.IsZero(), holdsWakeLock)
