@@ -1,3 +1,16 @@
+ubuntu-push (0.68+15.04.20150928-0ubuntu1) vivid; urgency=medium
+
+  [ CI Train Bot ]
+  * Address bug 1469398 by checking NetworkManager.State (LP: #1469398)
+
+  [ Samuele Pedroni (Canonical Services Ltd.) ]
+  * Address bug 1469398 by checking NetworkManager.State (LP: #1469398)
+
+  [ jonas-drange ]
+  * Address bug 1469398 by checking NetworkManager.State (LP: #1469398)
+
+ -- Jonas G. Drange <ci-train-bot@canonical.com>  Mon, 28 Sep 2015 10:47:20 +0000
+
 ubuntu-push (0.68+15.04.20150814.1-0ubuntu1) vivid; urgency=medium
 
   [ CI Train Bot ]
