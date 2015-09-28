@@ -117,7 +117,7 @@ func (s *PrSuite) TestStep(c *C) {
 	ch := make(chan string)
 	// now, run
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh, connectedGlobal, nil,)
+	go p.control(wakeupCh, filteredWakeUpCh, connectedGlobal, nil)
 	go func() { ch <- p.step(filteredWakeUpCh, doneCh, "old cookie") }()
 	select {
 	case s := <-ch:
@@ -160,10 +160,10 @@ func (s *PrSuite) TestControl(c *C) {
 	wakeUpCh <- true
 	<-filteredWakeUpCh
 
-    nmStateCh <- disconnectedGlobal
-    err = p.requestWakeup()
-    c.Assert(err, IsNil)
-    c.Check(s.myd.watchWakeCh, HasLen, 0)
+	nmStateCh <- disconnectedGlobal
+	err = p.requestWakeup()
+	c.Assert(err, IsNil)
+	c.Check(s.myd.watchWakeCh, HasLen, 0)
 
 	// connected
 	nmStateCh <- connectedGlobal
