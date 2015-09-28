@@ -21,7 +21,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/bus/urfkill"
+	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/client/session"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
@@ -92,8 +92,8 @@ func (s *PrSuite) SetUpTest(c *C) {
 }
 
 const (
-	wlanOn  = urfkill.KillswitchStateUnblocked
-	wlanOff = urfkill.KillswitchStateSoftBlocked
+	connectedGlobal    = networkmanager.ConnectedGlobal
+	disconnectedGlobal = networkmanager.Disconnected
 )
 
 func (s *PrSuite) TestStep(c *C) {
@@ -117,7 +117,7 @@ func (s *PrSuite) TestStep(c *C) {
 	ch := make(chan string)
 	// now, run
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh, false, nil, wlanOn, nil)
+	go p.control(wakeupCh, filteredWakeUpCh, connectedGlobal, nil)
 	go func() { ch <- p.step(filteredWakeUpCh, doneCh, "old cookie") }()
 	select {
 	case s := <-ch:
@@ -143,9 +143,8 @@ func (s *PrSuite) TestControl(c *C) {
 	wakeUpCh := make(chan bool)
 	filteredWakeUpCh := make(chan bool)
 	s.myd.watchWakeCh = make(chan bool, 1)
-	flightModeCh := make(chan bool)
-	wlanKillswitchStateCh := make(chan urfkill.KillswitchState)
-	go p.control(wakeUpCh, filteredWakeUpCh, false, flightModeCh, wlanOn, wlanKillswitchStateCh)
+	nmStateCh := make(chan networkmanager.State)
+	go p.control(wakeUpCh, filteredWakeUpCh, connectedGlobal, nmStateCh)
 
 	// works
 	err := p.requestWakeup()
@@ -161,19 +160,17 @@ func (s *PrSuite) TestControl(c *C) {
 	wakeUpCh <- true
 	<-filteredWakeUpCh
 
-	// flight mode
-	flightModeCh <- true
-	wlanKillswitchStateCh <- wlanOff
+	nmStateCh <- disconnectedGlobal
 	err = p.requestWakeup()
 	c.Assert(err, IsNil)
 	c.Check(s.myd.watchWakeCh, HasLen, 0)
 
-	// wireless on
-	wlanKillswitchStateCh <- wlanOn
+	// connected
+	nmStateCh <- connectedGlobal
 	c.Check(<-s.myd.watchWakeCh, Equals, true)
 
-	// wireless off
-	wlanKillswitchStateCh <- wlanOff
+	// disconnected
+	nmStateCh <- disconnectedGlobal
 	// pending wakeup was cleared
 	c.Check(<-s.myd.watchWakeCh, Equals, false)
 
