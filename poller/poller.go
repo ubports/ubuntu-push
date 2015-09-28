@@ -25,9 +25,9 @@ import (
 	"time"
 
 	"launchpad.net/ubuntu-push/bus"
+	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/polld"
 	"launchpad.net/ubuntu-push/bus/powerd"
-	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
