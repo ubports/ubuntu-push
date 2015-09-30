@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/bus/polld"
 	"launchpad.net/ubuntu-push/bus/powerd"
 	"launchpad.net/ubuntu-push/client/session"
@@ -56,6 +55,7 @@ type Poller interface {
 	IsConnected() bool
 	Start() error
 	Run() error
+	HasConnectivity (bool)
 }
 
 type PollerSetup struct {
@@ -69,9 +69,9 @@ type poller struct {
 	log                  logger.Logger
 	powerd               powerd.Powerd
 	polld                polld.Polld
-	nm                   networkmanager.NetworkManager
 	cookie               string
 	sessionState         stater
+	connCh               chan bool
 	requestWakeupCh      chan struct{}
 	requestedWakeupErrCh chan error
 	holdsWakeLockCh      chan bool
@@ -84,6 +84,7 @@ func New(setup *PollerSetup) Poller {
 		powerd:               nil,
 		polld:                nil,
 		sessionState:         setup.SessionStateGetter,
+		connCh:               make(chan bool),
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
@@ -93,6 +94,11 @@ func New(setup *PollerSetup) Poller {
 func (p *poller) IsConnected() bool {
 	return p.sessionState.State() == session.Running
 }
+
+func (p *poller) HasConnectivity(hasConn bool) {
+	p.connCh <- hasConn
+}
+
 
 func (p *poller) Start() error {
 	if p.log == nil {
@@ -104,10 +110,9 @@ func (p *poller) Start() error {
 
 	powerdEndp := bus.SystemBus.Endpoint(powerd.BusAddress, p.log)
 	polldEndp := bus.SessionBus.Endpoint(polld.BusAddress, p.log)
-	nmEndp := bus.SystemBus.Endpoint(networkmanager.BusAddress, p.log)
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(2)
 	go func() {
 		n := util.NewAutoRedialer(powerdEndp).Redial()
 		p.log.Debugf("powerd dialed on try %d", n)
@@ -118,16 +123,10 @@ func (p *poller) Start() error {
 		p.log.Debugf("polld dialed in on try %d", n)
 		wg.Done()
 	}()
-	go func() {
-		n := util.NewAutoRedialer(nmEndp).Redial()
-		p.log.Debugf("NetworkManager dialed on try %d", n)
-		wg.Done()
-	}()
 	wg.Wait()
 
 	p.powerd = powerd.New(powerdEndp, p.log)
 	p.polld = polld.New(polldEndp, p.log)
-	p.nm = networkmanager.New(nmEndp, p.log)
 
 	// busy sleep loop to workaround go's timer/sleep
 	// not accounting for time when the system is suspended
@@ -150,7 +149,7 @@ func (p *poller) Run() error {
 	if p.log == nil {
 		return ErrUnconfigured
 	}
-	if p.powerd == nil || p.polld == nil || p.nm == nil {
+	if p.powerd == nil || p.polld == nil {
 		return ErrNotStarted
 	}
 	wakeupCh, err := p.powerd.WatchWakeups()
@@ -161,13 +160,8 @@ func (p *poller) Run() error {
 	if err != nil {
 		return err
 	}
-	nmState := p.nm.GetState()
-	nmStateCh, _, err := p.nm.WatchState()
-	if err != nil {
-		return err
-	}
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh, nmState, nmStateCh)
+	go p.control(wakeupCh, filteredWakeUpCh)
 	go p.run(filteredWakeUpCh, doneCh)
 	return nil
 }
@@ -185,10 +179,9 @@ func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error)
 	return t, cookie, err
 }
 
-func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, nmState networkmanager.State, nmStateCh <-chan networkmanager.State) {
-	connected := nmState == networkmanager.ConnectedGlobal
-	dontPoll := !connected
-	p.log.Debugf("nmState: %v, networkmanager.ConnectedGlobal: %v", nmState, networkmanager.ConnectedGlobal)
+func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
+	connected := true
+	dontPoll := false
 	var t time.Time
 	cookie := ""
 	holdsWakeLock := false
@@ -225,11 +218,12 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, nmS
 					filteredWakeUpCh <- true
 				}
 			}
-		case nmState = <-nmStateCh:
-			connected = nmState == networkmanager.ConnectedGlobal
+		case state := <-p.connCh:
+			connected = state
+			p.log.Debugf("Connected state:%v", state)
 		}
 		newDontPoll := !connected
-		p.log.Debugf("control: nmState:%v prevDontPoll:%v dontPoll:%v wakeupReq:%v holdsWakeLock:%v", nmState, dontPoll, newDontPoll, !t.IsZero(), holdsWakeLock)
+		p.log.Debugf("control: prevDontPoll:%v dontPoll:%v wakeupReq:%v holdsWakeLock:%v", dontPoll, newDontPoll, !t.IsZero(), holdsWakeLock)
 		if newDontPoll != dontPoll {
 			if dontPoll = newDontPoll; dontPoll {
 				if !t.IsZero() {
