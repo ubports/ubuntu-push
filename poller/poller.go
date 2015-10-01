@@ -219,7 +219,7 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
 			}
 		case state := <-p.connCh:
 			connected = state
-			p.log.Debugf("Connected state:%v", state)
+			p.log.Debugf("control: connected:%v", state)
 		}
 		newDontPoll := !connected
 		p.log.Debugf("control: prevDontPoll:%v dontPoll:%v wakeupReq:%v holdsWakeLock:%v", dontPoll, newDontPoll, !t.IsZero(), holdsWakeLock)
