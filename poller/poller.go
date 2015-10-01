@@ -55,7 +55,7 @@ type Poller interface {
 	IsConnected() bool
 	Start() error
 	Run() error
-	HasConnectivity (bool)
+	HasConnectivity(bool)
 }
 
 type PollerSetup struct {
@@ -98,7 +98,6 @@ func (p *poller) IsConnected() bool {
 func (p *poller) HasConnectivity(hasConn bool) {
 	p.connCh <- hasConn
 }
-
 
 func (p *poller) Start() error {
 	if p.log == nil {
