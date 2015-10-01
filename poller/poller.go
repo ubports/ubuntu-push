@@ -179,8 +179,9 @@ func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error)
 }
 
 func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
+	// Assume a connection, and poll immediately.
 	connected := true
-	dontPoll := false
+	dontPoll := !connected
 	var t time.Time
 	cookie := ""
 	holdsWakeLock := false
