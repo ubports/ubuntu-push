@@ -100,6 +100,7 @@ func (s *PrSuite) TestStep(c *C) {
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
+		connCh:               make(chan bool),
 	}
 	s.myd.reqLockCookie = "wakelock cookie"
 	s.myd.stateState = session.Running
@@ -133,6 +134,7 @@ func (s *PrSuite) TestControl(c *C) {
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
+		connCh:               make(chan bool),
 	}
 	wakeUpCh := make(chan bool)
 	filteredWakeUpCh := make(chan bool)
