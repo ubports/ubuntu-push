@@ -38,6 +38,10 @@ var (
 	ErrNotStarted     = errors.New("not started")
 )
 
+// type PrematureWakeupError struct {
+//     msg string // description of error
+// }
+
 type stater interface {
 	State() session.ClientSessionState
 }
@@ -180,7 +184,7 @@ func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error)
 
 func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
 	// Assume a connection, and poll immediately.
-	connected := true
+	connected := false
 	dontPoll := !connected
 	var t time.Time
 	cookie := ""
@@ -192,8 +196,11 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
 			if !t.IsZero() || dontPoll {
 				// earlier wakeup or we shouldn't be polling
 				// => don't request wakeup
+				if (!t.IsZero()) {
+					p.log.Debugf("skip requesting wakeup due to IsZero")
+				}
 				if dontPoll {
-					p.log.Debugf("skip requesting wakeup")
+					p.log.Debugf("skip requesting wakeup due to dontPoll")
 				}
 				p.requestedWakeupErrCh <- nil
 				break
@@ -265,12 +272,17 @@ func (p *poller) run(wakeupCh <-chan bool, doneCh <-chan bool) {
 
 func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie string) string {
 
+	p.log.Debugf("step: called")
 	err := p.requestWakeup()
 	if err != nil {
 		// Don't do this too quickly. Pretend we are just skipping one wakeup
+		p.log.Debugf("step: p.requestWakeup() ERROR:%v", err)
 		time.Sleep(p.times.AlarmInterval)
 		return lockCookie
+	} else {
+		p.log.Debugf("step: p.requestWakeup() OK")
 	}
+	p.log.Debugf("step: p.holdsWakeLock(false)")
 	p.holdsWakeLock(false)
 	if lockCookie != "" {
 		if err := p.powerd.ClearWakelock(lockCookie); err != nil {
@@ -280,7 +292,9 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		}
 		lockCookie = ""
 	}
+	p.log.Debugf("step: before wakeupCh")
 	<-wakeupCh
+	p.log.Debugf("step: after wakeupCh")
 	lockCookie, err = p.powerd.RequestWakelock("ubuntu push client")
 	if err != nil {
 		p.log.Errorf("RequestWakelock got %v", err)
