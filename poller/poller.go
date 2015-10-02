@@ -88,7 +88,7 @@ func New(setup *PollerSetup) Poller {
 		powerd:               nil,
 		polld:                nil,
 		sessionState:         setup.SessionStateGetter,
-		connCh:               make(chan bool),
+		connCh:               make(chan bool, 1),
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
@@ -184,7 +184,7 @@ func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error)
 
 func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
 	// Assume a connection, and poll immediately.
-	connected := false
+	connected := true
 	dontPoll := !connected
 	var t time.Time
 	cookie := ""
@@ -246,7 +246,12 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
 			} else {
 				if t.IsZero() && !holdsWakeLock {
 					// reschedule soon
-					t, cookie, _ = p.doRequestWakeup(p.times.NetworkWait / 20)
+					var err error
+					t, cookie, err = p.doRequestWakeup(p.times.NetworkWait / 20)
+						p.log.Debugf("reschedule")
+					if err != nil {
+						p.requestedWakeupErrCh <- err
+					}
 				}
 			}
 		}
@@ -293,7 +298,12 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		lockCookie = ""
 	}
 	p.log.Debugf("step: before wakeupCh")
-	<-wakeupCh
+	select {
+	case <-wakeupCh:
+	case <-p.requestedWakeupErrCh:
+		break
+	}
+	//<-wakeupCh
 	p.log.Debugf("step: after wakeupCh")
 	lockCookie, err = p.powerd.RequestWakelock("ubuntu push client")
 	if err != nil {
