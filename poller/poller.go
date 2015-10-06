@@ -192,6 +192,9 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
 			if !t.IsZero() || dontPoll {
 				// earlier wakeup or we shouldn't be polling
 				// => don't request wakeup
+				if dontPoll {
+					p.log.Debugf("skip requesting wakeup")
+				}
 				p.requestedWakeupErrCh <- nil
 				break
 			}
@@ -265,6 +268,7 @@ func (p *poller) run(wakeupCh <-chan bool, doneCh <-chan bool) {
 }
 
 func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie string) string {
+
 	err := p.requestWakeup()
 	if err != nil {
 		// Don't do this too quickly. Pretend we are just skipping one wakeup
