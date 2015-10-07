@@ -442,6 +442,11 @@ func (client *PushClient) handleUnicastNotification(anotif session.AddressedNoti
 	return nil
 }
 
+func (client *PushClient) handeConnNotification(conn bool) {
+	client.session.HasConnectivity(conn)
+	client.poller.HasConnectivity(conn)
+}
+
 // doLoop connects events with their handlers
 func (client *PushClient) doLoop(connhandler func(bool), bcasthandler func(*session.BroadcastNotification) error, ucasthandler func(session.AddressedNotification) error, unregisterhandler func(*click.AppId), accountshandler func()) {
 	for {
@@ -475,7 +480,7 @@ func (client *PushClient) doStart(fs ...func() error) error {
 
 // Loop calls doLoop with the "real" handlers
 func (client *PushClient) Loop() {
-	client.doLoop(client.session.HasConnectivity,
+	client.doLoop(client.handeConnNotification,
 		client.handleBroadcastNotification,
 		client.handleUnicastNotification,
 		client.handleUnregister,

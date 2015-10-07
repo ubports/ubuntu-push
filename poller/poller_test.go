@@ -21,7 +21,6 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/bus/networkmanager"
 	"launchpad.net/ubuntu-push/client/session"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
@@ -91,11 +90,6 @@ func (s *PrSuite) SetUpTest(c *C) {
 	s.myd = &myD{}
 }
 
-const (
-	connectedGlobal    = networkmanager.ConnectedGlobal
-	disconnectedGlobal = networkmanager.Disconnected
-)
-
 func (s *PrSuite) TestStep(c *C) {
 	p := &poller{
 		times:                Times{},
@@ -106,6 +100,7 @@ func (s *PrSuite) TestStep(c *C) {
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
+		connCh:               make(chan bool),
 	}
 	s.myd.reqLockCookie = "wakelock cookie"
 	s.myd.stateState = session.Running
@@ -117,7 +112,7 @@ func (s *PrSuite) TestStep(c *C) {
 	ch := make(chan string)
 	// now, run
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh, connectedGlobal, nil)
+	go p.control(wakeupCh, filteredWakeUpCh)
 	go func() { ch <- p.step(filteredWakeUpCh, doneCh, "old cookie") }()
 	select {
 	case s := <-ch:
@@ -139,14 +134,15 @@ func (s *PrSuite) TestControl(c *C) {
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
+		connCh:               make(chan bool),
 	}
 	wakeUpCh := make(chan bool)
 	filteredWakeUpCh := make(chan bool)
 	s.myd.watchWakeCh = make(chan bool, 1)
-	nmStateCh := make(chan networkmanager.State)
-	go p.control(wakeUpCh, filteredWakeUpCh, connectedGlobal, nmStateCh)
+	go p.control(wakeUpCh, filteredWakeUpCh)
 
 	// works
+	p.HasConnectivity(true)
 	err := p.requestWakeup()
 	c.Assert(err, IsNil)
 	c.Check(<-s.myd.watchWakeCh, Equals, true)
@@ -160,17 +156,17 @@ func (s *PrSuite) TestControl(c *C) {
 	wakeUpCh <- true
 	<-filteredWakeUpCh
 
-	nmStateCh <- disconnectedGlobal
+	p.HasConnectivity(false)
 	err = p.requestWakeup()
 	c.Assert(err, IsNil)
 	c.Check(s.myd.watchWakeCh, HasLen, 0)
 
 	// connected
-	nmStateCh <- connectedGlobal
+	p.HasConnectivity(true)
 	c.Check(<-s.myd.watchWakeCh, Equals, true)
 
 	// disconnected
-	nmStateCh <- disconnectedGlobal
+	p.HasConnectivity(false)
 	// pending wakeup was cleared
 	c.Check(<-s.myd.watchWakeCh, Equals, false)
 
