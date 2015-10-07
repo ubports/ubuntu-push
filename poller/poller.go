@@ -243,7 +243,7 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
 					t, cookie, err = p.doRequestWakeup(p.times.NetworkWait / 20)
 					if err != nil {
 						// Make sure we break a potential deadlock by trying again.
-						filteredWakeUpCh <- true;
+						filteredWakeUpCh <- true
 					}
 				}
 			}
