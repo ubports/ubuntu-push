@@ -84,7 +84,7 @@ func New(setup *PollerSetup) Poller {
 		powerd:               nil,
 		polld:                nil,
 		sessionState:         setup.SessionStateGetter,
-		connCh:               make(chan bool, 1),
+		connCh:               make(chan bool),
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
