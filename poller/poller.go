@@ -242,7 +242,8 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
 					var err error
 					t, cookie, err = p.doRequestWakeup(p.times.NetworkWait / 20)
 					if err != nil {
-						p.requestedWakeupErrCh <- err
+						// Make sure we break a potential deadlock by trying again.
+						filteredWakeUpCh <- true;
 					}
 				}
 			}
@@ -282,11 +283,7 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 		}
 		lockCookie = ""
 	}
-	select {
-	case <-wakeupCh:
-	case <-p.requestedWakeupErrCh:
-		break
-	}
+	<-wakeupCh
 	lockCookie, err = p.powerd.RequestWakelock("ubuntu push client")
 	if err != nil {
 		p.log.Errorf("RequestWakelock got %v", err)
