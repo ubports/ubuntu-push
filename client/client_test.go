@@ -1032,6 +1032,7 @@ func (cs *clientSuite) TestDoStartFailsAsExpected(c *C) {
 ******************************************************************/
 
 type loopSession struct{ hasConn bool }
+type loopPoller struct{}
 
 func (s *loopSession) ResetCookie() {}
 func (s *loopSession) State() session.ClientSessionState {
@@ -1044,6 +1045,11 @@ func (s *loopSession) State() session.ClientSessionState {
 func (s *loopSession) HasConnectivity(hasConn bool) { s.hasConn = hasConn }
 func (s *loopSession) KeepConnection() error        { return nil }
 func (s *loopSession) StopKeepConnection()          {}
+
+func (p *loopPoller) HasConnectivity(hasConn bool) {}
+func (p *loopPoller) IsConnected() bool            { return false }
+func (p *loopPoller) Start() error                 { return nil }
+func (p *loopPoller) Run() error                   { return nil }
 
 func (cs *clientSuite) TestLoop(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -1070,6 +1076,7 @@ func (cs *clientSuite) TestLoop(c *C) {
 	c.Assert(cli.session, NotNil)
 	cli.session.StopKeepConnection()
 	cli.session = &loopSession{}
+	cli.poller = &loopPoller{}
 
 	go cli.Loop()
 
