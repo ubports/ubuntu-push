@@ -1,3 +1,14 @@
+ubuntu-push (0.68+15.04.20151016.1-0ubuntu1) vivid; urgency=medium
+
+  [ CI Train Bot ]
+  * New rebuild forced.
+
+  [ jonas-drange ]
+  * Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). (LP: #1469398)
+
+ -- Jonas G. Drange <ci-train-bot@canonical.com>  Fri, 16 Oct 2015 13:47:45 +0000
+
 ubuntu-push (0.68+15.04.20150928-0ubuntu1) vivid; urgency=medium
 
   [ CI Train Bot ]
