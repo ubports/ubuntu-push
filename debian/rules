@@ -6,7 +6,7 @@ export UBUNTU_PUSH_TEST_RESOURCES_ROOT := $(CURDIR)
 
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 
-ifneq (,$(filter $(DEB_HOST_ARCH), powerpc s390x))
+ifneq (,$(filter $(DEB_HOST_ARCH), arm64 powerpc ppc64el))
   pkg_configs = ubuntuoneauth-2.0 libaccounts-glib click-0.4 ubuntu-app-launch-2 url-dispatcher-1 messaging-menu dbus-1 libnih libnih-dbus glib-2.0 gobject-2.0
   export CGO_CFLAGS := \
     $(shell $(foreach pkg, $(pkg_configs), pkg-config --cflags $(pkg); ))
