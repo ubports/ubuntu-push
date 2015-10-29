@@ -428,27 +428,30 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 		return false
 	}
 
+	locked := svc.unityGreeter.IsActive()
+	focused := svc.windowStack.IsAppFocused(app)
+
 	if output.Notification.Card != nil && output.Notification.Card.Popup {
-		if svc.unityGreeter.IsActive() {
+		if locked {
 			// Screen is locked, ensure popup is false
 			output.Notification.Card.Popup = false
 		}
 	}
 
-	if !svc.windowStack.IsAppFocused(app) {
-		if isBlacklisted(app) {
-			svc.Log.Debugf("notification skipped (except emblem counter) because app is blacklisted")
-			return svc.emblemCounter.Present(app, nid, output.Notification)
-		}
-
-		b := false
-		for _, p := range svc.Presenters {
-			// we don't want this to shortcut :)
-			b = p.Present(app, nid, output.Notification) || b
-		}
-		return b
-	} else {
+	if !locked && focused {
 		svc.Log.Debugf("notification skipped because app is focused.")
 		return false
 	}
+
+	if isBlacklisted(app) {
+		svc.Log.Debugf("notification skipped (except emblem counter) because app is blacklisted")
+		return svc.emblemCounter.Present(app, nid, output.Notification)
+	}
+
+	b := false
+	for _, p := range svc.Presenters {
+		// we don't want this to shortcut :)
+		b = p.Present(app, nid, output.Notification) || b
+	}
+	return b
 }
