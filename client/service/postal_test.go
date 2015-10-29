@@ -878,19 +878,16 @@ func (ps *postalSuite) TestBlacklisted(c *C) {
 }
 
 func (ps *postalSuite) TestFocusedAppButLockedScreenNotification(c *C) {
-	appId := "com.example.test_test-app_0"
-	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true),
-		[]windowstack.WindowsInfo{{0, appId, true, 0}},
-		[]windowstack.WindowsInfo{{0, appId, true, 0}},
-		[]windowstack.WindowsInfo{{0, appId, true, 0}},
-		[]windowstack.WindowsInfo{{0, appId, true, 0}})
-	ps.unityGreeterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), true, true, true, true)
+	appId := "com.example.test_test-app"
+	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{{0, appId, true, 0}})
+	ps.unityGreeterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), true)
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
+	// svc.WindowStackEndp = ps.winStackBus
 	svc.Start()
 
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Persist: true}
 	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
-	app := clickhelp.MustParseAppId(appId)
+	app := clickhelp.MustParseAppId(fmt.Sprintf("%v_0", appId))
 
 	c.Check(svc.messageHandler(app, "0", output), Equals, true)
 }
