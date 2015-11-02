@@ -857,6 +857,7 @@ func (ps *postalSuite) TestBlacklisted(c *C) {
 		[]windowstack.WindowsInfo{},
 		[]windowstack.WindowsInfo{},
 		[]windowstack.WindowsInfo{})
+	ps.unityGreeterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), false, false, false, false)
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
 	svc.Start()
 	ps.blacklisted = false
@@ -871,7 +872,22 @@ func (ps *postalSuite) TestBlacklisted(c *C) {
 	c.Check(svc.messageHandler(app, "0", output), Equals, true)
 	c.Check(svc.messageHandler(app, "1", embOut), Equals, true)
 	ps.blacklisted = true
-	// and regular notifications (but not emblem counters) are supprsessed if blacklisted.
+	// and regular notifications (but not emblem counters) are suppressed if blacklisted.
 	c.Check(svc.messageHandler(app, "2", output), Equals, false)
 	c.Check(svc.messageHandler(app, "3", embOut), Equals, true)
+}
+
+func (ps *postalSuite) TestFocusedAppButLockedScreenNotification(c *C) {
+	appId := "com.example.test_test-app"
+	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{{0, appId, true, 0}})
+	ps.unityGreeterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), true)
+	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
+	// svc.WindowStackEndp = ps.winStackBus
+	svc.Start()
+
+	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Persist: true}
+	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
+	app := clickhelp.MustParseAppId(fmt.Sprintf("%v_0", appId))
+
+	c.Check(svc.messageHandler(app, "0", output), Equals, true)
 }
