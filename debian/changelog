@@ -1,3 +1,14 @@
+ubuntu-push (0.68+15.04.20151103-0ubuntu1) vivid; urgency=medium
+
+  [ CI Train Bot ]
+  * New rebuild forced.
+
+  [ jonas-drange ]
+  * [postal] make sure we don't gobble notifications when screen is
+    locked, even if the app getting notified is focused. (LP: #1469398)
+
+ -- Jonas G. Drange <ci-train-bot@canonical.com>  Tue, 03 Nov 2015 13:40:37 +0000
+
 ubuntu-push (0.68+15.04.20151016.1-0ubuntu1) vivid; urgency=medium
 
   [ CI Train Bot ]
