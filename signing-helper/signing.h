@@ -48,8 +48,10 @@ class SigningExample : public QObject
 
 public:
 
-    explicit SigningExample(QObject *parent = 0, QString url="https://one.ubuntu.com/api/account/");
+    explicit SigningExample(QObject *parent = 0, const QString& url="https://one.ubuntu.com/api/account/");
     ~SigningExample();
+
+    void setMethod(const QString& method);
 
 public slots:
 
@@ -68,8 +70,8 @@ private:
 
     SSOService service;
     QNetworkAccessManager nam;
-    QString url;
-
+    QString m_url;
+    QString m_method;
 };
 
 }

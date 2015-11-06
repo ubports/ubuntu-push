@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2014 Canonical Ltd.
+ * Copyright (C) 2013-2015 Canonical Ltd.
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 3, as published
@@ -27,6 +27,8 @@
  * files in the program, then also delete it here.
  */
 
+#include "signing.h"
+
 #include <iostream>
 #include <QCoreApplication>
 #include <QDebug>
@@ -35,44 +37,44 @@
 #include <QTimer>
 #include <QUrlQuery>
 
-#include "ssoservice.h"
-#include "token.h"
-
-#include "signing.h"
-
 namespace UbuntuOne {
 
-    SigningExample::SigningExample(QObject *parent, QString url) :
-        QObject(parent)
-    {
-        QObject::connect(&service, SIGNAL(credentialsFound(const Token&)),
-                         this, SLOT(handleCredentialsFound(Token)));
-        QObject::connect(&service, SIGNAL(credentialsNotFound()),
-                         this, SLOT(handleCredentialsNotFound()));
-        this->url = url;
+SigningExample::SigningExample(QObject *parent, const QString& url) :
+    QObject(parent),
+    m_url(url),
+    m_method("POST")
+{
+    QObject::connect(&service, SIGNAL(credentialsFound(const Token&)),
+                     this, SLOT(handleCredentialsFound(Token)));
+    QObject::connect(&service, SIGNAL(credentialsNotFound()),
+                     this, SLOT(handleCredentialsNotFound()));
+}
 
-    }
+SigningExample::~SigningExample(){
+}
 
-    SigningExample::~SigningExample(){
-    }
+void SigningExample::setMethod(const QString& method)
+{
+    m_method = method;
+}
 
-    void SigningExample::doExample()
-    {
-        service.getCredentials();
-    }
+void SigningExample::doExample()
+{
+    service.getCredentials();
+}
 
-    void SigningExample::handleCredentialsFound(Token token)
-    {
-        qDebug() << "Credentials found, signing url.";
-        std::cout << token.signUrl(this->url, QStringLiteral("POST")).toStdString();
-        QCoreApplication::instance()->exit(0);
-    }
+void SigningExample::handleCredentialsFound(Token token)
+{
+    qDebug() << "Credentials found, signing url.";
+    std::cout << token.signUrl(m_url, m_method).toStdString();
+    QCoreApplication::instance()->exit(0);
+}
 
-    void SigningExample::handleCredentialsNotFound()
-    {
-        qDebug() << "No credentials were found.";
-        QCoreApplication::instance()->exit(1);
-    }
+void SigningExample::handleCredentialsNotFound()
+{
+    qDebug() << "No credentials were found.";
+    QCoreApplication::instance()->exit(1);
+}
 
 
 } // namespace UbuntuOne
@@ -81,10 +83,13 @@ namespace UbuntuOne {
 int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
-    if (argc<2) {
+    if (argc < 2) {
         return 2;
     }
     UbuntuOne::SigningExample *example = new UbuntuOne::SigningExample(&a, argv[1]);
+    if (argc == 3) {
+        example->setMethod(argv[2]);
+    }
     QObject::connect(example, SIGNAL(finished()), &a, SLOT(quit()));
     QTimer::singleShot(0, example, SLOT(doExample()));
     return a.exec();
