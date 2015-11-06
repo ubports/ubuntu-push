@@ -451,6 +451,15 @@ func (s *poolSuite) TestSecondRunSameAppToBacklog(c *C) {
 // checks that the an Nth helper run goes to the backlog
 func (s *poolSuite) TestRunNthAppToBacklog(c *C) {
 	s.pool.(*kindHelperPool).maxNum = 2
+	doGrowBacklog := s.pool.(*kindHelperPool).doGrowBacklog
+	grownTo1 := make(chan struct{})
+	s.pool.(*kindHelperPool).growBacklog = func(bl []*HelperInput, in *HelperInput) []*HelperInput {
+		res := doGrowBacklog(bl, in)
+		if len(res) == 1 {
+			close(grownTo1)
+		}
+		return res
+	}
 	ch := s.pool.Start()
 	defer s.pool.Stop()
 
@@ -482,6 +491,11 @@ func (s *poolSuite) TestRunNthAppToBacklog(c *C) {
 
 	s.pool.Run("fake", input3)
 
+	select {
+	case <-grownTo1:
+	case <-time.After(time.Second):
+		c.Fatal("timeout waiting for result")
+	}
 	go s.fakeLauncher.done("0")
 	s.waitForArgs(c, "Launch")
 
@@ -502,6 +516,16 @@ func (s *poolSuite) TestRunNthAppToBacklog(c *C) {
 
 func (s *poolSuite) TestRunBacklogFailedContinuesDiffApp(c *C) {
 	s.pool.(*kindHelperPool).maxNum = 1
+	doGrowBacklog := s.pool.(*kindHelperPool).doGrowBacklog
+	grownTo3 := make(chan struct{})
+	s.pool.(*kindHelperPool).growBacklog = func(bl []*HelperInput, in *HelperInput) []*HelperInput {
+		res := doGrowBacklog(bl, in)
+		if len(res) == 3 {
+			close(grownTo3)
+		}
+		return res
+	}
+
 	ch := s.pool.Start()
 	defer s.pool.Stop()
 
@@ -536,15 +560,21 @@ func (s *poolSuite) TestRunBacklogFailedContinuesDiffApp(c *C) {
 	s.pool.Run("fake", input3)
 	s.pool.Run("fake", input4)
 
+	select {
+	case <-grownTo3:
+	case <-time.After(time.Second):
+		c.Fatal("timeout waiting for result")
+	}
 	go s.fakeLauncher.done("0")
 	// Everything up to here was just set-up.
 	//
 	// What we're checking for is that, if a helper launch fails, the
 	// next one in the backlog is picked up.
-	c.Assert(takeNext(ch, c).Input.App, Equals, app1)
-	c.Assert(takeNext(ch, c).Input.App, Equals, app2)
-	go s.fakeLauncher.done("2")
+	takeNext(ch, c)
+	takeNext(ch, c)
 	s.waitForArgs(c, "Launch")
+	go s.fakeLauncher.done("1")
+	c.Assert(takeNext(ch, c).Input.App, Equals, app3)
 	c.Check(s.log.Captured(), Matches,
 		`(?ms).* helper input backlog has grown to 3 entries\.$.*shrunk to 1 entries\.$`)
 }
