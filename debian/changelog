@@ -1,3 +1,15 @@
+ubuntu-push (0.68+15.10.20150814.1-0ubuntu1) wily; urgency=medium
+
+  [ CI Train Bot ]
+  * New rebuild forced.
+
+  [ Samuele Pedroni (Canonical Services Ltd.) ]
+  * address lp:1451510 aggressively finding gone notifications in Tags()
+    truncate runtime.Stack result to size, otherwise we log \x00s or old
+    stuff (LP: #1451510)
+
+ -- CI Train Bot <ci-train-bot@canonical.com>  Fri, 14 Aug 2015 14:05:16 +0000
+
 ubuntu-push (0.68+15.04.20150430.1-0ubuntu2~ppa1) wily; urgency=medium
 
   [ John R. Lenton ]
