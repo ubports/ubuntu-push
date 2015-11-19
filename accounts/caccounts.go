@@ -3,6 +3,8 @@ package accounts
 /*
 #include <libaccounts-glib/accounts-glib.h>
 
+void gocb();
+
 static void cb(AgManager *manager, AgAccountId account_id, gpointer p) {
     AgAccount *account = ag_manager_get_account(manager, account_id);
     if (!account) {
