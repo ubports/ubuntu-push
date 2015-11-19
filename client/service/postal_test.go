@@ -134,6 +134,7 @@ func (fhl *fakeHelperLauncher) Launch(_, _, f1, f2 string) (string, error) {
 }
 
 type fakeUrlDispatcher struct {
+	DispatchDone       chan bool
 	DispatchCalls      [][]string
 	TestURLCalls       []map[string][]string
 	NextTestURLResult  bool
@@ -148,6 +149,7 @@ func (fud *fakeUrlDispatcher) DispatchURL(url string, app *click.AppId) error {
 	if fud.DispatchShouldFail {
 		return errors.New("fail!")
 	}
+	fud.DispatchDone <- true
 	return nil
 }
 
@@ -196,7 +198,13 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.notifBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.counterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
-	ps.accountsBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), map[string]dbus.Variant{"IncomingMessageVibrate": dbus.Variant{true}})
+	ps.accountsBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), map[string]dbus.Variant{
+		"IncomingMessageVibrate": dbus.Variant{true},
+		"SilentMode": dbus.Variant{false},
+		"IncomingMessageSound": dbus.Variant{""},
+		"IncomingMessageVibrateSilentMode": dbus.Variant{false},
+	})
+
 	ps.hapticBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.unityGreeterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), false)
 	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
@@ -660,20 +668,19 @@ func (ps *postalSuite) TestHandleActionsDispatches(c *C) {
 	app, _ := click.ParseAppId("com.example.test_test-app")
 	c.Assert(svc.Start(), IsNil)
 	fakeDisp := new(fakeUrlDispatcher)
+	fakeDisp.DispatchDone = make(chan bool)
 	svc.urlDispatcher = fakeDisp
 	fakeDisp.NextTestURLResult = true
 	svc.messagingMenu = fmm
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
-	bCh := make(chan bool)
 	go func() {
 		aCh <- nil // just in case?
 		aCh <- &notifications.RawAction{App: app, Action: "potato://", Nid: "xyzzy"}
 		close(aCh)
-		bCh <- true
 	}()
 	go svc.handleActions(aCh, rCh)
-	takeNextBool(bCh)
+	takeNextBool(fakeDisp.DispatchDone)
 	fakeDisp.Lock.Lock()
 	defer fakeDisp.Lock.Unlock()
 	c.Assert(len(fakeDisp.DispatchCalls), Equals, 1)
@@ -687,19 +694,18 @@ func (ps *postalSuite) TestHandleMMUActionsDispatches(c *C) {
 	c.Assert(svc.Start(), IsNil)
 	fakeDisp := new(fakeUrlDispatcher)
 	svc.urlDispatcher = fakeDisp
+	fakeDisp.DispatchDone = make(chan bool)
 	fakeDisp.NextTestURLResult = true
 	app, _ := click.ParseAppId("com.example.test_test-app")
 	aCh := make(chan *notifications.RawAction)
 	rCh := make(chan *reply.MMActionReply)
-	bCh := make(chan bool)
 	go func() {
 		rCh <- nil // just in case?
 		rCh <- &reply.MMActionReply{App: app, Action: "potato://", Notification: "foo.bar"}
 		close(rCh)
-		bCh <- true
 	}()
 	go svc.handleActions(aCh, rCh)
-	takeNextBool(bCh)
+	takeNextBool(fakeDisp.DispatchDone)
 	fakeDisp.Lock.Lock()
 	defer fakeDisp.Lock.Unlock()
 	c.Assert(len(fakeDisp.DispatchCalls), Equals, 1)
