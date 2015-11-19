@@ -449,7 +449,7 @@ func (s *poolSuite) TestSecondRunSameAppToBacklog(c *C) {
 }
 
 // checks that the an Nth helper run goes to the backlog
-func (s *poolSuite) DontTestRunNthAppToBacklog(c *C) {
+func (s *poolSuite) TestRunNthAppToBacklog(c *C) {
 	s.pool.(*kindHelperPool).maxNum = 2
 	doGrowBacklog := s.pool.(*kindHelperPool).doGrowBacklog
 	grownTo1 := make(chan struct{})
@@ -514,7 +514,7 @@ func (s *poolSuite) DontTestRunNthAppToBacklog(c *C) {
 		`(?ms).* helper input backlog has grown to 1 entries\.$.*shrunk to 0 entries\.$`)
 }
 
-func (s *poolSuite) DontTestRunBacklogFailedContinuesDiffApp(c *C) {
+func (s *poolSuite) TestRunBacklogFailedContinuesDiffApp(c *C) {
 	s.pool.(*kindHelperPool).maxNum = 1
 	doGrowBacklog := s.pool.(*kindHelperPool).doGrowBacklog
 	grownTo3 := make(chan struct{})
