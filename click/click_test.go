@@ -1,5 +1,5 @@
 /*
- Copyright 2013-2014 Canonical Ltd.
+ Copyright 2013-2015 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -19,6 +19,8 @@ package click
 import (
 	"encoding/json"
 	"fmt"
+	"os/exec"
+	"strings"
 	"testing"
 
 	. "launchpad.net/gocheck"
@@ -31,6 +33,13 @@ func TestClick(t *testing.T) { TestingT(t) }
 type clickSuite struct{}
 
 var _ = Suite(&clickSuite{})
+
+func GetPyVer() string {
+	out, _ := exec.Command("python3", "-V").Output()
+	pyver := strings.Replace(string(out[:]), "Python ", "", -1)
+	vers := strings.Split(pyver, ".")
+	return fmt.Sprintf("%s.%s", vers[0], vers[1])
+}
 
 func (cs *clickSuite) TestParseAppId(c *C) {
 	app, err := ParseAppId("com.ubuntu.clock_clock")
@@ -72,18 +81,19 @@ func (cs *clickSuite) TestVersionedPanic(c *C) {
 }
 
 func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
-	app, err := ParseAppId("_python3.4")
+	pyver := fmt.Sprintf("python%s", GetPyVer())
+	app, err := ParseAppId(fmt.Sprintf("_%s", pyver))
 	c.Assert(err, IsNil)
 	c.Check(app.Package, Equals, "")
 	c.Check(app.InPackage(""), Equals, true)
-	c.Check(app.Application, Equals, "python3.4")
+	c.Check(app.Application, Equals, pyver)
 	c.Check(app.Version, Equals, "")
 	c.Check(app.Click, Equals, false)
-	c.Check(app.Original(), Equals, "_python3.4")
-	c.Check(app.Versioned(), Equals, "python3.4")
-	c.Check(app.Base(), Equals, "python3.4")
-	c.Check(app.DesktopId(), Equals, "python3.4.desktop")
-	c.Check(app.DispatchPackage(), Equals, "python3.4")
+	c.Check(app.Original(), Equals, fmt.Sprintf("_%s", pyver))
+	c.Check(app.Versioned(), Equals, pyver)
+	c.Check(app.Base(), Equals, pyver)
+	c.Check(app.DesktopId(), Equals, fmt.Sprintf("%s.desktop", pyver))
+	c.Check(app.DispatchPackage(), Equals, pyver)
 
 	for _, s := range []string{"_.foo", "_foo/", "_/foo"} {
 		app, err = ParseAppId(s)
@@ -93,7 +103,8 @@ func (cs *clickSuite) TestParseAppIdLegacy(c *C) {
 }
 
 func (cs *clickSuite) TestJSON(c *C) {
-	for _, appId := range []string{"com.ubuntu.clock_clock", "com.ubuntu.clock_clock_10", "_python3.4"} {
+	pyver := fmt.Sprintf("python%s", GetPyVer())
+	for _, appId := range []string{"com.ubuntu.clock_clock", "com.ubuntu.clock_clock_10", fmt.Sprintf("_%s", pyver)} {
 		app, err := ParseAppId(appId)
 		c.Assert(err, IsNil, Commentf(appId))
 		b, err := json.Marshal(app)
@@ -106,9 +117,10 @@ func (cs *clickSuite) TestJSON(c *C) {
 }
 
 func (cs *clickSuite) TestIcon(c *C) {
-	app, err := ParseAppId("_python3.4")
+	pyver := fmt.Sprintf("python%s", GetPyVer())
+	app, err := ParseAppId(fmt.Sprintf("_%s", pyver))
 	c.Assert(err, IsNil)
-	c.Check(app.Icon(), Equals, "/usr/share/pixmaps/python3.4.xpm")
+	c.Check(app.Icon(), Equals, fmt.Sprintf("/usr/share/pixmaps/%s.xpm", pyver))
 }
 
 func (s *clickSuite) TestUser(c *C) {
@@ -161,7 +173,7 @@ func (s *clickSuite) TestInstalledClock(c *C) {
 func (s *clickSuite) TestInstalledLegacy(c *C) {
 	u, err := User()
 	c.Assert(err, IsNil)
-	app, err := ParseAppId("_python3.4")
+	app, err := ParseAppId(fmt.Sprintf("_python%s", GetPyVer()))
 	c.Assert(err, IsNil)
 	c.Check(u.Installed(app, false), Equals, true)
 }
@@ -198,7 +210,7 @@ func (s *clickSuite) TestSymbolicLeavesAloneIfIconIsPath(c *C) {
 func (s *clickSuite) TestSymbolicIconCallsSymbolic(c *C) {
 	symbolic = func(string) string { return "xyzzy" }
 	defer func() { symbolic = _symbolic }()
-	app, err := ParseAppId("_python3.4")
+	app, err := ParseAppId(fmt.Sprintf("_python%s", GetPyVer()))
 	c.Assert(err, IsNil)
 	c.Check(app.SymbolicIcon(), Equals, "xyzzy")
 }
