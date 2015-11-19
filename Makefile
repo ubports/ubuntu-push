@@ -15,7 +15,7 @@ GODEPS += code.google.com/p/go-uuid/uuid
 
 GOTEST := ./scripts/goctest
 
-TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
+TOTEST = $(shell env GOMAXPROCS=1 GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
 TOBUILD = $(shell grep -lr '^package main')
 
 all: fetchdeps bootstrap build-client build-server-dev
