@@ -15,7 +15,7 @@ GODEPS += code.google.com/p/go-uuid/uuid
 
 GOTEST := ./scripts/goctest
 
-TOTEST = $(shell env GOMAXPROCS=1 GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
+TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
 TOBUILD = $(shell grep -lr '^package main')
 
 all: fetchdeps bootstrap build-client build-server-dev
@@ -33,8 +33,8 @@ bootstrap: dependencies.tsv
 	$(RM) -r $(GOPATH)/pkg
 	mkdir -p $(GOPATH)/bin
 	mkdir -p $(GOPATH)/pkg
-	go get -u --insecure launchpad.net/godeps
-	go get -d -u --insecure $(GODEPS)
+	go get -u launchpad.net/godeps
+	go get -d -u $(GODEPS)
 	$(GOPATH)/bin/godeps -u dependencies.tsv
 	go install $(GODEPS)
 

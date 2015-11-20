@@ -565,13 +565,12 @@ func (ps *postalSuite) TestMessageHandlerPresents(c *C) {
 	svc.NotificationsEndp = endp
 	svc.UnityGreeterEndp = ps.unityGreeterBus
 	svc.WindowStackEndp = ps.winStackBus
-	svc.launchers = map[string]launch_helper.HelperLauncher{}
-	svc.fallbackVibration = &launch_helper.Vibration{Pattern: []uint32{1}}
-	c.Assert(svc.Start(), IsNil)
-
 	nopTicker := make(chan []interface{})
 	testibus.SetWatchSource(endp, "ActionInvoked", nopTicker)
 	defer close(nopTicker)
+	svc.launchers = map[string]launch_helper.HelperLauncher{}
+	svc.fallbackVibration = &launch_helper.Vibration{Pattern: []uint32{1}}
+	c.Assert(svc.Start(), IsNil)
 
 	// Persist is false so we just check the log
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Body: "body-value", Popup: true, Persist: false}
