@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"launchpad.net/go-xdg/v0"
+	xdg "launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper/cual"

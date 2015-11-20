@@ -21,6 +21,8 @@ package cmessaging
 
 // this is a .go file instead of a .c file because of dh-golang limitations
 
+void handleActivate(gchar* c_action, const gchar * c_notification , gpointer obj);
+
 static void activate_cb(MessagingMenuMessage* msg, gchar* action, GVariant* parameter, gpointer obj) {
     handleActivate(action, messaging_menu_message_get_id(msg), obj);
 }

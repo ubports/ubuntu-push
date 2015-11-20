@@ -24,6 +24,8 @@ package cual
 
 #define HELPER_ERROR g_quark_from_static_string ("cgo-ual-helper-error-quark")
 
+void helperDone(gpointer gp, const gchar * ciid);
+
 static void observer_of_stop (const gchar * app_id, const gchar * instance_id, const gchar * helper_type, gpointer user_data) {
     helperDone (user_data, instance_id);
 }

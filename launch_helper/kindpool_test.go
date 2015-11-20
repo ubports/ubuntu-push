@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"launchpad.net/go-xdg/v0"
+	xdg "launchpad.net/go-xdg/v0"
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/click"

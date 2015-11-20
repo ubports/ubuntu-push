@@ -23,6 +23,8 @@ package curldispatcher
 #include <liburl-dispatcher-1/url-dispatcher.h>
 #include <glib.h>
 
+char* handleDispatchURLResult(const gchar * url, gboolean success, gpointer user_data);
+
 static void url_dispatch_callback(const gchar * url, gboolean success, gpointer user_data) {
     handleDispatchURLResult(url, success, user_data);
 }

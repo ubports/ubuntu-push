@@ -1021,8 +1021,20 @@ func (s *loopSuite) SetUpTest(c *C) {
 	}()
 }
 
-func (s *loopSuite) TestLoopReadError(c *C) {
+func (s *loopSuite) waitUntilRunning(c *C) {
+	delay := time.Duration(1000)
+	for i := 0; i < 5; i++ {
+		if s.sess.State() == Running {
+			return
+		}
+		time.Sleep(delay)
+		delay *= 2
+	}
 	c.Check(s.sess.State(), Equals, Running)
+}
+
+func (s *loopSuite) TestLoopReadError(c *C) {
+	s.waitUntilRunning(c)
 	s.upCh <- errors.New("Read")
 	err := <-s.sess.errCh
 	c.Check(err, ErrorMatches, "Read")
@@ -1030,7 +1042,7 @@ func (s *loopSuite) TestLoopReadError(c *C) {
 }
 
 func (s *loopSuite) TestLoopPing(c *C) {
-	c.Check(s.sess.State(), Equals, Running)
+	s.waitUntilRunning(c)
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	s.upCh <- protocol.PingPongMsg{Type: "ping"}
 	c.Check(takeNext(s.downCh), Equals, protocol.PingPongMsg{Type: "pong"})
@@ -1040,7 +1052,7 @@ func (s *loopSuite) TestLoopPing(c *C) {
 }
 
 func (s *loopSuite) TestLoopLoopsDaLoop(c *C) {
-	c.Check(s.sess.State(), Equals, Running)
+	s.waitUntilRunning(c)
 	for i := 1; i < 10; i++ {
 		c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 		s.upCh <- protocol.PingPongMsg{Type: "ping"}
@@ -1053,7 +1065,7 @@ func (s *loopSuite) TestLoopLoopsDaLoop(c *C) {
 }
 
 func (s *loopSuite) TestLoopBroadcast(c *C) {
-	c.Check(s.sess.State(), Equals, Running)
+	s.waitUntilRunning(c)
 	b := &protocol.BroadcastMsg{
 		Type:     "broadcast",
 		AppId:    "--ignored--",
@@ -1070,7 +1082,7 @@ func (s *loopSuite) TestLoopBroadcast(c *C) {
 }
 
 func (s *loopSuite) TestLoopNotifications(c *C) {
-	c.Check(s.sess.State(), Equals, Running)
+	s.waitUntilRunning(c)
 
 	n1 := protocol.Notification{
 		AppId:   "app1",
@@ -1090,7 +1102,7 @@ func (s *loopSuite) TestLoopNotifications(c *C) {
 }
 
 func (s *loopSuite) TestLoopSetParams(c *C) {
-	c.Check(s.sess.State(), Equals, Running)
+	s.waitUntilRunning(c)
 	setParams := protocol.SetParamsMsg{
 		Type:      "setparams",
 		SetCookie: "COOKIE",
@@ -1104,7 +1116,7 @@ func (s *loopSuite) TestLoopSetParams(c *C) {
 }
 
 func (s *loopSuite) TestLoopConnBroken(c *C) {
-	c.Check(s.sess.State(), Equals, Running)
+	s.waitUntilRunning(c)
 	broken := protocol.ConnBrokenMsg{
 		Type:   "connbroken",
 		Reason: "REASON",
@@ -1126,7 +1138,7 @@ func (s *loopSuite) TestLoopConnWarn(c *C) {
 	failure := errors.New("warn")
 	log := s.sess.Log.(*helpers.TestLogger)
 
-	c.Check(s.sess.State(), Equals, Running)
+	s.waitUntilRunning(c)
 	c.Check(takeNext(s.downCh), Equals, "deadline 1ms")
 	log.ResetCapture()
 	s.upCh <- warn

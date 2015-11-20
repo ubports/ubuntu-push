@@ -16,7 +16,7 @@ t0 = time.time()
 try:
     for i in range(soft+100):
         s=socket.socket()
-        w = ssl.wrap_socket(s)
+        w = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_TLSv1)
         w.settimeout(1)
         w.connect(addr)
         conns.append(w)
