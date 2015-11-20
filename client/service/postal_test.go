@@ -199,9 +199,9 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.notifBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.counterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
 	ps.accountsBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), map[string]dbus.Variant{
-		"IncomingMessageVibrate": dbus.Variant{true},
-		"SilentMode": dbus.Variant{false},
-		"IncomingMessageSound": dbus.Variant{""},
+		"IncomingMessageVibrate":           dbus.Variant{true},
+		"SilentMode":                       dbus.Variant{false},
+		"IncomingMessageSound":             dbus.Variant{""},
 		"IncomingMessageVibrateSilentMode": dbus.Variant{false},
 	})
 
