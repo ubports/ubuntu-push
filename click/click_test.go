@@ -35,7 +35,10 @@ type clickSuite struct{}
 var _ = Suite(&clickSuite{})
 
 func GetPyVer() string {
-	out, _ := exec.Command("python3", "-V").Output()
+	out, err := exec.Command("python3", "-V").Output()
+	if err != nil {
+		panic(err)
+	}
 	pyver := strings.Replace(string(out[:]), "Python ", "", -1)
 	vers := strings.Split(pyver, ".")
 	return fmt.Sprintf("%s.%s", vers[0], vers[1])
