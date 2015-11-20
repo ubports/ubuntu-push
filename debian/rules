@@ -4,6 +4,23 @@
 export DH_GOPKG := launchpad.net/ubuntu-push
 export UBUNTU_PUSH_TEST_RESOURCES_ROOT := $(CURDIR)
 
+DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+
+ifneq (,$(filter $(DEB_HOST_ARCH), arm64 powerpc ppc64el))
+  pkg_configs = ubuntuoneauth-2.0 libaccounts-glib click-0.4 ubuntu-app-launch-2 url-dispatcher-1 messaging-menu dbus-1 libnih libnih-dbus glib-2.0 gobject-2.0
+  export CGO_CFLAGS := \
+    $(shell $(foreach pkg, $(pkg_configs), pkg-config --cflags $(pkg); ))
+  export CGO_CXXFLAGS := $(CGO_CFLAGS)
+  export CGO_LDFLAGS := \
+    $(shell $(foreach pkg, $(pkg_configs), pkg-config --libs $(pkg); ))
+  $(warning setting CGO_CFLAGS   = $(CGO_CFLAGS))
+  $(warning setting CGO_CXXFLAGS = $(CGO_CXXFLAGS))
+  $(warning setting CGO_LDFLAGS  = $(CGO_LDFLAGS))
+
+  # some tests seem to hang
+  DEB_BUILD_OPTIONS := nocheck $(DEB_BUILD_OPTIONS)
+endif
+
 override_dh_auto_build:
 	dh_auto_build --buildsystem=golang
 	(cd signing-helper && cmake . && make)
