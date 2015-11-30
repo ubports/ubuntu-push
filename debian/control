@@ -62,7 +62,7 @@ Description: Ubuntu Push Notifications development & testing server
  The Ubuntu Push Notifications dev & testing server.
 
 Package: ubuntu-push-autopilot
-Architecture: all
+Architecture: amd64 armhf i386
 Multi-Arch: foreign
 Depends: unity8-autopilot,
          ubuntu-push-client,
