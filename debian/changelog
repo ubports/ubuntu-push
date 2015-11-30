@@ -1,3 +1,56 @@
+ubuntu-push (0.68+16.04.20151130-0ubuntu1) xenial; urgency=medium
+
+  [ CI Train Bot ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+  * New rebuild forced.
+
+  [ John R. Lenton ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+  [ Michael Hudson-Doyle ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+  [ Rodney Dawes ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+  [ Samuele Pedroni (Canonical Services Ltd.) ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+  [ jonas-drange ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+ -- Timo Jyrinki <timo.jyrinki@canonical.com>  Mon, 30 Nov 2015 21:16:20 +0000
+
 ubuntu-push (0.68+15.10.20150814.1-0ubuntu1) wily; urgency=medium
 
   [ CI Train Bot ]
