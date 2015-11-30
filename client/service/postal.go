@@ -432,10 +432,7 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 	focused := svc.windowStack.IsAppFocused(app)
 
 	if output.Notification.Card != nil && output.Notification.Card.Popup {
-		if locked {
-			// Screen is locked, ensure popup is false
-			output.Notification.Card.Popup = false
-		}
+		output.Notification.Card.Popup = false
 	}
 
 	if !locked && focused {
