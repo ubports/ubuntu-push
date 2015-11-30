@@ -27,7 +27,6 @@ import (
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/polld"
 	"launchpad.net/ubuntu-push/bus/powerd"
-	"launchpad.net/ubuntu-push/bus/urfkill"
 	"launchpad.net/ubuntu-push/client/session"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/util"
@@ -56,6 +55,7 @@ type Poller interface {
 	IsConnected() bool
 	Start() error
 	Run() error
+	HasConnectivity(bool)
 }
 
 type PollerSetup struct {
@@ -69,9 +69,9 @@ type poller struct {
 	log                  logger.Logger
 	powerd               powerd.Powerd
 	polld                polld.Polld
-	urfkill              urfkill.URfkill
 	cookie               string
 	sessionState         stater
+	connCh               chan bool
 	requestWakeupCh      chan struct{}
 	requestedWakeupErrCh chan error
 	holdsWakeLockCh      chan bool
@@ -84,6 +84,7 @@ func New(setup *PollerSetup) Poller {
 		powerd:               nil,
 		polld:                nil,
 		sessionState:         setup.SessionStateGetter,
+		connCh:               make(chan bool),
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
@@ -94,6 +95,10 @@ func (p *poller) IsConnected() bool {
 	return p.sessionState.State() == session.Running
 }
 
+func (p *poller) HasConnectivity(hasConn bool) {
+	p.connCh <- hasConn
+}
+
 func (p *poller) Start() error {
 	if p.log == nil {
 		return ErrUnconfigured
@@ -101,12 +106,12 @@ func (p *poller) Start() error {
 	if p.powerd != nil || p.polld != nil {
 		return ErrAlreadyStarted
 	}
+
 	powerdEndp := bus.SystemBus.Endpoint(powerd.BusAddress, p.log)
 	polldEndp := bus.SessionBus.Endpoint(polld.BusAddress, p.log)
-	urEndp := bus.SystemBus.Endpoint(urfkill.BusAddress, p.log)
-	urWLANKillswitchEndp := bus.SystemBus.Endpoint(urfkill.WLANKillswitchBusAddress, p.log)
+
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(2)
 	go func() {
 		n := util.NewAutoRedialer(powerdEndp).Redial()
 		p.log.Debugf("powerd dialed on try %d", n)
@@ -117,21 +122,10 @@ func (p *poller) Start() error {
 		p.log.Debugf("polld dialed in on try %d", n)
 		wg.Done()
 	}()
-	go func() {
-		n := util.NewAutoRedialer(urEndp).Redial()
-		p.log.Debugf("URfkill dialed on try %d", n)
-		wg.Done()
-	}()
-	go func() {
-		n := util.NewAutoRedialer(urWLANKillswitchEndp).Redial()
-		p.log.Debugf("URfkill (WLAN killswitch) dialed on try %d", n)
-		wg.Done()
-	}()
 	wg.Wait()
 
 	p.powerd = powerd.New(powerdEndp, p.log)
 	p.polld = polld.New(polldEndp, p.log)
-	p.urfkill = urfkill.New(urEndp, urWLANKillswitchEndp, p.log)
 
 	// busy sleep loop to workaround go's timer/sleep
 	// not accounting for time when the system is suspended
@@ -154,7 +148,7 @@ func (p *poller) Run() error {
 	if p.log == nil {
 		return ErrUnconfigured
 	}
-	if p.powerd == nil || p.polld == nil || p.urfkill == nil {
+	if p.powerd == nil || p.polld == nil {
 		return ErrNotStarted
 	}
 	wakeupCh, err := p.powerd.WatchWakeups()
@@ -165,19 +159,8 @@ func (p *poller) Run() error {
 	if err != nil {
 		return err
 	}
-	flightMode := p.urfkill.IsFlightMode()
-	wlanKillswitchState := p.urfkill.GetWLANKillswitchState()
-	flightModeCh, _, err := p.urfkill.WatchFlightMode()
-	if err != nil {
-		return err
-	}
-	wlanKillswitchStateCh, _, err := p.urfkill.WatchWLANKillswitchState()
-	if err != nil {
-		return err
-	}
-
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh, flightMode, flightModeCh, wlanKillswitchState, wlanKillswitchStateCh)
+	go p.control(wakeupCh, filteredWakeUpCh)
 	go p.run(filteredWakeUpCh, doneCh)
 	return nil
 }
@@ -195,9 +178,10 @@ func (p *poller) doRequestWakeup(delta time.Duration) (time.Time, string, error)
 	return t, cookie, err
 }
 
-func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, flightMode bool, flightModeCh <-chan bool, wlanKillswitchState urfkill.KillswitchState, wlanKillswitchStateCh <-chan urfkill.KillswitchState) {
-	wirelessEnabled := wlanKillswitchState == urfkill.KillswitchStateUnblocked
-	dontPoll := flightMode && !wirelessEnabled
+func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool) {
+	// Assume a connection, and poll immediately.
+	connected := true
+	dontPoll := !connected
 	var t time.Time
 	cookie := ""
 	holdsWakeLock := false
@@ -234,12 +218,12 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 					filteredWakeUpCh <- true
 				}
 			}
-		case flightMode = <-flightModeCh:
-		case wlanKillswitchState = <-wlanKillswitchStateCh:
-			wirelessEnabled = wlanKillswitchState == urfkill.KillswitchStateUnblocked
+		case state := <-p.connCh:
+			connected = state
+			p.log.Debugf("control: connected:%v", state)
 		}
-		newDontPoll := flightMode && !wirelessEnabled
-		p.log.Debugf("control: flightMode:%v wirelessEnabled:%v prevDontPoll:%v dontPoll:%v wakeupReq:%v holdsWakeLock:%v", flightMode, wirelessEnabled, dontPoll, newDontPoll, !t.IsZero(), holdsWakeLock)
+		newDontPoll := !connected
+		p.log.Debugf("control: prevDontPoll:%v dontPoll:%v wakeupReq:%v holdsWakeLock:%v", dontPoll, newDontPoll, !t.IsZero(), holdsWakeLock)
 		if newDontPoll != dontPoll {
 			if dontPoll = newDontPoll; dontPoll {
 				if !t.IsZero() {
@@ -255,7 +239,12 @@ func (p *poller) control(wakeupCh <-chan bool, filteredWakeUpCh chan<- bool, fli
 			} else {
 				if t.IsZero() && !holdsWakeLock {
 					// reschedule soon
-					t, cookie, _ = p.doRequestWakeup(p.times.NetworkWait / 20)
+					var err error
+					t, cookie, err = p.doRequestWakeup(p.times.NetworkWait / 20)
+					if err != nil {
+						// Make sure we break a potential deadlock by trying again.
+						filteredWakeUpCh <- true
+					}
 				}
 			}
 		}
@@ -291,8 +280,6 @@ func (p *poller) step(wakeupCh <-chan bool, doneCh <-chan bool, lockCookie strin
 	if lockCookie != "" {
 		if err := p.powerd.ClearWakelock(lockCookie); err != nil {
 			p.log.Errorf("ClearWakelock(%#v) got %v", lockCookie, err)
-		} else {
-			p.log.Debugf("cleared wakelock cookie %s.", lockCookie)
 		}
 		lockCookie = ""
 	}

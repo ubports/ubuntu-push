@@ -17,9 +17,10 @@
 package testing
 
 import (
-	identifier ".."
-	. "launchpad.net/gocheck"
 	"testing"
+
+	. "launchpad.net/gocheck"
+	"launchpad.net/ubuntu-push/identifier"
 )
 
 // hook up gocheck

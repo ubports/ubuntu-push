@@ -31,8 +31,7 @@ To configure the client:
 
 Install depenendencies:
 
-1) sudo apt-get install unity8-autopilot unity-click-scope
-   Note: unity-click-scope is required for unity8-autopilot tests and is currently required for running tests on emulator.
+1) sudo apt-get install unity8-autopilot
 2) bzr branch lp:ubuntu-push
 3) Edit ip address and ports to match environment: ubuntu-push/tests/autopilot/push_notifications/config/push.conf:
     [config]

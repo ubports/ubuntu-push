@@ -21,7 +21,6 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/bus/urfkill"
 	"launchpad.net/ubuntu-push/client/session"
 	helpers "launchpad.net/ubuntu-push/testing"
 )
@@ -91,11 +90,6 @@ func (s *PrSuite) SetUpTest(c *C) {
 	s.myd = &myD{}
 }
 
-const (
-	wlanOn  = urfkill.KillswitchStateUnblocked
-	wlanOff = urfkill.KillswitchStateSoftBlocked
-)
-
 func (s *PrSuite) TestStep(c *C) {
 	p := &poller{
 		times:                Times{},
@@ -106,6 +100,7 @@ func (s *PrSuite) TestStep(c *C) {
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
+		connCh:               make(chan bool),
 	}
 	s.myd.reqLockCookie = "wakelock cookie"
 	s.myd.stateState = session.Running
@@ -117,7 +112,7 @@ func (s *PrSuite) TestStep(c *C) {
 	ch := make(chan string)
 	// now, run
 	filteredWakeUpCh := make(chan bool)
-	go p.control(wakeupCh, filteredWakeUpCh, false, nil, wlanOn, nil)
+	go p.control(wakeupCh, filteredWakeUpCh)
 	go func() { ch <- p.step(filteredWakeUpCh, doneCh, "old cookie") }()
 	select {
 	case s := <-ch:
@@ -139,15 +134,15 @@ func (s *PrSuite) TestControl(c *C) {
 		requestWakeupCh:      make(chan struct{}),
 		requestedWakeupErrCh: make(chan error),
 		holdsWakeLockCh:      make(chan bool),
+		connCh:               make(chan bool),
 	}
 	wakeUpCh := make(chan bool)
 	filteredWakeUpCh := make(chan bool)
 	s.myd.watchWakeCh = make(chan bool, 1)
-	flightModeCh := make(chan bool)
-	wlanKillswitchStateCh := make(chan urfkill.KillswitchState)
-	go p.control(wakeUpCh, filteredWakeUpCh, false, flightModeCh, wlanOn, wlanKillswitchStateCh)
+	go p.control(wakeUpCh, filteredWakeUpCh)
 
 	// works
+	p.HasConnectivity(true)
 	err := p.requestWakeup()
 	c.Assert(err, IsNil)
 	c.Check(<-s.myd.watchWakeCh, Equals, true)
@@ -161,19 +156,17 @@ func (s *PrSuite) TestControl(c *C) {
 	wakeUpCh <- true
 	<-filteredWakeUpCh
 
-	// flight mode
-	flightModeCh <- true
-	wlanKillswitchStateCh <- wlanOff
+	p.HasConnectivity(false)
 	err = p.requestWakeup()
 	c.Assert(err, IsNil)
 	c.Check(s.myd.watchWakeCh, HasLen, 0)
 
-	// wireless on
-	wlanKillswitchStateCh <- wlanOn
+	// connected
+	p.HasConnectivity(true)
 	c.Check(<-s.myd.watchWakeCh, Equals, true)
 
-	// wireless off
-	wlanKillswitchStateCh <- wlanOff
+	// disconnected
+	p.HasConnectivity(false)
 	// pending wakeup was cleared
 	c.Check(<-s.myd.watchWakeCh, Equals, false)
 

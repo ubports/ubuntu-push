@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"launchpad.net/go-xdg/v0"
+	xdg "launchpad.net/go-xdg/v0"
 
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper/cual"
@@ -67,6 +67,8 @@ type kindHelperPool struct {
 	hmap       map[string]*HelperArgs
 	maxRuntime time.Duration
 	maxNum     int
+	// hook
+	growBacklog func([]*HelperInput, *HelperInput) []*HelperInput
 }
 
 // DefaultLaunchers produces the default map for kind -> HelperLauncher
@@ -79,13 +81,15 @@ func DefaultLaunchers(log logger.Logger) map[string]HelperLauncher {
 
 // a HelperPool that delegates to different per kind HelperLaunchers
 func NewHelperPool(launchers map[string]HelperLauncher, log logger.Logger) HelperPool {
-	return &kindHelperPool{
+	newPool := &kindHelperPool{
 		log:        log,
 		hmap:       make(map[string]*HelperArgs),
 		launchers:  launchers,
 		maxRuntime: 5 * time.Second,
 		maxNum:     5,
 	}
+	newPool.growBacklog = newPool.doGrowBacklog
+	return newPool
 }
 
 func (pool *kindHelperPool) Start() chan *HelperResult {
@@ -121,8 +125,7 @@ func (pool *kindHelperPool) loop() {
 				return
 			}
 			if len(running) >= pool.maxNum || running[in.App.Original()] {
-				backlog = append(backlog, in)
-				pool.log.Debugf("current helper input backlog has grown to %d entries.", len(backlog))
+				backlog = pool.growBacklog(backlog, in)
 			} else {
 				if pool.tryOne(in) {
 					running[in.App.Original()] = true
@@ -152,6 +155,12 @@ func (pool *kindHelperPool) loop() {
 			pool.log.Debugf("current helper input backlog has shrunk to %d entries.", backlogSz)
 		}
 	}
+}
+
+func (pool *kindHelperPool) doGrowBacklog(backlog []*HelperInput, in *HelperInput) []*HelperInput {
+	backlog = append(backlog, in)
+	pool.log.Debugf("current helper input backlog has grown to %d entries.", len(backlog))
+	return backlog
 }
 
 func (pool *kindHelperPool) shrinkBacklog(backlog []*HelperInput, backlogSz int) []*HelperInput {
