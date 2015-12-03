@@ -59,11 +59,11 @@ type RawAction struct {
 type RawNotifications struct {
 	bus   bus.Endpoint
 	log   logger.Logger
-	sound sounds.Sound
+	sound *sounds.Sound
 }
 
 // Raw returns a new RawNotifications that'll use the provided bus.Endpoint
-func Raw(endp bus.Endpoint, log logger.Logger, sound sounds.Sound) *RawNotifications {
+func Raw(endp bus.Endpoint, log logger.Logger, sound *sounds.Sound) *RawNotifications {
 	return &RawNotifications{endp, log, sound}
 }
 
@@ -148,7 +148,7 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 	hints := make(map[string]*dbus.Variant)
 	hints["x-canonical-secondary-icon"] = &dbus.Variant{app.SymbolicIcon()}
 
-	soundFile := raw.sound.getSound(app, nid, notification)
+	soundFile := raw.sound.GetSound(app, nid, notification)
 	if soundFile != "" {
 		hints["sound-file"] = &dbus.Variant{soundFile}
 		raw.log.Debugf("[%s] notification will play sound: %s", nid, soundFile)

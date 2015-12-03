@@ -56,7 +56,7 @@ func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_hel
 		panic("please check notification is not nil before calling present")
 	}
 
-	absPath := snd.getSound(app, nid, notification)
+	absPath := snd.GetSound(app, nid, notification)
 	if absPath == "" {
 		return false
 	}
@@ -78,7 +78,7 @@ func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_hel
 }
 
 // Returns the absolute path of the sound to be played for app, nid and notification.
-func (snd *Sound) getSound(app *click.AppId, nid string, notification *launch_helper.Notification) string {
+func (snd *Sound) GetSound(app *click.AppId, nid string, notification *launch_helper.Notification) string {
 
 	if snd.acc.SilentMode() {
 		snd.log.Debugf("[%s] no sounds: silent mode on.", nid)
