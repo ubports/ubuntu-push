@@ -1,3 +1,14 @@
+ubuntu-push (0.68+16.04.20151203-0ubuntu1) xenial; urgency=medium
+
+  [ CI Train Bot ]
+  * New rebuild forced.
+
+  [ jonas-drange ]
+  * present a notification even though the screen is locked (LP:
+    #1517189, #1469398)
+
+ -- Jonas G. Drange <ci-train-bot@canonical.com>  Thu, 03 Dec 2015 14:56:24 +0000
+
 ubuntu-push (0.68+16.04.20151130-0ubuntu1) xenial; urgency=medium
 
   [ CI Train Bot ]
