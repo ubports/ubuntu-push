@@ -431,13 +431,6 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 	locked := svc.unityGreeter.IsActive()
 	focused := svc.windowStack.IsAppFocused(app)
 
-	if output.Notification.Card != nil && output.Notification.Card.Popup {
-		if locked {
-			// Screen is locked, ensure popup is false
-			output.Notification.Card.Popup = false
-		}
-	}
-
 	if !locked && focused {
 		svc.Log.Debugf("notification skipped because app is focused.")
 		return false
