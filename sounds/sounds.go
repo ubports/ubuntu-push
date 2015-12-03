@@ -56,26 +56,11 @@ func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_hel
 		panic("please check notification is not nil before calling present")
 	}
 
-	if snd.acc.SilentMode() {
-		snd.log.Debugf("[%s] no sounds: silent mode on.", nid)
-		return false
-	}
-
-	fallback := snd.acc.MessageSoundFile()
-	if fallback == "" {
-		fallback = snd.fallback
-	}
-
-	sound := notification.Sound(fallback)
-	if sound == "" {
-		snd.log.Debugf("[%s] notification has no Sound: %#v", nid, sound)
-		return false
-	}
-	absPath := snd.findSoundFile(app, nid, sound)
+	absPath := snd.getSound(app, nid, notification)
 	if absPath == "" {
-		snd.log.Debugf("[%s] unable to find sound %s", nid, sound)
 		return false
 	}
+
 	snd.log.Debugf("[%s] playing sound %s using %s", nid, absPath, snd.player)
 	cmd := exec.Command(snd.player, absPath)
 	err := cmd.Start()
@@ -90,6 +75,31 @@ func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_hel
 		}
 	}()
 	return true
+}
+
+// Returns the absolute path of the sound to be played for app, nid and notification.
+func (snd *Sound) getSound(app *click.AppId, nid string, notification *launch_helper.Notification) string {
+
+	if snd.acc.SilentMode() {
+		snd.log.Debugf("[%s] no sounds: silent mode on.", nid)
+		return ""
+	}
+
+	fallback := snd.acc.MessageSoundFile()
+	if fallback == "" {
+		fallback = snd.fallback
+	}
+
+	sound := notification.Sound(fallback)
+	if sound == "" {
+		snd.log.Debugf("[%s] notification has no Sound: %#v", nid, sound)
+		return ""
+	}
+	absPath := snd.findSoundFile(app, nid, sound)
+	if absPath == "" {
+		snd.log.Debugf("[%s] unable to find sound %s", nid, sound)
+	}
+	return absPath
 }
 
 // Removes all cruft from path, ensures it's a "forward" path.
