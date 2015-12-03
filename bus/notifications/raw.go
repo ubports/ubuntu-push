@@ -31,6 +31,7 @@ import (
 	"launchpad.net/ubuntu-push/click"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
+	"launchpad.net/ubuntu-push/sounds"
 )
 
 // Notifications lives on a well-knwon bus.Address
@@ -56,13 +57,14 @@ type RawAction struct {
 // a raw notification provides a low-level interface to the f.d.o. dbus
 // notifications api
 type RawNotifications struct {
-	bus bus.Endpoint
-	log logger.Logger
+	bus   bus.Endpoint
+	log   logger.Logger
+	sound sounds.Sound
 }
 
 // Raw returns a new RawNotifications that'll use the provided bus.Endpoint
-func Raw(endp bus.Endpoint, log logger.Logger) *RawNotifications {
-	return &RawNotifications{endp, log}
+func Raw(endp bus.Endpoint, log logger.Logger, sound sounds.Sound) *RawNotifications {
+	return &RawNotifications{endp, log, sound}
 }
 
 /*
@@ -145,6 +147,12 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 
 	hints := make(map[string]*dbus.Variant)
 	hints["x-canonical-secondary-icon"] = &dbus.Variant{app.SymbolicIcon()}
+
+	soundFile := raw.sound.getSound(app, nid, notification)
+	if soundFile != "" {
+		hints["sound-file"] = &dbus.Variant{soundFile}
+		raw.log.Debugf("[%s] notification will play sound: %s", nid, soundFile)
+	}
 
 	appId := app.Original()
 	actions := make([]string, 2*len(card.Actions))

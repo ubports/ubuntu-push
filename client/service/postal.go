@@ -159,7 +159,8 @@ func (svc *PostalService) init() error {
 		return err
 	}
 	svc.urlDispatcher = urldispatcher.New(svc.Log)
-	svc.notifications = notifications.Raw(svc.NotificationsEndp, svc.Log)
+	svc.sound = sounds.New(svc.Log, svc.accounts, svc.fallbackSound)
+	svc.notifications = notifications.Raw(svc.NotificationsEndp, svc.Log, svc.sound)
 	svc.emblemCounter = emblemcounter.New(svc.EmblemCounterEndp, svc.Log)
 	svc.accounts = accounts.New(svc.AccountsEndp, svc.Log)
 	err = svc.accounts.Start()
@@ -167,13 +168,11 @@ func (svc *PostalService) init() error {
 		return err
 	}
 	svc.haptic = haptic.New(svc.HapticEndp, svc.Log, svc.accounts, svc.fallbackVibration)
-	svc.sound = sounds.New(svc.Log, svc.accounts, svc.fallbackSound)
 	svc.messagingMenu = messaging.New(svc.Log)
 	svc.Presenters = []Presenter{
 		svc.notifications,
 		svc.emblemCounter,
 		svc.haptic,
-		svc.sound,
 		svc.messagingMenu,
 	}
 	if useTrivialHelper {
