@@ -31,7 +31,14 @@ import (
 	"launchpad.net/ubuntu-push/logger"
 )
 
-type Sound struct {
+type Sound interface {
+	// Present() presents the notification audibly if applicable.
+	Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool
+	// GetSound() returns absolute path to the file the given notification will play.
+	GetSound(app *click.AppId, nid string, notification *launch_helper.Notification) string
+}
+
+type sound struct {
 	player   string
 	log      logger.Logger
 	acc      accounts.Accounts
@@ -40,8 +47,8 @@ type Sound struct {
 	dataFind func(string) (string, error)
 }
 
-func New(log logger.Logger, acc accounts.Accounts, fallback string) *Sound {
-	return &Sound{
+func New(log logger.Logger, acc accounts.Accounts, fallback string) *sound {
+	return &sound{
 		player:   "paplay",
 		log:      log,
 		acc:      acc,
@@ -51,7 +58,7 @@ func New(log logger.Logger, acc accounts.Accounts, fallback string) *Sound {
 	}
 }
 
-func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
+func (snd *sound) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")
 	}
@@ -78,7 +85,7 @@ func (snd *Sound) Present(app *click.AppId, nid string, notification *launch_hel
 }
 
 // Returns the absolute path of the sound to be played for app, nid and notification.
-func (snd *Sound) GetSound(app *click.AppId, nid string, notification *launch_helper.Notification) string {
+func (snd *sound) GetSound(app *click.AppId, nid string, notification *launch_helper.Notification) string {
 
 	if snd.acc.SilentMode() {
 		snd.log.Debugf("[%s] no sounds: silent mode on.", nid)
@@ -103,7 +110,7 @@ func (snd *Sound) GetSound(app *click.AppId, nid string, notification *launch_he
 }
 
 // Removes all cruft from path, ensures it's a "forward" path.
-func (snd *Sound) cleanPath(path string) (string, error) {
+func (snd *sound) cleanPath(path string) (string, error) {
 	cleaned := filepath.Clean(path)
 	if strings.Contains(cleaned, "../") {
 		return "", errors.New("Path escaping xdg attempt")
@@ -111,7 +118,7 @@ func (snd *Sound) cleanPath(path string) (string, error) {
 	return cleaned, nil
 }
 
-func (snd *Sound) findSoundFile(app *click.AppId, nid string, sound string) string {
+func (snd *sound) findSoundFile(app *click.AppId, nid string, sound string) string {
 	// XXX also support legacy appIds?
 	// first, check package-specific
 	sound, err := snd.cleanPath(sound)

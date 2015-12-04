@@ -86,7 +86,7 @@ type PostalService struct {
 	accounts      accounts.Accounts
 	haptic        *haptic.Haptic
 	notifications *notifications.RawNotifications
-	sound         *sounds.Sound
+	sound         sounds.Sound
 	// the url dispatcher, used for stuff.
 	urlDispatcher urldispatcher.URLDispatcher
 	unityGreeter  *unitygreeter.UnityGreeter
