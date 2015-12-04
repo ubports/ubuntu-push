@@ -181,13 +181,17 @@ func (s *RawSuite) TestPresentNotifies(c *C) {
 func (s *RawSuite) TestPresentWithSoundNotifies(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(true), uint32(1))
 	raw := &RawNotifications{bus: endp, log: s.log, sound: s.snd}
-	worked := raw.Present(s.app, "notifId", &launch_helper.Notification{
+	id := "notifId"
+	notification := &launch_helper.Notification{
 		Card: &launch_helper.Card{
 			Summary: "summary", Popup: true,
 		},
 		RawSound: json.RawMessage(`true`),
-	})
+	}
+	worked := raw.Present(s.app, id, notification)
+	sound := s.snd.GetSound(s.app, id, notification)
 	c.Check(worked, Equals, true)
+	c.Check(s.log.Captured(), Matches, `(?m).*notification will play sound: `+sound+`.*`)
 }
 
 func (s *RawSuite) TestPresentOneAction(c *C) {
