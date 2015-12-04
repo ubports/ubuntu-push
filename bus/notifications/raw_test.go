@@ -45,9 +45,14 @@ type RawSuite struct {
 	snd *mockSound
 }
 
-type mockSound struct {}
-func (m *mockSound) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool { return false }
-func (m *mockSound) GetSound(app *click.AppId, nid string, notification *launch_helper.Notification) string { return "/usr/share/sounds/ubuntu/notifications/Xylo.ogg" }
+type mockSound struct{}
+
+func (m *mockSound) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
+	return false
+}
+func (m *mockSound) GetSound(app *click.AppId, nid string, notification *launch_helper.Notification) string {
+	return "/usr/share/sounds/ubuntu/notifications/Xylo.ogg"
+}
 
 func (s *RawSuite) SetUpTest(c *C) {
 	s.log = helpers.NewTestLogger(c, "debug")
