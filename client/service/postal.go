@@ -86,7 +86,7 @@ type PostalService struct {
 	accounts      accounts.Accounts
 	haptic        *haptic.Haptic
 	notifications *notifications.RawNotifications
-	sound         *sounds.Sound
+	sound         sounds.Sound
 	// the url dispatcher, used for stuff.
 	urlDispatcher urldispatcher.URLDispatcher
 	unityGreeter  *unitygreeter.UnityGreeter
@@ -159,21 +159,22 @@ func (svc *PostalService) init() error {
 		return err
 	}
 	svc.urlDispatcher = urldispatcher.New(svc.Log)
-	svc.notifications = notifications.Raw(svc.NotificationsEndp, svc.Log)
-	svc.emblemCounter = emblemcounter.New(svc.EmblemCounterEndp, svc.Log)
+
 	svc.accounts = accounts.New(svc.AccountsEndp, svc.Log)
 	err = svc.accounts.Start()
 	if err != nil {
 		return err
 	}
-	svc.haptic = haptic.New(svc.HapticEndp, svc.Log, svc.accounts, svc.fallbackVibration)
+
 	svc.sound = sounds.New(svc.Log, svc.accounts, svc.fallbackSound)
+	svc.notifications = notifications.Raw(svc.NotificationsEndp, svc.Log, svc.sound)
+	svc.emblemCounter = emblemcounter.New(svc.EmblemCounterEndp, svc.Log)
+	svc.haptic = haptic.New(svc.HapticEndp, svc.Log, svc.accounts, svc.fallbackVibration)
 	svc.messagingMenu = messaging.New(svc.Log)
 	svc.Presenters = []Presenter{
 		svc.notifications,
 		svc.emblemCounter,
 		svc.haptic,
-		svc.sound,
 		svc.messagingMenu,
 	}
 	if useTrivialHelper {
@@ -257,7 +258,7 @@ func (svc *PostalService) takeTheBus() (<-chan *notifications.RawAction, error) 
 	}
 	wg.Wait()
 
-	return notifications.Raw(svc.NotificationsEndp, svc.Log).WatchActions()
+	return notifications.Raw(svc.NotificationsEndp, svc.Log, nil).WatchActions()
 }
 
 func (svc *PostalService) listPersistent(path string, args, _ []interface{}) ([]interface{}, error) {

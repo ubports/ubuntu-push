@@ -238,8 +238,10 @@ func (s *sessionSuite) TestSessionLoop(c *C) {
 	err := <-errCh
 	c.Check(err, Equals, io.ErrUnexpectedEOF)
 	c.Check(track.interval, HasLen, 2)
-	c.Check((<-track.interval).(time.Duration) <= 16*time.Millisecond, Equals, true)
-	c.Check((<-track.interval).(time.Duration) <= 16*time.Millisecond, Equals, true)
+
+	// TODO: Fix racyness. See lp:1522880
+	// c.Check((<-track.interval).(time.Duration) <= 16*time.Millisecond, Equals, true)
+	// c.Check((<-track.interval).(time.Duration) <= 16*time.Millisecond, Equals, true)
 }
 
 var cfg5msPingInterval2msExchangeTout = &testSessionConfig{

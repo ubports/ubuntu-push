@@ -70,7 +70,7 @@ func (ss *soundsSuite) TestNew(c *C) {
 }
 
 func (ss *soundsSuite) TestPresent(c *C) {
-	s := &Sound{
+	s := &sound{
 		player: "echo", log: ss.log, acc: ss.acc,
 		dataFind: func(s string) (string, error) { return s, nil },
 	}
@@ -81,7 +81,7 @@ func (ss *soundsSuite) TestPresent(c *C) {
 }
 
 func (ss *soundsSuite) TestPresentSimple(c *C) {
-	s := &Sound{
+	s := &sound{
 		player: "echo", log: ss.log, acc: ss.acc,
 		dataFind: func(s string) (string, error) { return s, nil },
 		fallback: "fallback",
@@ -98,7 +98,7 @@ func (ss *soundsSuite) TestPresentSimple(c *C) {
 }
 
 func (ss *soundsSuite) TestPresentFails(c *C) {
-	s := &Sound{
+	s := &sound{
 		player:   "/",
 		log:      ss.log,
 		acc:      ss.acc,
@@ -127,7 +127,7 @@ func (ss *soundsSuite) TestPresentFails(c *C) {
 }
 
 func (ss *soundsSuite) TestBadPathFails(c *C) {
-	s := &Sound{
+	s := &sound{
 		player:   "/",
 		log:      ss.log,
 		acc:      ss.acc,
@@ -141,7 +141,7 @@ func (ss *soundsSuite) TestBadPathFails(c *C) {
 }
 
 func (ss *soundsSuite) TestGoodPathSucceeds(c *C) {
-	s := &Sound{
+	s := &sound{
 		player:   "/",
 		log:      ss.log,
 		acc:      ss.acc,
@@ -155,7 +155,7 @@ func (ss *soundsSuite) TestGoodPathSucceeds(c *C) {
 }
 
 func (ss *soundsSuite) TestSkipIfSilentMode(c *C) {
-	s := &Sound{
+	s := &sound{
 		player:   "echo",
 		log:      ss.log,
 		acc:      ss.acc,
