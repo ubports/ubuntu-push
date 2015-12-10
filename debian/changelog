@@ -1,3 +1,10 @@
+ubuntu-push (0.68+16.04.20151210-0ubuntu1) xenial; urgency=medium
+
+  [ jonas-drange ]
+  * use Notifications dbus API to play sounds (LP: #1517189, #1469398)
+
+ -- Jonas G. Drange <ci-train-bot@canonical.com>  Thu, 10 Dec 2015 10:16:28 +0000
+
 ubuntu-push (0.68+16.04.20151203-0ubuntu1) xenial; urgency=medium
 
   [ CI Train Bot ]
