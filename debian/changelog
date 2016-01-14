@@ -1,3 +1,9 @@
+ubuntu-push (0.68+16.04.20160114-0ubuntu1) xenial; urgency=medium
+
+  * Handle gccgo on s390x. (LP: #1517189, #1469398)
+
+ -- Rodney Dawes <ci-train-bot@canonical.com>  Thu, 14 Jan 2016 21:13:22 +0000
+
 ubuntu-push (0.68+16.04.20151210-0ubuntu1) xenial; urgency=medium
 
   [ jonas-drange ]
