@@ -13,7 +13,8 @@ GODEPS += launchpad.net/go-xdg/v0
 GODEPS += code.google.com/p/gosqlite/sqlite3
 GODEPS += code.google.com/p/go-uuid/uuid
 
-GOTEST := ./scripts/goctest
+# cgocheck=0 is a workaround for lp:1555198
+GOTEST := GODEBUG=cgocheck=0 ./scripts/goctest
 
 TOTEST = $(shell env GOPATH=$(GOPATH) go list $(PROJECT)/...|grep -v acceptance|grep -v http13client )
 TOBUILD = $(shell grep -lr '^package main')
