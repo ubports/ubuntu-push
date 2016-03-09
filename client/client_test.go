@@ -674,7 +674,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 		dbus.ObjectPath("hello"),
 	)
 	siCond := condition.Fail2Work(2)
-	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})
+	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{map[string]string{}})
 	tickerCh := make(chan []interface{})
 	nopTickerCh := make(chan []interface{})
 	testibus.SetWatchSource(cEndp, "StateChanged", tickerCh)
