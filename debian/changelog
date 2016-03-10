@@ -1,3 +1,12 @@
+ubuntu-push (0.68+16.04.20160310.2-0ubuntu1) xenial; urgency=medium
+
+  [ jonas-drange ]
+  * deprecate the usage of Info in the systemimage module and replace it
+    with Information disable runtime cgo pointer checks (LP: #1517189,
+    #1469398)
+
+ -- Barry Warsaw <ci-train-bot@canonical.com>  Thu, 10 Mar 2016 21:35:55 +0000
+
 ubuntu-push (0.68+16.04.20160114-0ubuntu1) xenial; urgency=medium
 
   * Handle gccgo on s390x. (LP: #1517189, #1469398)
