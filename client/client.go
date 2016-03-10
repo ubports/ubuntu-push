@@ -292,7 +292,7 @@ func (client *PushClient) takeTheBus() error {
 	go cs.Track(client.connCh)
 	util.NewAutoRedialer(client.systemImageEndp).Redial()
 	sysimg := systemimage.New(client.systemImageEndp, client.log)
-	info, err := sysimg.Info()
+	info, err := sysimg.Information()
 	if err != nil {
 		return err
 	}

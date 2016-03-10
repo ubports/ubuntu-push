@@ -41,22 +41,38 @@ func (s *SISuite) SetUpTest(c *C) {
 }
 
 func (s *SISuite) TestWorks(c *C) {
-	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})
+	m := map[string]string{
+		"version_detail":        "ubuntu=20160304.2,device=20160304.2,custom=20160304.2,version=381",
+		"last_update_date":      "2016-03-04 15:25:31",
+		"last_check_date":       "2016-03-08 04:30:34",
+		"target_version_detail": "-1",
+		"device_name":           "mako",
+		"target_build_number":   "-1",
+		"channel_name":          "ubuntu-touch/rc-proposed/ubuntu",
+		"current_build_number":  "381",
+	}
+	endp := testibus.NewMultiValuedTestingEndpoint(nil, condition.Work(true), []interface{}{m})
 	si := New(endp, s.log)
-	res, err := si.Info()
+	res, err := si.Information()
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, &InfoResult{
-		BuildNumber:   101,
-		Device:        "mako",
-		Channel:       "daily",
-		LastUpdate:    "Unknown",
-		VersionDetail: map[string]string{},
+		BuildNumber: 381,
+		Device:      "mako",
+		Channel:     "ubuntu-touch/rc-proposed/ubuntu",
+		LastUpdate:  "2016-03-04 15:25:31",
+		VersionDetail: map[string]string{
+			"ubuntu":  "20160304.2",
+			"device":  "20160304.2",
+			"custom":  "20160304.2",
+			"version": "381",
+		},
+		Raw: m,
 	})
 }
 
 func (s *SISuite) TestFailsIfCallFails(c *C) {
 	endp := testibus.NewTestingEndpoint(nil, condition.Work(false))
 	si := New(endp, s.log)
-	_, err := si.Info()
+	_, err := si.Information()
 	c.Check(err, NotNil)
 }

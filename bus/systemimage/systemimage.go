@@ -18,6 +18,9 @@
 package systemimage
 
 import (
+	"strconv"
+	"strings"
+
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/logger"
 )
@@ -37,11 +40,12 @@ type InfoResult struct {
 	// xxx channel_target missing
 	LastUpdate    string
 	VersionDetail map[string]string
+	Raw           map[string]string
 }
 
 // A SystemImage exposes the a subset of system-image service.
 type SystemImage interface {
-	Info() (*InfoResult, error)
+	Information() (*InfoResult, error)
 }
 
 type systemImage struct {
@@ -56,13 +60,44 @@ func New(endp bus.Endpoint, log logger.Logger) SystemImage {
 
 var _ SystemImage = &systemImage{} // ensures it conforms
 
-func (si *systemImage) Info() (*InfoResult, error) {
-	si.log.Debugf("invoking Info")
-	res := &InfoResult{}
-	err := si.endp.Call("Info", bus.Args(), &res.BuildNumber, &res.Device, &res.Channel, &res.LastUpdate, &res.VersionDetail)
+func (si *systemImage) Information() (*InfoResult, error) {
+	si.log.Debugf("invoking Information")
+	m := map[string]string{}
+	err := si.endp.Call("Information", bus.Args(), &m)
+
 	if err != nil {
-		si.log.Errorf("Info failed: %v", err)
+		si.log.Errorf("Information failed: %v", err)
 		return nil, err
 	}
+
+	res := &InfoResult{}
+
+	// Try parsing the build number if it exist.
+	if bn := m["current_build_number"]; len(bn) > 0 {
+		bn, err := strconv.ParseInt(bn, 10, 32)
+		if err == nil {
+			res.BuildNumber = int32(bn)
+		} else {
+			res.BuildNumber = -1
+		}
+	}
+
+	res.Device = m["device_name"]
+	res.Channel = m["channel_name"]
+	res.LastUpdate = m["last_update_date"]
+	res.VersionDetail = map[string]string{}
+
+	// Split version detail key=value,key2=value2 into a string map
+	// Note that even if
+	vals := strings.Split(m["version_detail"], ",")
+	for _, val := range vals {
+		pairs := strings.Split(val, "=")
+		if len(pairs) != 2 {
+			continue
+		}
+		res.VersionDetail[pairs[0]] = pairs[1]
+	}
+	res.Raw = m
+
 	return res, err
 }

@@ -601,14 +601,19 @@ func newTLSTransport(t *testing.T, ts *httptest.Server) *Transport {
 
 func TestClientWithCorrectTLSServerName(t *testing.T) {
 	defer afterTest(t)
+
+	const serverName = "example.com"
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS.ServerName != "127.0.0.1" {
-			t.Errorf("expected client to set ServerName 127.0.0.1, got: %q", r.TLS.ServerName)
+		if r.TLS.ServerName != serverName {
+			t.Errorf("expected client to set ServerName %q, got: %q", serverName, r.TLS.ServerName)
 		}
 	}))
 	defer ts.Close()
 
-	c := &Client{Transport: newTLSTransport(t, ts)}
+	trans := newTLSTransport(t, ts)
+	trans.TLSClientConfig.ServerName = serverName
+	c := &Client{Transport: trans}
+
 	if _, err := c.Get(ts.URL); err != nil {
 		t.Fatalf("expected successful TLS connection, got error: %v", err)
 	}
