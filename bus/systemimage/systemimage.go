@@ -72,11 +72,14 @@ func (si *systemImage) Information() (*InfoResult, error) {
 
 	res := &InfoResult{}
 
-	bn, err := strconv.ParseInt(m["current_build_number"], 10, 32)
-	if err == nil {
-		res.BuildNumber = int32(bn)
-	} else {
-		res.BuildNumber = -1
+	// Try parsing the build number if it exist.
+	if bn := m["current_build_number"]; len(bn) > 0 {
+		bn, err := strconv.ParseInt(bn, 10, 32)
+		if err == nil {
+			res.BuildNumber = int32(bn)
+		} else {
+			res.BuildNumber = -1
+		}
 	}
 
 	res.Device = m["device_name"]
@@ -85,9 +88,13 @@ func (si *systemImage) Information() (*InfoResult, error) {
 	res.VersionDetail = map[string]string{}
 
 	// Split version detail key=value,key2=value2 into a string map
+	// Note that even if
 	vals := strings.Split(m["version_detail"], ",")
 	for _, val := range vals {
 		pairs := strings.Split(val, "=")
+		if len(pairs) != 2 {
+			continue
+		}
 		res.VersionDetail[pairs[0]] = pairs[1]
 	}
 	res.Raw = m
