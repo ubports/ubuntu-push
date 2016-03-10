@@ -25,6 +25,9 @@ override_dh_auto_build:
 	dh_auto_build --buildsystem=golang
 	(cd signing-helper && cmake . && make)
 
+override_dh_auto_test:
+	GODEBUG=cgocheck=0 dh_auto_test -O--buildsystem=golang
+
 override_dh_install:
 	dh_install -Xusr/bin/cmd --fail-missing
 
