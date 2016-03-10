@@ -674,7 +674,16 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 		dbus.ObjectPath("hello"),
 	)
 	siCond := condition.Fail2Work(2)
-	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{int32(101), "mako", "daily", "Unknown", map[string]string{}})
+	siEndp := testibus.NewMultiValuedTestingEndpoint(siCond, condition.Work(true), []interface{}{map[string]string{
+		"version_detail":        "ubuntu=20160304.2,device=20160304.2,custom=20160304.2,version=381",
+		"last_update_date":      "2016-03-04 15:25:31",
+		"last_check_date":       "2016-03-08 04:30:34",
+		"target_version_detail": "-1",
+		"device_name":           "mako",
+		"target_build_number":   "-1",
+		"channel_name":          "ubuntu-touch/rc-proposed/ubuntu",
+		"current_build_number":  "381",
+	}})
 	tickerCh := make(chan []interface{})
 	nopTickerCh := make(chan []interface{})
 	testibus.SetWatchSource(cEndp, "StateChanged", tickerCh)
