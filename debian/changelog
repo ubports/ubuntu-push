@@ -1,3 +1,89 @@
+ubuntu-push (0.68+16.04.20160310.2-0ubuntu1) xenial; urgency=medium
+
+  [ jonas-drange ]
+  * deprecate the usage of Info in the systemimage module and replace it
+    with Information disable runtime cgo pointer checks (LP: #1517189,
+    #1469398)
+
+ -- Barry Warsaw <ci-train-bot@canonical.com>  Thu, 10 Mar 2016 21:35:55 +0000
+
+ubuntu-push (0.68+16.04.20160114-0ubuntu1) xenial; urgency=medium
+
+  * Handle gccgo on s390x. (LP: #1517189, #1469398)
+
+ -- Rodney Dawes <ci-train-bot@canonical.com>  Thu, 14 Jan 2016 21:13:22 +0000
+
+ubuntu-push (0.68+16.04.20151210-0ubuntu1) xenial; urgency=medium
+
+  [ jonas-drange ]
+  * use Notifications dbus API to play sounds (LP: #1517189, #1469398)
+
+ -- Jonas G. Drange <ci-train-bot@canonical.com>  Thu, 10 Dec 2015 10:16:28 +0000
+
+ubuntu-push (0.68+16.04.20151203-0ubuntu1) xenial; urgency=medium
+
+  [ CI Train Bot ]
+  * New rebuild forced.
+
+  [ jonas-drange ]
+  * present a notification even though the screen is locked (LP:
+    #1517189, #1469398)
+
+ -- Jonas G. Drange <ci-train-bot@canonical.com>  Thu, 03 Dec 2015 14:56:24 +0000
+
+ubuntu-push (0.68+16.04.20151130-0ubuntu1) xenial; urgency=medium
+
+  [ CI Train Bot ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+  * New rebuild forced.
+
+  [ John R. Lenton ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+  [ Michael Hudson-Doyle ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+  [ Rodney Dawes ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+  [ Samuele Pedroni (Canonical Services Ltd.) ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+  [ jonas-drange ]
+  * Add support for signing methods other than POST via argv[2]. Test
+    fixes for Go 1.5. Avoid losing notifications when screen is locked.
+    Fix lp:1469398 by using the connectivity state. Fix case where a
+    failed powerd wakeup request would deadlock step(). Assert whether
+    or not there's a connection using the same method as local
+    connectivity package. (LP: #1517189, #1469398)
+
+ -- Timo Jyrinki <timo.jyrinki@canonical.com>  Mon, 30 Nov 2015 21:16:20 +0000
+
 ubuntu-push (0.68+15.10.20150814.1-0ubuntu1) wily; urgency=medium
 
   [ CI Train Bot ]
