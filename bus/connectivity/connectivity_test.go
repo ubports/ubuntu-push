@@ -167,7 +167,7 @@ type racyEndpoint struct {
 
 func (rep *racyEndpoint) GetProperty(prop string) (interface{}, error) {
 	switch prop {
-	case "state":
+	case "State":
 		rep.lock.Lock()
 		defer rep.lock.Unlock()
 		rep.stateGot = true

@@ -76,7 +76,7 @@ var _ NetworkManager = &networkManager{}
 */
 
 func (nm *networkManager) GetState() State {
-	s, err := nm.bus.GetProperty("state")
+	s, err := nm.bus.GetProperty("State")
 	if err != nil {
 		nm.log.Errorf("failed getting current state: %s", err)
 		nm.log.Debugf("defaulting state to Unknown")
