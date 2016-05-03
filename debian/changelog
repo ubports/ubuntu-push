@@ -1,3 +1,11 @@
+ubuntu-push (0.68+16.04.20160503.4-0ubuntu1) xenial; urgency=medium
+
+  [ Jonas G. Drange, Simon Fels, Timo Jyrinki, jonas-drange ]
+  * Correctly refer to NMState as “State”, not “state”, as the move from
+    gdbus-lib to gdbus requires it. (LP: #1575184, #1517189, #1469398)
+
+ -- Simon Fels <simon.busch@canonical.com>  Tue, 03 May 2016 12:05:11 +0000
+
 ubuntu-push (0.68+16.04.20160310.2-0ubuntu1) xenial; urgency=medium
 
   [ jonas-drange ]
