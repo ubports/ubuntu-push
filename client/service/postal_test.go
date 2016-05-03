@@ -380,6 +380,7 @@ func (ps *postalSuite) TestPostFailsIfBadArgs(c *C) {
 // Post() tests
 
 func (ps *postalSuite) TestPostWorks(c *C) {
+	t.Skip("Skipping due to lp:1577723")
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
 	svc.msgHandler = nil
 	ch := installTickMessageHandler(svc)
