@@ -298,7 +298,6 @@ func (pool *kindHelperPool) OneDone(uid string) {
 		// nothing to do
 		return
 	}
-	pool.chDone <- args.Input.App
 	defer func() {
 		pool.cleanupTempFiles(args.FileIn, args.FileOut)
 	}()
