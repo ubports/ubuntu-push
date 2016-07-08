@@ -1,0 +1,13 @@
+#!/bin/sh  
+                                                                   
+# PackageKit clears all environment variables, so we get the UID and then read
+# in $DBUS_SESSION_BUS_ADDRESS from /run/user/$UID/dbus-session    
+
+USERID=`id -u`                                                     
+
+if test -z "$DBUS_SESSION_BUS_ADDRESS" ; then                      
+  [ -e /run/user/$USERID/dbus-session ] && . /run/user/$USERID/dbus-session 
+  [ -n "$DBUS_SESSION_BUS_ADDRESS" ] && export DBUS_SESSION_BUS_ADDRESS 
+fi
+  
+/usr/lib/ubuntu-push-client/click-hook

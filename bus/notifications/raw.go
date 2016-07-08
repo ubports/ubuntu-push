@@ -29,6 +29,7 @@ import (
 
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/click/cnotificationsettings"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/sounds"
@@ -127,6 +128,8 @@ func (raw *RawNotifications) WatchActions() (<-chan *RawAction, error) {
 	return ch, nil
 }
 
+var canUseBubblesNotify = cnotificationsettings.CanUseBubblesNotify
+
 // Present displays a given card.
 //
 // If card.Actions is empty it's a plain, noninteractive bubble notification.
@@ -136,6 +139,16 @@ func (raw *RawNotifications) WatchActions() (<-chan *RawAction, error) {
 func (raw *RawNotifications) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")
+	}
+
+	if (!canUseBubblesNotify(app)) {
+		raw.log.Debugf("[%s] bubbles disabled by user for this app.", nid)
+
+		if raw.sound != nil {
+			return raw.sound.Present(app, nid, notification)
+		} else {
+			return false
+		}
 	}
 
 	card := notification.Card

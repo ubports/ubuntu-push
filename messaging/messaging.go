@@ -25,6 +25,7 @@ import (
 
 	"launchpad.net/ubuntu-push/bus/notifications"
 	"launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/click/cnotificationsettings"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging/cmessaging"
@@ -143,9 +144,16 @@ func (mmu *MessagingMenu) Clear(app *click.AppId, tags ...string) int {
 	return len(nids)
 }
 
+var canUseListNotify = cnotificationsettings.CanUseListNotify
+
 func (mmu *MessagingMenu) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")
+	}
+
+	if !canUseListNotify(app) {
+		mmu.Log.Debugf("[%s] list notify disabled by user for this app.", nid)
+		return false
 	}
 
 	card := notification.Card

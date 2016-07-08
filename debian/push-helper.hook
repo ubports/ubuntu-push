@@ -1,4 +1,4 @@
 Pattern: ${home}/.local/share/ubuntu-push-client/helpers/${id}.json
 User-Level: yes
 Hook-Name: push-helper
-Exec: /usr/lib/ubuntu-push-client/click-hook
+Exec: /usr/lib/ubuntu-push-client/click-hook-wrapper

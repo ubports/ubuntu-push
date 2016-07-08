@@ -175,8 +175,8 @@ type postalSuite struct {
 	accountsCh      chan []interface{}
 	fakeLauncher    *fakeHelperLauncher
 	getTempDir      func(string) (string, error)
-	oldIsBlisted    func(*click.AppId) bool
-	blacklisted     bool
+	oldAreEnabled   func(*click.AppId) bool
+	notifyEnabled   bool
 }
 
 type ualPostalSuite struct {
@@ -191,8 +191,8 @@ var _ = Suite(&ualPostalSuite{})
 var _ = Suite(&trivialPostalSuite{})
 
 func (ps *postalSuite) SetUpTest(c *C) {
-	ps.oldIsBlisted = isBlacklisted
-	isBlacklisted = func(*click.AppId) bool { return ps.blacklisted }
+	ps.oldAreEnabled = areNotificationsEnabled
+	areNotificationsEnabled = func(*click.AppId) bool { return ps.notifyEnabled }
 	ps.log = helpers.NewTestLogger(c, "debug")
 	ps.cfg = &PostalServiceSetup{}
 	ps.bus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true))
@@ -209,7 +209,7 @@ func (ps *postalSuite) SetUpTest(c *C) {
 	ps.unityGreeterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), false)
 	ps.winStackBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), []windowstack.WindowsInfo{})
 	ps.fakeLauncher = &fakeHelperLauncher{ch: make(chan []byte)}
-	ps.blacklisted = false
+	ps.notifyEnabled = true
 
 	ps.getTempDir = launch_helper.GetTempDir
 	d := c.MkDir()
@@ -223,7 +223,7 @@ func (ps *postalSuite) SetUpTest(c *C) {
 }
 
 func (ps *postalSuite) TearDownTest(c *C) {
-	isBlacklisted = ps.oldIsBlisted
+	areNotificationsEnabled = ps.oldAreEnabled
 	launch_helper.GetTempDir = ps.getTempDir
 	close(ps.accountsCh)
 }
@@ -866,19 +866,19 @@ func (ps *postalSuite) TestBlacklisted(c *C) {
 	ps.unityGreeterBus = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(true), false, false, false, false)
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
 	svc.Start()
-	ps.blacklisted = false
+	ps.notifyEnabled = true
 
 	emb := &launch_helper.EmblemCounter{Count: 2, Visible: true}
 	card := &launch_helper.Card{Icon: "icon-value", Summary: "summary-value", Persist: true}
 	output := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{Card: card}}
 	embOut := &launch_helper.HelperOutput{Notification: &launch_helper.Notification{EmblemCounter: emb}}
 	app := clickhelp.MustParseAppId("com.example.app_app_1.0")
-	// sanity check: things are presented as normal if blacklist == false
-	ps.blacklisted = false
+	// sanity check: things are presented as normal if notifyEnabled == true
+	ps.notifyEnabled = true
 	c.Check(svc.messageHandler(app, "0", output), Equals, true)
 	c.Check(svc.messageHandler(app, "1", embOut), Equals, true)
-	ps.blacklisted = true
-	// and regular notifications (but not emblem counters) are suppressed if blacklisted.
+	ps.notifyEnabled = false
+	// and regular notifications (but not emblem counters) are suppressed if notifications are disabled.
 	c.Check(svc.messageHandler(app, "2", output), Equals, false)
 	c.Check(svc.messageHandler(app, "3", embOut), Equals, true)
 }
