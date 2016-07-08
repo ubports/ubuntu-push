@@ -298,6 +298,10 @@ func (pool *kindHelperPool) OneDone(uid string) {
 		// nothing to do
 		return
 	}
+	// mark it done only once we have sent the output so to order things
+	defer func() {
+		pool.chDone <- args.Input.App
+	}()
 	defer func() {
 		pool.cleanupTempFiles(args.FileIn, args.FileOut)
 	}()
