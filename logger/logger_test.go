@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"runtime"
 	"testing"
 
@@ -138,7 +139,18 @@ func (s *loggerSuite) TestReexposeOutput(c *C) {
 	logger := NewSimpleLoggerFromMinimalLogger(baselog, "error")
 	baselog.Output(1, "foobar")
 	logger.Output(1, "foobaz")
-	c.Check(buf.String(), Matches, "logger_test.go:[0-9]+: foobar\nlogger_test.go:[0-9]+: foobaz\n")
+
+
+	out := buf.String()
+
+	/* Workaround for https://github.com/golang/go/issues/16406 which is
+	wontfix with a comment about a need to upgrade. */
+	re := regexp.MustCompile(".*linux64\\.S.*|.*sysv\\.S.*")
+	if re.MatchString(out) {
+		c.Skip("log.Lshortfile failed to provide the expected output")
+	}
+
+	c.Check(out, Matches, "logger_test.go:[0-9]+: foobar\nlogger_test.go:[0-9]+: foobaz\n")
 }
 
 type testLogLevelConfig struct {
@@ -168,7 +180,16 @@ func (s *loggerSuite) TestLogLineNo(c *C) {
 	buf := &bytes.Buffer{}
 	logger := NewSimpleLogger(buf, "debug")
 	logger.Output(1, "foobaz")
-	c.Check(buf.String(), Matches, ".* .* logger_test.go:[0-9]+: foobaz\n")
+
+	out := buf.String()
+
+	/* Workaround for https://github.com/golang/go/issues/16406 which is
+	wontfix with a comment about a need to upgrade. */
+	re := regexp.MustCompile(".*linux64\\.S.*|.*sysv\\.S.*")
+	if re.MatchString(out) {
+		c.Skip("log.Lshortfile failed to provide the expected output")
+	}
+	c.Check(out, Matches, ".* .* logger_test.go:[0-9]+: foobaz\n")
 
 	buf.Reset()
 	logger = NewSimpleLogger(buf, "error")
