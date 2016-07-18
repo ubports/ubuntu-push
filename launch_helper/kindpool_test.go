@@ -497,10 +497,12 @@ func (s *poolSuite) TestRunNthAppToBacklog(c *C) {
 		c.Fatal("timeout waiting for result")
 	}
 	go s.fakeLauncher.done("0")
-	s.waitForArgs(c, "Launch")
 
 	res := takeNext(ch, c)
 	c.Assert(res, NotNil)
+
+	s.waitForArgs(c, "Launch")
+
 	c.Assert(res.Input, NotNil)
 	c.Assert(res.Input.App, NotNil)
 	c.Assert(res.Input.App.Original(), Equals, "com.example.test_test-app-1")

@@ -5,6 +5,8 @@ export DH_GOPKG := launchpad.net/ubuntu-push
 export UBUNTU_PUSH_TEST_RESOURCES_ROOT := $(CURDIR)
 
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+# Skip tests on the archs they are known to be flaky with current configuration
+testskip_architectures := powerpc s390x
 
 ifneq (,$(filter $(DEB_HOST_ARCH), arm64 powerpc ppc64el s390x))
   pkg_configs = ubuntuoneauth-2.0 libaccounts-glib click-0.4 ubuntu-app-launch-2 url-dispatcher-1 messaging-menu dbus-1 libnih libnih-dbus glib-2.0 gobject-2.0
@@ -26,7 +28,10 @@ override_dh_auto_build:
 	(cd signing-helper && cmake . && make)
 
 override_dh_auto_test:
-	GODEBUG=cgocheck=0 dh_auto_test -O--buildsystem=golang
+ifneq ($(DEB_HOST_ARCH),$(findstring $(DEB_HOST_ARCH), $(testskip_architectures)))
+	cd $$( find ./ -type d -regex '\./[^/]*/src/launchpad.net' -printf "%h\n" | head -n1) && \
+	env GODEBUG=cgocheck=0 GOPATH=$$(cd ..; pwd) go test -v $$(env GOPATH=$$(cd ..; pwd) go list $(DH_GOPKG)/... | grep -v acceptance | grep -v http13client )
+endif
 
 override_dh_install:
 	dh_install -Xusr/bin/cmd --fail-missing

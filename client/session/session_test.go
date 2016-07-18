@@ -1022,7 +1022,7 @@ func (s *loopSuite) SetUpTest(c *C) {
 }
 
 func (s *loopSuite) waitUntilRunning(c *C) {
-	delay := time.Duration(1000)
+	delay := time.Duration(5000)
 	for i := 0; i < 5; i++ {
 		if s.sess.State() == Running {
 			return

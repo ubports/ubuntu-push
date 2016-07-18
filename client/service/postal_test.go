@@ -380,7 +380,6 @@ func (ps *postalSuite) TestPostFailsIfBadArgs(c *C) {
 // Post() tests
 
 func (ps *postalSuite) TestPostWorks(c *C) {
-	c.Skip("Skipping due to lp:1577723")
 	svc := ps.replaceBuses(NewPostalService(ps.cfg, ps.log))
 	svc.msgHandler = nil
 	ch := installTickMessageHandler(svc)
@@ -398,12 +397,17 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 	classicApp := clickhelp.MustParseAppId("_classic-app")
 	svc.Post(classicApp, "m3", json.RawMessage(`{"message":{"mars":42}}`))
 
+	oneConsumed := false
+
 	if ps.fakeLauncher.done != nil {
 		// wait for the two posts to "launch"
 		takeNextBytes(ps.fakeLauncher.ch)
 		takeNextBytes(fakeLauncher2.ch)
 		go ps.fakeLauncher.done("0") // OneDone
 		go fakeLauncher2.done("0")
+
+		c.Check(takeNextBool(ch), Equals, false) // one
+		oneConsumed = true
 
 		inputData := takeNextBytes(ps.fakeLauncher.ch)
 
@@ -412,7 +416,9 @@ func (ps *postalSuite) TestPostWorks(c *C) {
 		go ps.fakeLauncher.done("1") // OneDone
 	}
 
-	c.Check(takeNextBool(ch), Equals, false) // one,
+	if !oneConsumed {
+		c.Check(takeNextBool(ch), Equals, false) // one,
+	}
 	c.Check(takeNextBool(ch), Equals, false) // two,
 	c.Check(takeNextBool(ch), Equals, false) // three posts
 	c.Assert(svc.mbox, HasLen, 2)
