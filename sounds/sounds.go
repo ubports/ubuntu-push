@@ -27,6 +27,7 @@ import (
 
 	"launchpad.net/ubuntu-push/bus/accounts"
 	"launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/click/cnotificationsettings"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 )
@@ -84,8 +85,14 @@ func (snd *sound) Present(app *click.AppId, nid string, notification *launch_hel
 	return true
 }
 
+var canUseSoundsNotify = cnotificationsettings.CanUseSoundsNotify
+
 // Returns the absolute path of the sound to be played for app, nid and notification.
 func (snd *sound) GetSound(app *click.AppId, nid string, notification *launch_helper.Notification) string {
+	if !canUseSoundsNotify(app) {
+		snd.log.Debugf("[%s] sounds disabled by user for this app.", nid)
+		return ""
+	}
 
 	if snd.acc.SilentMode() {
 		snd.log.Debugf("[%s] no sounds: silent mode on.", nid)

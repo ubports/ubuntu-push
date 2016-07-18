@@ -1,5 +1,5 @@
 /*
- Copyright 2014 Canonical Ltd.
+ Copyright 2014-2016 Canonical Ltd.
 
  This program is free software: you can redistribute it and/or modify it
  under the terms of the GNU General Public License version 3, as published
@@ -22,6 +22,7 @@ import (
 	"launchpad.net/ubuntu-push/bus"
 	"launchpad.net/ubuntu-push/bus/accounts"
 	"launchpad.net/ubuntu-push/click"
+	"launchpad.net/ubuntu-push/click/cnotificationsettings"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 )
@@ -46,10 +47,25 @@ func New(endp bus.Endpoint, log logger.Logger, acc accounts.Accounts, fallback *
 	return &Haptic{endp, log, acc, fallback}
 }
 
+var vibrateInSilentMode = cnotificationsettings.VibrateInSilentMode
+var canUseVibrationsNotify = cnotificationsettings.CanUseVibrationsNotify
+
 // Present presents the notification via a vibrate pattern
-func (haptic *Haptic) Present(_ *click.AppId, nid string, notification *launch_helper.Notification) bool {
+func (haptic *Haptic) Present(app *click.AppId, nid string, notification *launch_helper.Notification) bool {
 	if notification == nil {
 		panic("please check notification is not nil before calling present")
+	}
+
+	if !canUseVibrationsNotify(app) {
+		haptic.log.Debugf("[%s] vibrate disabled by user for this app.", nid)
+		return false
+	}
+
+	if (haptic.acc.SilentMode()) {
+		if (!vibrateInSilentMode()) {
+			haptic.log.Debugf("[%s] vibrate disabled by user when in Silent Mode.", nid)
+			return false
+		}
 	}
 
 	if !haptic.acc.Vibrate() {

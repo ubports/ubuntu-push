@@ -31,7 +31,7 @@ import (
 	"launchpad.net/ubuntu-push/bus/unitygreeter"
 	"launchpad.net/ubuntu-push/bus/windowstack"
 	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/click/cblacklist"
+	"launchpad.net/ubuntu-push/click/cnotificationsettings"
 	"launchpad.net/ubuntu-push/launch_helper"
 	"launchpad.net/ubuntu-push/logger"
 	"launchpad.net/ubuntu-push/messaging"
@@ -416,7 +416,7 @@ func (svc *PostalService) validateActions(app *click.AppId, notif *launch_helper
 	return svc.urlDispatcher.TestURL(app, notif.Card.Actions)
 }
 
-var isBlacklisted = cblacklist.IsBlacklisted
+var areNotificationsEnabled = cnotificationsettings.AreNotificationsEnabled
 
 func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *launch_helper.HelperOutput) bool {
 	if output == nil || output.Notification == nil {
@@ -437,8 +437,8 @@ func (svc *PostalService) messageHandler(app *click.AppId, nid string, output *l
 		return false
 	}
 
-	if isBlacklisted(app) {
-		svc.Log.Debugf("notification skipped (except emblem counter) because app is blacklisted")
+	if !areNotificationsEnabled(app) {
+		svc.Log.Debugf("notification skipped (except emblem counter) because app has notifications disabled")
 		return svc.emblemCounter.Present(app, nid, output.Notification)
 	}
 

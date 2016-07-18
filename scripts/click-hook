@@ -17,38 +17,24 @@ from gi.repository import Click
 hook_ext = '.json'
 
 
-def tup2variant(tup):
-    builder = GLib.VariantBuilder.new(GLib.VariantType.new("(ss)"))
-    builder.add_value(GLib.Variant.new_string(tup[0]))
-    builder.add_value(GLib.Variant.new_string(tup[1]))
-    return builder.end()
-
-
-def cleanup_settings():
-    settings = Gio.Settings.new('com.ubuntu.notifications.hub')
-    blacklist = settings.get_value('blacklist').unpack()
+def migrate_old_settings():
+    old_settings = Gio.Settings.new('com.ubuntu.notifications.hub')
+    blacklist = old_settings.get_value('blacklist').unpack()
     if not blacklist:
         return
 
-    clickdb = Click.DB.new()
-    clickdb.read()
+    old_settings.reset('blacklist')
 
-    pkgnames = set()
-    for package in clickdb.get_packages(False):
-        pkgnames.add(package.get_property('package'))
+    for app in blacklist:
+        app_key = app[0] + '/'
+        if not app[0]:
+            app_key = 'dpkg/'
+         
+        app_key += app[1]
 
-    goodapps = GLib.VariantBuilder.new(GLib.VariantType.new("a(ss)"))
-
-    dirty = False
-
-    for appname in blacklist:
-        if appname[0] not in pkgnames and Gio.DesktopAppInfo.new(appname[1] + ".desktop") is None:
-            dirty = True
-        else:
-            goodapps.add_value(tup2variant(appname))
-
-    if dirty:
-        settings.set_value('blacklist', goodapps.end())
+        settings_path = '/com/ubuntu/NotificationSettings/' + app_key + '/'
+        settings = Gio.Settings.new_with_path('com.ubuntu.notifications.settings', settings_path)
+        settings.set_boolean('enable-notifications', False)
 
 
 def collect_helpers(helpers_data_path, helpers_data_path_tmp, hooks_path):
@@ -92,15 +78,107 @@ def collect_helpers(helpers_data_path, helpers_data_path_tmp, hooks_path):
     return False
 
 
+def populate_settings_from_legacy_dpkg():
+    dpkg_apps_keys = list()
+    legacy_helpers_path = '/usr/lib/ubuntu-push-client/legacy-helpers/'
+    if os.path.isdir(legacy_helpers_path):
+        for f in os.listdir(legacy_helpers_path):
+            if not os.path.isfile(os.path.join(legacy_helpers_path, f)):
+                break
+
+            dpkg_app_key = '/'.join(['dpkg', f, '0'])
+            dpkg_apps_keys.append(dpkg_app_key)
+
+    return dpkg_apps_keys
+
+
+def reset_settings(path=None):
+    if not path:
+        return
+
+    settings_path = '/com/ubuntu/NotificationSettings/' + path + '/'
+    try:
+        settings = Gio.Settings.new_with_path('com.ubuntu.notifications.settings', settings_path)
+        for k in settings.list_keys():
+            settings.reset(k)
+    except Exception:
+        pass
+
+
+def reset_removed_applications(current_apps=None, new_apps=None):
+    if not current_apps or not new_apps:
+        return
+
+    current_keys = list()
+    for k in current_apps:
+        key = '/'.join(k.split('/')[:2])
+        current_keys.append(key)
+
+    new_keys = list()
+    for k in new_apps:
+        key = '/'.join(k.split('/')[:2])
+        new_keys.append(key)
+
+    for settings_path in set(current_keys) - set(new_keys):
+        reset_settings(settings_path)
+
+
+def populate_notifications_settings(hooks_path=None):
+    if not hooks_path or not os.path.isdir(hooks_path):
+        return
+
+    db = Click.DB.new()
+    db.read()
+
+    settings = Gio.Settings.new('com.ubuntu.notifications.settings.applications')
+    applications = GLib.VariantBuilder.new(GLib.VariantType.new('as'))
+
+    current_applications_keys = settings.get_value('applications').unpack()
+
+    applications_keys = list()
+    applications_keys += populate_settings_from_legacy_dpkg()
+    for hook in os.listdir(hooks_path):
+        helper_id = os.path.splitext(hook)[0]
+        pkg_name, helper_name, version = helper_id.split('_')
+
+        manifest = json.loads(db.get_manifest_as_string(pkg_name, version))
+        hooks = manifest.get('hooks', None)
+        if not hooks:
+            continue
+
+        app_names = list()
+        for h in hooks.keys():
+            if 'desktop' in hooks[h].keys():
+                app_names.append(h)
+
+        for app_name in app_names:
+            app_key = '/'.join([pkg_name, app_name, version])
+            applications_keys.append(app_key)
+
+    for app_key in applications_keys:
+        applications.add_value(GLib.Variant.new_string(app_key))
+
+    settings.set_value('applications', applications.end())
+
+    reset_removed_applications(current_applications_keys, applications_keys)
+
+
 def main(helpers_data_path=None, helpers_data_path_tmp=None, hooks_path=None):
     collect_fail = collect_helpers(helpers_data_path, helpers_data_path_tmp,
                                    hooks_path)
-    clean_settings_fail = False
+    migrate_old_settings_fail = False
     try:
-        cleanup_settings()
+        migrate_old_settings()
     except Exception:
-        clean_settings_fail = True
-    return int(collect_fail or clean_settings_fail)
+        migrate_old_settings_fail = True
+
+    populate_settings_fail = False
+    try:
+        populate_notifications_settings(hooks_path)
+    except Exception:
+        populate_settings_fail = True
+
+    return int(collect_fail or migrate_old_settings_fail or populate_settings_fail)
 
 
 if __name__ == "__main__":
