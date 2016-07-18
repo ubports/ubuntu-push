@@ -1,3 +1,17 @@
+ubuntu-push (0.68+16.10.20160718.4-0ubuntu1) yakkety; urgency=medium
+
+  [ Arthur Mello ]
+  * Update ubuntu-push to work wih the new Notification panel
+  * Add ignore files to docs/example-server
+  * Mark helper as done only once we have sent the output so to order
+    things
+
+  [ jonas-drange ]
+  * disable logger tests that expect log.Lshortfile on ppc/arm 64
+  * remove unused sess variable
+
+ -- Jonas G. Drange <jonas.drange@canonical.com>  Mon, 18 Jul 2016 13:28:13 +0000
+
 ubuntu-push (0.68+16.04.20160503.4-0ubuntu1) xenial; urgency=medium
 
   [ Jonas G. Drange, Simon Fels, Timo Jyrinki, jonas-drange ]
