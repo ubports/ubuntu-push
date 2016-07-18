@@ -166,7 +166,6 @@ func (s *sessionSuite) TestSessionStart(c *C) {
 }
 
 func (s *sessionSuite) TestSessionRegisterError(c *C) {
-	var sess broker.BrokerSession
 	errCh := make(chan error, 1)
 	up := make(chan interface{}, 5)
 	down := make(chan interface{}, 5)
@@ -176,7 +175,7 @@ func (s *sessionSuite) TestSessionRegisterError(c *C) {
 	brkr.err = errRegister
 	go func() {
 		var err error
-		sess, err = sessionStart(tp, brkr, cfg10msPingInterval5msExchangeTout, &tracker{sessionId: "s2"})
+		_, err = sessionStart(tp, brkr, cfg10msPingInterval5msExchangeTout, &tracker{sessionId: "s2"})
 		errCh <- err
 	}()
 	up <- protocol.ConnectMsg{Type: "connect", ClientVer: "1", DeviceId: "dev-1"}
