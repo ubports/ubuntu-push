@@ -145,7 +145,7 @@ func (s *loggerSuite) TestReexposeOutput(c *C) {
 
 	/* Workaround for https://github.com/golang/go/issues/16406 which is
 	wontfix with a comment about a need to upgrade. */
-	re := regexp.MustCompile(".+linux64\\.S.+|.+sysv\\.S.+")
+	re := regexp.MustCompile(".*linux64\\.S.*|.*sysv\\.S.*")
 	if re.MatchString(out) {
 		c.Skip("log.Lshortfile failed to provide the expected output")
 	}
@@ -185,7 +185,7 @@ func (s *loggerSuite) TestLogLineNo(c *C) {
 
 	/* Workaround for https://github.com/golang/go/issues/16406 which is
 	wontfix with a comment about a need to upgrade. */
-	re := regexp.MustCompile(".+linux64\\.S.+|.+sysv\\.S.+")
+	re := regexp.MustCompile(".*linux64\\.S.*|.*sysv\\.S.*")
 	if re.MatchString(out) {
 		c.Skip("log.Lshortfile failed to provide the expected output")
 	}
