@@ -1,3 +1,9 @@
+ubuntu-push (0.68+16.10.20160808.1-0ubuntu1) yakkety; urgency=medium
+
+  * No change rebuild for UAL ABI change
+
+ -- Ted Gould <ted@gould.cx>  Mon, 08 Aug 2016 21:50:48 +0000
+
 ubuntu-push (0.68+16.10.20160718.4-0ubuntu1) yakkety; urgency=medium
 
   [ Arthur Mello ]
