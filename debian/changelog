@@ -1,3 +1,11 @@
+ubuntu-push (0.68+16.10.20160825.4-0ubuntu1) yakkety; urgency=medium
+
+  [ Arthur Mello ]
+  * Fix check for empty package name when receiving notifications from
+    legacy deb apps (LP: #1611848)
+
+ -- Arthur Renato Mello <arthur.mello@canonical.com>  Thu, 25 Aug 2016 21:43:59 +0000
+
 ubuntu-push (0.68+16.10.20160808.1-0ubuntu1) yakkety; urgency=medium
 
   * No change rebuild for UAL ABI change
