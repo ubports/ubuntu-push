@@ -295,13 +295,14 @@ func (client *PushClient) takeTheBus() error {
 	sysimg := systemimage.New(client.systemImageEndp, client.log)
 	info, err := sysimg.Information()
 
-	/* For now, be ignorant of what the underlying “image” is. See lp:1628522 */
+	/* For now, be ignorant of what the underlying “image”
+	is if SI does not run. See lp:1628522 */
 	if err != nil {
 		info = &systemimage.InfoResult{
 			BuildNumber: 0,
-			Device: "unknown",
-			Channel: "",
-			LastUpdate: "",
+			Device:      "unknown",
+			Channel:     "",
+			LastUpdate:  "",
 		}
 	}
 	client.systemImageInfo = info

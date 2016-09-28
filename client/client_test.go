@@ -713,7 +713,7 @@ func (cs *clientSuite) TestTakeTheBusWorks(c *C) {
 	c.Check(siCond.OK(), Equals, true)
 }
 
-// takeTheBus can, in fact, fail
+// takeTheBus should work even if system image is not present on the system
 func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
 	err := cli.configure()
@@ -724,8 +724,8 @@ func (cs *clientSuite) TestTakeTheBusCanFail(c *C) {
 	cli.connectivityEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 	cli.systemImageEndp = testibus.NewTestingEndpoint(condition.Work(true), condition.Work(false))
 
-	c.Check(cli.takeTheBus(), NotNil)
-	c.Assert(cli.setupPostalService(), IsNil)
+	c.Check(cli.takeTheBus(), IsNil)
+	c.Check(cli.systemImageInfo.Device, Equals, "unknown")
 }
 
 /*****************************************************************

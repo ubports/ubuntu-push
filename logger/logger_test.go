@@ -140,7 +140,6 @@ func (s *loggerSuite) TestReexposeOutput(c *C) {
 	baselog.Output(1, "foobar")
 	logger.Output(1, "foobaz")
 
-
 	out := buf.String()
 
 	/* Workaround for https://github.com/golang/go/issues/16406 which is
