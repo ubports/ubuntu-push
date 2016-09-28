@@ -290,14 +290,22 @@ func (client *PushClient) takeTheBus() error {
 	cs := connectivity.New(client.connectivityEndp,
 		client.config.ConnectivityConfig, client.log)
 	go cs.Track(client.connCh)
+
 	util.NewAutoRedialer(client.systemImageEndp).Redial()
 	sysimg := systemimage.New(client.systemImageEndp, client.log)
 	info, err := sysimg.Information()
+
+	/* For now, be ignorant of what the underlying “image” is. See lp:1628522 */
 	if err != nil {
-		return err
+		info = &systemimage.InfoResult{
+			BuildNumber: 0,
+			Device: "unknown",
+			Channel: "",
+			LastUpdate: "",
+		}
 	}
 	client.systemImageInfo = info
-	return err
+	return nil
 }
 
 // initSessionAndPoller creates the session and the poller objects
