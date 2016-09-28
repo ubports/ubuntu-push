@@ -19,7 +19,7 @@ package seenstate
 import (
 	"database/sql"
 
-	_ "code.google.com/p/gosqlite/sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 	. "launchpad.net/gocheck"
 
 	"launchpad.net/ubuntu-push/protocol"
