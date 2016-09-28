@@ -34,8 +34,8 @@ bootstrap: dependencies.tsv
 	$(RM) -r $(GOPATH)/pkg
 	mkdir -p $(GOPATH)/bin
 	mkdir -p $(GOPATH)/pkg
-	go get -insecure -u launchpad.net/godeps
-	go get -insecure -d -u $(GODEPS)
+	go get -u launchpad.net/godeps
+	go get -d -u $(GODEPS)
 	$(GOPATH)/bin/godeps -u dependencies.tsv
 	go install $(GODEPS)
 
