@@ -24,6 +24,7 @@ Build-Depends: debhelper (>= 9),
                libaccounts-glib-dev,
                cmake,
                python3,
+               upstart,
 Standards-Version: 3.9.5
 Homepage: http://launchpad.net/ubuntu-push
 Vcs-Bzr: lp:ubuntu-push
