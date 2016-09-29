@@ -1,4 +1,4 @@
-#!/usr/bin/dh-exec --with=install
+#!/usr/bin/dh-exec
 debian/config.json /etc/xdg/ubuntu-push-client
 debian/ubuntu-push-client.conf /usr/share/upstart/sessions
 debian/exec-tool /usr/lib/${DEB_HOST_MULTIARCH}/ubuntu-app-launch/push-helper
