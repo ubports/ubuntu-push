@@ -1,3 +1,9 @@
+ubuntu-push (0.68+16.10.20161003-0ubuntu1) yakkety; urgency=medium
+
+  * Drops dead dependencies, replaces them with newer ones.
+
+ -- Jonas G. Drange <jonas.drange@canonical.com>  Mon, 03 Oct 2016 11:10:45 +0000
+
 ubuntu-push (0.68+16.10.20160825.4-0ubuntu1) yakkety; urgency=medium
 
   [ Arthur Mello ]
