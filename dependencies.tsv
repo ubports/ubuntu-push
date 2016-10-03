@@ -1,5 +1,5 @@
-code.google.com/p/go-uuid	hg	7dda39b2e7d5e265014674c5af696ba4186679e9	11
-code.google.com/p/gosqlite	hg	74691fb6f83716190870cde1b658538dd4b18eb0	15
+github.com/mattn/go-sqlite3	git	4b0af852c17164dce48e6754e3094c55192e4934	2016-09-27T02:28:46Z
+github.com/pborman/uuid	git	b984ec7fa9ff9e428bd0cf0abf429384dfbe3e37	2016-08-24T21:06:00Z
 launchpad.net/go-dbus/v1	bzr	jlenton@gmail.com-20141023032446-s5icvsucwlv5o38a	129
 launchpad.net/go-xdg/v0	bzr	john.lenton@canonical.com-20140208094800-gubd5md7cro3mtxa	10
 launchpad.net/gocheck	bzr	gustavo@niemeyer.net-20140225173054-xu9zlkf9kxhvow02	87

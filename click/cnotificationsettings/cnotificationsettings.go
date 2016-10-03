@@ -74,7 +74,7 @@ GSettings* get_settings_for_app(const char *pkgname, const char *appname) {
     }
 
     // Define notifications settings GSettings path
-    if (strcmp(pkgname, "") == 0) {	    
+    if (strcmp(pkgname, "") == 0) {
         // Use "dpkg" as package name for legacy apps
         path = g_strconcat(SETTINGS_BASE_PATH, "dpkg/", appname, "/", NULL);
     } else {

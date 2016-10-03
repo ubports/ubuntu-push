@@ -141,7 +141,7 @@ func (raw *RawNotifications) Present(app *click.AppId, nid string, notification 
 		panic("please check notification is not nil before calling present")
 	}
 
-	if (!canUseBubblesNotify(app)) {
+	if !canUseBubblesNotify(app) {
 		raw.log.Debugf("[%s] bubbles disabled by user for this app.", nid)
 
 		if raw.sound != nil {

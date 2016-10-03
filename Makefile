@@ -10,8 +10,8 @@ endif
 GODEPS = launchpad.net/gocheck
 GODEPS += launchpad.net/go-dbus/v1
 GODEPS += launchpad.net/go-xdg/v0
-GODEPS += code.google.com/p/gosqlite/sqlite3
-GODEPS += code.google.com/p/go-uuid/uuid
+GODEPS += github.com/mattn/go-sqlite3
+GODEPS += github.com/pborman/uuid
 
 # cgocheck=0 is a workaround for lp:1555198
 GOTEST := GODEBUG=cgocheck=0 ./scripts/goctest

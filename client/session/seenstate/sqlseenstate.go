@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	_ "code.google.com/p/gosqlite/sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 
 	"launchpad.net/ubuntu-push/protocol"
 )

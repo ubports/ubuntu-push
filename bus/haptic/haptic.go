@@ -61,8 +61,8 @@ func (haptic *Haptic) Present(app *click.AppId, nid string, notification *launch
 		return false
 	}
 
-	if (haptic.acc.SilentMode()) {
-		if (!vibrateInSilentMode()) {
+	if haptic.acc.SilentMode() {
+		if !vibrateInSilentMode() {
 			haptic.log.Debugf("[%s] vibrate disabled by user when in Silent Mode.", nid)
 			return false
 		}

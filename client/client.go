@@ -50,6 +50,10 @@ import (
 	"launchpad.net/ubuntu-push/util"
 )
 
+const (
+	SI_NO_SERVICE_ERROR = "org.freedesktop.DBus.Error.ServiceUnknown: The name com.canonical.SystemImage was not provided by any .service files"
+)
+
 // ClientConfig holds the client configuration
 type ClientConfig struct {
 	connectivity.ConnectivityConfig // q.v.
@@ -293,11 +297,22 @@ func (client *PushClient) takeTheBus() error {
 	util.NewAutoRedialer(client.systemImageEndp).Redial()
 	sysimg := systemimage.New(client.systemImageEndp, client.log)
 	info, err := sysimg.Information()
+
 	if err != nil {
-		return err
+		/* SI is not running, so don't fail but rather provide unknown/empty details. See lp:1628522 */
+		if err.Error() == SI_NO_SERVICE_ERROR {
+			info = &systemimage.InfoResult{
+				BuildNumber: 0,
+				Device:      "unknown",
+				Channel:     "",
+				LastUpdate:  "",
+			}
+		} else {
+			return err
+		}
 	}
 	client.systemImageInfo = info
-	return err
+	return nil
 }
 
 // initSessionAndPoller creates the session and the poller objects
