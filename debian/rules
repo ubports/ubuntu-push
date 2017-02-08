@@ -9,7 +9,7 @@ DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 testskip_architectures := powerpc s390x
 
 ifneq (,$(filter $(DEB_HOST_ARCH), arm64 powerpc ppc64el s390x))
-  pkg_configs = ubuntuoneauth-2.0 libaccounts-glib click-0.4 ubuntu-app-launch-2 url-dispatcher-1 messaging-menu dbus-1 libnih libnih-dbus glib-2.0 gobject-2.0
+  pkg_configs = ubuntuoneauth-2.0 libaccounts-glib click-0.4 ubuntu-app-launch url-dispatcher-1 messaging-menu dbus-1 libnih libnih-dbus glib-2.0 gobject-2.0
   export CGO_CFLAGS := \
     $(shell $(foreach pkg, $(pkg_configs), pkg-config --cflags $(pkg); ))
   export CGO_CXXFLAGS := $(CGO_CFLAGS)
