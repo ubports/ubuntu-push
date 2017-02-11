@@ -17,7 +17,7 @@
 package cual
 
 /*
-#cgo pkg-config: ubuntu-app-launch-2
+#cgo pkg-config: ubuntu-app-launch-3
 #include <glib.h>
 
 gboolean add_observer (gpointer);
