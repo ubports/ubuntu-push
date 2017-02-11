@@ -1,3 +1,11 @@
+ubuntu-push (0.68+17.04.20170211-0ubuntu1) zesty; urgency=medium
+
+  * Disable the tests to fix FTBFS on zesty, ubuntu-push doesn't work on
+    anything later than vivid anyway
+  * Handle ubuntu-app-launch API change
+
+ -- Ken VanDine <ken.vandine@canonical.com>  Sat, 11 Feb 2017 00:15:44 +0000
+
 ubuntu-push (0.68+16.10.20161003-0ubuntu1) yakkety; urgency=medium
 
   * Drops dead dependencies, replaces them with newer ones.
