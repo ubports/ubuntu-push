@@ -1,3 +1,9 @@
+ubuntu-push (0.69+ubports) xenial; urgency=medium
+
+  * Imported to UBports
+
+ -- UBports auto importer <infra@ubports.com>  Fri, 13 Oct 2017 19:39:55 +0200
+
 ubuntu-push (0.68+16.10.20161003-0ubuntu1) yakkety; urgency=medium
 
   * Drops dead dependencies, replaces them with newer ones.
