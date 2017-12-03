@@ -22,13 +22,13 @@ import (
 	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
-	testibus "launchpad.net/ubuntu-push/bus/testing"
-	"launchpad.net/ubuntu-push/click"
-	clickhelp "launchpad.net/ubuntu-push/click/testing"
-	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/nih"
-	helpers "launchpad.net/ubuntu-push/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
+	testibus "github.com/ubports/ubuntu-push/bus/testing"
+	"github.com/ubports/ubuntu-push/click"
+	clickhelp "github.com/ubports/ubuntu-push/click/testing"
+	"github.com/ubports/ubuntu-push/launch_helper"
+	"github.com/ubports/ubuntu-push/nih"
+	helpers "github.com/ubports/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/testing/condition"
 )
 
 func TestEmblemCounter(t *testing.T) { TestingT(t) }

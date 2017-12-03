@@ -28,9 +28,9 @@ import (
 	"io"
 	"time"
 
-	http13 "launchpad.net/ubuntu-push/http13client"
+	http13 "github.com/ubports/ubuntu-push/http13client"
 
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 // how much web would a webchecker check

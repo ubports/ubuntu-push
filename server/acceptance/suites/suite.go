@@ -29,9 +29,9 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/server/acceptance"
-	"launchpad.net/ubuntu-push/server/acceptance/kit"
-	helpers "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/server/acceptance"
+	"github.com/ubports/ubuntu-push/server/acceptance/kit"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 // ServerHandle holds the information to attach a client to the test server.

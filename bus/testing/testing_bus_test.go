@@ -18,8 +18,8 @@ package testing
 
 import (
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/testing/condition"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/testing/condition"
 	"testing"
 )
 

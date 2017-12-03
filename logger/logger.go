@@ -24,7 +24,7 @@ import (
 	"os"
 	"runtime"
 
-	"launchpad.net/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/config"
 )
 
 // Logger is a simple logger interface with logging at levels.

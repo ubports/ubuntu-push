@@ -30,17 +30,17 @@ import (
 	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/bus/notifications"
-	testibus "launchpad.net/ubuntu-push/bus/testing"
-	"launchpad.net/ubuntu-push/bus/windowstack"
-	"launchpad.net/ubuntu-push/click"
-	clickhelp "launchpad.net/ubuntu-push/click/testing"
-	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/messaging/reply"
-	"launchpad.net/ubuntu-push/nih"
-	helpers "launchpad.net/ubuntu-push/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/bus/notifications"
+	testibus "github.com/ubports/ubuntu-push/bus/testing"
+	"github.com/ubports/ubuntu-push/bus/windowstack"
+	"github.com/ubports/ubuntu-push/click"
+	clickhelp "github.com/ubports/ubuntu-push/click/testing"
+	"github.com/ubports/ubuntu-push/launch_helper"
+	"github.com/ubports/ubuntu-push/messaging/reply"
+	"github.com/ubports/ubuntu-push/nih"
+	helpers "github.com/ubports/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/testing/condition"
 )
 
 // takeNext takes a value from given channel with a 5s timeout

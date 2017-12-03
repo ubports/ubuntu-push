@@ -21,9 +21,9 @@ import (
 	"syscall"
 	"time"
 
-	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/server/listener"
+	"github.com/ubports/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/server/listener"
 )
 
 // A DevicesParsedConfig holds and can be used to parse the device server config.

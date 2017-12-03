@@ -7,9 +7,9 @@ import (
 	"time"
 
 	. "launchpad.net/gocheck"
-	helpers "launchpad.net/ubuntu-push/testing"
+	helpers "github.com/ubports/ubuntu-push/testing"
 
-	"launchpad.net/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/click"
 )
 
 type helperSuite struct {

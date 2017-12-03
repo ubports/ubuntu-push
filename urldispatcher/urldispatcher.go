@@ -18,9 +18,9 @@
 package urldispatcher
 
 import (
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/urldispatcher/curldispatcher"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/urldispatcher/curldispatcher"
 )
 
 // A URLDispatcher wrapper.

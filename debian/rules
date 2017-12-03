@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
 
-export DH_GOPKG := launchpad.net/ubuntu-push
+export DH_GOPKG := github.com/ubports/ubuntu-push
 export UBUNTU_PUSH_TEST_RESOURCES_ROOT := $(CURDIR)
 
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)

@@ -22,7 +22,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/protocol"
 )
 
 type sqlsSuite struct{ ssSuite }

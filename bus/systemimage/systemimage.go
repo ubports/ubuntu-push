@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 // system-image service lives on a well-known bus.Address

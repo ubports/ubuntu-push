@@ -26,7 +26,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/external/murmur3"
+	"github.com/ubports/ubuntu-push/external/murmur3"
 )
 
 func TestGetHosts(t *testing.T) { TestingT(t) }

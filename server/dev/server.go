@@ -24,14 +24,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/server"
-	"launchpad.net/ubuntu-push/server/api"
-	"launchpad.net/ubuntu-push/server/broker/simple"
-	"launchpad.net/ubuntu-push/server/listener"
-	"launchpad.net/ubuntu-push/server/session"
-	"launchpad.net/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/server"
+	"github.com/ubports/ubuntu-push/server/api"
+	"github.com/ubports/ubuntu-push/server/broker/simple"
+	"github.com/ubports/ubuntu-push/server/listener"
+	"github.com/ubports/ubuntu-push/server/session"
+	"github.com/ubports/ubuntu-push/server/store"
 )
 
 type configuration struct {

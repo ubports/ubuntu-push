@@ -22,8 +22,8 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/protocol"
-	help "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/protocol"
+	help "github.com/ubports/ubuntu-push/testing"
 )
 
 type inMemorySuite struct{}

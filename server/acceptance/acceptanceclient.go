@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	"launchpad.net/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/protocol"
 )
 
 var wireVersionBytes = []byte{protocol.ProtocolWireVersion}

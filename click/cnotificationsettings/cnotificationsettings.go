@@ -177,7 +177,7 @@ import "C"
 import (
 	"unsafe"
 
-	"launchpad.net/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/click"
 )
 
 // VibrateInSilentMode returns true if applications can use vibrations notify when in silent mode

@@ -27,7 +27,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/config"
 )
 
 func TestLogger(t *testing.T) { TestingT(t) }

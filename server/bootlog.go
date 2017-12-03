@@ -20,7 +20,7 @@ import (
 	"net"
 	"os"
 
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 // boot logging and hooks

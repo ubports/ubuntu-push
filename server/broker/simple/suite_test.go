@@ -19,10 +19,10 @@ package simple
 import (
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/server/broker"
-	"launchpad.net/ubuntu-push/server/broker/testsuite"
-	"launchpad.net/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/server/broker"
+	"github.com/ubports/ubuntu-push/server/broker/testsuite"
+	"github.com/ubports/ubuntu-push/server/store"
 )
 
 // run the common broker test suite against SimpleBroker

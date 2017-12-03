@@ -24,12 +24,12 @@ import (
 	"sync"
 	"time"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/bus/polld"
-	"launchpad.net/ubuntu-push/bus/powerd"
-	"launchpad.net/ubuntu-push/client/session"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/util"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/bus/polld"
+	"github.com/ubports/ubuntu-push/bus/powerd"
+	"github.com/ubports/ubuntu-push/client/session"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/util"
 )
 
 var (

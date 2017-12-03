@@ -21,7 +21,7 @@ package bus
 
 import (
 	"launchpad.net/go-dbus/v1"
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 /*****************************************************************

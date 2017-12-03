@@ -21,7 +21,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/nih/cnih"
+	"github.com/ubports/ubuntu-push/nih/cnih"
 )
 
 func TestNIH(t *testing.T) { TestingT(t) }

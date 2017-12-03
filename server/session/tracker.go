@@ -21,8 +21,8 @@ import (
 	"net"
 	"time"
 
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/server/broker"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/server/broker"
 )
 
 // SessionTracker logs session events.

@@ -33,12 +33,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/client/gethosts"
-	"launchpad.net/ubuntu-push/client/session/seenstate"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/util"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/client/gethosts"
+	"github.com/ubports/ubuntu-push/client/session/seenstate"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/util"
 )
 
 type sessCmd uint8

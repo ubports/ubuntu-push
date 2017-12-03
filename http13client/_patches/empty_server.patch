@@ -19,7 +19,7 @@
 -	"io/ioutil"
 -	"log"
  	"net"
--	. "launchpad.net/ubuntu-push/http13client"
+-	. "github.com/ubports/ubuntu-push/http13client"
 -	"net/http/httptest"
 -	"net/http/httputil"
 -	"net/url"
@@ -4548,7 +4548,7 @@
 -//
 -//	import (
 -//		"io"
--//		"launchpad.net/ubuntu-push/http13client"
+-//		"github.com/ubports/ubuntu-push/http13client"
 -//		"log"
 -//	)
 -//
@@ -4579,7 +4579,7 @@
 -//
 -//	import (
 -//		"log"
--//		"launchpad.net/ubuntu-push/http13client"
+-//		"github.com/ubports/ubuntu-push/http13client"
 -//	)
 -//
 -//	func handler(w http.ResponseWriter, req *http.Request) {

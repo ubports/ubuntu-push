@@ -29,10 +29,10 @@ import (
 
 	"github.com/pborman/uuid"
 
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/broker"
-	"launchpad.net/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/server/broker"
+	"github.com/ubports/ubuntu-push/server/store"
 )
 
 const MaxRequestBodyBytes = 4 * 1024
