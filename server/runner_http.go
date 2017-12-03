@@ -21,7 +21,7 @@ import (
 	"net"
 	"net/http"
 
-	"launchpad.net/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/config"
 )
 
 // A HTTPServeParsedConfig holds and can be used to parse the HTTP server config.

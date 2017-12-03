@@ -26,7 +26,7 @@ Build-Depends: debhelper (>= 9),
                python3,
                upstart,
 Standards-Version: 3.9.5
-Homepage: http://launchpad.net/ubuntu-push
+Homepage: http://github.com/ubports/ubuntu-push
 Vcs-Bzr: lp:ubuntu-push
 Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-push-hackers/ubuntu-push/trunk/files
 

@@ -21,8 +21,8 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/client/session"
-	helpers "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/client/session"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 // hook up gocheck

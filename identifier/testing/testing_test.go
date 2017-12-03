@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/identifier"
+	"github.com/ubports/ubuntu-push/identifier"
 )
 
 // hook up gocheck

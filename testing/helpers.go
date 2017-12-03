@@ -28,8 +28,8 @@ import (
 	"strings"
 	"sync"
 
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/protocol"
 )
 
 type captureHelper struct {
@@ -114,7 +114,7 @@ func SourceRelative(relativePath string) string {
 
 	root := os.Getenv("UBUNTU_PUSH_TEST_RESOURCES_ROOT")
 	if root != "" {
-		const sep = "launchpad.net/ubuntu-push/"
+		const sep = "github.com/ubports/ubuntu-push/"
 
 		idx := strings.LastIndex(dir, sep)
 		if idx == -1 {

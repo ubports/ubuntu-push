@@ -25,7 +25,7 @@ import (
 
 	"launchpad.net/go-xdg/v0"
 
-	"launchpad.net/ubuntu-push/client"
+	"github.com/ubports/ubuntu-push/client"
 )
 
 func installSigQuitHandler() {

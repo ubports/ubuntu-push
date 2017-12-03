@@ -18,7 +18,7 @@
 // messaging and cmessaging without going circular about it
 package reply
 
-import "launchpad.net/ubuntu-push/click"
+import "github.com/ubports/ubuntu-push/click"
 
 // MMActionReply holds the reply from a MessagingMenu action
 type MMActionReply struct {

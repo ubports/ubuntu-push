@@ -3,7 +3,7 @@ Ubuntu Push Notifications
 
 Protocol, client, and development code for Ubuntu Push Notifications.
 
-The code expects to be checked out as launchpad.net/ubuntu-push in a Go
+The code expects to be checked out as github.com/ubports/ubuntu-push in a Go
 workspace, see "go help gopath".
 
 You need a somewhat long list of dependencies, as well as a working Go

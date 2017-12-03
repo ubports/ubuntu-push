@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 // PanicTo500Handler wraps another handler such that panics are recovered

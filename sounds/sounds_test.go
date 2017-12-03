@@ -25,10 +25,10 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/click"
-	clickhelp "launchpad.net/ubuntu-push/click/testing"
-	"launchpad.net/ubuntu-push/launch_helper"
-	helpers "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/click"
+	clickhelp "github.com/ubports/ubuntu-push/click/testing"
+	"github.com/ubports/ubuntu-push/launch_helper"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 func TestSounds(t *testing.T) { TestingT(t) }

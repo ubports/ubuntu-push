@@ -25,8 +25,8 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/config"
-	helpers "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/config"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 type configSuite struct{}

@@ -21,8 +21,8 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/server/broker/testing"
-	"launchpad.net/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/server/broker/testing"
+	"github.com/ubports/ubuntu-push/server/store"
 )
 
 func TestSimple(t *stdtesting.T) { TestingT(t) }

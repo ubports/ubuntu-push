@@ -22,10 +22,10 @@ import (
 	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
-	testingbus "launchpad.net/ubuntu-push/bus/testing"
-	"launchpad.net/ubuntu-push/logger"
-	helpers "launchpad.net/ubuntu-push/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
+	testingbus "github.com/ubports/ubuntu-push/bus/testing"
+	"github.com/ubports/ubuntu-push/logger"
+	helpers "github.com/ubports/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/testing/condition"
 )
 
 // hook up gocheck

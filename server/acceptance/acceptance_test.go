@@ -23,7 +23,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/server/acceptance/suites"
+	"github.com/ubports/ubuntu-push/server/acceptance/suites"
 )
 
 func TestAcceptance(t *testing.T) { TestingT(t) }

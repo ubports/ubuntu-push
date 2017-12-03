@@ -25,12 +25,12 @@ import (
 	. "launchpad.net/gocheck"
 	"testing"
 
-	"launchpad.net/ubuntu-push/click"
-	clickhelp "launchpad.net/ubuntu-push/click/testing"
-	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/messaging/cmessaging"
-	"launchpad.net/ubuntu-push/messaging/reply"
-	helpers "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/click"
+	clickhelp "github.com/ubports/ubuntu-push/click/testing"
+	"github.com/ubports/ubuntu-push/launch_helper"
+	"github.com/ubports/ubuntu-push/messaging/cmessaging"
+	"github.com/ubports/ubuntu-push/messaging/reply"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 // hook up gocheck

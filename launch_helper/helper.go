@@ -21,7 +21,7 @@ package launch_helper
 import (
 	"encoding/json"
 
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 type trivialHelperLauncher struct {

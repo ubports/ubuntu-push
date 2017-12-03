@@ -1,9 +1,9 @@
-GOPATH := $(shell cd ../../..; pwd)
+GOPATH := $(shell cd ../../../..; pwd)
 export GOPATH
 
-PROJECT = launchpad.net/ubuntu-push
+PROJECT = github.com/ubports/ubuntu-push
 
-ifneq ($(CURDIR),$(GOPATH)/src/launchpad.net/ubuntu-push)
+ifneq ($(CURDIR),$(GOPATH)/src/github.com/ubports/ubuntu-push)
 $(error unexpected curdir and/or layout)
 endif
 
@@ -34,8 +34,8 @@ bootstrap: dependencies.tsv
 	$(RM) -r $(GOPATH)/pkg
 	mkdir -p $(GOPATH)/bin
 	mkdir -p $(GOPATH)/pkg
-	go get -u launchpad.net/godeps
-	go get -d -u $(GODEPS)
+	go get -u -insecure launchpad.net/godeps
+	go get -d -u -insecure $(GODEPS)
 	$(GOPATH)/bin/godeps -u dependencies.tsv
 	go install $(GODEPS)
 

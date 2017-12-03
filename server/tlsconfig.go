@@ -20,7 +20,7 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	"launchpad.net/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/config"
 )
 
 // A TLSParsedConfig holds and can be used to parse a tls server config.

@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"launchpad.net/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/click"
 )
 
 // a Card is the usual “visual” presentation of a notification, used

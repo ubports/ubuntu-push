@@ -32,13 +32,13 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/client/gethosts"
-	"launchpad.net/ubuntu-push/client/session/seenstate"
-	"launchpad.net/ubuntu-push/protocol"
-	helpers "launchpad.net/ubuntu-push/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
-	"launchpad.net/ubuntu-push/util"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/client/gethosts"
+	"github.com/ubports/ubuntu-push/client/session/seenstate"
+	"github.com/ubports/ubuntu-push/protocol"
+	helpers "github.com/ubports/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/testing/condition"
+	"github.com/ubports/ubuntu-push/util"
 )
 
 func TestSession(t *testing.T) { TestingT(t) }
