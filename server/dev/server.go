@@ -96,7 +96,7 @@ func main() {
 		})
 	})
 	handler := api.PanicTo500Handler(mux, logger)
-	go server.HTTPServeRunner(nil, handler, &cfg.HTTPServeParsedConfig, nil)()
+	go server.HTTPServeRunner(nil, handler, &cfg.HTTPServeParsedConfig, cfg.DevicesParsedConfig.TLSServerConfig())()
 	// listen for device connections
 	resource := &listener.NopSessionResourceManager{}
 	server.DevicesRunner(lst, func(conn net.Conn) error {
