@@ -429,6 +429,7 @@ func doBroadcast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}
 	}
 
 	ctx.broker.Broadcast(chanId)
+	ctx.logger.Infof("broadcast: %v %v %v", chanId, bcast.Data, expire)
 	return nil, nil
 }
 
@@ -470,7 +471,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 			return nil, ErrCouldNotResolveToken
 		}
 	}
-	ctx.logger.Debugf("notify: %v %v -> %v", ucast.AppId, ucast.Token, chanId)
+	ctx.logger.Infof("notify: %v %v -> %v", ucast.AppId, ucast.Token, chanId)
 
 	_, notifs, meta, err := sto.GetChannelUnfiltered(chanId)
 	if err != nil {
