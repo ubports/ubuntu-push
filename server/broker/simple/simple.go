@@ -24,6 +24,7 @@ import (
 	"github.com/ubports/ubuntu-push/protocol"
 	"github.com/ubports/ubuntu-push/server/broker"
 	"github.com/ubports/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/server/statistics"
 )
 
 // SimpleBroker implements broker.Broker/BrokerSending for everything
@@ -56,6 +57,7 @@ type simpleBrokerSession struct {
 	levels       broker.LevelsMap
 	// for exchanges
 	exchgScratch broker.ExchangesScratchArea
+	currentStats *statistics.Statistics
 }
 
 type deliveryKind int
@@ -112,7 +114,7 @@ func (sess *simpleBrokerSession) InternalChannelId() store.InternalChannelId {
 }
 
 // NewSimpleBroker makes a new SimpleBroker.
-func NewSimpleBroker(sto store.PendingStore, cfg broker.BrokerConfig, logger logger.Logger) *SimpleBroker {
+func NewSimpleBroker(sto store.PendingStore, cfg broker.BrokerConfig, logger logger.Logger, currentStats *statistics.Statistics) *SimpleBroker {
 	sessionCh := make(chan *simpleBrokerSession, cfg.BrokerQueueSize())
 	deliveryCh := make(chan *delivery, cfg.BrokerQueueSize())
 	registry := make(map[string]*simpleBrokerSession)
@@ -193,6 +195,7 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, track broker.Sessi
 	if err != nil {
 		return nil, err
 	}
+	b.logger.Infof("Registered the following device info: %v %v", sess.model, sess.imageChannel)
 	return sess, nil
 }
 
