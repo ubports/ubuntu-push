@@ -16,18 +16,23 @@ type Statistics struct {
 
         //registered devices per...
         //5 mins
-        reg_devices_5min uint32
+        reg_devices_5min int32
         //60 mins
-        reg_devices_60min uint32
+        reg_devices_60min int32
         //1 day
-        reg_devices_1day uint32
+        reg_devices_1day int32
         //7 days
-        reg_devices_7day uint32
+        reg_devices_7day int32
 
         unicasts_5min uint32
         unicasts_60min uint32
         unicasts_1day uint32
         unicasts_7day uint32
+
+        broadcasts_5min uint32
+        broadcasts_60min uint32
+        broadcasts_1day uint32
+        broadcasts_7day uint32
 
 }
 
@@ -111,10 +116,10 @@ func (stats *Statistics) PrintStats() {
 		stats.updating.Lock()
 		stats.logger.Infof("")
 		stats.logger.Infof("        |  Devices   |  Unicasts  | Broadcasts |")
-		stats.logger.Infof("5 mins  | %10v | %10v |          0 |", stats.reg_devices_5min, stats.unicasts_5min)
-		stats.logger.Infof("60 mins | %10v | %10v |          0 |", stats.reg_devices_60min, stats.unicasts_60min)
-		stats.logger.Infof("1 day   | %10v | %10v |          0 |", stats.reg_devices_1day, stats.unicasts_1day)
-		stats.logger.Infof("7 days  | %10v | %10v |          0 |", stats.reg_devices_7day, stats.unicasts_7day)
+		stats.logger.Infof("5 mins  | %10v | %10v | %10v |", stats.reg_devices_5min, stats.unicasts_5min, stats.broadcasts_5min)
+		stats.logger.Infof("60 mins | %10v | %10v | %10v |", stats.reg_devices_60min, stats.unicasts_60min, stats.broadcasts_60min)
+		stats.logger.Infof("1 day   | %10v | %10v | %10v |", stats.reg_devices_1day, stats.unicasts_1day, stats.broadcasts_1day)
+		stats.logger.Infof("7 days  | %10v | %10v | %10v |", stats.reg_devices_7day, stats.unicasts_7day, stats.broadcasts_7day)
 		callcount++
 		stats.Reset5min()
 		if callcount % 12 == 0 {

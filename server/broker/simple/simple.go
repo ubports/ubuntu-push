@@ -273,6 +273,7 @@ Loop:
 				if sess != nil {
 					sess.exchanges <- &broker.UnicastExchange{ChanId: chanId, CachedOk: false}
 				}
+				b.currentStats.IncreaseUnicasts()
 			}
 		}
 	}
