@@ -73,7 +73,6 @@ func main() {
 	logger := logger.NewSimpleLogger(os.Stderr, "info")
 	// Setup statistics
 	currentStats := statistics.NewStatistics(logger)
-	go currentStats.PrintStats()
 	// setup a pending store and start the broker
 	sto := store.NewInMemoryPendingStore()
 	broker := simple.NewSimpleBroker(sto, cfg, logger, currentStats)
