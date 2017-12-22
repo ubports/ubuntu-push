@@ -17,23 +17,10 @@ type StatsValue struct {
 
 func NewStatsValue() *StatsValue {
 	result := &StatsValue {
+		val60min: ring.New(12), //12 * 5 min interval = 1 hour
+		val1day: ring.New(288), //288 * 5 min interval = 1 day
+		val7day: ring.New(2016), //2016 * 5 min interval = 7 days
 	}
-	result.val60min = ring.New(12)
-	for i := 0; i < result.val60min.Len(); i++ {
-		result.val60min.Value = int32(0)
-		result.val60min = result.val60min.Next()
-	}
-	result.val1day = ring.New(288)
-	for i := 0; i < result.val1day.Len(); i++ {
-		result.val1day.Value = int32(0)
-		result.val1day = result.val1day.Next()
-	}
-	result.val7day = ring.New(2016)
-	for i := 0; i < result.val7day.Len(); i++ {
-		result.val7day.Value = int32(0)
-		result.val7day = result.val7day.Next()
-	}
-
 	return result
 }
 
@@ -50,17 +37,23 @@ func (statsvalue *StatsValue) Report() (int32, int32, int32, int32) {
 	
 	var val60min int32 = 0
 	statsvalue.val60min.Do(func(p interface{}) {
+		if p != nil {
 			val60min += p.(int32)
-		})
+		}
+	})
 	var val1day int32 = 0
 	statsvalue.val1day.Do(func(p interface{}) {
+		if p != nil {
 			val1day += p.(int32)
-		})
+		}
+	})
 	var val7day int32 = 0
 	statsvalue.val7day.Do(func(p interface{}) {
+		if p != nil {
 			val7day += p.(int32)
-		})	
-	return statsvalue.val5min, val60min / 12, val1day / 288, val7day / 2016
+		}
+	})	
+	return statsvalue.val5min, val60min, val1day, val7day
 }
 
 type Statistics struct {
@@ -87,7 +80,8 @@ func NewStatistics(logger logger.Logger) *Statistics {
 		broadcasts_total: NewStatsValue(),
 	}
 	go result.PrintStats()
-	//go result.TestStats()
+	//Enable the following line for testing statistics gathering and aggregation
+	go result.TestStats()
 	return result
 }
 
@@ -122,7 +116,7 @@ func (stats *Statistics) IncreaseBroadcasts() {
 }
 
 func (stats *Statistics) TestStats() {
-		t := time.NewTicker(time.Millisecond * 500)
+	t := time.NewTicker(time.Millisecond * 500)
 	for {
 		stats.devices_online.val5min = 20
 		stats.IncreaseUnicasts()
@@ -131,9 +125,8 @@ func (stats *Statistics) TestStats() {
 	}
 }
 
-//Shall be called periodically (every 5 m,inutes) to output stats
+//Shall be called periodically (every 5 minutes) to output stats
 func (stats *Statistics) PrintStats() {
-	callcount := 0
 	t := time.NewTicker(time.Minute * 5)
 	for {
 		stats.updating.Lock()
@@ -147,16 +140,10 @@ func (stats *Statistics) PrintStats() {
 		stats.logger.Infof("Current usage statistics:")
 		stats.logger.Infof("        |  Devices   |  Unicasts  | Broadcasts |")
 		stats.logger.Infof("5 mins  | %10v | %10v | %10v |", devices_online_5min, unicasts_total_5min, broadcasts_total_5min)
-		stats.logger.Infof("60 mins | %10v | %10v | %10v |", devices_online_60min, unicasts_total_60min, broadcasts_total_60min)
-		stats.logger.Infof("1 day   | %10v | %10v | %10v |", devices_online_1day, unicasts_total_1day, broadcasts_total_1day)
-		stats.logger.Infof("7 days  | %10v | %10v | %10v |", devices_online_7day, unicasts_total_7day, broadcasts_total_7day)
+		stats.logger.Infof("60 mins | %10v | %10v | %10v |", devices_online_60min / 12, unicasts_total_60min, broadcasts_total_60min)
+		stats.logger.Infof("1 day   | %10v | %10v | %10v |", devices_online_1day / 288, unicasts_total_1day, broadcasts_total_1day)
+		stats.logger.Infof("7 days  | %10v | %10v | %10v |", devices_online_7day /2016, unicasts_total_7day, broadcasts_total_7day)
 		stats.updating.Unlock()
-		
-		//Prevent overflow
-		callcount++
-		if callcount == 4294967295 {
-			callcount = 0
-		}
 		
 		//Wait until timer has elapsed
 		<-t.C
