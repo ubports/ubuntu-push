@@ -96,7 +96,6 @@ func (stats *Statistics) Accumulate() {
 }
 
 func (stats *Statistics) Reset5min() {
-	stats.devices_online.Reset5min()
 	stats.unicasts_total.Reset5min()
 	stats.broadcasts_total.Reset5min()
 }
