@@ -33,6 +33,10 @@ func (statsvalue *StatsValue) Accumulate() {
 	statsvalue.val7day = statsvalue.val7day.Next()	
 }
 
+func (statsvalue *StatsValue) Reset5min() {
+	statsvalue.val5min = 0
+}
+
 func (statsvalue *StatsValue) Report() (int32, int32, int32, int32) {
 	
 	var val60min int32 = 0
@@ -81,7 +85,7 @@ func NewStatistics(logger logger.Logger) *Statistics {
 	}
 	go result.PrintStats()
 	//Enable the following line for testing statistics gathering and aggregation
-	go result.TestStats()
+	//go result.TestStats()
 	return result
 }
 
@@ -89,6 +93,12 @@ func (stats *Statistics) Accumulate() {
 	stats.devices_online.Accumulate()
 	stats.unicasts_total.Accumulate()
 	stats.broadcasts_total.Accumulate()
+}
+
+func (stats *Statistics) Reset5min() {
+	stats.devices_online.Reset5min()
+	stats.unicasts_total.Reset5min()
+	stats.broadcasts_total.Reset5min()
 }
 
 func (stats *Statistics) DecreaseDevices() {
@@ -143,6 +153,7 @@ func (stats *Statistics) PrintStats() {
 		stats.logger.Infof("60 mins | %10v | %10v | %10v |", devices_online_60min / 12, unicasts_total_60min, broadcasts_total_60min)
 		stats.logger.Infof("1 day   | %10v | %10v | %10v |", devices_online_1day / 288, unicasts_total_1day, broadcasts_total_1day)
 		stats.logger.Infof("7 days  | %10v | %10v | %10v |", devices_online_7day /2016, unicasts_total_7day, broadcasts_total_7day)
+		stats.Reset5min()
 		stats.updating.Unlock()
 		
 		//Wait until timer has elapsed
