@@ -32,6 +32,7 @@ import (
 	"github.com/ubports/ubuntu-push/server/listener"
 	"github.com/ubports/ubuntu-push/server/session"
 	"github.com/ubports/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/server/statistics"
 )
 
 type configuration struct {
@@ -69,10 +70,12 @@ func main() {
 	if err != nil {
 		server.BootLogFatalf("reading config: %v", err)
 	}
-	logger := logger.NewSimpleLogger(os.Stderr, "debug")
+	logger := logger.NewSimpleLogger(os.Stderr, "info")
+	// Setup statistics
+	currentStats := statistics.NewStatistics(logger)
 	// setup a pending store and start the broker
 	sto := store.NewInMemoryPendingStore()
-	broker := simple.NewSimpleBroker(sto, cfg, logger)
+	broker := simple.NewSimpleBroker(sto, cfg, logger, currentStats)
 	broker.Start()
 	defer broker.Stop()
 	// serve the http api
