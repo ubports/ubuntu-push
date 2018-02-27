@@ -18,9 +18,9 @@
 package testing
 
 import (
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/broker"
-	"launchpad.net/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/server/broker"
+	"github.com/ubports/ubuntu-push/server/store"
 )
 
 // Test implementation of BrokerSession.

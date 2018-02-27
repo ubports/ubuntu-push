@@ -30,9 +30,9 @@ import (
 	"errors"
 	"unsafe"
 
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/launch_helper/helper_finder"
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/launch_helper/helper_finder"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 func gstring(s string) *C.gchar {

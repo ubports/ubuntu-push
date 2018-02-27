@@ -20,8 +20,8 @@ package polld
 import (
 	"errors"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 var (

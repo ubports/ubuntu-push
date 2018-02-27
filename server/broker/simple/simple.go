@@ -20,10 +20,11 @@ package simple
 import (
 	"sync"
 
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/broker"
-	"launchpad.net/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/server/broker"
+	"github.com/ubports/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/server/statistics"
 )
 
 // SimpleBroker implements broker.Broker/BrokerSending for everything
@@ -42,6 +43,7 @@ type SimpleBroker struct {
 	sessionQueueSize uint
 	// delivery
 	deliveryCh chan *delivery
+	currentStats *statistics.Statistics
 }
 
 // simpleBrokerSession represents a session in the broker.
@@ -112,7 +114,7 @@ func (sess *simpleBrokerSession) InternalChannelId() store.InternalChannelId {
 }
 
 // NewSimpleBroker makes a new SimpleBroker.
-func NewSimpleBroker(sto store.PendingStore, cfg broker.BrokerConfig, logger logger.Logger) *SimpleBroker {
+func NewSimpleBroker(sto store.PendingStore, cfg broker.BrokerConfig, logger logger.Logger, currentStats *statistics.Statistics) *SimpleBroker {
 	sessionCh := make(chan *simpleBrokerSession, cfg.BrokerQueueSize())
 	deliveryCh := make(chan *delivery, cfg.BrokerQueueSize())
 	registry := make(map[string]*simpleBrokerSession)
@@ -125,6 +127,7 @@ func NewSimpleBroker(sto store.PendingStore, cfg broker.BrokerConfig, logger log
 		sessionCh:        sessionCh,
 		deliveryCh:       deliveryCh,
 		sessionQueueSize: cfg.SessionQueueSize(),
+		currentStats:	currentStats,
 	}
 }
 
@@ -193,6 +196,8 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, track broker.Sessi
 	if err != nil {
 		return nil, err
 	}
+	b.logger.Infof("Registered the following device info: %v %v", sess.model, sess.imageChannel)
+	b.currentStats.IncreaseDevices()
 	return sess, nil
 }
 
@@ -200,6 +205,7 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, track broker.Sessi
 func (b *SimpleBroker) Unregister(s broker.BrokerSession) {
 	sess := s.(*simpleBrokerSession)
 	b.sessionCh <- sess
+	b.currentStats.DecreaseDevices()
 }
 
 func (b *SimpleBroker) get(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
@@ -267,6 +273,7 @@ Loop:
 				if sess != nil {
 					sess.exchanges <- &broker.UnicastExchange{ChanId: chanId, CachedOk: false}
 				}
+				b.currentStats.IncreaseUnicasts()
 			}
 		}
 	}

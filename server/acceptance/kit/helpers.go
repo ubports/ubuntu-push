@@ -21,7 +21,7 @@ import (
 	"crypto/x509"
 	"fmt"
 
-	"launchpad.net/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/config"
 )
 
 // MakeTLSConfig makes a tls.Config, optionally reading a cert from

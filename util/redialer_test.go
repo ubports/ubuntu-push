@@ -18,9 +18,9 @@ package util
 
 import (
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/bus"
-	testibus "launchpad.net/ubuntu-push/bus/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
+	"github.com/ubports/ubuntu-push/bus"
+	testibus "github.com/ubports/ubuntu-push/bus/testing"
+	"github.com/ubports/ubuntu-push/testing/condition"
 	"testing"
 	"time"
 )

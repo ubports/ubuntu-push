@@ -23,8 +23,8 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/server/acceptance/kit"
-	"launchpad.net/ubuntu-push/server/api"
+	"github.com/ubports/ubuntu-push/server/acceptance/kit"
+	"github.com/ubports/ubuntu-push/server/api"
 )
 
 // UnicastAcceptanceSuite has tests about unicast.

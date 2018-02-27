@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
-	helpers "launchpad.net/ubuntu-push/testing"
+	helpers "github.com/ubports/ubuntu-push/testing"
 	"testing"
 )
 

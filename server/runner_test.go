@@ -26,9 +26,9 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/server/listener"
-	helpers "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/server/listener"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 type runnerSuite struct {

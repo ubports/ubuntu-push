@@ -21,8 +21,8 @@ package urfkill
 import (
 	"launchpad.net/go-dbus/v1"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 // URfkill lives on a well-knwon bus.Address

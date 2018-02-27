@@ -30,7 +30,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	helpers "launchpad.net/ubuntu-push/testing"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 // FillConfig fills cfg from values.

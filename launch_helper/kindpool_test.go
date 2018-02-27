@@ -27,10 +27,10 @@ import (
 	xdg "launchpad.net/go-xdg/v0"
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/click"
-	clickhelp "launchpad.net/ubuntu-push/click/testing"
-	"launchpad.net/ubuntu-push/launch_helper/cual"
-	helpers "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/click"
+	clickhelp "github.com/ubports/ubuntu-push/click/testing"
+	"github.com/ubports/ubuntu-push/launch_helper/cual"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 type poolSuite struct {

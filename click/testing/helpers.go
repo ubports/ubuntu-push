@@ -18,7 +18,7 @@
 package testing
 
 import (
-	"launchpad.net/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/click"
 )
 
 // MustParseAppId parses an appId or panics.

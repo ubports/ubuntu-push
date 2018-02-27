@@ -19,7 +19,7 @@ package service
 import (
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/click"
 )
 
 type commonSuite struct{}

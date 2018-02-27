@@ -21,7 +21,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/protocol"
 )
 
 func TestSeenState(t *testing.T) { TestingT(t) }

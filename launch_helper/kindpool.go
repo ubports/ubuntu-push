@@ -28,10 +28,10 @@ import (
 
 	xdg "launchpad.net/go-xdg/v0"
 
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/launch_helper/cual"
-	"launchpad.net/ubuntu-push/launch_helper/legacy"
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/launch_helper/cual"
+	"github.com/ubports/ubuntu-push/launch_helper/legacy"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 var (

@@ -25,8 +25,8 @@ import (
 	"net/http"
 	"time"
 
-	"launchpad.net/ubuntu-push/external/murmur3"
-	http13 "launchpad.net/ubuntu-push/http13client"
+	"github.com/ubports/ubuntu-push/external/murmur3"
+	http13 "github.com/ubports/ubuntu-push/http13client"
 )
 
 // GetHost implements finding hosts to connect to consulting a remote endpoint providing a hash of the device identifier.

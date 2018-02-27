@@ -23,7 +23,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"launchpad.net/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/protocol"
 )
 
 type sqliteSeenState struct {

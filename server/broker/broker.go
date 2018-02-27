@@ -22,8 +22,8 @@ import (
 	"errors"
 	"fmt"
 
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/server/store"
 )
 
 type SessionTracker interface {

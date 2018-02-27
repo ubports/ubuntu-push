@@ -18,8 +18,8 @@ package bus
 
 import (
 	. "launchpad.net/gocheck"
-	"launchpad.net/ubuntu-push/logger"
-	helpers "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/logger"
+	helpers "github.com/ubports/ubuntu-push/testing"
 	"os"
 )
 

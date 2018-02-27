@@ -22,9 +22,9 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	testibus "launchpad.net/ubuntu-push/bus/testing"
-	helpers "launchpad.net/ubuntu-push/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
+	testibus "github.com/ubports/ubuntu-push/bus/testing"
+	helpers "github.com/ubports/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/testing/condition"
 )
 
 // hook up gocheck

@@ -23,10 +23,10 @@ import (
 	"strings"
 	"sync"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/nih"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/nih"
 )
 
 type DBusService struct {
