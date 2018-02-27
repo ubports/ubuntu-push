@@ -1,8 +1,8 @@
-ubuntu-push (0.69+ubports) vivid; urgency=medium
+ubuntu-push (0.69+ubports) xenial; urgency=medium
 
   * Imported to UBports
 
- -- Florian Leeber <florian@ubports.com>  Wed, 06 Dec 2017 19:39:55 +0200
+ -- UBports auto importer <infra@ubports.com>  Fri, 13 Oct 2017 19:39:55 +0200
 
 ubuntu-push (0.68+16.10.20161003-0ubuntu1) yakkety; urgency=medium
 
