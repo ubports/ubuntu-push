@@ -530,7 +530,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 		return nil, ErrCouldNotStoreNotification
 	}
 
-	ctx.broker.Unicast(chanId)
+	go ctx.broker.Unicast(chanId)
 
 	ctx.logger.Debugf("notify: ok %v %v id:%v clear:%v replace:%v expired:%v", ucast.AppId, chanId, msgId, ucast.ClearPending, replaceable, expired)
 	return nil, nil
