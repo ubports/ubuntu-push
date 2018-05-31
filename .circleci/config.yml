@@ -22,5 +22,7 @@ jobs:
       - checkout
 
       # specify any bash command here prefixed with `run: `
-      - run: go get -v -t -d ./ubuntu-push-client
-      - run: go test -v ./ubuntu-push-client
+      - run: make fetchdeps
+      - run: make bootstrap
+	  - run: make check
+	  
