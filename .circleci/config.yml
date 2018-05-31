@@ -21,7 +21,8 @@ jobs:
     steps:
       - checkout
 
-      # specify any bash command here prefixed with `run: `
+      # specify any bash command here prefixed with `run:
+      - run: apt install build-essential cmake libdbus-1-dev libgcrypt11-dev libglib2.0-dev libnih-dbus-dev libsqlite3-dev libubuntuoneauth-2.0-dev libmessaging-menu-dev libubuntu-app-launch2-dev libclick-0.4-dev liburl-dispatcher1-dev libaccounts-glib-dev system-image-dbus
       - run: make fetchdeps
       - run: make bootstrap
       - run: make check
