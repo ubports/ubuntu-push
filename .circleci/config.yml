@@ -24,4 +24,4 @@ jobs:
       # specify any bash command here prefixed with `run: `
       - run: make fetchdeps
       - run: make bootstrap
-	  - run: make check
+      - run: make check
