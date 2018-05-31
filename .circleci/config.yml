@@ -25,4 +25,3 @@ jobs:
       - run: make fetchdeps
       - run: make bootstrap
 	  - run: make check
-	  
