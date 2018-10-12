@@ -23,7 +23,7 @@ import (
 	"net"
 	"time"
 
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 // A DeviceListenerConfig offers the DeviceListener configuration.

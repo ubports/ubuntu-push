@@ -22,8 +22,8 @@ import (
 	"net"
 	"time"
 
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/broker"
+	"github.com/ubports/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/server/broker"
 )
 
 // SessionConfig is for carrying the session configuration.

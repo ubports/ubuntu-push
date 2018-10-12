@@ -19,7 +19,7 @@
 package seenstate
 
 import (
-	"launchpad.net/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/protocol"
 )
 
 type SeenState interface {

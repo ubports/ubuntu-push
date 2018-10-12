@@ -27,12 +27,12 @@ import (
 
 	"launchpad.net/go-dbus/v1"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/click/cnotificationsettings"
-	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/sounds"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/click/cnotificationsettings"
+	"github.com/ubports/ubuntu-push/launch_helper"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/sounds"
 )
 
 // Notifications lives on a well-knwon bus.Address

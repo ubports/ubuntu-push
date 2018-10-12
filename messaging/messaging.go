@@ -23,13 +23,13 @@ import (
 	"sync"
 	"time"
 
-	"launchpad.net/ubuntu-push/bus/notifications"
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/click/cnotificationsettings"
-	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/messaging/cmessaging"
-	"launchpad.net/ubuntu-push/messaging/reply"
+	"github.com/ubports/ubuntu-push/bus/notifications"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/click/cnotificationsettings"
+	"github.com/ubports/ubuntu-push/launch_helper"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/messaging/cmessaging"
+	"github.com/ubports/ubuntu-push/messaging/reply"
 )
 
 type MessagingMenu struct {

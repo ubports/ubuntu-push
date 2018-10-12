@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
 
-export DH_GOPKG := launchpad.net/ubuntu-push
+export DH_GOPKG := github.com/ubports/ubuntu-push
 export UBUNTU_PUSH_TEST_RESOURCES_ROOT := $(CURDIR)
 
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
@@ -27,12 +27,10 @@ override_dh_auto_build:
 	dh_auto_build --buildsystem=golang
 	(cd signing-helper && cmake . && make)
 
-override_dh_auto_test:
-#disable the tests because they cause build failures on anything newer than xenial
-#ubuntu-push doesn't work on anything later than vivid anyway, it will eventually go away
+#override_dh_auto_test:
 #ifneq ($(DEB_HOST_ARCH),$(findstring $(DEB_HOST_ARCH), $(testskip_architectures)))
-#	cd $$( find ./ -type d -regex '\./[^/]*/src/launchpad.net' -printf "%h\n" | head -n1) && \
-#	env GODEBUG=cgocheck=0 GOPATH=$$(cd ..; pwd) go test -v $$(env GOPATH=$$(cd ..; pwd) go list $(DH_GOPKG)/... | grep -v acceptance | grep -v http13client )
+#	cd $$( find ./ -type d -regex '\./[^/]*/src/github.com/ubports' -printf "%h\n" | head -n1) && \
+#	env GODEBUG=cgocheck=0 GOPATH=$$(cd ../../; pwd) go test -v $$(env GOPATH=$$(cd ../../; pwd) go list $(DH_GOPKG)/... | grep -v acceptance | grep -v http13client )
 #endif
 
 override_dh_install:

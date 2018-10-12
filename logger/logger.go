@@ -24,7 +24,7 @@ import (
 	"os"
 	"runtime"
 
-	"launchpad.net/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/config"
 )
 
 // Logger is a simple logger interface with logging at levels.
@@ -82,7 +82,7 @@ func NewSimpleLoggerFromMinimalLogger(minLog MinimalLogger, level string) Logger
 // level. The level can be, in order: "error", "info", "debug". It takes an
 // io.Writer.
 func NewSimpleLogger(w io.Writer, level string) Logger {
-	flags := log.Ldate | log.Ltime | log.Lmicroseconds
+	flags := log.Ldate | log.Ltime 
 	if levelToNLevel[level] >= lDebug {
 		flags = flags | log.Lshortfile
 	}

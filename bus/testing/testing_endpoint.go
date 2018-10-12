@@ -24,8 +24,8 @@ import (
 
 	"launchpad.net/go-dbus/v1"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/testing/condition"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/testing/condition"
 	"sync"
 	"time"
 )

@@ -25,14 +25,14 @@ import (
 	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/bus/networkmanager"
-	testingbus "launchpad.net/ubuntu-push/bus/testing"
-	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/logger"
-	helpers "launchpad.net/ubuntu-push/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
-	"launchpad.net/ubuntu-push/util"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/bus/networkmanager"
+	testingbus "github.com/ubports/ubuntu-push/bus/testing"
+	"github.com/ubports/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/logger"
+	helpers "github.com/ubports/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/testing/condition"
+	"github.com/ubports/ubuntu-push/util"
 )
 
 // hook up gocheck

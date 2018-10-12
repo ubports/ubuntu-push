@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 SET (EXAMPLES_TARGET ubuntuoneauth-examples)
+SET (CMAKE_CXX_STANDARD 11)
 
 SET (SIGNING_EXE "signing-helper")
 

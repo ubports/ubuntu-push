@@ -21,8 +21,8 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/server/store"
-	help "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/server/store"
+	help "github.com/ubports/ubuntu-push/testing"
 )
 
 type exchangesImplSuite struct{}

@@ -22,8 +22,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"launchpad.net/ubuntu-push/server/acceptance"
-	"launchpad.net/ubuntu-push/server/acceptance/kit"
+	"github.com/ubports/ubuntu-push/server/acceptance"
+	"github.com/ubports/ubuntu-push/server/acceptance/kit"
 )
 
 type configuration struct {

@@ -27,10 +27,10 @@ import (
 	"strings"
 	"time"
 
-	"launchpad.net/ubuntu-push/external/murmur3"
+	"github.com/ubports/ubuntu-push/external/murmur3"
 
-	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/server/acceptance"
+	"github.com/ubports/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/server/acceptance"
 )
 
 type Configuration struct {

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-PROJECT=launchpad.net/ubuntu-push
+PROJECT=github.com/ubports/ubuntu-push
 
 mktpl () {
     for f in GoFiles CgoFiles; do

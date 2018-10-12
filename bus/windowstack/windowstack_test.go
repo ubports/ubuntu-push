@@ -21,11 +21,11 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	testibus "launchpad.net/ubuntu-push/bus/testing"
-	"launchpad.net/ubuntu-push/click"
-	clickhelp "launchpad.net/ubuntu-push/click/testing"
-	helpers "launchpad.net/ubuntu-push/testing"
-	"launchpad.net/ubuntu-push/testing/condition"
+	testibus "github.com/ubports/ubuntu-push/bus/testing"
+	"github.com/ubports/ubuntu-push/click"
+	clickhelp "github.com/ubports/ubuntu-push/click/testing"
+	helpers "github.com/ubports/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/testing/condition"
 )
 
 func TestWindowStack(t *testing.T) { TestingT(t) }

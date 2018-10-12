@@ -19,8 +19,8 @@
 package unitygreeter
 
 import (
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 // Well known address for the UnityGreeter API

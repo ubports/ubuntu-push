@@ -24,8 +24,8 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	clickhelp "launchpad.net/ubuntu-push/click/testing"
-	helpers "launchpad.net/ubuntu-push/testing"
+	clickhelp "github.com/ubports/ubuntu-push/click/testing"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 func takeNext(ch chan string, c *C) string {

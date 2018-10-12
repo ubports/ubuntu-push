@@ -22,9 +22,9 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/server/broker"
-	"launchpad.net/ubuntu-push/server/broker/testing"
-	helpers "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/server/broker"
+	"github.com/ubports/ubuntu-push/server/broker/testing"
+	helpers "github.com/ubports/ubuntu-push/testing"
 )
 
 type trackerSuite struct {

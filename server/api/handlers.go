@@ -29,10 +29,10 @@ import (
 
 	"github.com/pborman/uuid"
 
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/broker"
-	"launchpad.net/ubuntu-push/server/store"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/server/broker"
+	"github.com/ubports/ubuntu-push/server/store"
 )
 
 const MaxRequestBodyBytes = 4 * 1024
@@ -429,6 +429,7 @@ func doBroadcast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}
 	}
 
 	ctx.broker.Broadcast(chanId)
+	ctx.logger.Infof("broadcast: %v %v %v", chanId, bcast.Data, expire)
 	return nil, nil
 }
 
@@ -470,7 +471,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 			return nil, ErrCouldNotResolveToken
 		}
 	}
-	ctx.logger.Debugf("notify: %v %v -> %v", ucast.AppId, ucast.Token, chanId)
+	ctx.logger.Infof("notify: %v %v -> %v", ucast.AppId, ucast.Token, chanId)
 
 	_, notifs, meta, err := sto.GetChannelUnfiltered(chanId)
 	if err != nil {
@@ -529,7 +530,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 		return nil, ErrCouldNotStoreNotification
 	}
 
-	ctx.broker.Unicast(chanId)
+	go ctx.broker.Unicast(chanId)
 
 	ctx.logger.Debugf("notify: ok %v %v id:%v clear:%v replace:%v expired:%v", ucast.AppId, chanId, msgId, ucast.ClearPending, replaceable, expired)
 	return nil, nil

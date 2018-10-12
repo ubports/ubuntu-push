@@ -21,9 +21,9 @@ package testing
 // Here, the bus.Bus implementation.
 
 import (
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/testing/condition"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/testing/condition"
 )
 
 /*****************************************************************

@@ -5,7 +5,7 @@ module.exports = config = {
     ,"mongo_host" : "localhost"
     ,"mongo_port" : 27017
     ,"mongo_opts" : {}
-    ,"push_url": "https://push.ubuntu.com"
+    ,"push_url": "https://push.ubports.com"
     ,"retry_batch": 5
     ,"retry_secs" : 30
     ,"happy_retry_secs": 5

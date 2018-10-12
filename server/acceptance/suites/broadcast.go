@@ -24,9 +24,9 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/client/gethosts"
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/api"
+	"github.com/ubports/ubuntu-push/client/gethosts"
+	"github.com/ubports/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/server/api"
 )
 
 // BroadcastAcceptanceSuite has tests about broadcast.

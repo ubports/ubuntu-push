@@ -24,8 +24,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 type legacyHelperLauncher struct {

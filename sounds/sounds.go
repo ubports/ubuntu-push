@@ -25,11 +25,11 @@ import (
 
 	"launchpad.net/go-xdg/v0"
 
-	"launchpad.net/ubuntu-push/bus/accounts"
-	"launchpad.net/ubuntu-push/click"
-	"launchpad.net/ubuntu-push/click/cnotificationsettings"
-	"launchpad.net/ubuntu-push/launch_helper"
-	"launchpad.net/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/bus/accounts"
+	"github.com/ubports/ubuntu-push/click"
+	"github.com/ubports/ubuntu-push/click/cnotificationsettings"
+	"github.com/ubports/ubuntu-push/launch_helper"
+	"github.com/ubports/ubuntu-push/logger"
 )
 
 type Sound interface {

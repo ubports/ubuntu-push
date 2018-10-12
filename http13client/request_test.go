@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	. "launchpad.net/ubuntu-push/http13client"
+	. "github.com/ubports/ubuntu-push/http13client"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"

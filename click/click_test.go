@@ -25,7 +25,7 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/click/cappinfo"
+	"github.com/ubports/ubuntu-push/click/cappinfo"
 )
 
 func TestClick(t *testing.T) { TestingT(t) }

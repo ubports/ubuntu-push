@@ -31,9 +31,9 @@ import (
 
 	. "launchpad.net/gocheck"
 
-	"launchpad.net/ubuntu-push/protocol"
-	"launchpad.net/ubuntu-push/server/store"
-	help "launchpad.net/ubuntu-push/testing"
+	"github.com/ubports/ubuntu-push/protocol"
+	"github.com/ubports/ubuntu-push/server/store"
+	help "github.com/ubports/ubuntu-push/testing"
 )
 
 func TestHandlers(t *testing.T) { TestingT(t) }

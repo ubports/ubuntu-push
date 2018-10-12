@@ -27,11 +27,11 @@ import (
 	"sync"
 	"time"
 
-	"launchpad.net/ubuntu-push/bus"
-	"launchpad.net/ubuntu-push/bus/networkmanager"
-	"launchpad.net/ubuntu-push/config"
-	"launchpad.net/ubuntu-push/logger"
-	"launchpad.net/ubuntu-push/util"
+	"github.com/ubports/ubuntu-push/bus"
+	"github.com/ubports/ubuntu-push/bus/networkmanager"
+	"github.com/ubports/ubuntu-push/config"
+	"github.com/ubports/ubuntu-push/logger"
+	"github.com/ubports/ubuntu-push/util"
 )
 
 // The configuration for ConnectedState, intended to be populated from a config file.
