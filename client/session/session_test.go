@@ -375,30 +375,6 @@ func (cs *clientSessionSuite) TestGetHostsRemoteCachingReset(c *C) {
 }
 
 /****************************************************************
-  addAuthorization() tests
-****************************************************************/
-
-func (cs *clientSessionSuite) TestAddAuthorizationAddsAuthorization(c *C) {
-	url := "xyzzy://"
-	sess := &clientSession{Log: cs.log}
-	sess.AuthGetter = func(url string) string { return url + " auth'ed" }
-	sess.AuthURL = url
-	c.Assert(sess.auth, Equals, "")
-	err := sess.addAuthorization()
-	c.Assert(err, IsNil)
-	c.Check(sess.auth, Equals, "xyzzy:// auth'ed")
-}
-
-func (cs *clientSessionSuite) TestAddAuthorizationSkipsIfUnset(c *C) {
-	sess := &clientSession{Log: cs.log}
-	sess.AuthGetter = nil
-	c.Assert(sess.auth, Equals, "")
-	err := sess.addAuthorization()
-	c.Assert(err, IsNil)
-	c.Check(sess.auth, Equals, "")
-}
-
-/****************************************************************
   startConnectionAttempt()/nextHostToTry()/started tests
 ****************************************************************/
 
@@ -1213,7 +1189,6 @@ func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
 		Type:          "connect",
 		DeviceId:      sess.DeviceId,
 		Levels:        map[string]int64{},
-		Authorization: "",
 	})
 	upCh <- errors.New("Overflow error in /dev/null")
 	err = <-errCh
@@ -1319,7 +1294,6 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 	msg, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	c.Check(msg.DeviceId, Equals, "wah")
-	c.Check(msg.Authorization, Equals, "")
 	c.Check(msg.Cookie, Equals, "COOKIE")
 	c.Check(msg.Info, DeepEquals, info)
 	upCh <- nil // no error
@@ -1353,22 +1327,6 @@ func (cs *clientSessionSuite) TestRunCallsCloserWithFalse(c *C) {
 	c.Check(err, Equals, failure)
 	c.Check(has_closed, Equals, true)
 	c.Check(with_false, Equals, true)
-}
-
-func (cs *clientSessionSuite) TestRunBailsIfAuthCheckFails(c *C) {
-	sess, err := NewSession("", dummyConf(), "wah", cs.lvls, cs.log)
-	c.Assert(err, IsNil)
-	failure := errors.New("TestRunBailsIfAuthCheckFails")
-	has_closed := false
-	err = sess.run(
-		func(bool) { has_closed = true },
-		func() error { return failure },
-		nil,
-		nil,
-		nil,
-		nil)
-	c.Check(err, Equals, failure)
-	c.Check(has_closed, Equals, true)
 }
 
 func (cs *clientSessionSuite) TestRunBailsIfHostGetterFails(c *C) {

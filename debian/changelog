@@ -1,4 +1,4 @@
-ubuntu-push (0.69+ubports) xenial; urgency=medium
+ubuntu-push (0.69+ubports) bionic; urgency=medium
 
   * Imported to UBports
 
