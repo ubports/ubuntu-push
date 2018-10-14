@@ -51,7 +51,7 @@ check-race:
 acceptance:
 	cd server/acceptance; ./acceptance.sh
 
-build-client: ubuntu-push-client signing-helper/signing-helper
+build-client: ubuntu-push-client
 
 %.deps: %
 	$(SH) scripts/deps.sh $<
@@ -60,12 +60,6 @@ build-client: ubuntu-push-client signing-helper/signing-helper
 	go build -o $@ $<
 
 include $(TOBUILD:.go=.go.deps)
-
-signing-helper/Makefile: signing-helper/CMakeLists.txt signing-helper/signing-helper.cpp signing-helper/signing.h
-	cd signing-helper && (make clean || true) && cmake .
-
-signing-helper/signing-helper: signing-helper/Makefile signing-helper/signing-helper.cpp signing-helper/signing.h
-	cd signing-helper && make
 
 build-server-dev: push-server-dev
 
@@ -78,7 +72,6 @@ push-server-dev: server/dev/server
 # very basic cleanup stuff; needs more work
 clean:
 	$(RM) -r coverhtml
-	$(MAKE) -C signing-helper clean || true
 	$(RM) push-server-dev
 	$(RM) $(TOBUILD:.go=)
 

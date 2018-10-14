@@ -129,8 +129,6 @@ type ClientSessionConfig struct {
 	ExpectAllRepairedTime  time.Duration
 	PEM                    []byte
 	Info                   map[string]interface{}
-	AuthGetter             func(string) string
-	AuthURL                string
 	AddresseeChecker       AddresseeChecking
 	BroadcastCh            chan *BroadcastNotification
 	NotificationsCh        chan AddressedNotification
@@ -173,8 +171,6 @@ type clientSession struct {
 	// status
 	stateLock sync.RWMutex
 	state     ClientSessionState
-	// authorization
-	auth string
 	// autoredial knobs
 	shouldDelayP    *uint32
 	lastAutoRedial  time.Time
@@ -354,16 +350,6 @@ func (sess *clientSession) getHosts() error {
 		}
 	} else {
 		sess.deliveryHosts = sess.fallbackHosts
-	}
-	return nil
-}
-
-// addAuthorization gets the authorization blob to send to the server
-// and adds it to the session.
-func (sess *clientSession) addAuthorization() error {
-	if sess.AuthGetter != nil {
-		sess.Log.Debugf("adding authorization")
-		sess.auth = sess.AuthGetter(sess.AuthURL)
 	}
 	return nil
 }
@@ -661,7 +647,6 @@ func (sess *clientSession) start() error {
 	err = proto.WriteMessage(protocol.ConnectMsg{
 		Type:          "connect",
 		DeviceId:      sess.DeviceId,
-		Authorization: sess.auth,
 		Cookie:        sess.getCookie(),
 		Levels:        levels,
 		Info:          sess.Info,
@@ -697,11 +682,8 @@ func (sess *clientSession) start() error {
 
 // run calls connect, and if it works it calls start, and if it works
 // it runs loop in a goroutine, and ships its return value over ErrCh.
-func (sess *clientSession) run(closer func(bool), authChecker, hostGetter, connecter, starter, looper func() error) error {
+func (sess *clientSession) run(closer func(bool), hostGetter, connecter, starter, looper func() error) error {
 	closer(false)
-	if err := authChecker(); err != nil {
-		return err
-	}
 	if err := hostGetter(); err != nil {
 		return err
 	}
@@ -733,7 +715,7 @@ func (sess *clientSession) Dial() error {
 		// keep on trying.
 		panic("can't Dial() without a protocol constructor.")
 	}
-	return sess.run(sess.doClose, sess.addAuthorization, sess.getHosts, sess.connect, sess.start, sess.loop)
+	return sess.run(sess.doClose, sess.getHosts, sess.connect, sess.start, sess.loop)
 }
 
 func (sess *clientSession) shutdown() {

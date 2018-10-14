@@ -3,8 +3,7 @@ debian/config.json /etc/xdg/ubuntu-push-client
 debian/ubuntu-push-client.conf /usr/share/upstart/sessions
 debian/exec-tool /usr/lib/${DEB_HOST_MULTIARCH}/ubuntu-app-launch/push-helper
 debian/push-helper.hook /usr/share/click/hooks
-signing-helper/signing-helper /usr/lib/ubuntu-push-client
 scripts/click-hook-wrapper /usr/lib/ubuntu-push-client
 scripts/click-hook /usr/lib/ubuntu-push-client
+ubuntu-push-client.service /usr/lib/systemd/user/
 usr/bin/ubuntu-push => /usr/lib/ubuntu-push-client/ubuntu-push-client
-

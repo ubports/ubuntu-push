@@ -1,5 +1,4 @@
 {
-    "auth_helper": "/usr/lib/ubuntu-push-client/signing-helper",
     "session_url": "https://push.ubports.com:5001",
     "registration_url": "https://push.ubports.com",
     "connect_timeout": "20s",

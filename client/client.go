@@ -29,7 +29,6 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/ubports/ubuntu-push/accounts"
@@ -68,8 +67,6 @@ type ClientConfig struct {
 	ExpectAllRepairedTime  config.ConfigTimeDuration `json:"expect_all_repaired"` // worth retrying all servers after
 	// The PEM-encoded server certificate
 	CertPEMFile string `json:"cert_pem_file"`
-	// How to invoke the auth helper
-	AuthHelper      string `json:"auth_helper"`
 	SessionURL      string `json:"session_url"`
 	RegistrationURL string `json:"registration_url"`
 	// The logging level (one of "debug", "info", "error")
@@ -211,8 +208,6 @@ func (client *PushClient) deriveSessionConfig(info map[string]interface{}) sessi
 		ExpectAllRepairedTime:  client.config.ExpectAllRepairedTime.TimeDuration(),
 		PEM:              client.pem,
 		Info:             info,
-		AuthGetter:       client.getAuthorization,
-		AuthURL:          client.config.SessionURL,
 		AddresseeChecker: client,
 		BroadcastCh:      client.broadcastCh,
 		NotificationsCh:  client.notificationsCh,
@@ -228,7 +223,6 @@ func (client *PushClient) derivePushServiceSetup() (*service.PushServiceSetup, e
 	}
 	setup.RegURL = purl
 	setup.DeviceId = client.deviceId
-	setup.AuthGetter = client.getAuthorization
 	setup.InstalledChecker = client.installedChecker
 	return setup, nil
 }
@@ -255,25 +249,6 @@ func (client *PushClient) derivePollerSetup() *poller.PollerSetup {
 		},
 		Log:                client.log,
 		SessionStateGetter: client.session,
-	}
-}
-
-// getAuthorization gets the authorization blob to send to the server
-func (client *PushClient) getAuthorization(url string) string {
-	client.log.Debugf("getting authorization for %s", url)
-	// using a helper, for now at least
-	if len(client.config.AuthHelper) == 0 {
-		// do nothing if helper is unset or empty
-		return ""
-	}
-
-	auth, err := exec.Command(client.config.AuthHelper, url).Output()
-	if err != nil {
-		// For now we just log the error, as we don't want to block unauthorized users
-		client.log.Errorf("unable to get the authorization token from the account: %v", err)
-		return ""
-	} else {
-		return strings.TrimSpace(string(auth))
 	}
 }
 

@@ -3,51 +3,53 @@ Section: net
 Priority: optional
 XSBC-Original-Maintainer: John Lenton <john.lenton@canonical.com>
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-Build-Depends: debhelper (>= 9),
-               dh-exec (>= 0.3),
-               dh-golang,
-               golang-go,
-               golang-go-dbus-dev,
-               golang-go-xdg-dev,
-               golang-gocheck-dev,
-               golang-github-mattn-go-sqlite3-dev,
-               golang-github-pborman-uuid-dev,
-               libgcrypt11-dev,
-               libglib2.0-dev (>= 2.31.6),
-               libmessaging-menu-dev,
-               libubuntu-app-launch2-dev,
-               libubuntuoneauth-2.0-dev,
-               libdbus-1-dev,
-               libnih-dbus-dev,
-               libclick-0.4-dev,
-               liburl-dispatcher1-dev,
-               libaccounts-glib-dev,
-               cmake,
-               python3,
-               upstart,
+Build-Depends:
+ cmake,
+ debhelper (>= 9),
+ dh-exec (>= 0.3),
+ dh-golang,
+ golang-github-mattn-go-sqlite3-dev,
+ golang-github-pborman-uuid-dev,
+ golang-go,
+ golang-go-dbus-dev,
+ golang-go-xdg-dev,
+ golang-gopkg-check.v1-dev | golang-gocheck-dev,
+ libaccounts-glib-dev,
+ libclick-0.4-dev,
+ libdbus-1-dev,
+ libgcrypt11-dev,
+ libglib2.0-dev (>= 2.31.6),
+ libmessaging-menu-dev,
+ libnih-dbus-dev,
+ libubuntu-app-launch3-dev | libubuntu-app-launch2-dev,
+ liburl-dispatcher1-dev,
+ python3,
+ upstart,
 Standards-Version: 3.9.5
-Homepage: http://github.com/ubports/ubuntu-push
-Vcs-Bzr: lp:ubuntu-push
-Vcs-Browser: http://bazaar.launchpad.net/~ubuntu-push-hackers/ubuntu-push/trunk/files
+Homepage: https://github.com/ubports/ubuntu-push
 
 Package: ubuntu-push-client
 Architecture: any
 Multi-Arch: foreign
-Depends: dbus,
-         network-manager,
-         qtdeclarative5-unity-notifications-plugin | notification-daemon,
-         url-dispatcher,
-         ${misc:Depends},
-         ${shlibs:Depends},
-Built-Using: ${misc:Built-Using}
+Depends:
+ dbus,
+ network-manager,
+ qtdeclarative5-unity-notifications-plugin | notification-daemon,
+ url-dispatcher,
+ ${misc:Depends},
+ ${shlibs:Depends},
+Built-Using:
+ ${misc:Built-Using},
 Description: Ubuntu Push Notifications client-side daemon
  The Ubuntu Push Notifications client-side daemon.
 
 Package: golang-ubuntu-push-dev
 Architecture: all
-Depends: ${misc:Depends},
-         ${shlibs:Depends},
-Built-Using: ${misc:Built-Using}
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Built-Using:
+ ${misc:Built-Using},
 Description: Ubuntu Push Notifications client-side daemon development package
  The Ubuntu Push Notifications client-side daemon library.
  .
@@ -56,18 +58,23 @@ Description: Ubuntu Push Notifications client-side daemon development package
 Package: ubuntu-push-dev-server
 Architecture: any
 Multi-Arch: foreign
-Depends: ${misc:Depends},
-         ${shlibs:Depends},
-Built-Using: ${misc:Built-Using}
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Built-Using:
+ ${misc:Built-Using},
 Description: Ubuntu Push Notifications development & testing server
  The Ubuntu Push Notifications dev & testing server.
 
 Package: ubuntu-push-autopilot
 Architecture: amd64 armhf i386
 Multi-Arch: foreign
-Depends: unity8-autopilot,
-         ubuntu-push-client,
-Recommends: ubuntu-push-dev-server,
-Built-Using: ${misc:Built-Using}
+Depends:
+ ubuntu-push-client,
+ unity8-autopilot,
+Recommends:
+ ubuntu-push-dev-server,
+Built-Using:
+ ${misc:Built-Using},
 Description: Ubuntu Push Notifications autopilot tests
  The Ubuntu Push Notifications autopilot tests.

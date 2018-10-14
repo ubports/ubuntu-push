@@ -20,7 +20,6 @@ def main():
     parser.add_argument('--no-https', action='store_true', default=False)
     parser.add_argument('--insecure', action='store_true', default=False,
                          help="don't check host/certs with https")
-    parser.add_argument('--auth_helper',  default="")
     parser.add_argument('--unregister', action='store_true', default=False)
     args = parser.parse_args()
     scheme = 'https'
@@ -36,9 +35,6 @@ def main():
         'appid': args.appid[0],
         }
     headers = {'Content-Type': 'application/json'}
-    if args.auth_helper:
-        auth = subprocess.check_output([args.auth_helper, url]).strip()
-        headers['Authorization'] = auth
     r = requests.post(url, data=json.dumps(body), headers=headers,
                       verify=not args.insecure)
     if r.status_code == 200 and not args.unregister:
