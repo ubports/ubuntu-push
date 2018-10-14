@@ -6,10 +6,8 @@ libgcrypt11-dev
 libglib2.0-dev
 libnih-dbus-dev
 libsqlite3-dev
-libubuntuoneauth-2.0-dev
 libmessaging-menu-dev
 libubuntu-app-launch2-dev
 libclick-0.4-dev
 liburl-dispatcher1-dev
-libaccounts-glib-dev
 system-image-dbus
