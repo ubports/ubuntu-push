@@ -108,7 +108,7 @@ func (stats *Statistics) Accumulate() {
 func (stats *Statistics) Reset5min() {
 	stats.unicasts_total.Reset5min()
 	stats.broadcasts_total.Reset5min()
-	for _, value := range stats.channel_specific {
+	for _, value := range stats.devices_specific {
 		value.Reset5min()
 	}
 	for _, value := range stats.channel_specific {
