@@ -95,7 +95,7 @@ func NewStatistics(logger logger.Logger) *Statistics {
 	}
 	go result.PrintStats()
 	//Enable the following line for testing statistics gathering and aggregation
-	go result.TestStats()
+	//go result.TestStats()
 	return result
 }
 
@@ -210,7 +210,7 @@ func (stats *Statistics) PrintStats() {
 		stats.logger.Infof("  Channel      |  5 mins   |  60 mins  | 1 day | 7 days")
 		for key, value := range stats.channel_specific {
 			devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day = value.Report()
-    		stats.logger.Infof("%15v | %10v | %10v | %10v | %10v", key, devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day)
+    		stats.logger.Infof("%30v | %10v | %10v | %10v | %10v", key, devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day)
 		}
 		stats.Reset5min()
 		stats.updating.Unlock()
