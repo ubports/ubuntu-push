@@ -103,17 +103,17 @@ func (stats *Statistics) Accumulate() {
 	stats.devices_online.Accumulate()
 	stats.unicasts_total.Accumulate()
 	stats.broadcasts_total.Accumulate()
+	for _, value := range stats.devices_specific {
+		value.Accumulate()
+	}
+	for _, value := range stats.channel_specific {
+		value.Accumulate()
+	}
 }
 
 func (stats *Statistics) Reset5min() {
 	stats.unicasts_total.Reset5min()
 	stats.broadcasts_total.Reset5min()
-	for _, value := range stats.devices_specific {
-		value.Reset5min()
-	}
-	for _, value := range stats.channel_specific {
-		value.Reset5min()
-	}
 }
 
 func (stats *Statistics) DecreaseDevices(device_name string, channel_name string) {
