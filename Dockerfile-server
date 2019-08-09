@@ -1,0 +1,17 @@
+# Builder
+FROM golang:latest as builder
+LABEL maintainer="UBports Developers <developers@ubports.com>"
+COPY . /go/src/github.com/ubports/ubuntu-push
+WORKDIR /go/src/github.com/ubports/ubuntu-push
+RUN go get -d -v ./server/dev
+RUN go build -o push ./server/dev
+
+# Deploy
+FROM debian:buster-slim
+COPY --from=builder /go/src/github.com/ubports/ubuntu-push/push /opt
+WORKDIR /opt
+CMD ["./push"]
+
+# Assuming ports, may be overwritten
+EXPOSE 80
+EXPOSE 5001
