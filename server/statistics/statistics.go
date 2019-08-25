@@ -141,14 +141,14 @@ func (stats *Statistics) IncreaseDevices(device_name string, channel_name string
 	stats.updating.Lock()
 	stats.devices_online.val5min++
     if(stats.devices_specific == nil) {
-    	stats.devices_specific = make(map[string]*StatsValue)
+	stats.devices_specific = make(map[string]*StatsValue)
     }
 	if(stats.devices_specific[device_name] == nil) {
 		stats.devices_specific[device_name] = NewStatsValue()
 	}
 	stats.devices_specific[device_name].val5min++
     if(stats.channel_specific == nil) {
-    	stats.channel_specific = make(map[string]*StatsValue)
+	stats.channel_specific = make(map[string]*StatsValue)
 	}
 	if(stats.channel_specific[channel_name] == nil) {
 		stats.channel_specific[channel_name] = NewStatsValue()
@@ -203,14 +203,14 @@ func (stats *Statistics) PrintStats() {
 		stats.logger.Infof("%15v | %10v | %10v | %10v | %10v", "Device", "5 mins","60 mins","1 day","7 days")
 		for key, value := range stats.devices_specific {
 			devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day = value.Report()
-    		stats.logger.Infof("%15v | %10v | %10v | %10v | %10v", key, devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day)
+		stats.logger.Infof("%15v | %10v | %10v | %10v | %10v", key, devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day)
 		}
 		stats.logger.Infof("")
 		stats.logger.Infof("Channel statistics:")
 		stats.logger.Infof("%30v | %10v | %10v | %10v | %10v", "Channel", "5 mins","60 mins","1 day","7 days")
 		for key, value := range stats.channel_specific {
 			devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day = value.Report()
-    		stats.logger.Infof("%30v | %10v | %10v | %10v | %10v", key, devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day)
+		stats.logger.Infof("%30v | %10v | %10v | %10v | %10v", key, devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day)
 		}
 		stats.Reset5min()
 		stats.updating.Unlock()
