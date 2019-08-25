@@ -429,7 +429,6 @@ func doBroadcast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}
 	}
 
 	ctx.broker.Broadcast(chanId)
-	ctx.logger.Infof("broadcast: %v %v %v", chanId, bcast.Data, expire)
 	return nil, nil
 }
 

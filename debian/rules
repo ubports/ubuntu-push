@@ -27,11 +27,11 @@ override_dh_auto_build:
 	dh_auto_build --buildsystem=golang
 	(cd signing-helper && cmake . && make)
 
-#override_dh_auto_test:
-#ifneq ($(DEB_HOST_ARCH),$(findstring $(DEB_HOST_ARCH), $(testskip_architectures)))
-#	cd $$( find ./ -type d -regex '\./[^/]*/src/github.com/ubports' -printf "%h\n" | head -n1) && \
-#	env GODEBUG=cgocheck=0 GOPATH=$$(cd ../../; pwd) go test -v $$(env GOPATH=$$(cd ../../; pwd) go list $(DH_GOPKG)/... | grep -v acceptance | grep -v http13client )
-#endif
+override_dh_auto_test:
+ifneq ($(DEB_HOST_ARCH),$(findstring $(DEB_HOST_ARCH), $(testskip_architectures)))
+	cd $$( find ./ -type d -regex '\./[^/]*/src/github.com/ubports' -printf "%h\n" | head -n1) && \
+	env GODEBUG=cgocheck=0 GOPATH=$$(cd ../../; pwd) go test -v $$(env GOPATH=$$(cd ../../; pwd) go list $(DH_GOPKG)/... | grep -v acceptance | grep -v http13client )
+endif
 
 override_dh_install:
 	dh_install -Xusr/bin/cmd --fail-missing
