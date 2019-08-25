@@ -26,6 +26,7 @@ import (
 	"mime"
 	"net/http"
 	"time"
+	"strings"
 
 	"github.com/pborman/uuid"
 
@@ -457,21 +458,30 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 	if apiErr != nil {
 		return nil, apiErr
 	}
-	chanId, err := sto.GetInternalChannelIdFromToken(ucast.Token, ucast.AppId, ucast.UserId, ucast.DeviceId)
+	//Extract app Id from token rather than using the supplied one. This supports multiple apps using the same push GW
+	decoded, err := base64.StdEncoding.DecodeString(ucast.Token)
+	if err != nil {
+		ctx.logger.Errorf("could not decode token:v", err)
+		return nil, ErrUnknownToken
+	}
+	token := string(decoded)
+	appId := strings.Split(token, ":")[0]
+	ctx.logger.Infof("App id extracted from token: %v", appId)
+	chanId, err := sto.GetInternalChannelIdFromToken(ucast.Token, appId, ucast.UserId, ucast.DeviceId)
 	if err != nil {
 		switch err {
 		case store.ErrUnknownToken:
-			ctx.logger.Debugf("notify: %v %v unknown", ucast.AppId, ucast.Token)
+			ctx.logger.Debugf("notify: %v %v unknown", appId, ucast.Token)
 			return nil, ErrUnknownToken
 		case store.ErrUnauthorized:
-			ctx.logger.Debugf("notify: %v %v unauthorized", ucast.AppId, ucast.Token)
+			ctx.logger.Debugf("notify: %v %v unauthorized", appId, ucast.Token)
 			return nil, ErrUnauthorized
 		default:
 			ctx.logger.Errorf("could not resolve token: %v", err)
 			return nil, ErrCouldNotResolveToken
 		}
 	}
-	ctx.logger.Infof("notify: %v %v -> %v", ucast.AppId, ucast.Token, chanId)
+	ctx.logger.Infof("notify: %v %v -> %v", appId, ucast.Token, chanId)
 
 	_, notifs, meta, err := sto.GetChannelUnfiltered(chanId)
 	if err != nil {
@@ -490,7 +500,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 			expired++
 			continue
 		}
-		if notif.AppId == ucast.AppId {
+		if notif.AppId == appId {
 			if replaceTag != "" && replaceTag == meta[i].ReplaceTag {
 				// this we will scrub
 				replaceable++
@@ -501,13 +511,13 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 		last = &notif
 	}
 	if ucast.ClearPending {
-		scrubCriteria = []string{ucast.AppId}
+		scrubCriteria = []string{appId}
 	} else if forApp >= ctx.storage.GetMaxNotificationsPerApplication() {
-		ctx.logger.Debugf("notify: %v %v too many pending", ucast.AppId, chanId)
+		ctx.logger.Debugf("notify: %v %v too many pending", appId, chanId)
 		return nil, apiErrorWithExtra(ErrTooManyPendingNotifications,
 			&last.Payload)
 	} else if replaceable > 0 {
-		scrubCriteria = []string{ucast.AppId, replaceTag}
+		scrubCriteria = []string{appId, replaceTag}
 	}
 	if expired > 0 || scrubCriteria != nil {
 		err := sto.Scrub(chanId, scrubCriteria...)
@@ -523,8 +533,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 		Expiration: expire,
 		ReplaceTag: ucast.ReplaceTag,
 	}
-
-	err = sto.AppendToUnicastChannel(chanId, ucast.AppId, ucast.Data, msgId, meta1)
+	err = sto.AppendToUnicastChannel(chanId, appId, ucast.Data, msgId, meta1)
 	if err != nil {
 		ctx.logger.Errorf("could not store notification: %v", err)
 		return nil, ErrCouldNotStoreNotification
@@ -532,7 +541,7 @@ func doUnicast(ctx *context, sto store.PendingStore, parsedBodyObj interface{}) 
 
 	go ctx.broker.Unicast(chanId)
 
-	ctx.logger.Debugf("notify: ok %v %v id:%v clear:%v replace:%v expired:%v", ucast.AppId, chanId, msgId, ucast.ClearPending, replaceable, expired)
+	ctx.logger.Debugf("notify: ok %v %v id:%v clear:%v replace:%v expired:%v", appId, chanId, msgId, ucast.ClearPending, replaceable, expired)
 	return nil, nil
 }
 

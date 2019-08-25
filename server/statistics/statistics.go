@@ -200,7 +200,7 @@ func (stats *Statistics) PrintStats() {
 		stats.logger.Infof("7 days  | %10v | %10v | %10v |", devices_online_7day, unicasts_total_7day, broadcasts_total_7day)
 		stats.logger.Infof("")
 		stats.logger.Infof("Device statistics:")
-		stats.logger.Infof("%30v | %10v | %10v | %10v | %10v", "Device", "5 mins","60 mins","1 day","7 days")
+		stats.logger.Infof("%15v | %10v | %10v | %10v | %10v", "Device", "5 mins","60 mins","1 day","7 days")
 		for key, value := range stats.devices_specific {
 			devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day = value.Report()
     		stats.logger.Infof("%15v | %10v | %10v | %10v | %10v", key, devices_online_5min, devices_online_60min, devices_online_1day, devices_online_7day)
