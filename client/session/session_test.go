@@ -1165,7 +1165,7 @@ func (cs *clientSessionSuite) TestStartFailsIfGetLevelsFails(c *C) {
 		errCh <- sess.start()
 	}()
 
-	c.Check(takeNext(downCh), Equals, "deadline 0")
+	c.Check(takeNext(downCh), Equals, "deadline 0s")
 	err = <-errCh
 	c.Check(err, ErrorMatches, "broken.")
 }
@@ -1184,7 +1184,7 @@ func (cs *clientSessionSuite) TestStartConnectMessageFails(c *C) {
 		errCh <- sess.start()
 	}()
 
-	c.Check(takeNext(downCh), Equals, "deadline 0")
+	c.Check(takeNext(downCh), Equals, "deadline 0s")
 	c.Check(takeNext(downCh), DeepEquals, protocol.ConnectMsg{
 		Type:          "connect",
 		DeviceId:      sess.DeviceId,
@@ -1210,7 +1210,7 @@ func (cs *clientSessionSuite) TestStartConnackReadError(c *C) {
 		errCh <- sess.start()
 	}()
 
-	c.Check(takeNext(downCh), Equals, "deadline 0")
+	c.Check(takeNext(downCh), Equals, "deadline 0s")
 	_, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	upCh <- nil // no error
@@ -1234,7 +1234,7 @@ func (cs *clientSessionSuite) TestStartBadConnack(c *C) {
 		errCh <- sess.start()
 	}()
 
-	c.Check(takeNext(downCh), Equals, "deadline 0")
+	c.Check(takeNext(downCh), Equals, "deadline 0s")
 	_, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	upCh <- nil // no error
@@ -1258,7 +1258,7 @@ func (cs *clientSessionSuite) TestStartNotConnack(c *C) {
 		errCh <- sess.start()
 	}()
 
-	c.Check(takeNext(downCh), Equals, "deadline 0")
+	c.Check(takeNext(downCh), Equals, "deadline 0s")
 	_, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	upCh <- nil // no error
@@ -1290,7 +1290,7 @@ func (cs *clientSessionSuite) TestStartWorks(c *C) {
 		errCh <- sess.start()
 	}()
 
-	c.Check(takeNext(downCh), Equals, "deadline 0")
+	c.Check(takeNext(downCh), Equals, "deadline 0s")
 	msg, ok := takeNext(downCh).(protocol.ConnectMsg)
 	c.Check(ok, Equals, true)
 	c.Check(msg.DeviceId, Equals, "wah")
