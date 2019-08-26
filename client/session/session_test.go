@@ -244,7 +244,7 @@ func (cs *clientSessionSuite) TestNewSessionPlainWorks(c *C) {
 	c.Check(sess.fallbackHosts, DeepEquals, []string{"foo:443"})
 	// the session is happy and redial delayer is default
 	c.Check(sess.ShouldDelay(), Equals, false)
-	c.Check(fmt.Sprintf("%#v", sess.redialDelay), Equals, fmt.Sprintf("%#v", redialDelay))
+	c.Check(fmt.Sprintf("%T", sess.redialDelay), Equals, fmt.Sprintf("%T", redialDelay))
 	c.Check(sess.redialDelays, DeepEquals, util.Timeouts())
 	// but no root CAs set
 	c.Check(sess.TLS.RootCAs, IsNil)
