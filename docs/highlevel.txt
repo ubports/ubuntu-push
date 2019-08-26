@@ -34,8 +34,8 @@ Example::
 Registration: the appId and token properties
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To register with the push system and start receiving notifications, set the ``appId`` property to your application's APP_ID,
-with or without version number. For this to succeed the user **must** have an Ubuntu One account configured in the device.
+To register with the push system and start receiving notifications, set the
+``appId`` property to your application's APP_ID, with or without version number.
 
 The APP_ID is as described in the `ApplicationId documentation <https://wiki.ubuntu.com/AppStore/Interfaces/ApplicationId>`__
 except that the version is treated as optional. Therefore both ``com.ubuntu.music_music`` and ``com.ubuntu.music_music_1.3.496``

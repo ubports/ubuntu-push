@@ -34,7 +34,6 @@ import (
 	"launchpad.net/go-dbus/v1"
 	. "launchpad.net/gocheck"
 
-	"github.com/ubports/ubuntu-push/accounts"
 	"github.com/ubports/ubuntu-push/bus"
 	"github.com/ubports/ubuntu-push/bus/networkmanager"
 	"github.com/ubports/ubuntu-push/bus/systemimage"
@@ -176,7 +175,6 @@ func (cs *clientSuite) writeTestConfig(overrides map[string]interface{}) {
 		"addr":             ":0",
 		"cert_pem_file":    pem_file,
 		"recheck_timeout":  "3h",
-		"auth_helper":      "",
 		"session_url":      "xyzzy://",
 		"registration_url": "reg://",
 		"log_level":        "debug",
@@ -408,9 +406,6 @@ func (cs *clientSuite) TestCheckForAddressee(c *C) {
 ******************************************************************/
 
 func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
-	cs.writeTestConfig(map[string]interface{}{
-		"auth_helper": "auth helper",
-	})
 	info := map[string]interface{}{
 		"foo": 1,
 	}
@@ -424,8 +419,6 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 		ExpectAllRepairedTime:  30 * time.Minute,
 		PEM:              cli.pem,
 		Info:             info,
-		AuthGetter:       func(string) string { return "" },
-		AuthURL:          "xyzzy://",
 		AddresseeChecker: cli,
 		BroadcastCh:      make(chan *session.BroadcastNotification),
 		NotificationsCh:  make(chan session.AddressedNotification),
@@ -440,16 +433,12 @@ func (cs *clientSuite) TestDeriveSessionConfig(c *C) {
 	}
 	// finally compare
 	conf := cli.deriveSessionConfig(info)
-	// compare authGetter by string
-	c.Check(fmt.Sprintf("%#v", conf.AuthGetter), Equals, fmt.Sprintf("%#v", cli.getAuthorization))
 	// channels are ok as long as non-nil
 	conf.BroadcastCh = nil
 	conf.NotificationsCh = nil
 	expected.BroadcastCh = nil
 	expected.NotificationsCh = nil
 	// and set it to nil
-	conf.AuthGetter = nil
-	expected.AuthGetter = nil
 	c.Check(conf, DeepEquals, expected)
 }
 
@@ -465,7 +454,6 @@ func (cs *clientSuite) TestDerivePushServiceSetup(c *C) {
 	cli.deviceId = "zoo"
 	expected := &service.PushServiceSetup{
 		DeviceId:         "zoo",
-		AuthGetter:       func(string) string { return "" },
 		RegURL:           helpers.ParseURL("reg://"),
 		InstalledChecker: cli.installedChecker,
 	}
@@ -480,11 +468,6 @@ func (cs *clientSuite) TestDerivePushServiceSetup(c *C) {
 	// finally compare
 	setup, err := cli.derivePushServiceSetup()
 	c.Assert(err, IsNil)
-	// compare authGetter by string
-	c.Check(fmt.Sprintf("%#v", setup.AuthGetter), Equals, fmt.Sprintf("%#v", cli.getAuthorization))
-	// and set it to nil
-	setup.AuthGetter = nil
-	expected.AuthGetter = nil
 	c.Check(setup, DeepEquals, expected)
 }
 
@@ -941,7 +924,6 @@ var nopConn = func(bool) {}
 var nopBcast = func(*session.BroadcastNotification) error { return nil }
 var nopUcast = func(session.AddressedNotification) error { return nil }
 var nopUnregister = func(*click.AppId) {}
-var nopAcct = func() {}
 
 func (cs *clientSuite) TestDoLoopConn(c *C) {
 	cli := NewPushClient(cs.configPath, cs.leveldbPath)
@@ -952,7 +934,7 @@ func (cs *clientSuite) TestDoLoopConn(c *C) {
 	c.Assert(cli.initSessionAndPoller(), IsNil)
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(func(bool) { ch <- true }, nopBcast, nopUcast, nopUnregister, nopAcct)
+	go cli.doLoop(func(bool) { ch <- true }, nopBcast, nopUcast, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -965,7 +947,7 @@ func (cs *clientSuite) TestDoLoopBroadcast(c *C) {
 	cli.broadcastCh <- &session.BroadcastNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopUnregister, nopAcct)
+	go cli.doLoop(nopConn, func(_ *session.BroadcastNotification) error { ch <- true; return nil }, nopUcast, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -978,7 +960,7 @@ func (cs *clientSuite) TestDoLoopNotif(c *C) {
 	cli.notificationsCh <- session.AddressedNotification{}
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopUnregister, nopAcct)
+	go cli.doLoop(nopConn, nopBcast, func(session.AddressedNotification) error { ch <- true; return nil }, nopUnregister)
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -991,21 +973,7 @@ func (cs *clientSuite) TestDoLoopUnregister(c *C) {
 	cli.unregisterCh <- app1
 
 	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, nopUcast, func(app *click.AppId) { c.Check(app.Original(), Equals, appId1); ch <- true }, nopAcct)
-	c.Check(takeNextBool(ch), Equals, true)
-}
-
-func (cs *clientSuite) TestDoLoopAcct(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-	cli.systemImageInfo = siInfoRes
-	c.Assert(cli.initSessionAndPoller(), IsNil)
-	acctCh := make(chan accounts.Changed, 1)
-	acctCh <- accounts.Changed{}
-	cli.accountsCh = acctCh
-
-	ch := make(chan bool, 1)
-	go cli.doLoop(nopConn, nopBcast, nopUcast, nopUnregister, func() { ch <- true })
+	go cli.doLoop(nopConn, nopBcast, nopUcast, func(app *click.AppId) { c.Check(app.Original(), Equals, appId1); ch <- true })
 	c.Check(takeNextBool(ch), Equals, true)
 }
 
@@ -1179,34 +1147,4 @@ func (cs *clientSuite) TestinitSessionAndPollerErr(c *C) {
 	// change the cli.pem value so initSessionAndPoller fails
 	cli.pem = []byte("foo")
 	c.Assert(cli.initSessionAndPoller(), NotNil)
-}
-
-/*****************************************************************
-    getAuthorization() tests
-******************************************************************/
-
-func (cs *clientSuite) TestGetAuthorizationIgnoresErrors(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.configure()
-	cli.config.AuthHelper = "/no/such/executable"
-
-	c.Check(cli.getAuthorization("xyzzy://"), Equals, "")
-}
-
-func (cs *clientSuite) TestGetAuthorizationGetsIt(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.configure()
-	cli.config.AuthHelper = helpers.ScriptAbsPath("dummyauth.sh")
-
-	c.Check(cli.getAuthorization("xyzzy://"), Equals, "hello xyzzy://")
-}
-
-func (cs *clientSuite) TestGetAuthorizationWorksIfUnsetOrNil(c *C) {
-	cli := NewPushClient(cs.configPath, cs.leveldbPath)
-	cli.log = cs.log
-
-	c.Assert(cli.config, NotNil)
-	c.Check(cli.getAuthorization("xyzzy://"), Equals, "")
-	cli.configure()
-	c.Check(cli.getAuthorization("xyzzy://"), Equals, "")
 }
