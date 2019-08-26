@@ -253,7 +253,7 @@ func (endp *endpoint) Close() {
 //
 // XXX: untested
 func (endp *endpoint) String() string {
-	return fmt.Sprintf("<Connection to %s %#v>", endp.bus, endp.addr)
+	return fmt.Sprintf("<Connection to %#v %#v>", endp.bus, endp.addr)
 }
 
 // GrabName() takes over the name on the bus, reporting errors over the
