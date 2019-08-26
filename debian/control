@@ -23,7 +23,6 @@ Build-Depends:
  libubuntu-app-launch3-dev | libubuntu-app-launch2-dev,
  liburl-dispatcher1-dev,
  python3,
- upstart,
 Standards-Version: 3.9.5
 Homepage: https://github.com/ubports/ubuntu-push
 
