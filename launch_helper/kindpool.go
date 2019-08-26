@@ -185,7 +185,7 @@ func (pool *kindHelperPool) Stop() {
 	for kind, launcher := range pool.launchers {
 		err := launcher.RemoveObserver()
 		if err != nil {
-			panic(fmt.Errorf("failed to remove helper observer for &s: %v", kind, err))
+			panic(fmt.Errorf("failed to remove helper observer for %s: %v", kind, err))
 		}
 	}
 	// make Stop sync for tests
