@@ -1,0 +1,12 @@
+[Unit]
+Description=Ubuntu Push Client
+PartOf=graphical-session.target
+After=unity8.service
+BindsTo=unity8.service
+
+[Service]
+Environment="GODEBUG=cgocheck=0"
+Environment="PULSE_PROP='media.role=alert'"
+ExecStart=/usr/lib/ubuntu-push-client/ubuntu-push-client
+ExecStopPost=/sbin/initctl emit untrusted-helper-type-end HELPER_TYPE=push-helper
+Restart=on-failure

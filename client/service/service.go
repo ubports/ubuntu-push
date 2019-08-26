@@ -38,7 +38,6 @@ import (
 type PushServiceSetup struct {
 	RegURL           *url.URL
 	DeviceId         string
-	AuthGetter       func(string) string
 	InstalledChecker click.InstalledChecker
 }
 
@@ -47,7 +46,6 @@ type PushService struct {
 	DBusService
 	regURL     *url.URL
 	deviceId   string
-	authGetter func(string) string
 	httpCli    http13.Client
 }
 
@@ -67,22 +65,20 @@ func NewPushService(setup *PushServiceSetup, log logger.Logger) *PushService {
 	svc.installedChecker = setup.InstalledChecker
 	svc.regURL = setup.RegURL
 	svc.deviceId = setup.DeviceId
-	svc.authGetter = setup.AuthGetter
 	return svc
 }
 
-// getAuthorization() returns the URL and the authorization header for
-// POSTing to the registration HTTP endpoint for op
-func (svc *PushService) getAuthorization(op string) (string, string) {
-	if svc.authGetter == nil || svc.regURL == nil {
-		return "", ""
+// getParsedUrl() returns the POST URL at registration HTTP endpoint for op
+func (svc *PushService) getParsedUrl(op string) (string) {
+	if svc.regURL == nil {
+		return ""
 	}
 	purl, err := svc.regURL.Parse(op)
 	if err != nil {
-		panic("op to getAuthorization was invalid")
+		panic("op to getParsedUrl was invalid")
 	}
 	url := purl.String()
-	return url, svc.authGetter(url)
+	return url
 }
 
 func (svc *PushService) Start() error {
@@ -117,16 +113,12 @@ func (svc *PushService) manageReg(op, appId string) (*registrationReply, error) 
 		return nil, fmt.Errorf("unable to marshal register request body: %v", err)
 	}
 
-	url, auth := svc.getAuthorization(op)
-	if auth == "" {
-		return nil, ErrBadAuth
-	}
+	url := svc.getParsedUrl(op)
 
 	req, err := http13.NewRequest("POST", url, bytes.NewReader(req_body))
 	if err != nil {
 		panic(fmt.Errorf("unable to build register request: %v", err))
 	}
-	req.Header.Add("Authorization", auth)
 	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := svc.httpCli.Do(req)

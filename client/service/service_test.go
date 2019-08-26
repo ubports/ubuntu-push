@@ -64,13 +64,9 @@ func (ss *serviceSuite) TestBuild(c *C) {
 	setup := &PushServiceSetup{
 		RegURL:   helpers.ParseURL("http://reg"),
 		DeviceId: "FOO",
-		AuthGetter: func(s string) string {
-			return ""
-		},
 	}
 	svc := NewPushService(setup, ss.log)
 	c.Check(svc.regURL, DeepEquals, helpers.ParseURL("http://reg"))
-	c.Check(fmt.Sprintf("%#v", svc.authGetter), Equals, fmt.Sprintf("%#v", setup.AuthGetter))
 	// ...
 }
 
@@ -133,29 +129,21 @@ func (ss *serviceSuite) TestStopClosesBus(c *C) {
 
 // registration tests
 
-func (ss *serviceSuite) TestGetRegAuthWorks(c *C) {
-	ch := make(chan string, 1)
+func (ss *serviceSuite) TestGetRegUrlWorks(c *C) {
 	setup := &PushServiceSetup{
 		RegURL: helpers.ParseURL("http://foo"),
-		AuthGetter: func(s string) string {
-			ch <- s
-			return "Auth " + s
-		},
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
-	url, auth := svc.getAuthorization("/op")
-	c.Check(auth, Equals, "Auth http://foo/op")
-	c.Assert(len(ch), Equals, 1)
-	c.Check(<-ch, Equals, "http://foo/op")
+	url := svc.getParsedUrl("/op")
 	c.Check(url, Equals, "http://foo/op")
 }
 
-func (ss *serviceSuite) TestGetRegAuthDoesNotPanic(c *C) {
+func (ss *serviceSuite) TestGetRegUrlDoesNotPanic(c *C) {
 	svc := NewPushService(testSetup, ss.log)
 	svc.Bus = ss.bus
-	_, auth := svc.getAuthorization("/op")
-	c.Check(auth, Equals, "")
+	url := svc.getParsedUrl("/op")
+	c.Check(url, Equals, "")
 }
 
 func (ss *serviceSuite) TestRegistrationAndUnregistrationFailIfBadArgs(c *C) {
@@ -196,7 +184,6 @@ func (ss *serviceSuite) TestRegistrationWorks(c *C) {
 	setup := &PushServiceSetup{
 		DeviceId:   "fake-device-id",
 		RegURL:     helpers.ParseURL(ts.URL),
-		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
@@ -222,20 +209,10 @@ func (ss *serviceSuite) TestRegistrationOverrideWorks(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (ss *serviceSuite) TestManageRegFailsOnBadAuth(c *C) {
-	// ... no auth added
-	svc := NewPushService(testSetup, ss.log)
-	svc.Bus = ss.bus
-	reg, err := svc.register(aPackageOnBus, []interface{}{anAppId}, nil)
-	c.Check(reg, IsNil)
-	c.Check(err, Equals, ErrBadAuth)
-}
-
 func (ss *serviceSuite) TestManageRegFailsOnNoServer(c *C) {
 	setup := &PushServiceSetup{
 		DeviceId:   "fake-device-id",
 		RegURL:     helpers.ParseURL("xyzzy://"),
-		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
@@ -252,7 +229,6 @@ func (ss *serviceSuite) TestManageRegFailsOn401(c *C) {
 	setup := &PushServiceSetup{
 		DeviceId:   "fake-device-id",
 		RegURL:     helpers.ParseURL(ts.URL),
-		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
@@ -269,7 +245,6 @@ func (ss *serviceSuite) TestManageRegFailsOn40x(c *C) {
 	setup := &PushServiceSetup{
 		DeviceId:   "fake-device-id",
 		RegURL:     helpers.ParseURL(ts.URL),
-		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
@@ -286,7 +261,6 @@ func (ss *serviceSuite) TestManageRegFailsOn50x(c *C) {
 	setup := &PushServiceSetup{
 		DeviceId:   "fake-device-id",
 		RegURL:     helpers.ParseURL(ts.URL),
-		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
@@ -312,7 +286,6 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSON(c *C) {
 	setup := &PushServiceSetup{
 		DeviceId:   "fake-device-id",
 		RegURL:     helpers.ParseURL(ts.URL),
-		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
@@ -339,7 +312,6 @@ func (ss *serviceSuite) TestManageRegFailsOnBadJSONDocument(c *C) {
 	setup := &PushServiceSetup{
 		DeviceId:   "fake-device-id",
 		RegURL:     helpers.ParseURL(ts.URL),
-		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
@@ -366,7 +338,6 @@ func (ss *serviceSuite) TestDBusUnregisterWorks(c *C) {
 	setup := &PushServiceSetup{
 		DeviceId:   "fake-device-id",
 		RegURL:     helpers.ParseURL(ts.URL),
-		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
@@ -395,7 +366,6 @@ func (ss *serviceSuite) TestUnregistrationWorks(c *C) {
 	setup := &PushServiceSetup{
 		DeviceId:   "fake-device-id",
 		RegURL:     helpers.ParseURL(ts.URL),
-		AuthGetter: func(string) string { return "tok" },
 	}
 	svc := NewPushService(setup, ss.log)
 	svc.Bus = ss.bus
