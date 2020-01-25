@@ -1,0 +1,10 @@
+github.com/mattn/go-sqlite3 v1.1.1-0.20160927022846-4b0af852c171 h1:bZY9z+CAvIbrKtvxl9Ypy+foX2hxuR5Q+2gziez44CM=
+github.com/mattn/go-sqlite3 v1.1.1-0.20160927022846-4b0af852c171/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
+github.com/pborman/uuid v0.0.0-20160824210600-b984ec7fa9ff h1:pTiDfW+iOjIxjZeCm88gKn/AmR09UGZYZdqif2yPRrM=
+github.com/pborman/uuid v0.0.0-20160824210600-b984ec7fa9ff/go.mod h1:VyrYX9gd7irzKovcSS6BIIEwPRkP2Wm2m9ufcdFSJ34=
+github.com/z3ntu/go-dbus v0.0.0-20170220120108-c022b8b2e127 h1:5uM5CyMgvx0a/ctLJ3ThGt2fghWoX6cPniYNgGeCuJI=
+github.com/z3ntu/go-dbus v0.0.0-20170220120108-c022b8b2e127/go.mod h1:bUTQ2+DQ82yitPELjqsyPbSZGg05fEKaC3eHCGkCiV4=
+launchpad.net/go-xdg v0.0.0-20140208094800-000000000010 h1:67YK4VRwVpu+qdmji/6lNv7y/O6NmH1oaSb/4ETtTck=
+launchpad.net/go-xdg v0.0.0-20140208094800-000000000010/go.mod h1:LvhuQF+z2nM+7tjWchL2jH2sbCGTtyHFhi4s/dDQEOk=
+launchpad.net/gocheck v0.0.0-20140225173054-000000000087 h1:Izowp2XBH6Ya6rv+hqbceQyw/gSGoXfH/UPoTGduL54=
+launchpad.net/gocheck v0.0.0-20140225173054-000000000087/go.mod h1:hj7XX3B/0A+80Vse0e+BUHsHMTEhd0O4cpUHr/e/BUM=
