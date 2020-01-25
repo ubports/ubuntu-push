@@ -23,7 +23,7 @@ import (
 	"errors"
 	"fmt"
 
-	"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus"
 
 	"github.com/ubports/ubuntu-push/logger"
 )

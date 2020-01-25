@@ -18,7 +18,7 @@ package bus
 
 import (
 	"fmt"
-	"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus"
 	. "launchpad.net/gocheck"
 	helpers "github.com/ubports/ubuntu-push/testing"
 	"testing"

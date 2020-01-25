@@ -19,7 +19,7 @@ package emblemcounter
 import (
 	"testing"
 
-	"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus"
 	. "launchpad.net/gocheck"
 
 	testibus "github.com/ubports/ubuntu-push/bus/testing"

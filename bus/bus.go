@@ -20,7 +20,7 @@ package bus
 // Here we define the Bus itself
 
 import (
-	"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus"
 	"github.com/ubports/ubuntu-push/logger"
 )
 

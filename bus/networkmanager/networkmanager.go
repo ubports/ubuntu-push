@@ -21,7 +21,7 @@
 package networkmanager
 
 import (
-	"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus"
 
 	"github.com/ubports/ubuntu-push/bus"
 	"github.com/ubports/ubuntu-push/logger"

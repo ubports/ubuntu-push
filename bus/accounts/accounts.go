@@ -24,7 +24,7 @@ import (
 	"strings"
 	"sync"
 
-	"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus"
 	"launchpad.net/go-xdg"
 
 	"github.com/ubports/ubuntu-push/bus"

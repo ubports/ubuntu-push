@@ -19,7 +19,7 @@ package urfkill
 import (
 	"testing"
 
-	"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus"
 	. "launchpad.net/gocheck"
 
 	testingbus "github.com/ubports/ubuntu-push/bus/testing"

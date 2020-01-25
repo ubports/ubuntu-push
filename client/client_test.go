@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"launchpad.net/go-dbus/v1"
+	"launchpad.net/go-dbus"
 	. "launchpad.net/gocheck"
 
 	"github.com/ubports/ubuntu-push/bus"
