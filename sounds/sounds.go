@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"launchpad.net/go-xdg/v0"
+	"launchpad.net/go-xdg"
 
 	"github.com/ubports/ubuntu-push/bus/accounts"
 	"github.com/ubports/ubuntu-push/click"

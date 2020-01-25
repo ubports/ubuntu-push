@@ -23,7 +23,7 @@ import (
 	"runtime"
 	"syscall"
 
-	"launchpad.net/go-xdg/v0"
+	"launchpad.net/go-xdg"
 
 	"github.com/ubports/ubuntu-push/client"
 )

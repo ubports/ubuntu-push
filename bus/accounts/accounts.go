@@ -25,7 +25,7 @@ import (
 	"sync"
 
 	"launchpad.net/go-dbus/v1"
-	"launchpad.net/go-xdg/v0"
+	"launchpad.net/go-xdg"
 
 	"github.com/ubports/ubuntu-push/bus"
 	"github.com/ubports/ubuntu-push/logger"
