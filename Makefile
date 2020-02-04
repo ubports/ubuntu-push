@@ -8,8 +8,8 @@ $(error unexpected curdir and/or layout)
 endif
 
 GODEPS = launchpad.net/gocheck
-GODEPS += launchpad.net/go-dbus/v1
-GODEPS += launchpad.net/go-xdg/v0
+GODEPS += launchpad.net/go-dbus
+GODEPS += launchpad.net/go-xdg
 GODEPS += github.com/mattn/go-sqlite3
 GODEPS += github.com/pborman/uuid
 
