@@ -1,25 +1,25 @@
 package statistics
 
 import (
+	"container/ring"
 	"sync"
 	"time"
-	"container/ring"
 
 	"github.com/ubports/ubuntu-push/logger"
 )
 
 type StatsValue struct {
-	val5min int32
+	val5min  int32
 	val60min *ring.Ring
-	val1day *ring.Ring
-	val7day *ring.Ring
+	val1day  *ring.Ring
+	val7day  *ring.Ring
 }
 
 func NewStatsValue() *StatsValue {
-	result := &StatsValue {
-		val60min: ring.New(12), //12 * 5 min interval = 1 hour
-		val1day: ring.New(288), //288 * 5 min interval = 1 day
-		val7day: ring.New(2016), //2016 * 5 min interval = 7 days
+	result := &StatsValue{
+		val60min: ring.New(12),   //12 * 5 min interval = 1 hour
+		val1day:  ring.New(288),  //288 * 5 min interval = 1 day
+		val7day:  ring.New(2016), //2016 * 5 min interval = 7 days
 	}
 	return result
 }
@@ -82,15 +82,14 @@ type Statistics struct {
 
 	//Channel-specific accumulation
 	channel_specific map[string]*StatsValue
-
 }
 
 func NewStatistics(logger logger.Logger) *Statistics {
 	result := &Statistics{
-		logger: logger,
-		updating: sync.Mutex{},
-		devices_online: NewStatsValue(),
-		unicasts_total: NewStatsValue(),
+		logger:           logger,
+		updating:         sync.Mutex{},
+		devices_online:   NewStatsValue(),
+		unicasts_total:   NewStatsValue(),
 		broadcasts_total: NewStatsValue(),
 	}
 	go result.PrintStats()
@@ -119,17 +118,17 @@ func (stats *Statistics) Reset5min() {
 func (stats *Statistics) DecreaseDevices(device_name string, channel_name string) {
 	stats.updating.Lock()
 	stats.devices_online.val5min--
-	if(stats.devices_specific == nil) {
+	if stats.devices_specific == nil {
 		stats.devices_specific = make(map[string]*StatsValue)
 	}
-	if(stats.devices_specific[device_name] == nil) {
+	if stats.devices_specific[device_name] == nil {
 		stats.devices_specific[device_name] = NewStatsValue()
 	}
 	stats.devices_specific[device_name].val5min--
-	if(stats.channel_specific == nil) {
+	if stats.channel_specific == nil {
 		stats.channel_specific = make(map[string]*StatsValue)
 	}
-	if(stats.channel_specific[channel_name] == nil) {
+	if stats.channel_specific[channel_name] == nil {
 		stats.channel_specific[channel_name] = NewStatsValue()
 	}
 	stats.channel_specific[channel_name].val5min--
@@ -140,20 +139,20 @@ func (stats *Statistics) DecreaseDevices(device_name string, channel_name string
 func (stats *Statistics) IncreaseDevices(device_name string, channel_name string) {
 	stats.updating.Lock()
 	stats.devices_online.val5min++
-    if(stats.devices_specific == nil) {
-	stats.devices_specific = make(map[string]*StatsValue)
-    }
-	if(stats.devices_specific[device_name] == nil) {
+	if stats.devices_specific == nil {
+		stats.devices_specific = make(map[string]*StatsValue)
+	}
+	if stats.devices_specific[device_name] == nil {
 		stats.devices_specific[device_name] = NewStatsValue()
 	}
 	stats.devices_specific[device_name].val5min++
-    if(stats.channel_specific == nil) {
-	stats.channel_specific = make(map[string]*StatsValue)
+	if stats.channel_specific == nil {
+		stats.channel_specific = make(map[string]*StatsValue)
 	}
-	if(stats.channel_specific[channel_name] == nil) {
+	if stats.channel_specific[channel_name] == nil {
 		stats.channel_specific[channel_name] = NewStatsValue()
 	}
-    stats.channel_specific[channel_name].val5min++
+	stats.channel_specific[channel_name].val5min++
 	stats.updating.Unlock()
 }
 
@@ -218,4 +217,57 @@ func (stats *Statistics) PrintStats() {
 		//Wait until timer has elapsed
 		<-t.C
 	}
+}
+
+type StatsData struct {
+	DevicesOnline   *StatsDataValue         `json:"devicesOnline"`
+	UnicastsTotal   *StatsDataValue         `json:"unicastsTotal"`
+	BroadcastsTotal *StatsDataValue         `json:"broadcastsTotal"`
+	Devices         *[]StatsDataDetailValue `json:"devices"`
+	Channels        *[]StatsDataDetailValue `json:"channels"`
+}
+type StatsDataValue struct {
+	Val5min  int32 `json:"5min"`
+	Val60min int32 `json:"60min"`
+	Val1day  int32 `json:"1day"`
+	Val7day  int32 `json:"7day"`
+}
+type StatsDataDetailValue struct {
+	Key    string          `json:"type"`
+	Values *StatsDataValue `json:"data"`
+}
+
+func (stats *Statistics) StatsValueToStatsDataValue(statsValue *StatsValue) *StatsDataValue {
+	sVal5min, sVal60min, sVal1day, sVal7day := statsValue.Report()
+	return &StatsDataValue{
+		Val5min:  sVal5min,
+		Val60min: sVal60min,
+		Val1day:  sVal1day,
+		Val7day:  sVal7day,
+	}
+}
+
+func (stats *Statistics) GetStats() *StatsData {
+	var channels []StatsDataDetailValue
+	var devices []StatsDataDetailValue
+	for key, value := range stats.devices_specific {
+		channels = append(channels, StatsDataDetailValue{
+			Key:    key,
+			Values: stats.StatsValueToStatsDataValue(value),
+		})
+	}
+	for key, value := range stats.channel_specific {
+		devices = append(devices, StatsDataDetailValue{
+			Key:    key,
+			Values: stats.StatsValueToStatsDataValue(value),
+		})
+	}
+	statsData := StatsData{
+		DevicesOnline:   stats.StatsValueToStatsDataValue(stats.devices_online),
+		UnicastsTotal:   stats.StatsValueToStatsDataValue(stats.unicasts_total),
+		BroadcastsTotal: stats.StatsValueToStatsDataValue(stats.broadcasts_total),
+		Devices:         &devices,
+		Channels:        &channels,
+	}
+	return &statsData
 }

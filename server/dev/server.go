@@ -31,8 +31,8 @@ import (
 	"github.com/ubports/ubuntu-push/server/broker/simple"
 	"github.com/ubports/ubuntu-push/server/listener"
 	"github.com/ubports/ubuntu-push/server/session"
-	"github.com/ubports/ubuntu-push/server/store"
 	"github.com/ubports/ubuntu-push/server/statistics"
+	"github.com/ubports/ubuntu-push/server/store"
 )
 
 type configuration struct {
@@ -97,6 +97,19 @@ func main() {
 			"hosts":  []string{lst.Addr().String()},
 			"domain": cfg.DeliveryDomain,
 		})
+	})
+	// /stats
+	mux.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
+		statsData := currentStats.GetStats()
+		var err error
+		statsJSON := &[]byte{}
+		*statsJSON, err = json.Marshal(statsData)
+		if err != nil {
+			server.BootLogFatalf("Error marshal stats json: %v", err)
+		}
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(*statsJSON)
 	})
 	handler := api.PanicTo500Handler(mux, logger)
 	go server.HTTPServeRunner(nil, handler, &cfg.HTTPServeParsedConfig, cfg.DevicesParsedConfig.TLSServerConfig())()
