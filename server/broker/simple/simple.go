@@ -197,6 +197,7 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, track broker.Sessi
 		return nil, err
 	}
 	b.logger.Infof("Registered the following device info: %v %v", sess.model, sess.imageChannel)
+	b.currentStats.IncreaseDevices(sess.model, sess.imageChannel)
 	return sess, nil
 }
 
@@ -204,6 +205,7 @@ func (b *SimpleBroker) Register(connect *protocol.ConnectMsg, track broker.Sessi
 func (b *SimpleBroker) Unregister(s broker.BrokerSession) {
 	sess := s.(*simpleBrokerSession)
 	b.sessionCh <- sess
+	b.currentStats.DecreaseDevices(sess.model, sess.imageChannel)
 }
 
 func (b *SimpleBroker) get(chanId store.InternalChannelId, cachedOk bool) (int64, []protocol.Notification, error) {
@@ -264,6 +266,7 @@ Loop:
 				for _, sess := range b.registry {
 					sess.exchanges <- broadcastExchg
 				}
+				b.currentStats.IncreaseBroadcasts()
 			case unicastDelivery:
 				chanId := delivery.chanId
 				_, devId := chanId.UnicastUserAndDevice()
@@ -271,6 +274,7 @@ Loop:
 				if sess != nil {
 					sess.exchanges <- &broker.UnicastExchange{ChanId: chanId, CachedOk: false}
 				}
+				b.currentStats.IncreaseUnicasts()
 			}
 		}
 	}
