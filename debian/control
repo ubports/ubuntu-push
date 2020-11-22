@@ -13,6 +13,7 @@ Build-Depends:
  golang-go,
  golang-go-dbus-dev,
  golang-go-xdg-dev,
+ golang-golang-x-net-dev,
  golang-gopkg-check.v1-dev | golang-gocheck-dev,
  libclick-0.4-dev,
  libdbus-1-dev,

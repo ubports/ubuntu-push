@@ -42,7 +42,7 @@ func HTTPServeRunner(httpLst net.Listener, h http.Handler, parsedCfg *HTTPServeP
 		if err != nil {
 			BootLogFatalf("start http listening: %v", err)
 		}
-		httpLst = netutil.LimitListener(httpLst, 200)
+		httpLst = netutil.LimitListener(httpLst, 2000)
 	}
 	BootLogListener("http", httpLst)
 	srv := &http.Server{
@@ -52,7 +52,7 @@ func HTTPServeRunner(httpLst net.Listener, h http.Handler, parsedCfg *HTTPServeP
 	}
 	if tlsCfg != nil {
 		httpLst = tls.NewListener(httpLst, tlsCfg)
-		httpLst = netutil.LimitListener(httpLst, 100)
+		httpLst = netutil.LimitListener(httpLst, 1000)
 	}
 	return func() {
 		err := srv.Serve(httpLst)
