@@ -35,7 +35,7 @@ var testBrokerConfig = &testing.TestBrokerConfig{10, 5}
 
 func (s *simpleSuite) TestNew(c *C) {
 	sto := store.NewInMemoryPendingStore()
-	b := NewSimpleBroker(sto, testBrokerConfig, nil)
+	b := NewSimpleBroker(sto, testBrokerConfig, nil, nil)
 	c.Check(cap(b.sessionCh), Equals, 5)
 	c.Check(len(b.registry), Equals, 0)
 	c.Check(b.sto, Equals, sto)
