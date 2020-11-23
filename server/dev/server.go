@@ -80,7 +80,7 @@ func main() {
 	defer broker.Stop()
 	// serve the http api
 	storage := &Storage{
-		sto: sto,
+		sto:                            sto,
 		maxNotificationsPerApplication: cfg.MaxNotificationsPerApplication,
 	}
 	lst, err := net.Listen("tcp", cfg.Addr())
@@ -109,6 +109,7 @@ func main() {
 		}
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Write(*statsJSON)
 	})
 	handler := api.PanicTo500Handler(mux, logger)
