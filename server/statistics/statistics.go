@@ -250,13 +250,13 @@ func (stats *Statistics) StatsValueToStatsDataValue(statsValue *StatsValue) *Sta
 func (stats *Statistics) GetStats() *StatsData {
 	var channels []StatsDataDetailValue
 	var devices []StatsDataDetailValue
-	for key, value := range stats.devices_specific {
+	for key, value := range stats.channel_specific {
 		channels = append(channels, StatsDataDetailValue{
 			Key:    key,
 			Values: stats.StatsValueToStatsDataValue(value),
 		})
 	}
-	for key, value := range stats.channel_specific {
+	for key, value := range stats.devices_specific {
 		devices = append(devices, StatsDataDetailValue{
 			Key:    key,
 			Values: stats.StatsValueToStatsDataValue(value),
