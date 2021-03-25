@@ -139,6 +139,7 @@ func main() {
 		}
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Write(*statsJSON)
 	})
 	handler := api.PanicTo500Handler(mux, logger)

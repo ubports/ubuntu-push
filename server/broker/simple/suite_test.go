@@ -41,7 +41,7 @@ func (t testTracker) SessionId() string {
 
 var _ = Suite(&commonBrokerSuite{testsuite.CommonBrokerSuite{
 	MakeBroker: func(sto store.PendingStore, cfg broker.BrokerConfig, log logger.Logger) testsuite.FullBroker {
-		return NewSimpleBroker(sto, cfg, log)
+		return NewSimpleBroker(sto, cfg, log, nil)
 	},
 	MakeTracker: func(sessionId string) broker.SessionTracker {
 		return testTracker(sessionId)
