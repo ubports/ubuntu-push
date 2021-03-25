@@ -18,11 +18,13 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ubports/ubuntu-push/config"
 	"github.com/ubports/ubuntu-push/logger"
@@ -40,6 +42,10 @@ type configuration struct {
 	server.DevicesParsedConfig
 	// api http server configuration
 	server.HTTPServeParsedConfig
+	// user credentials to be used for access to the stats endpoint
+	StatisticsAuthUser string `json:"statistics_auth_user"`
+	// password credentials to be used for access to the stats endpoint
+	StatisticsAuthPassword string `json:"statistics_auth_password"`
 	// delivery domain
 	DeliveryDomain string `json:"delivery_domain"`
 	// max notifications per application
@@ -100,8 +106,32 @@ func main() {
 	})
 	// /stats
 	mux.HandleFunc("/stats", func(w http.ResponseWriter, req *http.Request) {
-		statsData := currentStats.GetStats()
 		var err error
+		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+		s := strings.SplitN(req.Header.Get("Authorization"), " ", 2)
+		if len(s) != 2 {
+			http.Error(w, "Not authorized", 401)
+			return
+		}
+
+		b, err := base64.StdEncoding.DecodeString(s[1])
+		if err != nil {
+			http.Error(w, err.Error(), 401)
+			return
+		}
+
+		pair := strings.SplitN(string(b), ":", 2)
+		if len(pair) != 2 {
+			http.Error(w, "Not authorized", 401)
+			return
+		}
+
+		if pair[0] != cfg.StatisticsAuthUser || pair[1] != cfg.StatisticsAuthPassword {
+			http.Error(w, "Not authorized", 401)
+			return
+		}
+
+		statsData := currentStats.GetStats()
 		statsJSON := &[]byte{}
 		*statsJSON, err = json.Marshal(statsData)
 		if err != nil {
